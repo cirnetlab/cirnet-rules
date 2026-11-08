@@ -1,6 +1,6 @@
 <RCC>
   <qresource prefix="/cgacp">
-    <file>dark.qss</file>
+    <file>theme.qss</file>
     <file alias="favicon.png">../../assets/favicon.png</file>
   </qresource>
 </RCC>

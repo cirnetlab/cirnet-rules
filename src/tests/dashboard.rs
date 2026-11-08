@@ -105,6 +105,196 @@ fn git(path: &Path, args: &[&str]) {
 }
 
 #[test]
+fn preferences_upgrade_backs_up_and_preserves_operator_data() {
+    use sha2::{Digest, Sha256};
+
+    let fixture = Fixture::new();
+    let data = fixture.0.join("previous-schema");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new().mode(0o700).create(&data).unwrap();
+    }
+    #[cfg(not(unix))]
+    fs::create_dir(&data).unwrap();
+    let database = data.join("cgacp.sqlite3");
+    {
+        let conn = rusqlite::Connection::open(&database).unwrap();
+        conn.execute_batch(
+            "PRAGMA foreign_keys=ON;
+            CREATE TABLE schema_migrations (
+                revision INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+                checksum TEXT NOT NULL, applied_at INTEGER NOT NULL
+            ) STRICT;",
+        )
+        .unwrap();
+        let migrations = [
+            (
+                "001_catalog.sql",
+                include_str!("../../migrations/sqlite/001_catalog.sql"),
+            ),
+            (
+                "002_sessions.sql",
+                include_str!("../../migrations/sqlite/002_sessions.sql"),
+            ),
+            (
+                "003_legacy.sql",
+                include_str!("../../migrations/sqlite/003_legacy.sql"),
+            ),
+        ];
+        for (index, (name, sql)) in migrations.into_iter().enumerate() {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_migrations VALUES (?1, ?2, ?3, 1)",
+                rusqlite::params![
+                    (index + 1) as i64,
+                    name,
+                    format!("{:x}", Sha256::digest(sql))
+                ],
+            )
+            .unwrap();
+        }
+        conn.execute_batch(
+            "PRAGMA user_version=3;
+             INSERT INTO repositories VALUES ('repo-fixture','common','Fixture repo',1,0,1,1);
+             INSERT INTO bindings VALUES (
+                'binding-fixture','repo-fixture','machine','/fixture','/fixture','/fixture/.git',
+                '/fixture/.git','identity','anchor','main',NULL,0,'ACTIVE',1,1,NULL
+             );
+             INSERT INTO conversations VALUES (2,'create','digest','Existing chat','handoff',
+                'ACTIVE','DASHBOARD',NULL,1,1,1);
+             INSERT INTO conversation_bindings VALUES (2,'binding-fixture',1,1);
+             INSERT INTO messages VALUES (3,2,'message','digest',1,'USER','Existing prompt',1);
+             INSERT INTO task_proposals VALUES (4,2,3,'WAITING_APPROVAL','WORK','SCOPED','{}',1);
+             INSERT INTO automation_definitions VALUES (5,'automation','digest','Existing automation',
+                'binding-fixture',1,'handoff','Existing workflow','[]','scoped-code-review',1,
+                'WORK','SCOPED',1,0,'{\"kind\":\"MANUAL\"}',NULL,1,1);
+             INSERT INTO automation_runs VALUES (6,5,1,'binding-fixture',1,'MANUAL','run',NULL,
+                'WAITING_APPROVAL','{}',NULL,NULL,0,2,4,NULL,1,1);",
+        )
+        .unwrap();
+    }
+
+    let blocked_backup = data.join("backups");
+    fs::write(&blocked_backup, "not a backup directory").unwrap();
+    let refused = Command::new(env!("CARGO_BIN_EXE_cgacp-runtime"))
+        .arg("--stdio")
+        .arg("--data-dir")
+        .arg(&data)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("STORAGE_UNAVAILABLE"));
+    {
+        let conn = rusqlite::Connection::open(&database).unwrap();
+        let revision: i64 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(revision, 3);
+    }
+    fs::remove_file(&blocked_backup).unwrap();
+
+    let mut client = Runtime::open(&data);
+    let initial = client.call("preferences.get", json!({}));
+    assert_eq!(initial["revision"], 0);
+    assert_eq!(initial["settings"]["theme"], "dark");
+    assert_eq!(
+        client.call("storage.verify", json!({}))["schema_revision"],
+        4
+    );
+    let mut backups = fs::read_dir(data.join("backups")).unwrap();
+    let previous = backups
+        .next()
+        .unwrap()
+        .unwrap()
+        .file_name()
+        .into_string()
+        .unwrap();
+    assert!(backups.next().is_none());
+    assert_eq!(
+        client.call("storage.verify", json!({"backup":previous}))["schema_revision"],
+        3
+    );
+
+    let mut settings = initial["settings"].clone();
+    settings["theme"] = json!("light");
+    settings["repository_layout"] = json!({
+        "widths":[160,380,136,100,112],"order":[1,0,2,3,4],"sort_column":1,
+        "sort_descending":true,"show_archived":true,"status":"archived",
+        "selected_id":"binding-1234567890abcdef1234567890abcdef","scroll":42,"horizontal_scroll":100
+    });
+    let saved = client.call(
+        "preferences.set",
+        json!({"expected_revision":0,"settings":settings}),
+    );
+    assert_eq!(saved, json!({"revision":1,"settings":settings}));
+    let mut invalid = settings.clone();
+    invalid["repository_layout"]["path"] = json!("C:/private");
+    assert_eq!(
+        client.request(
+            1,
+            "preferences.set",
+            json!({"expected_revision":1,"settings":invalid}),
+        )["error"]["code"],
+        "INVALID_INPUT"
+    );
+    assert_eq!(
+        client.request(
+            1,
+            "preferences.set",
+            json!({"expected_revision":0,"settings":settings}),
+        )["error"]["code"],
+        "CONFLICT"
+    );
+    settings["sidebar_collapsed"] = json!(true);
+    let updated = client.call(
+        "preferences.set",
+        json!({"expected_revision":1,"settings":settings}),
+    );
+    assert_eq!(updated, json!({"revision":2,"settings":settings}));
+    client.close();
+    let mut reopened = Runtime::open(&data);
+    assert_eq!(reopened.call("preferences.get", json!({})), updated);
+    reopened.close();
+
+    let records = "SELECT bindings.id, conversations.id, messages.content, task_proposals.id,
+                          automation_runs.id, automation_definitions.template_id
+                   FROM automation_runs
+                   JOIN automation_definitions ON automation_definitions.id=automation_runs.automation_id
+                   JOIN bindings ON bindings.id=automation_runs.binding_id
+                   JOIN task_proposals ON task_proposals.id=automation_runs.task_id
+                   JOIN messages ON messages.id=task_proposals.message_id
+                   JOIN conversations ON conversations.id=messages.conversation_id";
+    for path in [database, data.join("backups").join(previous)] {
+        let conn = rusqlite::Connection::open(path).unwrap();
+        let values: (String, i64, String, i64, i64, String) = conn
+            .query_row(records, [], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            })
+            .unwrap();
+        assert_eq!(
+            values,
+            (
+                "binding-fixture".into(),
+                2,
+                "Existing prompt".into(),
+                4,
+                6,
+                "scoped-code-review".into()
+            )
+        );
+    }
+}
+
+#[test]
 fn closing_request_pipe_drains_accepted_replies() {
     let fixture = Fixture::new();
     let data = fixture.0.join("eof");

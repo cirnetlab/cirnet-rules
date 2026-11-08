@@ -6,7 +6,7 @@ mod dashboard;
 
 use application_identity::{GENERATION, VERSION, release_name};
 use dashboard::{
-    automations, catalog, sessions,
+    automations, catalog, preferences, sessions,
     storage::{self, AppError, Database},
 };
 use serde::Deserialize;
@@ -56,6 +56,7 @@ fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value, App
         Some("runtime") if method == "runtime.info" => Ok(info()),
         Some("repo") => catalog::dispatch(db, method, params),
         Some("storage") => storage::dispatch(db, method, params),
+        Some("preferences") => preferences::dispatch(db, method, params),
         Some("legacy") => dashboard::legacy::dispatch(db, method, params),
         Some("conversation" | "events") => sessions::dispatch(db, method, params),
         Some("automation") => automations::dispatch(db, method, params),

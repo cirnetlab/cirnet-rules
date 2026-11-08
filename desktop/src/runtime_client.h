@@ -12,6 +12,7 @@ public:
     using Reply = std::function<void(const QJsonObject &, const QString &)>;
 
     RuntimeClient(QString executable, QStringList arguments, QObject *parent = nullptr);
+    ~RuntimeClient() override;
     static QString siblingExecutable();
     static QString validateExecutable(const QString &path, bool requirePin = false);
     bool isRunning() const;

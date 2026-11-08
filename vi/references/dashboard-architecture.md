@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 1 -->
-<!-- source-sha256: 08acfe1a5b1bfaebc27cb87e2ac57438641bb2804f26bb5e31a62a4333efea66 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 6ac2a1435102ad3c3354ee32c4ddcd6047917605516f825e93a4f72665229a0b -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 
@@ -28,7 +28,14 @@ release định nghĩa riêng đầu vào producer, owner của gate và miền 
 thích trong dữ liệu governance.
 
 SQLite dùng migration giao dịch, khóa ngoại, WAL và thời gian chờ hữu hạn.
-Dịch vụ SQLite nằm trong backend Rust. Chuyển sang PostgreSQL cần hợp đồng
+Schema 4 thêm tùy chọn trình bày và tạo snapshot đã kiểm tra toàn vẹn của
+kho schema 3 hiện có trong thư mục riêng `backups/` trước khi nâng cấp.
+Nâng cấp dừng nếu chưa tạo được snapshot. Client Qt gọi bất đồng bộ
+`preferences.get` và `preferences.set` và gộp các thay đổi bố cục liên tiếp
+trước khi ghi. Revision dự kiến ngăn cửa sổ thứ hai âm thầm ghi đè lần cập
+nhật mới hơn. Tùy chọn chỉ chứa dữ liệu bố cục và giao diện, tách khỏi quyền
+task và đường dẫn repository. Dịch vụ SQLite nằm trong backend Rust.
+Chuyển sang PostgreSQL cần hợp đồng
 repository cho truy vấn có phạm vi, cập nhật lạc quan, occurrence duy nhất,
 fencing claim, outbox và rollback. Adapter và bộ test hợp đồng còn pending.
 Xuất offline rồi nhập có kiểm chứng vào database riêng, đối chiếu ID và
@@ -39,6 +46,12 @@ CLI hiện có vẫn quản lý file task và evidence lịch sử. Intake Dashb
 không nâng mức tin cậy của các record đó hoặc cấp quyền ghi. Dashboard ban
 đầu chưa tự động ghi source hoặc dùng provider native. Runtime state là
 nguồn của dữ liệu Dashboard. Git vẫn là nguồn của plan và spec.
+
+Sidebar quản lý lịch sử hội thoại dùng chung. Các bộ chọn repository dùng
+cùng catalog phân trang với Cài đặt. Đường dẫn hiển thị tách khỏi đường dẫn
+canonical đã lưu và định danh binding. Thẻ tự động hóa hiển thị định nghĩa
+đã lưu và trạng thái chạy. Runtime giữ thông tin nguồn gốc mẫu hiện có.
+Thông báo giữ lịch sử có giới hạn trong phiên.
 
 Ảnh tham khảo định hướng bố cục desktop. Triển khai dùng Widgets native
 và nhãn của dự án. [Tham chiếu OpenHands](https://github.com/OpenHands/OpenHands) ·

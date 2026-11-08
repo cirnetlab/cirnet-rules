@@ -32,6 +32,15 @@ RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject 
     });
 }
 
+RuntimeClient::~RuntimeClient()
+{
+    process_.disconnect(this);
+    if (isRunning()) {
+        process_.kill();
+        process_.waitForFinished(1000);
+    }
+}
+
 QString RuntimeClient::siblingExecutable()
 {
 #ifdef Q_OS_WIN

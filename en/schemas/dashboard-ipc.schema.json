@@ -1,6 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CGACP local stdio protocol",
+  "$defs": {
+    "repositoryLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["widths", "order", "sort_column", "sort_descending", "show_archived", "status"],
+      "properties": {
+        "widths": {
+          "type": "array", "minItems": 5, "maxItems": 5,
+          "items": {"type": "integer", "minimum": 48, "maximum": 4096}
+        },
+        "order": {
+          "type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 0, "maximum": 4}
+        },
+        "sort_column": {"type": "integer", "minimum": -1, "maximum": 4},
+        "sort_descending": {"type": "boolean"},
+        "show_archived": {"type": "boolean"},
+        "status": {"enum": ["all", "active", "missing", "inaccessible", "rebind", "archived"]},
+        "selected_id": {"type": ["string", "null"], "pattern": "^(binding-[0-9a-f]{32})?$"},
+        "scroll": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "horizontal_scroll": {"type": "integer", "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "desktopSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["theme", "density", "text_scale", "sidebar_width", "sidebar_collapsed", "notification_level"],
+      "properties": {
+        "theme": {"enum": ["dark", "light", "system"]},
+        "density": {"enum": ["comfortable", "compact"]},
+        "text_scale": {"type": "integer", "minimum": 85, "maximum": 150},
+        "sidebar_width": {"type": "integer", "minimum": 210, "maximum": 360},
+        "sidebar_collapsed": {"type": "boolean"},
+        "repository_layout": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/repositoryLayout"}]},
+        "notification_level": {"enum": ["all", "important"]}
+      }
+    },
+    "preferencesResult": {
+      "description": "Both preference methods return the normalized settings and current revision. Revision 0 is the initial default state.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "settings"],
+      "properties": {
+        "revision": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+        "settings": {"$ref": "#/$defs/desktopSettings"}
+      }
+    }
+  },
   "oneOf": [
     {
       "type": "object",
@@ -9,6 +57,29 @@
         "v",
         "id",
         "method"
+      ],
+      "allOf": [
+        {
+          "if": {"properties": {"method": {"const": "preferences.get"}}},
+          "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "preferences.set"}}},
+          "then": {
+            "required": ["params"],
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["expected_revision", "settings"],
+                "properties": {
+                  "expected_revision": {"type": "integer", "minimum": 0, "maximum": 2147483646},
+                  "settings": {"$ref": "#/$defs/desktopSettings"}
+                }
+              }
+            }
+          }
+        }
       ],
       "properties": {
         "v": {

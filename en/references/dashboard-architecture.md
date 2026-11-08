@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="authority"></a>
 
 # Dashboard architecture and authority
@@ -27,7 +27,14 @@ repositories. The release profile separately defines producer inputs, gate
 owners and compatibility domains in governance data.
 
 SQLite uses transactional migrations, foreign keys, WAL and a bounded busy
-timeout. SQLite services are internal to the Rust backend. PostgreSQL
+timeout. Schema 4 adds presentation preferences and first writes an
+integrity-checked snapshot of an existing schema 3 store into its private
+`backups/` directory. An upgrade stops if the snapshot cannot be prepared.
+The Qt client uses asynchronous `preferences.get` and `preferences.set`
+requests and debounces layout writes. An expected revision prevents a
+second window from silently overwriting a newer update. Preferences contain
+layout and appearance data, with no task permissions or repository paths.
+SQLite services are internal to the Rust backend. PostgreSQL
 migration requires a repository contract covering scoped queries,
 optimistic updates, unique occurrences, claim fencing, outbox and rollback.
 The adapter and its contract suite remain pending. Use an offline export and
@@ -40,6 +47,12 @@ Dashboard intake does not elevate those records or confer write grants.
 The initial Dashboard does not execute unattended source writes or use a
 native provider. Runtime state is authoritative for Dashboard data.
 Plan and spec authority remains in Git.
+
+The sidebar owns the shared conversation history. Repository pickers use the
+same paginated catalog as Settings. The display path is independent from the
+saved canonical path and its binding identity. Automation cards render
+persisted definitions and run states. Existing template provenance remains
+available to the runtime. Notifications retain a bounded session history.
 
 The screenshot informs the desktop layout. The implementation uses native
 Widgets and project labels. [OpenHands reference](https://github.com/OpenHands/OpenHands) ·

@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -29,16 +29,26 @@ absolute test directory for disposable verification.
 
 ## Operator workflow
 
-Open Repositories, choose a folder or a file, then review the resolved Git
-root, branch, worktree and file hint. Confirm the registration to persist it.
-Select a registered binding for New Chat or Add Automation. Use Relink when
-a saved checkout has moved and Archive to stop new work while preserving
-historical references and files on disk. Relinking invalidates older binding
-revisions. It does not automatically resume the affected work.
+Drag the sidebar divider to resize it. Use its chevron or Ctrl+B to collapse
+or expand it. Open Settings from the footer or with Ctrl+, to change the theme,
+density or text size. Reset layout restores sidebar and repository table
+presentation. Use the Notifications section to review or clear read messages
+from this session. Warnings and errors always remain eligible for a toast.
 
-New Chat saves the message and a scoped intake proposal. The handoff profile
-shows waiting approval and does not run an Agent. View the conversation after
-reopening the app. Automations provide manual runs and a daily IANA timezone
+In Settings → Repositories, add a folder or file and review the resolved Git
+root, branch, worktree and file hint before saving. Use Select for task or
+choose a binding in New Chat or Add Automation. Actions can check health,
+copy the full path, open the verified local folder, rename, relink or archive.
+The table can shorten long paths for display. Copy uses the stored path.
+Use Relink when a saved checkout has moved. It invalidates older binding
+revisions and affected work needs review. Archive preserves historical
+references and source files.
+
+New Chat opens a conversation. Ctrl+Enter sends the message and creates a
+scoped intake proposal. Switch conversations in the sidebar or use Back from
+Settings to continue your draft. Unsent drafts live in the open application.
+The handoff profile shows waiting approval. View committed messages after
+reopening. Automations provide manual runs and a daily IANA timezone
 schedule. Use the preview before enabling and confirm an inactive one-shot.
 The Rust runtime owns the schedule. To keep scheduling while the Dashboard is
 closed, run `cgacp-runtime --scheduler` in a separate foreground terminal
@@ -49,7 +59,10 @@ new proposal silently.
 ## Storage and operations
 
 Rust owns the SQLite database in the local application data directory or the
-explicit operator directory. Use `storage.backup` through the local runtime
+explicit operator directory. Opening a schema 3 store with the new runtime
+creates an integrity-checked pre-upgrade snapshot before migrating to schema 4.
+An earlier runtime requires a reviewed snapshot in a separate directory.
+Use `storage.backup` through the local runtime
 for an online snapshot and `storage.verify` to check it. To rehearse restore,
 close the runtime, restore a reviewed backup into a fresh private data
 directory and verify it there before switching the operator path. Preserve the

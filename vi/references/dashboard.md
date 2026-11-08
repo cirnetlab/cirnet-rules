@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 2 -->
-<!-- source-sha256: 8d7453f450d17be0075856a96d2d22102faed5b2fec599d7e94026490473d853 -->
+<!-- revision: 3 -->
+<!-- source-sha256: dfbd488f432c607e94bc89dbfab69665f2d694241a86a65d839b90e34c44a09f -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -30,15 +30,26 @@ Dùng `--data-dir` với thư mục tuyệt đối riêng để kiểm thử dù
 
 ## Quy trình vận hành
 
-Mở Repositories, chọn thư mục hoặc file, rồi rà Git root, branch, worktree
-và đường dẫn file gợi ý. Xác nhận để lưu đăng ký. Chọn binding đã đăng ký
-khi tạo New Chat hoặc Add Automation. Dùng Relink khi checkout đã lưu đổi
-vị trí và Archive để dừng việc mới mà vẫn giữ lịch sử và file trên đĩa.
-Relink làm revision binding cũ mất hiệu lực. Công việc liên quan cần được
-xem xét trước khi tiếp tục.
+Kéo đường phân cách để đổi độ rộng sidebar. Dùng nút mũi tên hoặc Ctrl+B
+để thu gọn hay mở rộng. Mở Cài đặt từ footer hoặc bằng Ctrl+, để đổi chủ
+đề, mật độ và cỡ chữ. Đặt lại bố cục khôi phục cách trình bày sidebar và
+bảng repository. Mở Thông báo để xem hoặc xóa mục đã đọc trong phiên.
+Cảnh báo và lỗi luôn đủ điều kiện hiển thị toast.
 
-New Chat lưu tin nhắn và đề xuất task theo phạm vi. Profile handoff hiển thị
-trạng thái chờ duyệt. Xem lại hội thoại sau khi mở ứng dụng. Automation hỗ
+Trong Cài đặt → Kho mã, thêm thư mục hoặc tệp, rồi rà Git root, branch,
+worktree và tệp gợi ý trước khi lưu. Chọn cho nhiệm vụ hoặc chọn binding
+khi tạo hội thoại hay tự động hóa. Menu thao tác hỗ trợ kiểm tra tình trạng,
+sao chép đường dẫn đầy đủ, mở thư mục local đã kiểm tra, đổi tên, liên kết
+lại hoặc lưu trữ. Bảng có thể rút gọn đường dẫn dài khi hiển thị. Thao tác
+sao chép dùng đường dẫn đã lưu. Liên kết lại khi checkout đổi vị trí làm
+revision binding cũ mất hiệu lực và công việc liên quan cần được rà soát.
+Lưu trữ giữ các tham chiếu lịch sử và tệp nguồn.
+
+Hội thoại mới mở một cuộc trò chuyện. Ctrl+Enter gửi tin nhắn và tạo đề xuất
+task theo phạm vi. Đổi hội thoại qua sidebar hoặc dùng Quay lại từ Cài đặt
+để tiếp tục bản nháp. Bản nháp chưa gửi nằm trong ứng dụng đang mở. Profile
+handoff hiển thị trạng thái chờ duyệt. Có thể xem tin nhắn đã lưu sau khi
+mở lại ứng dụng. Automation hỗ
 trợ chạy thủ công và lịch hằng ngày theo múi giờ IANA. Xem trước lịch trước
 khi bật và xác nhận lượt chạy một lần khi automation đang tắt. Runtime Rust
 quản lý lịch. Để giữ lịch khi đóng Dashboard, chạy
@@ -49,7 +60,9 @@ Definition bị tạm dừng hoặc stale phải được kiểm tra trước kh
 ## Lưu trữ và vận hành
 
 Rust sở hữu SQLite trong thư mục dữ liệu ứng dụng local hoặc thư mục do
-người vận hành chỉ định. Dùng `storage.backup` qua runtime để tạo snapshot
+người vận hành chỉ định. Runtime mới tạo snapshot có kiểm tra toàn vẹn
+trước khi nâng cấp kho schema 3 lên schema 4. Runtime cũ cần dùng bản sao
+đã rà trong thư mục riêng. Dùng `storage.backup` qua runtime để tạo snapshot
 online và `storage.verify` để kiểm tra. Khi diễn tập khôi phục, đóng
 runtime, phục hồi bản sao đã rà vào thư mục riêng mới và kiểm tra tại đó
 trước khi đổi đường dẫn. Giữ thư mục gốc và các file WAL. Bản sao lưu là

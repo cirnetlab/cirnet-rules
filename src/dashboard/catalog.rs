@@ -592,7 +592,7 @@ fn new_id(conn: &Connection, prefix: &str) -> Result<String, AppError> {
     Ok(format!("{prefix}-{nonce}"))
 }
 
-fn validate_id(id: &str, kind: &str) -> Result<(), AppError> {
+pub(super) fn validate_id(id: &str, kind: &str) -> Result<(), AppError> {
     if !id
         .strip_prefix(kind)
         .and_then(|rest| rest.strip_prefix('-'))

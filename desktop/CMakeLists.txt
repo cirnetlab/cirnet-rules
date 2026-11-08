@@ -8,7 +8,11 @@ configure_file(src/build_info.h.in "${CMAKE_CURRENT_BINARY_DIR}/build_info.h" @O
 add_library(cgacp-widgets STATIC
     src/runtime_client.cpp src/runtime_client.h
     src/main_window.cpp src/main_window.h
+    src/settings.cpp
+    src/theme.cpp src/theme.h
+    src/notification_center.cpp src/notification_center.h
     src/repositories.cpp src/conversations.cpp src/automations.cpp
+    src/repository_picker.h src/compact_text_edit.h
     resources/cgacp_ui.qrc
 )
 set_target_properties(cgacp-widgets PROPERTIES AUTORCC ON)
@@ -55,7 +59,7 @@ endif()
 
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
-    add_executable(cgacp-qt-tests tests/desktop_test.cpp)
+    add_executable(cgacp-qt-tests tests/desktop_test.cpp tests/repository_cases.h)
     target_link_libraries(cgacp-qt-tests PRIVATE cgacp-widgets Qt6::Test)
     add_dependencies(cgacp-qt-tests cgacp-dashboard)
     add_test(NAME cgacp.desktop COMMAND cgacp-qt-tests)

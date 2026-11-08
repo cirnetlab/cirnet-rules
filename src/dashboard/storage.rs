@@ -28,6 +28,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "003_legacy.sql",
         include_str!("../../migrations/sqlite/003_legacy.sql"),
     ),
+    (
+        "004_desktop_preferences.sql",
+        include_str!("../../migrations/sqlite/004_desktop_preferences.sql"),
+    ),
 ];
 
 #[derive(Debug)]
@@ -141,7 +145,7 @@ impl Database {
             ));
         }
         conn.pragma_update(None, "synchronous", "FULL")?;
-        migrate(&mut conn)?;
+        migrate(&mut conn, &data_dir, &path)?;
         let machine_id = conn.query_row(
             "SELECT value FROM catalog_settings WHERE key = 'machine_id'",
             [],
@@ -157,10 +161,13 @@ impl Database {
     }
 
     pub(super) fn backup(&self) -> Result<Value, AppError> {
-        let dir = ensure_directory(&self.data_dir.join("backups"))?;
+        Self::backup_from(&self.conn, &self.data_dir)
+    }
+
+    fn backup_from(conn: &Connection, data_dir: &Path) -> Result<Value, AppError> {
+        let dir = ensure_directory(&data_dir.join("backups"))?;
         let nonce: String =
-            self.conn
-                .query_row("SELECT lower(hex(randomblob(16)))", [], |row| row.get(0))?;
+            conn.query_row("SELECT lower(hex(randomblob(16)))", [], |row| row.get(0))?;
         let name = format!("snapshot-{nonce}.sqlite3");
         let path = dir.join(&name);
         fs::OpenOptions::new()
@@ -177,7 +184,7 @@ impl Database {
             )?;
             dest.busy_timeout(Duration::from_millis(250))?;
             {
-                let backup = Backup::new(&self.conn, &mut dest)?;
+                let backup = Backup::new(conn, &mut dest)?;
                 let until = Instant::now() + Duration::from_secs(10);
                 loop {
                     if Instant::now() >= until {
@@ -309,7 +316,7 @@ fn ensure_supported(conn: &Connection) -> Result<i64, AppError> {
     Ok(current)
 }
 
-fn migrate(conn: &mut Connection) -> Result<(), AppError> {
+fn migrate(conn: &mut Connection, data_dir: &Path, path: &Path) -> Result<(), AppError> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let current = ensure_supported(&tx)?;
     if current == 0 {
@@ -354,6 +361,15 @@ fn migrate(conn: &mut Connection) -> Result<(), AppError> {
                 ));
             }
         } else {
+            if current > 0 && revision == current + 1 {
+                // The write transaction prevents another runtime changing the old schema
+                // between this snapshot and the upgrade. WAL allows a separate read connection.
+                let source = Connection::open_with_flags(
+                    path,
+                    OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+                )?;
+                Database::backup_from(&source, data_dir)?;
+            }
             tx.execute_batch(sql)?;
             tx.execute(
                 "INSERT INTO schema_migrations(revision, name, checksum, applied_at) VALUES (?1, ?2, ?3, ?4)",
