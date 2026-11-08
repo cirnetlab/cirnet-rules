@@ -12,7 +12,7 @@ add_library(cgacp-widgets STATIC
     src/theme.cpp src/theme.h
     src/notification_center.cpp src/notification_center.h
     src/repositories.cpp src/conversations.cpp src/automations.cpp
-    src/repository_picker.h src/compact_text_edit.h
+    src/repository_picker.h src/compact_text_edit.h src/full_row_table.h
     resources/cgacp_ui.qrc
 )
 set_target_properties(cgacp-widgets PROPERTIES AUTORCC ON)

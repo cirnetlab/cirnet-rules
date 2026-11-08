@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 6 -->
+<!-- revision: 7 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -35,7 +35,8 @@ connection status. Open Settings from the footer or with Ctrl+, and select a
 category on the left. Appearance provides theme previews, density, text
 size and Reduced motion. Back to workspace or Escape returns to the previous
 page. Reset layout restores sidebar and repository table presentation. Toasts
-stack up from the lower right and leave the composer clear. The glyph and
+appear in the upper right in Conversation and the lower right elsewhere.
+Visible toasts follow the current page, leaving the composer clear. The glyph and
 color identify the notification severity. An automation run queued by the
 runtime displays an informational toast. Use Notifications to review or clear
 read messages from this session. Warnings and errors remain eligible for a toast.
@@ -44,8 +45,9 @@ In Settings → Repositories, add a folder or file and review the resolved Git
 root, branch, worktree and file hint before saving. Use Select for task or
 choose a binding in New Chat or Add Automation. Actions can check health,
 copy the full path, open the verified local folder, rename, relink or archive.
-Click a repository row to select it across the full table width. The table can
-shorten long paths for display. Copy uses the stored path.
+Repositories and Automation Run history show full-width row highlighting.
+In Repositories, click a row to select it, including the space after the
+last column. The table can shorten long paths for display. Copy uses the stored path.
 Use Relink when a saved checkout has moved. It invalidates older binding
 revisions and affected work needs review. Archive preserves historical
 references and source files.

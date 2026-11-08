@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-INTERACTION-STATE -->
-<!-- revision: 1 -->
-<!-- source-sha256: ef5ee4ecac993437f8f3c085a418411fc262ced2c49a90a92a1f37fac9caa865 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 7a2f276e44b20aed3551553f065d0f426fbbecc87dd3cb0a9ab4bf5dd95e1ae4 -->
 <!-- translation-status: synchronized -->
 <a id="interaction-state"></a>
 
@@ -19,10 +19,13 @@
 Dùng giao diện dùng chung và hình học control Qt gốc cho mũi tên, dấu hiệu
 menu và nút tăng giảm số hoặc giờ. Giữ tên truy cập, thao tác bàn phím và
 trạng thái vô hiệu hóa thực khi chỉnh control.
+Nền hàng, trạng thái rê chuột và lựa chọn phủ hết chiều rộng vùng bảng.
+Giữ độ rộng cột đã lưu và để nguyên nền phần trống bên dưới các hàng.
 
 Danh mục Cài đặt mở đúng chức năng và chỉ tìm tên tùy chọn local. Giảm
-chuyển động thuộc nhóm tùy chọn trình bày có revision. Toast nằm trong
-vùng ứng dụng và xếp lên từ góc dưới phải. Giữ quyết định qua hộp thoại
-riêng với thông báo và dành chỗ cho ô soạn tin.
+chuyển động thuộc nhóm tùy chọn trình bày có revision. Toast xếp xuống từ
+góc trên phải trong Hội thoại và xếp lên từ góc dưới phải ở các trang khác.
+Giữ quyết định qua hộp thoại riêng với thông báo và dành chỗ cho ô soạn
+tin cùng nút Thao tác của Hội thoại.
 
 [Hướng dẫn vận hành](dashboard.md) · [Kiến trúc runtime](dashboard-architecture.md)

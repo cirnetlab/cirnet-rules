@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-INTERACTION-STATE -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="interaction-state"></a>
 
 # Desktop interaction states
@@ -17,11 +17,14 @@
 Use the shared theme and native Qt control geometry for arrows, menu
 indicators, and numeric or time stepping. Maintain the accessible name,
 keyboard actions and real disabled states when refining a control.
+Extend table row backgrounds, hover, and selection through the viewport
+width without stretching saved columns or coloring empty space below rows.
 
 The Settings category list routes to application functions and searches local
 setting names. It does not query repository content. Reduced motion belongs to
-the revisioned presentation preferences. Toasts stay inside the client area
-and stack upward from the lower right. Keep modal decisions separate from
-notifications and reserve space for the chat composer.
+the revisioned presentation preferences. Toasts stack down from the upper
+right in Conversation and up from the lower right on other pages. Keep
+modal decisions separate from notifications and reserve space for the chat
+composer and the Conversation Actions button.
 
 [Operator guide](dashboard.md) · [Runtime architecture](dashboard-architecture.md)

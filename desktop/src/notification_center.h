@@ -18,6 +18,7 @@ public:
     void setLevel(const QString &level);
     void setReducedMotion(bool reduced);
     void setAvoidanceWidget(QWidget *widget);
+    void setTopRightAnchor(QWidget *header);
     void attachHistory(QListWidget &history);
     void markHistoryRead();
     void clearRead();
@@ -49,6 +50,7 @@ private:
     QWidget &host_;
     QPointer<QListWidget> history_;
     QPointer<QWidget> avoidance_;
+    QPointer<QWidget> topRightAnchor_;
     QTimer *expiry_ = nullptr;
     QList<Notice> records_;
     QList<Notice> queued_;

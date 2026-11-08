@@ -153,6 +153,18 @@ void NotificationCenter::setAvoidanceWidget(QWidget *widget)
     reposition();
 }
 
+void NotificationCenter::setTopRightAnchor(QWidget *header)
+{
+    if (topRightAnchor_ == header)
+        return;
+    if (topRightAnchor_)
+        topRightAnchor_->removeEventFilter(this);
+    topRightAnchor_ = header;
+    if (topRightAnchor_)
+        topRightAnchor_->installEventFilter(this);
+    reposition();
+}
+
 void NotificationCenter::post(const QString &text, const QString &severity)
 {
     const auto plain = plainMessage(text);
@@ -258,12 +270,20 @@ void NotificationCenter::reposition()
 {
     const int width = qMax(0, qMin(host_.width() - 2 * inset, 360));
     const int x = host_.width() - inset - width;
+    const auto overlappingBounds = [&](const QWidget *widget) {
+        if (!widget || !host_.isAncestorOf(widget) || !widget->isVisibleTo(&host_))
+            return QRect{};
+        const QRect bounds(widget->mapTo(&host_, QPoint{}), widget->size());
+        return bounds.right() >= x && bounds.left() < x + width ? bounds : QRect{};
+    };
+    int top = inset;
     int bottom = host_.height() - inset;
-    if (avoidance_ && host_.isAncestorOf(avoidance_) && avoidance_->isVisibleTo(&host_)) {
-        const QRect obstacle(avoidance_->mapTo(&host_, QPoint{}), avoidance_->size());
-        if (obstacle.right() >= x && obstacle.left() < x + width)
-            bottom = qMin(bottom, obstacle.top() - spacing);
-    }
+    if (const auto composer = overlappingBounds(avoidance_); !composer.isEmpty())
+        bottom = qMin(bottom, composer.top() - spacing);
+    if (const auto header = overlappingBounds(topRightAnchor_); !header.isEmpty())
+        top = qMax(top, header.bottom() + 1 + spacing);
+    const bool fromTop = !topRightAnchor_.isNull();
+    int edge = fromTop ? top : bottom;
     bool hasExpiry = false;
     for (auto it = visible_.crbegin(); it != visible_.crend(); ++it) {
         const auto &toast = *it;
@@ -288,14 +308,15 @@ void NotificationCenter::reposition()
         const int textHeight = body->fontMetrics().height() + int(summary.count(u'\n')) * body->fontMetrics().lineSpacing();
         const int rowHeight = qMax(qMax(icon.height(), button.height()), textHeight);
         const int height = margins.top() + rowHeight + margins.bottom() + frame.top() + frame.bottom();
-        if (bottom - height < inset) {
+        const int y = fromTop ? edge : edge - height;
+        if (y < top || y + height > bottom) {
             toast.widget->hide();
             continue;
         }
-        toast.widget->setGeometry(x, bottom - height, width, height);
+        toast.widget->setGeometry(x, y, width, height);
         toast.widget->show();
         toast.widget->raise();
-        bottom -= height + spacing;
+        edge += fromTop ? height + spacing : -(height + spacing);
         hasExpiry |= toast.remaining > 0 && toast.widget->isVisible();
     }
     if (hasExpiry && !expiry_->isActive())
@@ -355,7 +376,7 @@ void NotificationCenter::refreshIcons()
 bool NotificationCenter::eventFilter(QObject *object, QEvent *event)
 {
     const auto type = event->type();
-    if ((object == &host_ || object == avoidance_.data()) && !repositionPending_ &&
+    if ((object == &host_ || object == avoidance_.data() || object == topRightAnchor_.data()) && !repositionPending_ &&
         (type == QEvent::Resize || type == QEvent::Move || type == QEvent::Show ||
          type == QEvent::Hide || type == QEvent::LayoutRequest)) {
         repositionPending_ = true;

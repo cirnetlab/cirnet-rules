@@ -552,6 +552,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     const auto rail = tone("#1c1c1c", "#eeeeec");
     const auto surface = tone("#232323", "#ffffff");
     const auto base = tone("#202020", "#ffffff");
+    const auto alternateRow = tone("#232323", "#f5f5f3");
     const auto border = tone("#3b3b3b", "#cbcaca");
     const auto control = tone("#747474", "#777774");
     const auto text = tone("#ececec", "#202020");
@@ -567,7 +568,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     palette.setColor(QPalette::Window, QColor(canvas));
     palette.setColor(QPalette::WindowText, QColor(text));
     palette.setColor(QPalette::Base, QColor(base));
-    palette.setColor(QPalette::AlternateBase, QColor(surface));
+    palette.setColor(QPalette::AlternateBase, QColor(alternateRow));
     palette.setColor(QPalette::Text, QColor(text));
     palette.setColor(QPalette::Button, QColor(surface));
     palette.setColor(QPalette::ButtonText, QColor(text));
@@ -597,7 +598,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
         auto style = QString::fromUtf8(file.readAll());
         const auto scaled = [textScale](int size) { return QString::number(qRound(size * textScale / 100.0)); };
         const QList<QPair<QString, QString>> tokens{
-            {"CANVAS", canvas}, {"RAIL", rail}, {"SURFACE", surface}, {"BASE", base},
+            {"CANVAS", canvas}, {"RAIL", rail}, {"SURFACE", surface}, {"BASE", base}, {"ALTERNATE_ROW", alternateRow},
             {"BORDER", border}, {"CONTROL", control}, {"TEXT", text}, {"MUTED", muted},
             {"HOVER", hover}, {"SELECTED", selected}, {"ACCENT", accent}, {"ON_ACCENT", onAccent},
             {"PRIMARY_HOVER", tone("#92e6d8", "#08786a")}, {"PRIMARY_PRESSED", tone("#58c7b5", "#00594f")},

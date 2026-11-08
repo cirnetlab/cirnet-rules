@@ -343,6 +343,7 @@ void MainWindow::showPage(QWidget *page)
         pages_->setCurrentWidget(page);
         if (previous == settingsPage_ || page == settingsPage_)
             updateSidebarLayout();
+        notifications_->setTopRightAnchor(page == conversationsPage_ ? conversationActions_ : nullptr);
     }
     automationsButton_->setChecked(page == automationsPage_);
     settingsButton_->setChecked(page == settingsPage_);

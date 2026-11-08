@@ -80,7 +80,7 @@ QListWidget#conversationList, QListWidget#settingsNavigation { background: trans
 QListWidget#conversationList::item, QListWidget#settingsNavigation::item { border-radius: 5px; }
 QHeaderView { background: @SURFACE@; }
 QHeaderView::section { background: @SURFACE@; color: @TEXT@; border: 0; padding: @VERTICAL_PAD@px 8px; }
-QTableView { alternate-background-color: @SURFACE@; }
+QTableView { alternate-background-color: @ALTERNATE_ROW@; }
 QDialog, QMessageBox, QMenu, QComboBox QAbstractItemView { background: @SURFACE@; }
 QMenu, QComboBox QAbstractItemView { border: 1px solid @CONTROL@; }
 QMenu::item:selected { background: @SELECTED@; }

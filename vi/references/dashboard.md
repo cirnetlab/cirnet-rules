@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 6 -->
-<!-- source-sha256: 6655a27383a37f0f37bee6eba2c9e751f5cdd37b48989b8f8ed0d82484a7ca8c -->
+<!-- revision: 7 -->
+<!-- source-sha256: 7c9a26952c6673fe12eacb03a5bda410fae2cfa76e6ed66e8d41799b22efa96f -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -36,7 +36,8 @@ kết nối hiện tại. Mở Cài đặt từ chân sidebar hoặc bằng Ctrl
 danh mục bên trái. Giao diện có bản xem trước chủ đề, mật độ, cỡ chữ và
 Giảm chuyển động. Quay lại không gian làm việc hoặc Escape đưa về trang
 trước đó. Đặt lại bố cục khôi phục cách trình bày sidebar và bảng repository.
-Toast xếp lên từ góc dưới phải và chừa chỗ cho ô soạn tin. Biểu tượng và
+Toast hiện ở góc trên phải trong Hội thoại và góc dưới phải ở các trang khác.
+Toast đang hiện đổi vị trí theo trang, chừa chỗ cho ô soạn tin. Biểu tượng và
 màu thể hiện mức độ thông báo. Lượt tự động hóa đang chờ trong hàng đợi
 hiện toast thông tin. Mở Thông báo để xem hoặc xóa mục đã đọc trong phiên.
 Cảnh báo và lỗi vẫn có thể hiện toast.
@@ -45,7 +46,8 @@ Trong Cài đặt → Kho mã, thêm thư mục hoặc tệp, rồi rà Git root
 worktree và tệp gợi ý trước khi lưu. Chọn cho nhiệm vụ hoặc chọn binding
 khi tạo hội thoại hay tự động hóa. Menu thao tác hỗ trợ kiểm tra tình trạng,
 sao chép đường dẫn đầy đủ, mở thư mục local đã kiểm tra, đổi tên, liên kết
-lại hoặc lưu trữ. Bấm một hàng repo để chọn trên toàn chiều rộng bảng.
+lại hoặc lưu trữ. Kho mã và Lịch sử chạy tự động hóa tô sáng theo toàn hàng.
+Trong Kho mã, có thể bấm để chọn hàng cả ở phần dư sau cột cuối.
 Bảng có thể rút gọn đường dẫn dài khi hiển thị. Thao tác
 sao chép dùng đường dẫn đã lưu. Liên kết lại khi checkout đổi vị trí làm
 revision binding cũ mất hiệu lực và công việc liên quan cần được rà soát.

@@ -1,5 +1,6 @@
 #include "main_window.h"
 #include "compact_text_edit.h"
+#include "full_row_table.h"
 #include "notification_center.h"
 #include "repository_picker.h"
 
@@ -26,7 +27,7 @@
 #include <QScrollArea>
 #include <QScreen>
 #include <QStackedWidget>
-#include <QTableWidget>
+#include <QStandardItemModel>
 #include <QTimeEdit>
 #include <QTimeZone>
 #include <QTimer>
@@ -832,23 +833,21 @@ void MainWindow::automationHistory(const QJsonObject &automation)
         dialog.setWindowTitle(tr("Run history · %1").arg(automation.value("name").toString()));
         dialog.resize(730, 370);
         auto *layout = new QVBoxLayout(&dialog);
-        auto *table = new QTableWidget;
-        table->setColumnCount(4);
-        table->setHorizontalHeaderLabels({tr("Run"), tr("State"), tr("Occurrence"), tr("Outcome")});
-        table->horizontalHeader()->setStretchLastSection(true);
-        table->setSelectionBehavior(QAbstractItemView::SelectRows);
-        table->setSelectionMode(QAbstractItemView::SingleSelection);
-        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        auto *table = new FullRowTable;
+        table->setObjectName("automationRunHistoryTable");
         const auto runs = result.value("items").toArray();
-        table->setRowCount(int(runs.size()));
+        auto *model = new QStandardItemModel(int(runs.size()), 4, table);
+        model->setHorizontalHeaderLabels({tr("Run"), tr("State"), tr("Occurrence"), tr("Outcome")});
+        table->setModel(model);
+        table->horizontalHeader()->setStretchLastSection(true);
         for (qsizetype index = 0; index < runs.size(); ++index) {
             const auto row = runs[index].toObject();
             const QStringList fields{row.value("id").toString(), row.value("status").toString(),
                 when(row.value("occurrence_at")), row.value("outcome").toString()};
             for (qsizetype column = 0; column < fields.size(); ++column) {
-                auto *cell = new QTableWidgetItem(fields[column]);
+                auto *cell = new QStandardItem(fields[column]);
                 cell->setToolTip(fields[column].toHtmlEscaped());
-                table->setItem(int(index), int(column), cell);
+                model->setItem(int(index), int(column), cell);
             }
         }
         layout->addWidget(table, 1);
@@ -856,17 +855,20 @@ void MainWindow::automationHistory(const QJsonObject &automation)
         buttons->button(QDialogButtonBox::Close)->setText(tr("Close"));
         auto *cancel = buttons->addButton(tr("Cancel pending run"), QDialogButtonBox::ActionRole);
         cancel->setEnabled(false);
-        connect(table, &QTableWidget::itemSelectionChanged, &dialog, [table, cancel, runs] {
-            const auto index = table->currentRow();
-            const auto status = index >= 0 ? runs[index].toObject().value("status").toString() : QString();
+        const auto selectedRun = [table, runs] {
+            const auto selection = table->selectionModel()->selectedRows();
+            return selection.isEmpty() ? QJsonObject{} : runs[selection.first().row()].toObject();
+        };
+        connect(table->selectionModel(), &QItemSelectionModel::selectionChanged, &dialog, [cancel, selectedRun] {
+            const auto status = selectedRun().value("status").toString();
             cancel->setEnabled(status == "QUEUED" || status == "CLAIMED"
                                || status == "WAITING_APPROVAL" || status == "RECOVERY_REQUIRED");
         });
-        connect(cancel, &QPushButton::clicked, &dialog, [this, table, runs, &dialog] {
-            const auto index = table->currentRow();
-            if (index < 0)
+        connect(cancel, &QPushButton::clicked, &dialog, [this, selectedRun, &dialog] {
+            const auto run = selectedRun();
+            if (run.isEmpty())
                 return;
-            call("automation.cancel", {{"run_id", runs[index].toObject().value("id")}},
+            call("automation.cancel", {{"run_id", run.value("id")}},
                  [this](const QJsonObject &value, const QString &cancelError) {
                 if (!cancelError.isEmpty())
                     showError(cancelError);

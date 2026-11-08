@@ -1,12 +1,14 @@
 #pragma once
 
 #include "main_window.h"
+#include "table_visual_test.h"
 
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -15,8 +17,9 @@
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollArea>
-#include <QTableWidget>
+#include <QTableView>
 #include <QTest>
 #include <QTimeEdit>
 #include <QTimer>
@@ -232,6 +235,46 @@ void verifyLegacyAutomation(MainWindow &window, const QString &bindingId, const 
     QVERIFY(notifications->item(0)->text().contains(
         QStringLiteral(" · Information — Run %1 · QUEUED").arg(runId)));
 
+    QString retainedRunId;
+    QTimer historyDriver;
+    historyDriver.setInterval(15);
+    QObject::connect(&historyDriver, &QTimer::timeout, &window, [&] {
+        auto *historyDialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        auto *table = historyDialog ? historyDialog->findChild<QTableView *>("automationRunHistoryTable") : nullptr;
+        if (!table || table->model()->rowCount() != 1)
+            return;
+        historyDriver.stop();
+        const auto closeOnExit = qScopeGuard([historyDialog] {
+            if (historyDialog->isVisible())
+                historyDialog->reject();
+        });
+        const auto runIndex = table->model()->index(0, 0);
+        retainedRunId = runIndex.data().toString();
+        table_visual::verifyFullRowHover(*table, QStringLiteral("automation-run-history-full-row-hover"));
+        auto *historyButtons = historyDialog->findChild<QDialogButtonBox *>();
+        QVERIFY(historyButtons);
+        QPushButton *cancel = nullptr;
+        for (auto *button : historyButtons->buttons())
+            if (historyButtons->buttonRole(button) == QDialogButtonBox::ActionRole)
+                cancel = qobject_cast<QPushButton *>(button);
+        QVERIFY(cancel && !cancel->isEnabled());
+        QTest::mouseClick(table->viewport(), Qt::LeftButton, Qt::NoModifier, table->visualRect(runIndex).center());
+        QCOMPARE(table->selectionModel()->selectedRows().size(), 1);
+        QVERIFY(cancel->isEnabled());
+        QTest::mouseClick(cancel, Qt::LeftButton);
+    });
+    QTimer::singleShot(2000, &historyDriver, [&] {
+        if (retainedRunId.isEmpty())
+            if (auto *historyDialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()))
+                historyDialog->reject();
+    });
+    historyDriver.start();
+    QVERIFY(history);
+    history->trigger();
+    QTRY_COMPARE(retainedRunId, runId);
+    QTRY_COMPARE(request("automation.runs", {{"id", id}}).value("items").toArray()
+                    .first().toObject().value("outcome").toString(), QStringLiteral("OPERATOR_CANCELLED"));
+
     edit->trigger();
     QTRY_VERIFY(window.findChild<QDialog *>("automationEditor"));
     auto *dialog = window.findChild<QDialog *>("automationEditor");
@@ -255,27 +298,6 @@ void verifyLegacyAutomation(MainWindow &window, const QString &bindingId, const 
     QCOMPARE(updated.value("read_paths").toArray(), paths);
     QCOMPARE(updated.value("enabled").toBool(), false);
 
-    QString retainedRunId;
-    QTimer historyDriver;
-    historyDriver.setInterval(15);
-    QObject::connect(&historyDriver, &QTimer::timeout, &window, [&] {
-        if (auto *historyDialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()); historyDialog) {
-            auto *table = historyDialog->findChild<QTableWidget *>();
-            if (table && table->rowCount() == 1 && table->item(0, 0)) {
-                retainedRunId = table->item(0, 0)->text();
-                historyDialog->reject();
-            }
-        }
-    });
-    QTimer::singleShot(2000, &historyDriver, [&] {
-        if (auto *historyDialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()))
-            historyDialog->reject();
-    });
-    historyDriver.start();
-    QVERIFY(history);
-    history->trigger();
-    QTRY_COMPARE(retainedRunId, runId);
-
     auto *menuButton = card->findChild<QPushButton *>("automationActions");
     QVERIFY(menuButton && menuButton->menu());
     QAction *toggle = nullptr;
@@ -293,4 +315,5 @@ void verifyLegacyAutomation(MainWindow &window, const QString &bindingId, const 
     const auto afterPause = request("automation.runs", {{"id", id}}).value("items").toArray();
     QCOMPARE(afterPause.size(), 1);
     QCOMPARE(afterPause.first().toObject().value("id").toString(), runId);
+    QCOMPARE(afterPause.first().toObject().value("status").toString(), QStringLiteral("CANCELLED"));
 }

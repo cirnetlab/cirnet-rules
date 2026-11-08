@@ -1,9 +1,13 @@
 #pragma once
 
 #include "interaction_cases.h"
+#include "main_window.h"
 #include "notification_center.h"
 
 #include <QLabel>
+#include <QListWidget>
+#include <QPlainTextEdit>
+#include <QPushButton>
 
 namespace notification_visual {
 
@@ -66,6 +70,68 @@ inline void verifyAlignmentAndSeverities()
         }
     }
     theme.apply("dark", "comfortable", 100);
+}
+
+inline void verifyConversationPlacement(MainWindow &window)
+{
+    auto *center = window.findChild<NotificationCenter *>();
+    auto *history = window.findChild<QListWidget *>("conversationList");
+    auto *composer = window.findChild<QPlainTextEdit *>("conversationComposer");
+    auto *actions = window.findChild<QPushButton *>("conversationActions");
+    auto *automations = window.findChild<QPushButton *>("navAutomations");
+    auto *settings = window.findChild<QToolButton *>("navSettings");
+    auto *back = window.findChild<QPushButton *>("settingsBack");
+    QVERIFY(center && history && composer && actions && automations && settings && back);
+    QTRY_VERIFY(history->count() > 0);
+    QVERIFY(automations->isChecked());
+
+    center->post(QStringLiteral("Run 5 · QUEUED"), QStringLiteral("info"));
+    QPointer<QWidget> carried = window.findChild<QWidget *>("toast");
+    QTRY_VERIFY(carried && carried->isVisible());
+    auto *host = carried->parentWidget();
+    const auto isLowerRight = [host](const QWidget *card) {
+        return host->rect().bottom() - card->geometry().bottom() <= 20
+            && host->rect().right() - card->geometry().right() <= 20;
+    };
+    const auto isUpperRight = [host](const QWidget *card) {
+        return card->geometry().top() >= 0 && card->geometry().top() <= 100
+            && host->rect().right() - card->geometry().right() <= 20;
+    };
+    const auto bounds = [host](const QWidget *widget) {
+        return QRect(widget->mapTo(host, QPoint{}), widget->size());
+    };
+    QVERIFY(isLowerRight(carried));
+    interaction_cases::capture(window, "toast-automations-lower-right");
+
+    QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      history->visualItemRect(history->item(0)).center());
+    QTRY_VERIFY(composer->isVisible() && !composer->isReadOnly() && actions->isVisible());
+    QVERIFY(carried && carried->isVisible());
+    QVERIFY2(isUpperRight(carried), "Entering Conversation must move an existing toast to the upper right");
+    QTRY_VERIFY(carried && !carried->geometry().intersects(bounds(actions)));
+    QVERIFY(!carried->geometry().intersects(bounds(composer)));
+    QTest::mouseClick(composer->viewport(), Qt::LeftButton, Qt::NoModifier, QPoint(8, 8));
+    QVERIFY(carried && carried->isVisible() && isUpperRight(carried));
+    if (window.isActiveWindow())
+        QVERIFY(composer->hasFocus());
+    interaction_cases::capture(window, "toast-conversation-upper-right");
+
+    center->post(QStringLiteral("Approval is required."), QStringLiteral("warning"));
+    QWidget *newest = nullptr;
+    for (auto *card : window.findChildren<QWidget *>("toast")) {
+        if (card != carried)
+            newest = card;
+    }
+    QVERIFY(newest && newest->isVisible());
+    QVERIFY(isUpperRight(newest));
+    QVERIFY(newest->geometry().bottom() < carried->geometry().top());
+    QTest::mouseClick(settings, Qt::LeftButton);
+    QTRY_VERIFY(isLowerRight(newest));
+    QTest::mouseClick(back, Qt::LeftButton);
+    QTRY_VERIFY(isUpperRight(newest));
+    QTest::mouseClick(automations, Qt::LeftButton);
+    QTRY_VERIFY(isLowerRight(newest));
+    QVERIFY(newest->geometry().top() > carried->geometry().bottom());
 }
 
 } // namespace notification_visual

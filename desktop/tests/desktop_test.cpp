@@ -7,6 +7,7 @@
 #include "navigation_test.h"
 #include "notification_visual_test.h"
 #include "settings_polish_test.h"
+#include "table_visual_test.h"
 #include "interaction_cases.h"
 
 #include <QAbstractItemModel>
@@ -274,6 +275,19 @@ private slots:
     void iconStyles() { interaction_cases::iconStyles(); }
     void toastAlignmentAndSeverities() { notification_visual::verifyAlignmentAndSeverities(); }
 
+    void conversationMovesExistingToastsToUpperRight()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
+        MainWindow window(client);
+        window.resize(1200, 700);
+        interaction_cases::pinToPrimary(window);
+        window.show();
+        client.start();
+        notification_visual::verifyConversationPlacement(window);
+        client.stop();
+        QTRY_VERIFY(!client.isRunning());
+    }
+
     void localReportsStatusWithoutNavigation()
     {
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
@@ -523,7 +537,7 @@ private slots:
         const auto *host = toast->parentWidget();
         const QRect editorBounds(composer->mapTo(host, QPoint{}), composer->size());
         QVERIFY(toast->geometry().bottom() < editorBounds.top());
-        QVERIFY(editorBounds.top() - toast->geometry().bottom() <= 12);
+        QVERIFY(toast->geometry().top() <= 100);
         QVERIFY(toast->parentWidget()->width() - toast->geometry().right() <= 20);
         QVERIFY(toast->height() <= 96);
         QCOMPARE(composer->toPlainText(), tr("Draft kept while reviewing preferences"));
@@ -784,6 +798,10 @@ private slots:
         auto *search = window.findChild<QLineEdit *>("repoSearch");
         QVERIFY(table && load && search);
         QTRY_COMPARE(table->model()->rowCount(), 40);
+        table_visual::verifyAlternateRowTail(*table);
+        chooseTheme(window, "Light");
+        table_visual::verifyAlternateRowTail(*table, QStringLiteral("-light"));
+        chooseTheme(window, "Dark");
         QVERIFY(load->isVisible() && load->isEnabled());
         QTest::keyClick(load, Qt::Key_Space);
         QTRY_COMPARE(table->model()->rowCount(), 41);
