@@ -4,15 +4,24 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFrame>
+#include <QFontMetrics>
+#include <QGraphicsOpacityEffect>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
+#include <QPropertyAnimation>
+#include <QStringList>
+#include <QTextLayout>
 #include <QTimer>
 #include <QToolButton>
 #include <algorithm>
 #include <iterator>
 
 namespace {
+constexpr int inset = 18;
+constexpr int spacing = 8;
+constexpr int expiryInterval = 100;
+
 bool important(const QString &severity)
 {
     return severity == "warning" || severity == "error";
@@ -29,20 +38,60 @@ QString plainMessage(const QString &source)
     }
     return result.simplified();
 }
+
+QString summarize(const QString &text, const QFont &font, int width)
+{
+    QTextLayout layout(text, font);
+    QTextOption options;
+    options.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    layout.setTextOption(options);
+    layout.beginLayout();
+    QStringList lines;
+    for (int row = 0; row < 3; ++row) {
+        auto line = layout.createLine();
+        if (!line.isValid())
+            break;
+        line.setLineWidth(width);
+        const auto from = line.textStart();
+        if (row == 2 && from + line.textLength() < text.size())
+            lines.append(QFontMetrics(font).elidedText(text.mid(from), Qt::ElideRight, width));
+        else
+            lines.append(text.mid(from, line.textLength()).trimmed());
+    }
+    layout.endLayout();
+    return lines.join(u'\n');
+}
+
+void fadeIn(QFrame *card)
+{
+    auto *effect = new QGraphicsOpacityEffect(card);
+    effect->setOpacity(0.65);
+    card->setGraphicsEffect(effect);
+    auto *animation = new QPropertyAnimation(effect, "opacity", effect);
+    animation->setDuration(140);
+    animation->setEndValue(1.0);
+    QObject::connect(animation, &QPropertyAnimation::finished, card, [card, current = QPointer<QGraphicsOpacityEffect>(effect)] {
+        QTimer::singleShot(0, card, [card, current] {
+            if (current && card->graphicsEffect() == current)
+                card->setGraphicsEffect(nullptr);
+        });
+    });
+    animation->start();
+}
 }
 
 NotificationCenter::NotificationCenter(QWidget &host) : QObject(&host), host_(host)
 {
     host_.installEventFilter(this);
-    auto *timer = new QTimer(this);
-    timer->setInterval(100);
-    connect(timer, &QTimer::timeout, this, [this] {
+    expiry_ = new QTimer(this);
+    expiry_->setInterval(expiryInterval);
+    connect(expiry_, &QTimer::timeout, this, [this] {
         QList<quint64> expired;
         for (auto &toast : visible_) {
             const auto *focus = QApplication::focusWidget();
-            if (toast.remaining > 0 && !toast.widget->underMouse() &&
+            if (toast.remaining > 0 && toast.widget->isVisible() && !toast.widget->underMouse() &&
                 !(focus && toast.widget->isAncestorOf(focus))) {
-                toast.remaining -= 100;
+                toast.remaining -= expiryInterval;
                 if (toast.remaining <= 0)
                     expired.append(toast.id);
             }
@@ -50,7 +99,25 @@ NotificationCenter::NotificationCenter(QWidget &host) : QObject(&host), host_(ho
         for (auto id : expired)
             dismiss(id);
     });
-    timer->start();
+}
+
+void NotificationCenter::setReducedMotion(bool reduced)
+{
+    reducedMotion_ = reduced;
+    if (reducedMotion_) {
+        for (const auto &toast : visible_)
+            toast.widget->setGraphicsEffect(nullptr);
+    }
+}
+
+void NotificationCenter::setAvoidanceWidget(QWidget *widget)
+{
+    if (avoidance_)
+        avoidance_->removeEventFilter(this);
+    avoidance_ = widget;
+    if (avoidance_)
+        avoidance_->installEventFilter(this);
+    reposition();
 }
 
 void NotificationCenter::post(const QString &text, const QString &severity)
@@ -113,6 +180,7 @@ void NotificationCenter::clearRead()
 
 void NotificationCenter::fill()
 {
+    QList<QFrame *> created;
     while (visible_.size() < 3 && !queued_.isEmpty()) {
         const auto notice = queued_.takeFirst();
         auto *card = new QFrame(&host_);
@@ -126,7 +194,8 @@ void NotificationCenter::fill()
         auto *body = new QLabel(notice.text);
         body->setObjectName("toastBody");
         body->setTextFormat(Qt::PlainText);
-        body->setWordWrap(true);
+        body->setWordWrap(false);
+        body->setToolTip(notice.text.toHtmlEscaped());
         body->setMinimumWidth(0);
         body->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         layout->addWidget(body, 1);
@@ -136,31 +205,66 @@ void NotificationCenter::fill()
         close->setAccessibleName(tr("Dismiss notification"));
         layout->addWidget(close, 0, Qt::AlignTop);
         connect(close, &QToolButton::clicked, this, [this, id = notice.id] { dismiss(id); });
-        visible_.append({card, notice.id, notice.severity == "error" ? -1 : 5400});
-        card->show();
+        visible_.append({card, notice.id, important(notice.severity) ? -1 : 5400, notice.text});
+        created.append(card);
     }
     refreshIcons();
+    if (!reducedMotion_) {
+        for (auto *card : created) {
+            if (card->isVisible())
+                fadeIn(card);
+        }
+    }
 }
 
 void NotificationCenter::reposition()
 {
-    const int width = qBound(160, host_.width() - 36, 360);
-    int y = 18;
-    for (const auto &toast : visible_) {
+    const int width = qMax(0, qMin(host_.width() - 2 * inset, 360));
+    const int x = host_.width() - inset - width;
+    int bottom = host_.height() - inset;
+    if (avoidance_ && host_.isAncestorOf(avoidance_) && avoidance_->isVisibleTo(&host_)) {
+        const QRect obstacle(avoidance_->mapTo(&host_, QPoint{}), avoidance_->size());
+        if (obstacle.right() >= x && obstacle.left() < x + width)
+            bottom = qMin(bottom, obstacle.top() - spacing);
+    }
+    bool hasExpiry = false;
+    for (auto it = visible_.crbegin(); it != visible_.crend(); ++it) {
+        const auto &toast = *it;
+        toast.widget->ensurePolished();
         toast.widget->setFixedWidth(width);
-        const auto *body = toast.widget->findChild<QLabel *>("toastBody");
+        auto *body = toast.widget->findChild<QLabel *>("toastBody");
+        body->ensurePolished();
         const auto icon = toast.widget->findChild<QLabel *>("toastIcon")->sizeHint();
         const auto button = toast.widget->findChild<QToolButton *>("dismissToast")->sizeHint();
         const auto *layout = toast.widget->layout();
         const auto margins = layout->contentsMargins();
+        const auto frame = toast.widget->contentsMargins();
         const int textWidth = width - margins.left() - margins.right() - icon.width() -
-                              button.width() - 2 * layout->spacing();
-        const int rowHeight = qMax(qMax(icon.height(), button.height()), body->heightForWidth(qMax(1, textWidth)));
-        toast.widget->setGeometry(qMax(0, host_.width() - width - 18), y, width,
-                                  margins.top() + rowHeight + margins.bottom());
+                              button.width() - 2 * layout->spacing() - frame.left() - frame.right() - 2;
+        if (textWidth < 24) {
+            toast.widget->hide();
+            continue;
+        }
+        const auto summary = summarize(toast.text, body->font(), textWidth);
+        if (body->text() != summary)
+            body->setText(summary);
+        const int textHeight = body->fontMetrics().height() + int(summary.count(u'\n')) * body->fontMetrics().lineSpacing();
+        const int rowHeight = qMax(qMax(icon.height(), button.height()), textHeight);
+        const int height = margins.top() + rowHeight + margins.bottom() + frame.top() + frame.bottom();
+        if (bottom - height < inset) {
+            toast.widget->hide();
+            continue;
+        }
+        toast.widget->setGeometry(x, bottom - height, width, height);
+        toast.widget->show();
         toast.widget->raise();
-        y += toast.widget->height() + 8;
+        bottom -= height + spacing;
+        hasExpiry |= toast.remaining > 0 && toast.widget->isVisible();
     }
+    if (hasExpiry && !expiry_->isActive())
+        expiry_->start();
+    else if (!hasExpiry)
+        expiry_->stop();
 }
 
 void NotificationCenter::dismiss(quint64 id)
@@ -207,7 +311,15 @@ void NotificationCenter::refreshIcons()
 
 bool NotificationCenter::eventFilter(QObject *object, QEvent *event)
 {
-    if (object == &host_ && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutRequest))
-        reposition();
+    const auto type = event->type();
+    if ((object == &host_ || object == avoidance_.data()) && !repositionPending_ &&
+        (type == QEvent::Resize || type == QEvent::Move || type == QEvent::Show ||
+         type == QEvent::Hide || type == QEvent::LayoutRequest)) {
+        repositionPending_ = true;
+        QTimer::singleShot(0, this, [this] {
+            repositionPending_ = false;
+            reposition();
+        });
+    }
     return QObject::eventFilter(object, event);
 }

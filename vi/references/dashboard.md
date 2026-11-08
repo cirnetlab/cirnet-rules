@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 4 -->
-<!-- source-sha256: da3257fadd9007acbe9050ea62b2d7dfcb7b8d9a2154f85f79ad3f2720cc57b0 -->
+<!-- revision: 5 -->
+<!-- source-sha256: 53c678954605befec240ac622db2130795954e75ee50949d96666c685c212740 -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -31,10 +31,12 @@ Dùng `--data-dir` với thư mục tuyệt đối riêng để kiểm thử dù
 ## Quy trình vận hành
 
 Kéo đường phân cách để đổi độ rộng sidebar. Dùng nút mũi tên hoặc Ctrl+B
-để thu gọn hay mở rộng. Mở Cài đặt từ footer hoặc bằng Ctrl+, để đổi chủ
-đề, mật độ và cỡ chữ. Đặt lại bố cục khôi phục cách trình bày sidebar và
-bảng repository. Mở Thông báo để xem hoặc xóa mục đã đọc trong phiên.
-Cảnh báo và lỗi luôn đủ điều kiện hiển thị toast.
+để thu gọn hay mở rộng. Mở Cài đặt từ footer hoặc bằng Ctrl+, rồi chọn
+danh mục bên trái. Giao diện có bản xem trước chủ đề, mật độ, cỡ chữ và
+Giảm chuyển động. Quay lại không gian làm việc hoặc Escape đưa về trang
+trước đó. Đặt lại bố cục khôi phục cách trình bày sidebar và bảng repository.
+Toast xếp lên từ góc dưới phải và chừa chỗ cho ô soạn tin. Mở Thông báo để
+xem hoặc xóa mục đã đọc trong phiên. Cảnh báo và lỗi vẫn có thể hiện toast.
 
 Trong Cài đặt → Kho mã, thêm thư mục hoặc tệp, rồi rà Git root, branch,
 worktree và tệp gợi ý trước khi lưu. Chọn cho nhiệm vụ hoặc chọn binding
@@ -81,4 +83,4 @@ ghi SHA-256 artifact và nguồn build. Ứng viên giữ `RELEASE_BLOCKED` khi
 còn gate Agent native, cô lập, review xác thực, cài Windows sạch và
 điều kiện phân phối.
 
-[Kiến trúc và giới hạn](dashboard-architecture.md) · [Ứng viên phát hành](dashboard-release.md) · [Quy trình task](cgacp-local.md)
+[Kiến trúc và giới hạn](dashboard-architecture.md) · [Trạng thái tương tác](desktop-interaction.md) · [Ứng viên phát hành](dashboard-release.md) · [Quy trình task](cgacp-local.md)

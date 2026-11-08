@@ -105,6 +105,61 @@ fn git(path: &Path, args: &[&str]) {
 }
 
 #[test]
+fn reduced_motion_defaults_for_existing_preferences_and_persists() {
+    let fixture = Fixture::new();
+    let data = fixture.0.join("motion");
+    let mut initializer = Runtime::open(&data);
+    assert_eq!(
+        initializer.call("storage.verify", json!({}))["schema_revision"],
+        4
+    );
+    initializer.close();
+    {
+        let database = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+        let previous = json!({
+            "theme":"dark","density":"comfortable","text_scale":100,
+            "sidebar_width":260,"sidebar_collapsed":false,"notification_level":"all"
+        });
+        database
+            .execute(
+                "INSERT INTO desktop_preferences (singleton, revision, settings) VALUES (1, 1, ?1)",
+                [previous.to_string()],
+            )
+            .unwrap();
+    }
+
+    let mut client = Runtime::open(&data);
+    let initial = client.call("preferences.get", json!({}));
+    assert_eq!(initial["revision"], 1);
+    assert_eq!(initial["settings"]["reduced_motion"], false);
+    let mut settings = initial["settings"].clone();
+    settings["reduced_motion"] = json!(true);
+    let updated = client.call(
+        "preferences.set",
+        json!({"expected_revision":1,"settings":settings}),
+    );
+    assert_eq!(updated, json!({"revision":2,"settings":settings}));
+    settings["reduced_motion"] = json!("false");
+    assert_eq!(
+        client.request(
+            1,
+            "preferences.set",
+            json!({"expected_revision":2,"settings":settings}),
+        )["error"]["code"],
+        "INVALID_INPUT"
+    );
+    client.close();
+
+    let mut reopened = Runtime::open(&data);
+    assert_eq!(reopened.call("preferences.get", json!({})), updated);
+    assert_eq!(
+        reopened.call("storage.verify", json!({}))["schema_revision"],
+        4
+    );
+    reopened.close();
+}
+
+#[test]
 fn preferences_upgrade_backs_up_and_preserves_operator_data() {
     use sha2::{Digest, Sha256};
 

@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPointer>
@@ -17,6 +18,7 @@
 #include <QScrollArea>
 #include <QTableWidget>
 #include <QTest>
+#include <QTimeEdit>
 #include <QTimer>
 #include <QToolButton>
 
@@ -90,7 +92,7 @@ inline void verifyDashboardPages(MainWindow &window)
     auto *title = dialog->findChild<QLineEdit *>("newConversationTitle");
     auto *manage = dialog->findChild<QPushButton *>("manageRepositoryPicker");
     auto *repositories = dialog->findChild<QListWidget *>("repositoryPickerList");
-    auto *section = window.findChild<QComboBox *>("settingsSection");
+    auto *section = window.findChild<QListWidget *>("settingsNavigation");
     QVERIFY(dialog->isVisible() && title && manage && repositories && section);
     QTRY_VERIFY(repositories->count() > 0);
     title->selectAll();
@@ -100,7 +102,8 @@ inline void verifyDashboardPages(MainWindow &window)
     QCOMPARE(repositories->selectedItems().size(), 1);
     QTest::mouseClick(manage, Qt::LeftButton);
     QTRY_VERIFY(back->isVisible() && !dialog->isVisible());
-    QCOMPARE(section->currentData().toString(), QStringLiteral("repositories"));
+    QVERIFY(section->currentItem());
+    QCOMPARE(section->currentItem()->data(Qt::UserRole).toString(), QStringLiteral("repositories"));
     QTest::mouseClick(back, Qt::LeftButton);
     QTRY_VERIFY(dialog->isVisible());
     QTRY_COMPARE(repositories->selectedItems().size(), 1);
@@ -130,12 +133,34 @@ inline void verifyDashboardPages(MainWindow &window)
     QCOMPARE(automationBindings->selectedItems().size(), 1);
     QTest::mouseClick(automationManage, Qt::LeftButton);
     QTRY_VERIFY(back->isVisible() && !dialog->isVisible());
-    QCOMPARE(section->currentData().toString(), QStringLiteral("repositories"));
+    QVERIFY(section->currentItem());
+    QCOMPARE(section->currentItem()->data(Qt::UserRole).toString(), QStringLiteral("repositories"));
     QTest::mouseClick(back, Qt::LeftButton);
     QTRY_VERIFY(dialog->isVisible());
     QTRY_COMPARE(automationBindings->selectedItems().size(), 1);
     QCOMPARE(name->text(), QStringLiteral("Local fixture definition"));
     QCOMPARE(prompt->toPlainText(), QStringLiteral("Keep this prompt in the form"));
+    QComboBox *trigger = nullptr;
+    for (auto *combo : dialog->findChildren<QComboBox *>()) {
+        if (combo->findData("DAILY") >= 0)
+            trigger = combo;
+    }
+    QVERIFY(trigger);
+    trigger->setCurrentIndex(trigger->findData("DAILY"));
+    auto *time = dialog->findChild<QTimeEdit *>();
+    QTRY_VERIFY(time && time->isVisible());
+    // The offscreen platform has no window manager to reactivate the restored dialog.
+    if (QApplication::platformName() == QStringLiteral("offscreen"))
+        QApplication::setActiveWindow(dialog);
+    time->setFocus();
+    QTRY_VERIFY(time->hasFocus());
+    time->setCurrentSection(QDateTimeEdit::MinuteSection);
+    QCOMPARE(time->currentSection(), QDateTimeEdit::MinuteSection);
+    const auto beforeStep = time->time();
+    QTest::keyClick(time, Qt::Key_Up);
+    QCOMPARE(time->time(), beforeStep.addSecs(60));
+    if (const auto capture = qEnvironmentVariable("CGACP_UI_CAPTURE"); !capture.isEmpty())
+        QVERIFY(dialog->grab().save(capture + "/automation-daily-controls.png"));
     QTest::keyClick(dialog, Qt::Key_Escape);
     QTRY_VERIFY(!window.findChild<QDialog *>("automationEditor"));
     QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier,
@@ -246,4 +271,22 @@ void verifyLegacyAutomation(MainWindow &window, const QString &bindingId, const 
     QVERIFY(history);
     history->trigger();
     QTRY_COMPARE(retainedRunId, runId);
+
+    auto *menuButton = card->findChild<QPushButton *>("automationActions");
+    QVERIFY(menuButton && menuButton->menu());
+    QAction *toggle = nullptr;
+    for (auto *action : menuButton->menu()->actions()) {
+        if (action->text() == "Enable")
+            toggle = action;
+    }
+    QVERIFY(toggle && toggle->isEnabled());
+    toggle->trigger();
+    QTRY_COMPARE(toggle->text(), QString("Pause"));
+    QVERIFY(request("automation.list", {}).value("items").toArray()[0].toObject().value("enabled").toBool());
+    toggle->trigger();
+    QTRY_COMPARE(toggle->text(), QString("Enable"));
+    QVERIFY(!request("automation.list", {}).value("items").toArray()[0].toObject().value("enabled").toBool());
+    const auto afterPause = request("automation.runs", {{"id", id}}).value("items").toArray();
+    QCOMPARE(afterPause.size(), 1);
+    QCOMPARE(afterPause.first().toObject().value("id").toString(), runId);
 }

@@ -7,6 +7,7 @@
 
 class QFrame;
 class QListWidget;
+class QTimer;
 class QWidget;
 
 class NotificationCenter final : public QObject {
@@ -15,6 +16,8 @@ public:
     explicit NotificationCenter(QWidget &host);
     void post(const QString &text, const QString &severity);
     void setLevel(const QString &level);
+    void setReducedMotion(bool reduced);
+    void setAvoidanceWidget(QWidget *widget);
     void attachHistory(QListWidget &history);
     void markHistoryRead();
     void clearRead();
@@ -35,6 +38,7 @@ private:
         QFrame *widget;
         quint64 id;
         int remaining;
+        QString text;
     };
     void fill();
     void reposition();
@@ -43,9 +47,13 @@ private:
 
     QWidget &host_;
     QPointer<QListWidget> history_;
+    QPointer<QWidget> avoidance_;
+    QTimer *expiry_ = nullptr;
     QList<Notice> records_;
     QList<Notice> queued_;
     QList<Toast> visible_;
     QString level_ = QStringLiteral("all");
     quint64 sequence_ = 0;
+    bool reducedMotion_ = false;
+    bool repositionPending_ = false;
 };

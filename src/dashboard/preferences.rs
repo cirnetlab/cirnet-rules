@@ -61,6 +61,8 @@ struct Settings {
     text_scale: u16,
     sidebar_width: u16,
     sidebar_collapsed: bool,
+    #[serde(default)]
+    reduced_motion: bool,
     repository_layout: Option<RepositoryLayout>,
     notification_level: NotificationLevel,
 }
@@ -73,6 +75,7 @@ impl Default for Settings {
             text_scale: 100,
             sidebar_width: 260,
             sidebar_collapsed: false,
+            reduced_motion: false,
             repository_layout: None,
             notification_level: NotificationLevel::All,
         }

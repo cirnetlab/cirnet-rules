@@ -18,6 +18,26 @@
   </context>
   <context>
     <name>MainWindow</name>
+    <message><source>Automation paused.</source><translation>Đã tạm dừng tự động hóa.</translation></message>
+    <message><source>Automation enabled.</source><translation>Đã bật tự động hóa.</translation></message>
+    <message><source>Search settings</source><translation>Tìm trong cài đặt</translation></message>
+    <message><source>No matching settings.</source><translation>Không có cài đặt phù hợp.</translation></message>
+    <message><source>Back to workspace</source><translation>Về không gian làm việc</translation></message>
+    <message><source>Visual style</source><translation>Kiểu hiển thị</translation></message>
+    <message><source>Layout and typography</source><translation>Bố cục và chữ</translation></message>
+    <message><source>Reduced motion</source><translation>Giảm chuyển động</translation></message>
+    <message><source>Adjust the spacing between controls.</source><translation>Điều chỉnh khoảng cách giữa các điều khiển.</translation></message>
+    <message><source>Scale text throughout the desktop.</source><translation>Đổi cỡ chữ trên toàn ứng dụng.</translation></message>
+    <message><source>&amp;Reduced motion</source><translation>&amp;Giảm chuyển động</translation></message>
+    <message><source>Skip motion effects while keeping visual feedback.</source><translation>Bỏ hiệu ứng chuyển động và giữ phản hồi trực quan.</translation></message>
+    <message><source>theme density text size reduced motion reset layout system light dark</source><translation>chủ đề mật độ cỡ chữ giảm chuyển động đặt lại bố cục hệ thống sáng tối</translation></message>
+    <message><source>binding folder path worktree relink archive</source><translation>binding thư mục đường dẫn worktree liên kết lại lưu trữ</translation></message>
+    <message><source>connection reconnect diagnostics capability</source><translation>kết nối kết nối lại chẩn đoán khả năng</translation></message>
+    <message><source>toast history warnings errors</source><translation>toast lịch sử cảnh báo lỗi</translation></message>
+    <message><source>version release application identity</source><translation>phiên bản phát hành định danh ứng dụng</translation></message>
+    <message><source>Text size</source><translation>Cỡ chữ</translation></message>
+    <message><source>Density</source><translation>Mật độ</translation></message>
+    <message><source>Theme mode</source><translation>Chế độ chủ đề</translation></message>
     <message><source>Verified commit</source><translation>Commit đã xác minh</translation></message>
     <message><source>%1 · %2</source><translation>%1 · %2</translation></message>
     <message><source>Back</source><translation>Quay lại</translation></message>

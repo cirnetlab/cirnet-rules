@@ -5,10 +5,12 @@
 #include <QHash>
 #include <QJsonArray>
 #include <QMainWindow>
+#include <QPointer>
 #include <QSet>
 #include <QVector>
 
 class QAction;
+class QButtonGroup;
 class QCheckBox;
 class QCloseEvent;
 class QComboBox;
@@ -45,8 +47,13 @@ protected:
 private:
     void setConnection(bool ready, const QString &status);
     void showPage(QWidget *page);
+    void updateSidebarLayout();
+    void updateConversationSelection();
+    void navigateConversation(const QString &id);
     void showSettings(const QString &section = {});
     void closeSettings();
+    QString settingsSection() const;
+    void selectSettingsSection(const QString &section);
     QWidget *makeSettings();
     void updateRuntimeDetails();
     void reconnectRuntime();
@@ -116,6 +123,7 @@ private:
     NotificationCenter *notifications_ = nullptr;
     QSplitter *splitter_ = nullptr;
     QFrame *sidebar_ = nullptr;
+    QVBoxLayout *sidebarRail_ = nullptr;
     QLabel *brand_ = nullptr;
     QLabel *brandSubtitle_ = nullptr;
     QHBoxLayout *identityLayout_ = nullptr;
@@ -138,7 +146,8 @@ private:
     qint64 preferencesRevision_ = 0;
     QJsonObject savedPreferences_;
     QTimer *preferencesTimer_ = nullptr;
-    QComboBox *themeChoice_ = nullptr;
+    QButtonGroup *themeChoice_ = nullptr;
+    QCheckBox *reducedMotion_ = nullptr;
     QComboBox *densityChoice_ = nullptr;
     QSpinBox *textScale_ = nullptr;
     QComboBox *notificationChoice_ = nullptr;
@@ -151,7 +160,9 @@ private:
     QStackedWidget *pages_ = nullptr;
     QWidget *settingsPage_ = nullptr;
     QWidget *previousPage_ = nullptr;
-    QComboBox *settingsChoice_ = nullptr;
+    QListWidget *settingsNavigation_ = nullptr;
+    QLineEdit *settingsSearch_ = nullptr;
+    QPointer<QWidget> settingsReturnFocus_;
     QStackedWidget *settingsPages_ = nullptr;
     QWidget *repositoriesPage_ = nullptr;
     QWidget *conversationsPage_ = nullptr;
@@ -209,6 +220,7 @@ private:
     QSet<QString> conversationSending_;
     bool eventRequestPending_ = false;
     quint64 conversationRequest_ = 0;
+    quint64 navigationRevision_ = 0;
     quint64 detailRequest_ = 0;
     quint64 eventCursor_ = 0;
 

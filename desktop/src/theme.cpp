@@ -1,33 +1,299 @@
 #include "theme.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
+#include <QComboBox>
+#include <QDialogButtonBox>
 #include <QFile>
+#include <QFocusEvent>
+#include <QIconEngine>
 #include <QPainter>
+#include <QPixmapCache>
+#include <QPointer>
 #include <QProxyStyle>
+#include <QPushButton>
 #include <QStyleFactory>
 #include <QStyleHints>
 #include <QStyleOption>
+#include <QToolButton>
 #include <QtMath>
 
 namespace {
 QFont systemFont;
 QPalette systemPalette;
+constexpr auto keyboardFocusProperty = "keyboardFocusVisible";
+constexpr int stepperWidth = 28;
 
-class CheckStyle final : public QProxyStyle {
+class InteractionState final : public QObject {
 public:
-    CheckStyle() : QProxyStyle(QStyleFactory::create("Fusion")) {}
+    explicit InteractionState(QApplication &app) : QObject(&app)
+    {
+        app.installEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject *receiver, QEvent *event) override
+    {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::TouchBegin:
+            keyboard_ = false;
+            setFocusVisible(nullptr);
+            break;
+        case QEvent::KeyPress:
+            keyboard_ = true;
+            setFocusVisible(QApplication::focusWidget());
+            break;
+        case QEvent::FocusIn: {
+            // Qt also dispatches the focus event to its styles after the widget.
+            auto *widget = qobject_cast<QWidget *>(receiver);
+            if (!widget || widget != QApplication::focusWidget())
+                break;
+            const auto reason = static_cast<QFocusEvent *>(event)->reason();
+            if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason || reason == Qt::ShortcutFocusReason)
+                keyboard_ = true;
+            else if (reason == Qt::MouseFocusReason)
+                keyboard_ = false;
+            setFocusVisible(keyboard_ ? widget : nullptr);
+            break;
+        }
+        case QEvent::FocusOut:
+            if (receiver == focus_)
+                setFocusVisible(nullptr);
+            break;
+        case QEvent::Polish:
+            if (auto *button = qobject_cast<QPushButton *>(receiver)) {
+                const auto *box = qobject_cast<QDialogButtonBox *>(button->parentWidget());
+                if (box && box->standardButton(button) == QDialogButtonBox::Save)
+                    button->setProperty("primary", true);
+            }
+            break;
+        case QEvent::Wheel:
+            if (auto *widget = qobject_cast<QWidget *>(receiver)) {
+                for (auto *candidate : {widget, widget->parentWidget()}) {
+                    if (candidate && (qobject_cast<QAbstractSpinBox *>(candidate) || qobject_cast<QComboBox *>(candidate)) &&
+                        !candidate->hasFocus()) {
+                        event->ignore();
+                        return true;
+                    }
+                }
+            }
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(receiver, event);
+    }
+
+private:
+    void setFocusVisible(QWidget *widget)
+    {
+        if (!qobject_cast<QAbstractButton *>(widget) && !qobject_cast<QAbstractItemView *>(widget))
+            widget = nullptr;
+        if (focus_ == widget)
+            return;
+        const auto previous = focus_;
+        focus_ = widget;
+        for (const auto &control : {previous, focus_}) {
+            if (!control)
+                continue;
+            control->setProperty(keyboardFocusProperty, control == focus_);
+            control->style()->unpolish(control);
+            control->style()->polish(control);
+            control->update();
+        }
+    }
+
+    QPointer<QWidget> focus_;
+    bool keyboard_ = false;
+};
+
+void drawChevron(QPainter &painter, const QRect &rect, Qt::ArrowType direction, const QColor &color)
+{
+    if (rect.width() < 4 || rect.height() < 4)
+        return;
+    const qreal halfWidth = qMin<qreal>(4.0, (rect.width() - 1) / 2.0);
+    const qreal halfHeight = qMin<qreal>(2.3, (rect.height() - 1) / 2.0);
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.translate(QRectF(rect).center());
+    switch (direction) {
+    case Qt::UpArrow: painter.rotate(180); break;
+    case Qt::LeftArrow: painter.rotate(90); break;
+    case Qt::RightArrow: painter.rotate(-90); break;
+    default: break;
+    }
+    painter.setPen(QPen(color, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawPolyline(QPolygonF{{-halfWidth, -halfHeight}, {0, halfHeight}, {halfWidth, -halfHeight}});
+    painter.restore();
+}
+
+QRect stepperRect(const QStyleOptionComplex &option)
+{
+    const auto interior = option.rect.adjusted(1, 1, -1, -1);
+    const auto width = qBound(0, interior.width(), stepperWidth);
+    return {interior.right() - width + 1, interior.top(), width, interior.height()};
+}
+
+void drawFieldFrame(const QStyleOptionComplex &option, QPainter &painter)
+{
+    const auto enabled = option.state.testFlag(QStyle::State_Enabled);
+    const auto &palette = option.palette;
+    painter.setPen(option.state.testFlag(QStyle::State_HasFocus) ? palette.highlight().color()
+                                                                : palette.dark().color());
+    painter.setBrush(enabled ? palette.base() : palette.window());
+    painter.drawRoundedRect(QRectF(option.rect).adjusted(0.5, 0.5, -0.5, -0.5), 6, 6);
+}
+
+class DashboardStyle final : public QProxyStyle {
+public:
+    DashboardStyle() : QProxyStyle(QStyleFactory::create("Fusion")) {}
+
+    void polish(QWidget *widget) override
+    {
+        QProxyStyle::polish(widget);
+        if (qobject_cast<QAbstractSpinBox *>(widget) || qobject_cast<QComboBox *>(widget))
+            widget->setAttribute(Qt::WA_Hover);
+    }
 
     int pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const override
     {
-        if (metric == PM_IndicatorWidth || metric == PM_IndicatorHeight)
+        if (metric == PM_IndicatorWidth || metric == PM_IndicatorHeight ||
+            metric == PM_ExclusiveIndicatorWidth || metric == PM_ExclusiveIndicatorHeight)
             return 17;
         return QProxyStyle::pixelMetric(metric, option, widget);
+    }
+
+    QSize sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &size,
+                           const QWidget *widget) const override
+    {
+        const auto native = QProxyStyle::sizeFromContents(type, option, size, widget);
+        if (type == CT_ComboBox || type == CT_SpinBox)
+            return native.expandedTo(size + QSize(type == CT_ComboBox ? stepperWidth + 16 : 16, fieldPadding_));
+        return native;
+    }
+
+    void setCompact(bool compact)
+    {
+        fieldPadding_ = compact ? 10 : 14;
+    }
+
+    QRect subControlRect(ComplexControl type, const QStyleOptionComplex *option, SubControl part,
+                         const QWidget *widget) const override
+    {
+        const auto stepper = stepperRect(*option);
+        const auto mirrored = [option](const QRect &rect) {
+            return visualRect(option->direction, option->rect, rect);
+        };
+        if (type == CC_ComboBox) {
+            if (part == SC_ComboBoxArrow)
+                return mirrored(stepper);
+            if (part == SC_ComboBoxEditField)
+                return mirrored(option->rect.adjusted(8, 1, -stepper.width() - 5, -1));
+        } else if (type == CC_SpinBox) {
+            const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option);
+            const bool buttons = spin && spin->buttonSymbols != QAbstractSpinBox::NoButtons;
+            if (part == SC_SpinBoxUp || part == SC_SpinBoxDown) {
+                if (!buttons)
+                    return {};
+                const int midpoint = stepper.top() + (stepper.height() + 1) / 2;
+                return mirrored(part == SC_SpinBoxUp
+                    ? QRect(stepper.topLeft(), QPoint(stepper.right(), midpoint - 1))
+                    : QRect(QPoint(stepper.left(), midpoint), stepper.bottomRight()));
+            }
+            if (part == SC_SpinBoxEditField)
+                return mirrored(option->rect.adjusted(8, 1, -(buttons ? stepper.width() : 0) - 5, -1));
+        }
+        return QProxyStyle::subControlRect(type, option, part, widget);
+    }
+
+    void drawComplexControl(ComplexControl type, const QStyleOptionComplex *option, QPainter *painter,
+                            const QWidget *widget) const override
+    {
+        if (type != CC_ComboBox && type != CC_SpinBox) {
+            QProxyStyle::drawComplexControl(type, option, painter, widget);
+            return;
+        }
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if ((type == CC_ComboBox && option->subControls.testFlag(SC_ComboBoxFrame)) ||
+            (type == CC_SpinBox && option->subControls.testFlag(SC_SpinBoxFrame)))
+            drawFieldFrame(*option, *painter);
+
+        const auto arrow = [&](SubControl control, Qt::ArrowType direction, bool stepEnabled) {
+            if (!option->subControls.testFlag(control))
+                return;
+            const auto bounds = subControlRect(type, option, control, widget);
+            const bool enabled = option->state.testFlag(State_Enabled) && stepEnabled;
+            if (enabled && option->activeSubControls.testFlag(control) &&
+                (option->state.testFlag(State_MouseOver) || option->state.testFlag(State_Sunken))) {
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(option->palette.midlight());
+                painter->drawRoundedRect(QRectF(bounds).adjusted(2, 1, -2, -1), 4, 4);
+            }
+            drawChevron(*painter, bounds, direction,
+                        option->palette.color(enabled ? QPalette::Active : QPalette::Disabled, QPalette::ButtonText));
+        };
+        if (type == CC_ComboBox) {
+            arrow(SC_ComboBoxArrow, Qt::DownArrow, true);
+        } else if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
+            if (spin->buttonSymbols == QAbstractSpinBox::PlusMinus) {
+                for (const auto part : {SC_SpinBoxUp, SC_SpinBoxDown}) {
+                    QStyleOption marker = *spin;
+                    marker.rect = subControlRect(type, option, part, widget);
+                    if (!spin->stepEnabled.testFlag(part == SC_SpinBoxUp ? QAbstractSpinBox::StepUpEnabled
+                                                                       : QAbstractSpinBox::StepDownEnabled))
+                        marker.state &= ~State_Enabled;
+                    QProxyStyle::drawPrimitive(part == SC_SpinBoxUp ? PE_IndicatorSpinPlus : PE_IndicatorSpinMinus,
+                                               &marker, painter, widget);
+                }
+            } else if (spin->buttonSymbols == QAbstractSpinBox::UpDownArrows) {
+                arrow(SC_SpinBoxUp, Qt::UpArrow, spin->stepEnabled.testFlag(QAbstractSpinBox::StepUpEnabled));
+                arrow(SC_SpinBoxDown, Qt::DownArrow, spin->stepEnabled.testFlag(QAbstractSpinBox::StepDownEnabled));
+            }
+        }
+        painter->restore();
     }
 
     void drawPrimitive(PrimitiveElement part, const QStyleOption *option, QPainter *painter,
                        const QWidget *widget) const override
     {
-        if (part != PE_IndicatorCheckBox) {
+        if (part == PE_FrameFocusRect &&
+            (qobject_cast<const QAbstractButton *>(widget) ||
+             (qobject_cast<const QAbstractItemView *>(widget) && !widget->property(keyboardFocusProperty).toBool())))
+            return;
+
+        Qt::ArrowType direction = Qt::NoArrow;
+        switch (part) {
+        case PE_IndicatorArrowDown:
+        case PE_IndicatorSpinDown: direction = Qt::DownArrow; break;
+        case PE_IndicatorArrowUp:
+        case PE_IndicatorSpinUp: direction = Qt::UpArrow; break;
+        case PE_IndicatorArrowLeft: direction = Qt::LeftArrow; break;
+        case PE_IndicatorArrowRight: direction = Qt::RightArrow; break;
+        case PE_IndicatorHeaderArrow:
+            if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option))
+                direction = header->sortIndicator == QStyleOptionHeader::SortUp ? Qt::UpArrow : Qt::DownArrow;
+            break;
+        default:
+            break;
+        }
+        if (direction != Qt::NoArrow) {
+            auto rect = option->rect;
+            if (part == PE_IndicatorArrowDown && widget && widget->objectName() == "localMenu")
+                return; // Local owns its status menu arrow.
+            const auto *push = qobject_cast<const QPushButton *>(widget);
+            const auto *tool = qobject_cast<const QToolButton *>(widget);
+            if (part == PE_IndicatorArrowDown && ((push && push->menu()) ||
+                (tool && tool->menu() && tool->popupMode() == QToolButton::InstantPopup))) {
+                rect = visualRect(widget->layoutDirection(), widget->rect(),
+                                  QRect(widget->width() - 21, 0, 16, widget->height()));
+            }
+            drawChevron(*painter, rect, direction, option->palette.color(
+                option->state.testFlag(State_Enabled) ? QPalette::Active : QPalette::Disabled, QPalette::ButtonText));
+            return;
+        }
+        if (part != PE_IndicatorCheckBox && part != PE_IndicatorRadioButton) {
             QProxyStyle::drawPrimitive(part, option, painter, widget);
             return;
         }
@@ -38,8 +304,19 @@ public:
         const QRectF rect = QRectF(option->rect).adjusted(1, 1, -1, -1);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(QPen(palette.color(group, on || option->state.testFlag(State_HasFocus)
+        painter->setPen(QPen(palette.color(group, on
                                                       ? QPalette::Highlight : QPalette::Mid), 1.2));
+        if (part == PE_IndicatorRadioButton) {
+            painter->setBrush(palette.color(group, QPalette::Base));
+            painter->drawEllipse(rect);
+            if (on) {
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(palette.color(group, QPalette::Highlight));
+                painter->drawEllipse(rect.adjusted(4, 4, -4, -4));
+            }
+            painter->restore();
+            return;
+        }
         painter->setBrush(palette.color(group, on ? QPalette::Highlight : QPalette::Base));
         painter->drawRoundedRect(rect, 3, 3);
         if (on) {
@@ -54,21 +331,70 @@ public:
         }
         painter->restore();
     }
-};
-}
 
-QIcon uiIcon(UiIcon symbol, const QColor &color)
-{
-    QIcon icon;
-    const auto ink = color.isValid() ? color : QApplication::palette().color(QPalette::WindowText);
-    for (const int factor : {1, 2, 3}) {
-        QPixmap pixmap(18 * factor, 18 * factor);
-        pixmap.fill(Qt::transparent);
-        QPainter p(&pixmap);
-        p.scale(factor, factor);
+    QIcon standardIcon(StandardPixmap icon, const QStyleOption *option, const QWidget *widget) const override
+    {
+        if (icon == SP_LineEditClearButton)
+            return uiIcon(UiIcon::Close, QApplication::palette().color(QPalette::PlaceholderText));
+        return QProxyStyle::standardIcon(icon, option, widget);
+    }
+
+private:
+    int fieldPadding_ = 14;
+};
+
+QPointer<DashboardStyle> dashboardStyle;
+
+class VectorIcon final : public QIconEngine {
+public:
+    VectorIcon(UiIcon symbol, QColor color) : symbol_(symbol), color_(color) {}
+
+    QIconEngine *clone() const override { return new VectorIcon(symbol_, color_); }
+
+    QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override
+    {
+        if (size.isEmpty())
+            return {};
+        const auto ink = iconColor(mode);
+        const auto key = QStringLiteral("cgacp-vector-%1-%2-%3-%4")
+                             .arg(static_cast<int>(symbol_)).arg(ink.rgba())
+                             .arg(size.width()).arg(size.height());
+        QPixmap result;
+        if (QPixmapCache::find(key, &result))
+            return result;
+        result = QPixmap(size);
+        result.fill(Qt::transparent);
+        {
+            QPainter painter(&result);
+            paint(&painter, result.rect(), mode, state);
+        }
+        QPixmapCache::insert(key, result);
+        return result;
+    }
+
+    QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State state, qreal scale) override
+    {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+        return pixmap(size * scale, mode, state);
+#else
+        Q_UNUSED(scale);
+        return pixmap(size, mode, state);
+#endif
+    }
+
+    void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State) override
+    {
+        const auto extent = qMin(rect.width(), rect.height());
+        if (extent <= 0)
+            return;
+        auto &p = *painter;
+        const auto ink = iconColor(mode);
+        p.save();
+        p.translate(QRectF(rect).center() - QPointF(extent / 2.0, extent / 2.0));
+        p.scale(extent / 18.0, extent / 18.0);
         p.setRenderHint(QPainter::Antialiasing);
         p.setPen(QPen(ink, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        switch (symbol) {
+        switch (symbol_) {
         case UiIcon::Add:
             p.drawLine(4, 9, 14, 9);
             p.drawLine(9, 4, 9, 14);
@@ -80,10 +406,11 @@ QIcon uiIcon(UiIcon symbol, const QColor &color)
             p.drawLine(5, 9, 13, 9);
             break;
         case UiIcon::Collapse:
-            p.drawPolyline(QPolygonF{{11, 4}, {6, 9}, {11, 14}});
-            break;
         case UiIcon::Expand:
-            p.drawPolyline(QPolygonF{{7, 4}, {12, 9}, {7, 14}});
+            p.drawRoundedRect(QRectF(2, 3, 14, 12), 2, 2);
+            p.drawLine(QPointF(6.5, 3), QPointF(6.5, 15));
+            if (symbol_ == UiIcon::Collapse)
+                p.drawLine(QPointF(4.2, 5.5), QPointF(4.2, 12.5));
             break;
         case UiIcon::Settings: {
             const QPointF center(9, 9);
@@ -120,11 +447,24 @@ QIcon uiIcon(UiIcon symbol, const QColor &color)
             p.drawPoint(9, 12);
             break;
         }
-        p.end();
-        pixmap.setDevicePixelRatio(factor);
-        icon.addPixmap(pixmap);
+        p.restore();
     }
-    return icon;
+
+private:
+    QColor iconColor(QIcon::Mode mode) const
+    {
+        return mode == QIcon::Disabled ? QApplication::palette().color(QPalette::Disabled, QPalette::ButtonText)
+                                      : color_;
+    }
+
+    UiIcon symbol_;
+    QColor color_;
+};
+}
+
+QIcon uiIcon(UiIcon symbol, const QColor &color)
+{
+    return QIcon(new VectorIcon(symbol, color.isValid() ? color : QApplication::palette().color(QPalette::WindowText)));
 }
 
 void applyTheme(QApplication &app)
@@ -133,7 +473,9 @@ void applyTheme(QApplication &app)
     systemFont = app.font();
     systemPalette = app.palette();
     app.setWindowIcon(QIcon(QStringLiteral(":/cgacp/favicon.png")));
-    app.setStyle(new CheckStyle);
+    dashboardStyle = new DashboardStyle;
+    app.setStyle(dashboardStyle);
+    new InteractionState(app);
 }
 
 ThemeManager::ThemeManager(QObject *parent) : QObject(parent)
@@ -157,6 +499,8 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     density_ = density;
     textScale_ = textScale;
     light_ = light;
+    if (dashboardStyle)
+        dashboardStyle->setCompact(density == "compact");
     const auto tone = [light](const char *dark, const char *bright) {
         return QString::fromLatin1(light ? bright : dark);
     };
@@ -187,6 +531,8 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     palette.setColor(QPalette::ToolTipText, QColor(text));
     palette.setColor(QPalette::PlaceholderText, QColor(muted));
     palette.setColor(QPalette::Mid, QColor(control));
+    palette.setColor(QPalette::Dark, QColor(border));
+    palette.setColor(QPalette::Midlight, QColor(hover));
     palette.setColor(QPalette::Highlight, QColor(accent));
     palette.setColor(QPalette::HighlightedText, QColor(onAccent));
     palette.setColor(QPalette::Link, QColor(accent));
@@ -210,6 +556,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
             {"CANVAS", canvas}, {"RAIL", rail}, {"SURFACE", surface}, {"BASE", base},
             {"BORDER", border}, {"CONTROL", control}, {"TEXT", text}, {"MUTED", muted},
             {"HOVER", hover}, {"SELECTED", selected}, {"ACCENT", accent}, {"ON_ACCENT", onAccent},
+            {"PRIMARY_HOVER", tone("#92e6d8", "#08786a")}, {"PRIMARY_PRESSED", tone("#58c7b5", "#00594f")},
             {"DANGER", danger}, {"WARNING", warning}, {"BODY_SIZE", scaled(13)}, {"TITLE_SIZE", scaled(24)},
             {"SECTION_SIZE", scaled(15)}, {"META_SIZE", scaled(12)},
             {"VERTICAL_PAD", density == "compact" ? "4" : "6"}

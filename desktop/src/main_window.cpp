@@ -13,6 +13,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
 #include <QScreen>
@@ -84,6 +85,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
     sidebarLayout->setSpacing(0);
     auto *rail = new QVBoxLayout;
+    sidebarRail_ = rail;
     rail->setContentsMargins(10, 12, 10, 4);
     rail->setSpacing(6);
     sidebarLayout->addLayout(rail, 1);
@@ -100,6 +102,8 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     brandSubtitle_ = new QLabel(QStringLiteral("CIRNETLAB"));
     brandSubtitle_->setObjectName("brandSubtitle");
     sidebarToggle_ = iconButton("toggleSidebar", tr("Collapse sidebar"));
+    sidebarToggle_->setIconSize(QSize(22, 22));
+    sidebarToggle_->setMinimumSize(36, 36);
     identityLayout_->addWidget(mark, 0, Qt::AlignCenter);
     identityLayout_->addWidget(brand_, 0, Qt::AlignVCenter);
     identityLayout_->addWidget(brandSubtitle_, 1, Qt::AlignVCenter);
@@ -114,6 +118,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     chatButton_->setProperty("navigation", true);
     chatButton_->setAccessibleName(newChatAction_->text());
     chatButton_->setToolTip(newChatAction_->text());
+    chatButton_->setIconSize(QSize(20, 20));
     rail->addWidget(chatButton_);
     automationsButton_ = new QPushButton;
     automationsButton_->setObjectName("navAutomations");
@@ -121,6 +126,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     automationsButton_->setCheckable(true);
     automationsButton_->setAccessibleName(tr("Automations"));
     automationsButton_->setToolTip(tr("Automations"));
+    automationsButton_->setIconSize(QSize(20, 20));
     rail->addWidget(automationsButton_);
 
     auto *content = new QWidget;
@@ -136,6 +142,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
 
     repositoriesPage_ = makeRepositories();
     conversationsPage_ = makeConversations();
+    notifications_->setAvoidanceWidget(composer_);
     automationsPage_ = makeAutomations();
     settingsPage_ = makeSettings();
     for (auto *page : {conversationsPage_, automationsPage_, settingsPage_})
@@ -143,6 +150,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
 
     historyPage_ = makeConversationHistory();
     rail->addWidget(historyPage_, 1);
+    rail->addStretch();
     auto *footer = new QFrame;
     footer->setObjectName("sidebarFooter");
     footer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
@@ -163,6 +171,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     localButton_->setMenu(localMenu);
     localButton_->setPopupMode(QToolButton::InstantPopup);
     settingsButton_ = iconButton("navSettings", tr("Settings"));
+    settingsButton_->setCheckable(true);
     settingsButton_->setIconSize(QSize(16, 16));
     settingsButton_->setMinimumSize(30, 30);
     localLayout_->addWidget(localButton_, 1);
@@ -174,7 +183,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     splitter_->setStretchFactor(1, 1);
 
     connect(theme_, &ThemeManager::changed, this, [this] {
-        changeSidebar(sidebarCollapsed_);
+        updateSidebarLayout();
         notifications_->refreshIcons();
     });
     changeSidebar(false);
@@ -182,7 +191,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     setConnection(false, tr("Connecting to local runtime…"));
     savedPreferences_ = preferenceSettings();
     connect(splitter_, &QSplitter::splitterMoved, this, [this] {
-        if (!sidebarCollapsed_) {
+        if (!sidebarCollapsed_ && pages_->currentWidget() != settingsPage_) {
             sidebarWidth_ = qBound(210, splitter_->sizes().value(0, 260), 360);
             schedulePreferencesSave();
         }
@@ -193,10 +202,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     });
     connect(settingsButton_, &QToolButton::clicked, this, [this] { showSettings(); });
     connect(chatButton_, &QPushButton::clicked, newChatAction_, &QAction::trigger);
-    connect(newChatAction_, &QAction::triggered, this, [this] {
-        showPage(conversationsPage_);
-        newConversation();
-    });
+    connect(newChatAction_, &QAction::triggered, this, [this] { newConversation(); });
     connect(automationsButton_, &QPushButton::clicked, this, [this] { showPage(automationsPage_); });
 
     auto *openSettings = new QShortcut(QKeySequence(QStringLiteral("Ctrl+,")), this);
@@ -206,8 +212,8 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     auto *find = new QShortcut(QKeySequence::Find, this);
     connect(find, &QShortcut::activated, this, [this] {
         QLineEdit *search = nullptr;
-        if (pages_->currentWidget() == settingsPage_ && settingsChoice_->currentData().toString() == "repositories")
-            search = repoSearch_;
+        if (pages_->currentWidget() == settingsPage_)
+            search = settingsSection() == "repositories" ? repoSearch_ : settingsSearch_;
         else if (pages_->currentWidget() == automationsPage_)
             search = automationSearch_;
         else if (pages_->currentWidget() == conversationsPage_) {
@@ -224,7 +230,12 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     });
     auto *back = new QShortcut(QKeySequence(Qt::Key_Escape), settingsPage_);
     back->setContext(Qt::WidgetWithChildrenShortcut);
-    connect(back, &QShortcut::activated, this, &MainWindow::closeSettings);
+    connect(back, &QShortcut::activated, this, [this] {
+        if (auto *popup = QApplication::activePopupWidget())
+            popup->close();
+        else if (!QApplication::activeModalWidget())
+            closeSettings();
+    });
 
     connect(&client_, &RuntimeClient::ready, this, [this] {
         connecting_ = true;
@@ -290,21 +301,38 @@ void MainWindow::reconnectRuntime()
 void MainWindow::changeSidebar(bool collapsed)
 {
     sidebarCollapsed_ = collapsed;
+    updateSidebarLayout();
+}
+
+void MainWindow::updateSidebarLayout()
+{
+    const bool settingsOpen = pages_->currentWidget() == settingsPage_;
+    const bool compact = sidebarCollapsed_ || settingsOpen;
     const int brandWidth = 26 + brand_->sizeHint().width() + brandSubtitle_->sizeHint().width() +
                            sidebarToggle_->sizeHint().width() + 45;
     const int minimum = qBound(210, brandWidth, 360);
     sidebar_->setMinimumWidth(0);
-    sidebar_->setMaximumWidth(collapsed ? 60 : 360);
-    brand_->setVisible(!collapsed);
-    brandSubtitle_->setVisible(!collapsed);
-    historyPage_->setVisible(!collapsed);
-    identityLayout_->setDirection(collapsed ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
-    localLayout_->setDirection(collapsed ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
-    sidebar_->setMinimumWidth(collapsed ? 60 : minimum);
-    const int next = collapsed ? 60 : qMax(minimum, sidebarWidth_);
+    sidebar_->setMaximumWidth(compact ? 60 : 360);
+    brand_->setVisible(!compact);
+    brandSubtitle_->setVisible(!compact);
+    sidebarToggle_->setVisible(!settingsOpen);
+    sidebarToggle_->setEnabled(!settingsOpen);
+    historyPage_->setVisible(!compact);
+    sidebarRail_->setStretch(sidebarRail_->count() - 1, compact ? 1 : 0);
+    identityLayout_->setDirection(compact ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+    localLayout_->setDirection(compact ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+    for (auto *button : {chatButton_, automationsButton_}) {
+        button->setMinimumSize(compact ? 36 : 0, 36);
+        button->setSizePolicy(compact ? QSizePolicy::Fixed : QSizePolicy::Expanding, QSizePolicy::Fixed);
+        sidebarRail_->setAlignment(button, compact ? Qt::Alignment(Qt::AlignHCenter) : Qt::Alignment{});
+    }
+    localButton_->setMinimumHeight(compact ? 36 : 30);
+    settingsButton_->setMinimumSize(compact ? 36 : 30, compact ? 36 : 30);
+    sidebar_->setMinimumWidth(compact ? 60 : minimum);
+    const int next = compact ? 60 : qMax(minimum, sidebarWidth_);
     splitter_->setSizes({next, qMax(1, splitter_->width() - next - splitter_->handleWidth())});
     if (auto *handle = splitter_->handle(1))
-        handle->setEnabled(!collapsed);
+        handle->setEnabled(!compact);
     updateShellIcons();
 }
 
@@ -312,17 +340,18 @@ void MainWindow::updateShellIcons()
 {
     if (!sidebarToggle_ || !localButton_)
         return;
+    const bool compact = sidebarCollapsed_ || pages_->currentWidget() == settingsPage_;
     const auto toggle = sidebarCollapsed_ ? tr("Expand sidebar") : tr("Collapse sidebar");
     sidebarToggle_->setToolTip(toggle);
     sidebarToggle_->setAccessibleName(toggle);
     sidebarToggle_->setIcon(uiIcon(sidebarCollapsed_ ? UiIcon::Expand : UiIcon::Collapse));
     settingsButton_->setIcon(uiIcon(UiIcon::Settings, QApplication::palette().color(QPalette::PlaceholderText)));
-    chatButton_->setText(sidebarCollapsed_ ? QString{} : newChatAction_->text());
+    chatButton_->setText(compact ? QString{} : newChatAction_->text());
     chatButton_->setIcon(uiIcon(UiIcon::Add));
-    automationsButton_->setText(sidebarCollapsed_ ? QString{} : tr("Automations"));
+    automationsButton_->setText(compact ? QString{} : tr("Automations"));
     automationsButton_->setIcon(uiIcon(UiIcon::Automations));
-    localButton_->setText(sidebarCollapsed_ ? QString{} : tr("Local"));
-    localButton_->setToolButtonStyle(sidebarCollapsed_ ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
+    localButton_->setText(compact ? QString{} : tr("Local"));
+    localButton_->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
     localButton_->setToolTip(connectionStatus_);
     localButton_->setAccessibleName(tr("Local — %1").arg(connectionStatus_));
     const bool light = QApplication::palette().color(QPalette::Window).lightness() > 128;
@@ -334,8 +363,16 @@ void MainWindow::updateShellIcons()
 
 void MainWindow::showPage(QWidget *page)
 {
-    pages_->setCurrentWidget(page);
+    auto *previous = pages_->currentWidget();
+    if (previous != page) {
+        ++navigationRevision_;
+        pages_->setCurrentWidget(page);
+        if (previous == settingsPage_ || page == settingsPage_)
+            updateSidebarLayout();
+    }
     automationsButton_->setChecked(page == automationsPage_);
+    settingsButton_->setChecked(page == settingsPage_);
+    updateConversationSelection();
 }
 
 void MainWindow::call(const QString &method, QJsonObject params, RuntimeClient::Reply reply)

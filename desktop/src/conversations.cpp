@@ -10,6 +10,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QItemSelectionModel>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
@@ -28,6 +29,7 @@
 #include <QTextCursor>
 #include <QTimer>
 #include <QUuid>
+#include <QVariant>
 #include <QVBoxLayout>
 
 namespace {
@@ -175,6 +177,7 @@ QWidget *MainWindow::makeConversationHistory()
     conversationList_->setAccessibleName(tr("Conversation history"));
     conversationList_->setWordWrap(false);
     conversationList_->setUniformItemSizes(true);
+    conversationList_->setSelectionMode(QAbstractItemView::NoSelection);
     conversationList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     conversationList_->setTextElideMode(Qt::ElideRight);
     conversationList_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -199,13 +202,10 @@ QWidget *MainWindow::makeConversationHistory()
             refreshConversations(true);
     });
     connect(conversationList_, &QListWidget::itemActivated, this, [this](QListWidgetItem *item) {
-        showPage(conversationsPage_);
-        openConversation(item->data(IdRole).toString());
+        navigateConversation(item->data(IdRole).toString());
     });
     connect(conversationList_, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
-        showPage(conversationsPage_);
-        if (currentConversation_ != item->data(IdRole).toString())
-            openConversation(item->data(IdRole).toString());
+        navigateConversation(item->data(IdRole).toString());
     });
     connect(conversationList_, &QListWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         const auto *row = conversationList_->itemAt(pos);
@@ -237,8 +237,7 @@ QWidget *MainWindow::makeConversationHistory()
         if (choice == more) {
             refreshConversations(true);
         } else if (choice == resume) {
-            showPage(conversationsPage_);
-            openConversation(record.value("id").toString());
+            navigateConversation(record.value("id").toString());
         } else if (choice == rename || choice == archive) {
             editConversation(choice == archive, record);
         }
@@ -360,6 +359,21 @@ bool MainWindow::canLoadMoreConversations() const
            conversationList_->property("loadedQuery").toString() == conversationSearch_->text().trimmed();
 }
 
+void MainWindow::updateConversationSelection()
+{
+    auto *selection = conversationList_->selectionModel();
+    if (pages_->currentWidget() == conversationsPage_ && !currentConversation_.isEmpty()) {
+        for (int row = 0; row < conversationList_->count(); ++row) {
+            if (conversationList_->item(row)->data(IdRole).toString() == currentConversation_) {
+                const auto index = conversationList_->model()->index(row, 0);
+                selection->select(index, QItemSelectionModel::ClearAndSelect);
+                return;
+            }
+        }
+    }
+    selection->clearSelection();
+}
+
 void MainWindow::refreshConversations(bool append)
 {
     if (!online_ || !conversationSearch_ || (append && !canLoadMoreConversations()))
@@ -388,7 +402,8 @@ void MainWindow::refreshConversations(bool append)
         auto *scrollbar = conversationList_->verticalScrollBar();
         const QSignalBlocker listSignals(conversationList_);
         const auto scroll = scrollbar->value();
-        const auto selected = currentConversation_;
+        const auto *focusedRow = conversationList_->currentItem();
+        const auto focusedId = focusedRow ? focusedRow->data(IdRole).toString() : QString{};
         const auto firstPage = data.value("items").toArray();
         auto records = firstPage;
         const bool keepTail = !append && !firstPage.isEmpty()
@@ -428,9 +443,10 @@ void MainWindow::refreshConversations(bool append)
             item->setData(Qt::AccessibleTextRole, tr("%1 · %2").arg(title, status));
             if (status == "ARCHIVED")
                 item->setText(tr("Archived · %1").arg(item->text()));
-            if (id == selected)
-                conversationList_->setCurrentItem(item);
+            if (!append && !focusedId.isEmpty() && id == focusedId)
+                conversationList_->setCurrentItem(item, QItemSelectionModel::NoUpdate);
         }
+        updateConversationSelection();
         scrollbar->setValue(scroll);
         if (!keepTail) {
             const auto next = data.value("next_before");
@@ -503,13 +519,15 @@ void MainWindow::newConversation(const QString &preselected)
     connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     connect(dialog, &QDialog::finished, dialog, [dialog] { dialog->setProperty("finished", true); });
     connect(picker->manageButton(), &QPushButton::clicked, dialog, [this, dialog] {
-        dialog->setProperty("managingRepositories", true);
-        dialog->hide();
+        if (auto *origin = pages_->currentWidget(); origin != settingsPage_) {
+            dialog->setProperty("repositoryReturnPage", QVariant::fromValue(origin));
+            dialog->hide();
+        }
         showSettings(QStringLiteral("repositories"));
     });
     connect(pages_, &QStackedWidget::currentChanged, dialog, [this, dialog, load](int) {
-        if (pages_->currentWidget() == conversationsPage_ && dialog->property("managingRepositories").toBool()) {
-            dialog->setProperty("managingRepositories", false);
+        if (pages_->currentWidget() == dialog->property("repositoryReturnPage").value<QWidget *>()) {
+            dialog->setProperty("repositoryReturnPage", {});
             reactivate(dialog);
             load();
         }
@@ -534,7 +552,8 @@ void MainWindow::newConversation(const QString &preselected)
         enable();
         status->setText(tr("Saving conversation…"));
         status->show();
-        call("conversation.create", params, [this, guard, status, enable](const QJsonObject &result, const QString &error) {
+        const auto navigation = navigationRevision_;
+        call("conversation.create", params, [this, guard, status, enable, navigation](const QJsonObject &result, const QString &error) {
             if (!guard || guard->property("finished").toBool()) {
                 if (!error.isEmpty())
                     showStatus(error, true);
@@ -550,8 +569,8 @@ void MainWindow::newConversation(const QString &preselected)
                 return;
             }
             guard->accept();
-            if (pages_->currentWidget() == conversationsPage_)
-                openConversation(id);
+            if (navigation == navigationRevision_)
+                navigateConversation(id);
             refreshConversations();
         });
     });
@@ -561,11 +580,21 @@ void MainWindow::newConversation(const QString &preselected)
     load();
 }
 
+void MainWindow::navigateConversation(const QString &id)
+{
+    if (!online_ || id.isEmpty())
+        return;
+    if (id != currentConversation_ || conversation_.isEmpty())
+        openConversation(id);
+    showPage(conversationsPage_);
+}
+
 void MainWindow::openConversation(const QString &id)
 {
     if (!online_ || id.isEmpty())
         return;
     if (id != currentConversation_) {
+        ++navigationRevision_;
         currentConversation_ = id;
         eventCursor_ = 0;
         conversation_ = {};
@@ -779,7 +808,7 @@ void MainWindow::refreshConversationEvents()
     call("conversation.events", {{"id", id}, {"after", qint64(eventCursor_)}, {"limit", 30}},
          [this, id](const QJsonObject &result, const QString &error) {
         eventRequestPending_ = false;
-        if (!error.isEmpty() || id != currentConversation_)
+        if (!error.isEmpty() || id != currentConversation_ || pages_->currentWidget() != conversationsPage_)
             return;
         const auto next = quint64(qMax<qint64>(0, result.value("next_after").toInteger()));
         if (next > eventCursor_) {

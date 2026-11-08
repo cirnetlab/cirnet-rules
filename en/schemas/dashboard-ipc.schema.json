@@ -34,6 +34,7 @@
         "text_scale": {"type": "integer", "minimum": 85, "maximum": 150},
         "sidebar_width": {"type": "integer", "minimum": 210, "maximum": 360},
         "sidebar_collapsed": {"type": "boolean"},
+        "reduced_motion": {"type": "boolean", "default": false},
         "repository_layout": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/repositoryLayout"}]},
         "notification_level": {"enum": ["all", "important"]}
       }

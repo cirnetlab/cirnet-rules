@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 4 -->
+<!-- revision: 5 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -30,10 +30,13 @@ absolute test directory for disposable verification.
 ## Operator workflow
 
 Drag the sidebar divider to resize it. Use its chevron or Ctrl+B to collapse
-or expand it. Open Settings from the footer or with Ctrl+, to change the theme,
-density or text size. Reset layout restores sidebar and repository table
-presentation. Use the Notifications section to review or clear read messages
-from this session. Warnings and errors always remain eligible for a toast.
+or expand it. Open Settings from the footer or with Ctrl+, and select a
+category on the left. Appearance provides theme previews, density, text
+size and Reduced motion. Back to workspace or Escape returns to the previous
+page. Reset layout restores sidebar and repository table presentation. Toasts
+stack up from the lower right and leave the composer clear. Use Notifications
+to review or clear read messages from this session. Warnings and errors remain
+eligible for a toast.
 
 In Settings → Repositories, add a folder or file and review the resolved Git
 root, branch, worktree and file hint before saving. Use Select for task or
@@ -82,4 +85,4 @@ to record artifact SHA-256 and source provenance. The candidate remains
 `RELEASE_BLOCKED` until native Agent, isolation, authenticated review,
 clean Windows and redistribution gates are evidenced.
 
-[Architecture and limitations](dashboard-architecture.md) · [Release candidate](dashboard-release.md) · [Task workflow](cgacp-local.md)
+[Architecture and limitations](dashboard-architecture.md) · [Interaction states](desktop-interaction.md) · [Release candidate](dashboard-release.md) · [Task workflow](cgacp-local.md)

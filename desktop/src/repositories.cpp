@@ -940,8 +940,9 @@ void MainWindow::selectRepository()
         return;
     repoActionPending_ = true;
     updateRepositoryActions();
+    const auto navigation = navigationRevision_;
     call("repo.select", {{"binding_id", item.value("binding_id")}, {"revision", item.value("revision")}},
-         [this, item](const QJsonObject &value, const QString &error) {
+         [this, item, navigation](const QJsonObject &value, const QString &error) {
         repoActionPending_ = false;
         updateRepositoryActions();
         if (!error.isEmpty()) {
@@ -954,11 +955,9 @@ void MainWindow::selectRepository()
             health.insert("checked_at", value.value("verified_at"));
             repositoryHealth_.insert(bindingId(item), health);
             refreshRepositories();
-            QTimer::singleShot(0, this, [this, id = bindingId(item)] {
-                if (online_ && repositoriesPage_->isVisible()) {
-                    showPage(conversationsPage_);
+            QTimer::singleShot(0, this, [this, id = bindingId(item), navigation] {
+                if (online_ && navigation == navigationRevision_ && repositoriesPage_->isVisible())
                     newConversation(id);
-                }
             });
         } else {
             showError(tr("The saved binding could not be verified."));

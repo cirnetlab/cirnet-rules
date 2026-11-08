@@ -4,6 +4,9 @@
 #include "notification_center.h"
 #include "pages_test.h"
 #include "repository_cases.h"
+#include "navigation_test.h"
+#include "settings_polish_test.h"
+#include "interaction_cases.h"
 
 #include <QAbstractItemModel>
 #include <QAction>
@@ -31,6 +34,8 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -45,6 +50,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QTranslator>
+#include <QWindow>
 #include <algorithm>
 #include <cstdio>
 
@@ -131,6 +137,8 @@ int runFixture(const QString &mode)
     char line[65536];
     QJsonArray methods;
     QJsonObject lastRepoSelection;
+    QList<QByteArray> heldReplies;
+    bool firstPreferenceWrite = true;
     while (std::fgets(line, sizeof line, stdin)) {
         const auto request = QJsonDocument::fromJson(QByteArray(line)).object();
         const auto method = request.value("method").toString();
@@ -145,7 +153,8 @@ int runFixture(const QString &mode)
             lastRepoSelection = request.value("params").toObject();
         methods.append(method);
         QJsonObject responseObject{{"v", 1}, {"id", request.value("id")}};
-        if (mode == "save-error" && method == "preferences.set") {
+        if (mode == "save-error" && method == "preferences.set" && firstPreferenceWrite) {
+            firstPreferenceWrite = false;
             responseObject.insert("ok", false);
             responseObject.insert("error", QJsonObject{{"code", "STORAGE_UNAVAILABLE"}, {"message", "Fixture write denied."}});
         } else {
@@ -154,6 +163,18 @@ int runFixture(const QString &mode)
                                   fixtureResult(method, request.value("params").toObject(), methods, mode));
         }
         const auto response = QJsonDocument(responseObject).toJson(QJsonDocument::Compact) + '\n';
+        const auto params = request.value("params").toObject();
+        if (mode == "navigation-delayed" &&
+            ((method == "conversation.get" && params.value("id") == "chat-1") ||
+             (method == "conversation.list" && !params.value("query").toString().isEmpty()))) {
+            heldReplies.append(response);
+            continue;
+        }
+        if (method == "test.releaseNavigation") {
+            for (const auto &reply : heldReplies)
+                std::fwrite(reply.constData(), 1, size_t(reply.size()), stdout);
+            heldReplies.clear();
+        }
         const auto half = response.size() / 2;
         std::fwrite(response.data(), 1, size_t(half), stdout);
         std::fflush(stdout);
@@ -199,11 +220,22 @@ void settingsSection(MainWindow &window, const QString &section)
     auto *settings = window.findChild<QToolButton *>("navSettings");
     QVERIFY(settings);
     QTest::mouseClick(settings, Qt::LeftButton);
-    auto *choice = window.findChild<QComboBox *>("settingsSection");
+    auto *choice = window.findChild<QListWidget *>("settingsNavigation");
     QVERIFY(choice && choice->isVisible());
-    const auto index = choice->findData(section);
-    QVERIFY(index >= 0);
-    choice->setCurrentIndex(index);
+    for (int row = 0; row < choice->count(); ++row) {
+        if (choice->item(row)->data(Qt::UserRole).toString() == section) {
+            choice->setCurrentRow(row);
+            return;
+        }
+    }
+    QFAIL("Settings section is missing");
+}
+
+void chooseTheme(MainWindow &window, const QString &name)
+{
+    auto *tile = window.findChild<QRadioButton *>(QStringLiteral("theme") + name);
+    QVERIFY(tile);
+    tile->setChecked(true);
 }
 
 bool captureWidget(QWidget &widget, const QString &name)
@@ -214,11 +246,53 @@ bool captureWidget(QWidget &widget, const QString &name)
     QTest::qWait(60);
     return widget.grab().save(directory + "/" + name + ".png");
 }
+
+void withDashboardFixture(const std::function<void(MainWindow &)> &test,
+                          const std::function<void(RuntimeClient &)> &after = {})
+{
+    RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
+    MainWindow window(client);
+    window.resize(1366, 768);
+    interaction_cases::pinToPrimary(window);
+    window.show();
+    client.start();
+    QTRY_VERIFY(window.findChild<QPushButton *>("addAutomation")->isEnabled());
+    test(window);
+    if (after)
+        after(client);
+    client.stop();
+    QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+}
 }
 
 class DesktopTest final : public QObject {
     Q_OBJECT
 private slots:
+    void mouseAndKeyboardFocus() { interaction_cases::mouseAndKeyboardFocus(); }
+    void compoundArrows() { interaction_cases::compoundArrows(); }
+    void settingsLayoutAndKeyboard() { withDashboardFixture(verifySettingsPolish); }
+    void exclusiveNavigation() { withDashboardFixture(verifyExclusiveNavigation); }
+    void newChatCancelKeepsRoute()
+    {
+        withDashboardFixture(verifyNewChatCancelKeepsRoute, [](RuntimeClient &client) {
+            QVERIFY(!invoke(client, "test.methods").value("items").toArray().contains(QJsonValue("conversation.create")));
+        });
+    }
+    void collapsedSidebarGrouping() { withDashboardFixture(verifyCollapsedSidebarGrouping); }
+
+    void lateConversationReplies()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "navigation-delayed"});
+        MainWindow window(client);
+        window.resize(1366, 768);
+        interaction_cases::pinToPrimary(window);
+        window.show();
+        client.start();
+        verifyLateConversationReplies(window, [&client](const QString &method) { return invoke(client, method); });
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
     void fragmentedResponsesAndRestart()
     {
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
@@ -246,6 +320,7 @@ private slots:
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
         MainWindow window(client);
         window.resize(1366, 768);
+        interaction_cases::pinToPrimary(window);
         window.show();
         QElapsedTimer startup;
         startup.start();
@@ -275,7 +350,14 @@ private slots:
         const auto initialMethods = invoke(client, "test.methods").value("items").toArray();
         qInfo() << "Populated fixture ready ms" << startup.elapsed() << "requests through readiness" << initialMethods.size() - 1;
         const auto ratio = window.devicePixelRatioF();
+        bool hasExpectedDpr = false;
+        const auto expectedDpr = qEnvironmentVariable("CGACP_EXPECT_DPR").toDouble(&hasExpectedDpr);
+        if (hasExpectedDpr)
+            QVERIFY(qAbs(ratio - expectedDpr) < 0.01);
         qInfo() << "Qt platform" << QGuiApplication::platformName() << "devicePixelRatio" << ratio;
+        qInfo() << "Screen logical" << window.screen()->geometry() << "available" << window.screen()->availableGeometry()
+                << "font" << window.font().family() << window.font().pointSizeF()
+                << "initial appearance dark, comfortable, text 100%";
         for (const auto size : {QSize(1366, 768), QSize(1920, 1080)}) {
             window.resize(qRound(size.width() / ratio), qRound(size.height() / ratio));
             QTest::qWait(60);
@@ -310,10 +392,9 @@ private slots:
         }
         settingsSection(window, "appearance");
         QVERIFY(captureWidget(window, "settings-appearance"));
-        auto *themes = window.findChild<QComboBox *>("themeChoice");
         auto *density = window.findChild<QComboBox *>("densityChoice");
-        QVERIFY(themes && density);
-        themes->setCurrentIndex(themes->findData("light"));
+        QVERIFY(density);
+        chooseTheme(window, "Light");
         QVERIFY(QApplication::palette().color(QPalette::Window).lightness() > 128);
         density->setCurrentIndex(density->findData("compact"));
         QVERIFY(captureWidget(window, "settings-appearance-light"));
@@ -354,7 +435,7 @@ private slots:
         QVERIFY(verifyTick());
         checkbox->setEnabled(true);
         QVERIFY(captureWidget(window, "repositories-checked-light"));
-        themes->setCurrentIndex(themes->findData("dark"));
+        chooseTheme(window, "Dark");
         checkbox->setFocus();
         QVERIFY(verifyTick());
         QVERIFY(captureWidget(window, "repositories-checked-dark"));
@@ -377,8 +458,8 @@ private slots:
         QVERIFY(composer);
         composer->setPlainText(tr("Draft kept while reviewing preferences"));
         settingsSection(window, "appearance");
-        themes->setCurrentIndex(themes->findData("light"));
-        themes->setCurrentIndex(themes->findData("dark"));
+        chooseTheme(window, "Light");
+        chooseTheme(window, "Dark");
         QTest::keyClick(back, Qt::Key_Space);
         QTRY_VERIFY(composer->isVisible());
         QCOMPARE(composer->toPlainText(), tr("Draft kept while reviewing preferences"));
@@ -386,15 +467,22 @@ private slots:
         QVERIFY(captureWidget(window, "chat-draft"));
         client.request("test.crash", {}, {});
         QTRY_VERIFY(!client.isRunning());
-        auto *toast = window.findChild<QWidget *>("toast");
-        QVERIFY(toast && toast->isVisible());
-        QVERIFY(toast->geometry().top() < 32);
+        QPointer<QWidget> toast = window.findChild<QWidget *>("toast");
+        QTRY_VERIFY(toast && toast->isVisible());
+        auto *toastBody = toast->findChild<QLabel *>("toastBody");
+        QCOMPARE(toastBody->text().simplified(), QString("The runtime stopped. Reconnect to restore saved state."));
+        QTRY_VERIFY(toastBody->height() >= toastBody->fontMetrics().height() +
+                    toastBody->text().count(u'\n') * toastBody->fontMetrics().lineSpacing());
+        const auto *host = toast->parentWidget();
+        const QRect editorBounds(composer->mapTo(host, QPoint{}), composer->size());
+        QVERIFY(toast->geometry().bottom() < editorBounds.top());
+        QVERIFY(editorBounds.top() - toast->geometry().bottom() <= 12);
         QVERIFY(toast->parentWidget()->width() - toast->geometry().right() <= 20);
         QVERIFY(toast->height() <= 96);
         QCOMPARE(composer->toPlainText(), tr("Draft kept while reviewing preferences"));
         QVERIFY(captureWidget(window, "toast-disconnected"));
         QTest::mouseClick(toast->findChild<QToolButton *>("dismissToast"), Qt::LeftButton);
-        QTRY_VERIFY(!toast->isVisible());
+        QTRY_VERIFY(!toast || !toast->isVisible());
         settingsSection(window, "notifications");
         auto *history = window.findChild<QListWidget *>("notificationHistory");
         QVERIFY(history && history->count() >= 1);
@@ -418,6 +506,7 @@ private slots:
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "paged-conversations"});
         MainWindow window(client);
         window.resize(1000, 580);
+        interaction_cases::pinToPrimary(window);
         window.show();
         client.start();
         auto *history = window.findChild<QWidget *>("conversationHistory");
@@ -475,6 +564,7 @@ private slots:
         RuntimeClient empty(QCoreApplication::applicationFilePath(), {"--fixture", "empty"});
         MainWindow window(empty);
         window.resize(1366, 768);
+        interaction_cases::pinToPrimary(window);
         window.show();
         empty.start();
         auto *emptyState = window.findChild<QLabel *>("automationState");
@@ -489,15 +579,19 @@ private slots:
 
         RuntimeClient reject(QCoreApplication::applicationFilePath(), {"--fixture", "save-error"});
         MainWindow failed(reject);
+        interaction_cases::pinToPrimary(failed);
         failed.show();
         reject.start();
         QTRY_VERIFY(failed.findChild<QPushButton *>("addAutomation")->isEnabled());
         settingsSection(failed, "appearance");
-        auto *choice = failed.findChild<QComboBox *>("themeChoice");
-        choice->setCurrentIndex(choice->findData("light"));
+        chooseTheme(failed, "Light");
         QTRY_VERIFY(failed.findChild<QPushButton *>("preferencesRetry")->isVisible());
         QVERIFY(failed.findChild<QLabel *>("preferencesStatus")->text().contains("Could not save"));
-        QCOMPARE(choice->currentData().toString(), QString("light"));
+        QVERIFY(failed.findChild<QRadioButton *>("themeLight")->isChecked());
+        auto *retry = failed.findChild<QPushButton *>("preferencesRetry");
+        QTest::keyClick(retry, Qt::Key_Space);
+        QTRY_VERIFY(!retry->isVisible());
+        QVERIFY(failed.findChild<QRadioButton *>("themeLight")->isChecked());
         reject.stop();
         QTRY_VERIFY(!reject.isRunning());
     }
@@ -526,7 +620,10 @@ private slots:
         auto *first = host.findChildren<QWidget *>("toast").first();
         QTest::mouseClick(first->findChild<QToolButton *>("dismissToast"), Qt::LeftButton);
         QTRY_COMPARE(host.findChildren<QWidget *>("toast").size(), 3);
-        QCOMPARE(host.findChildren<QWidget *>("toast").last()->property("severity").toString(), QString("error"));
+        const auto shown = host.findChildren<QWidget *>("toast");
+        QVERIFY(std::any_of(shown.cbegin(), shown.cend(), [](auto *toast) {
+            return toast->isVisible() && toast->property("severity").toString() == "error";
+        }));
         notices.setLevel("important");
         notices.post("Quiet success", "success");
         QCOMPARE(history->count(), 5);
@@ -538,11 +635,100 @@ private slots:
         QCOMPARE(history->count(), 0);
     }
 
+    void notificationsStackUpFromClientBottom()
+    {
+        QWidget host;
+        host.resize(600, 330);
+        NotificationCenter notices(host);
+        host.show();
+        notices.post("Earlier notification", "warning");
+        notices.post("Newest notification", "error");
+        QWidget *older = nullptr;
+        QWidget *newest = nullptr;
+        for (auto *toast : host.findChildren<QWidget *>("toast")) {
+            const auto text = toast->findChild<QLabel *>("toastBody")->text();
+            if (text == "Earlier notification")
+                older = toast;
+            if (text == "Newest notification")
+                newest = toast;
+        }
+        QVERIFY(older && newest);
+        QCOMPARE(host.height() - newest->geometry().bottom() - 1, 18);
+        QCOMPARE(host.width() - newest->geometry().right() - 1, 18);
+        QVERIFY(older->geometry().bottom() < newest->geometry().top());
+        host.resize(380, 190);
+        QTRY_COMPARE(host.height() - newest->geometry().bottom() - 1, 18);
+        QVERIFY(host.rect().contains(newest->geometry()));
+        QVERIFY(host.rect().contains(older->geometry()));
+    }
+
+    void toastExpiryPausesForHoverAndFocus()
+    {
+        if (QApplication::platformName() != QStringLiteral("windows"))
+            QSKIP("The elapsed-time check runs with native Windows focus.");
+        QWidget host;
+        host.resize(660, 420);
+        auto *editor = new QLineEdit(&host);
+        editor->setGeometry(20, 20, 180, 30);
+        NotificationCenter notices(host);
+        interaction_cases::pinToPrimary(host);
+        host.show();
+        host.activateWindow();
+        QTRY_VERIFY(host.isActiveWindow());
+        editor->setFocus();
+        QTRY_VERIFY(editor->hasFocus());
+        notices.post("Timed information", "info");
+        QPointer<QWidget> card = host.findChild<QWidget *>("toast");
+        QVERIFY(card && card->isVisible());
+        QPointer<QToolButton> dismiss = card->findChild<QToolButton *>("dismissToast");
+        QVERIFY(dismiss);
+        // Feed Qt's hover state directly so the desktop's pointer cannot move it during the wait.
+        card->setAttribute(Qt::WA_UnderMouse);
+        QTest::qWait(5600);
+        QVERIFY(card && card->isVisible());
+        QVERIFY(editor->hasFocus());
+
+        dismiss->setFocus(Qt::TabFocusReason);
+        QTRY_VERIFY(dismiss && dismiss->hasFocus());
+        card->setAttribute(Qt::WA_UnderMouse, false);
+        QTest::qWait(5600);
+        QVERIFY(card && card->isVisible());
+
+        editor->setFocus(Qt::TabFocusReason);
+        QTRY_VERIFY_WITH_TIMEOUT(!card || !card->isVisible(), 6800);
+        QVERIFY(editor->hasFocus());
+    }
+
+    void reducedMotionAndLongToast()
+    {
+        QWidget host;
+        host.resize(420, 260);
+        auto *history = new QListWidget(&host);
+        history->hide();
+        NotificationCenter notices(host);
+        notices.attachHistory(*history);
+        host.show();
+        const auto detail = QString("Long notification detail ").repeated(12).trimmed();
+        notices.post(detail, "error");
+        auto *card = host.findChild<QWidget *>("toast");
+        QVERIFY(card && card->graphicsEffect());
+        const auto summary = card->findChild<QLabel *>("toastBody")->text();
+        QVERIFY(summary.size() < detail.size());
+        QVERIFY(summary.count(u'\n') <= 2);
+        QVERIFY(history->item(0)->text().contains(detail));
+        notices.setReducedMotion(true);
+        QVERIFY(!card->graphicsEffect());
+        notices.post("Instant warning", "warning");
+        for (auto *toast : host.findChildren<QWidget *>("toast"))
+            QVERIFY(!toast->graphicsEffect());
+    }
+
     void pagedCatalogUsesBindingId()
     {
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "paged"});
         MainWindow window(client);
         window.resize(1366, 768);
+        interaction_cases::pinToPrimary(window);
         window.show();
         client.start();
         settingsSection(window, "repositories");
@@ -599,6 +785,7 @@ private slots:
         RuntimeClient client(runtime, {"--stdio", "--data-dir", fixture.filePath("database")});
         MainWindow window(client);
         window.resize(1366, 768);
+        interaction_cases::pinToPrimary(window);
         window.show();
         QSignalSpy connected(&client, &RuntimeClient::ready);
         client.start();
@@ -702,6 +889,7 @@ private slots:
         table->sortByColumn(2, Qt::DescendingOrder);
         QTRY_VERIFY(table->horizontalScrollBar()->maximum() >= 65);
         table->horizontalScrollBar()->setSliderPosition(65);
+        QTest::keyClick(window.findChild<QPushButton *>("settingsBack"), Qt::Key_Space);
         auto *expandedSplit = window.findChild<QSplitter *>("shellSplitter");
         auto *handle = expandedSplit->handle(1);
         const auto center = handle->rect().center();
@@ -711,12 +899,15 @@ private slots:
         QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, center);
         const int savedWidth = expandedSplit->sizes().first();
         QVERIFY(savedWidth > beforeDrag);
-        settingsSection(window, "appearance");
-        auto *themeChoice = window.findChild<QComboBox *>("themeChoice");
-        themeChoice->setCurrentIndex(themeChoice->findData("system"));
         QTest::mouseClick(window.findChild<QToolButton *>("toggleSidebar"), Qt::LeftButton);
+        settingsSection(window, "appearance");
+        chooseTheme(window, "System");
+        auto *motion = window.findChild<QCheckBox *>("reducedMotion");
+        QVERIFY(motion);
+        motion->setChecked(true);
         QTRY_COMPARE(invoke(client, "preferences.get").value("settings").toObject().value("theme").toString(), QString("system"));
         QTRY_VERIFY(invoke(client, "preferences.get").value("settings").toObject().value("sidebar_collapsed").toBool());
+        QTRY_VERIFY(invoke(client, "preferences.get").value("settings").toObject().value("reduced_motion").toBool());
         QCOMPARE(invoke(client, "preferences.get").value("settings").toObject().value("repository_layout")
                      .toObject().value("horizontal_scroll").toInt(), 65);
         client.stop();
@@ -725,12 +916,37 @@ private slots:
         RuntimeClient reopenedClient(runtime, {"--stdio", "--data-dir", fixture.filePath("database")});
         MainWindow reopened(reopenedClient);
         reopened.resize(1366, 768);
+        interaction_cases::pinToPrimary(reopened);
         reopened.show();
         reopenedClient.start();
-        QTRY_COMPARE(reopened.findChild<QComboBox *>("themeChoice")->currentData().toString(), QString("system"));
+        QTRY_VERIFY(reopened.findChild<QRadioButton *>("themeSystem")->isChecked());
+        QVERIFY(reopened.findChild<QCheckBox *>("reducedMotion")->isChecked());
         const auto scheme = QGuiApplication::styleHints()->colorScheme();
         if (scheme != Qt::ColorScheme::Unknown)
             QCOMPARE(QApplication::palette().color(QPalette::Window).lightness() > 128, scheme == Qt::ColorScheme::Light);
+        if (QApplication::platformName() == QStringLiteral("windows")) {
+            struct RestoreScheme {
+                ~RestoreScheme() { QGuiApplication::styleHints()->unsetColorScheme(); }
+            } restoreScheme;
+            QTest::mouseClick(reopened.findChild<QPushButton *>("navAutomations"), Qt::LeftButton);
+            auto *add = reopened.findChild<QPushButton *>("addAutomation");
+            QTRY_VERIFY(add && add->isVisible());
+            QTest::mouseClick(add, Qt::LeftButton);
+            auto *dialog = reopened.findChild<QDialog *>("automationEditor");
+            QTRY_VERIFY(dialog && dialog->isVisible());
+            auto *name = dialog->findChild<QLineEdit *>("automationName");
+            QVERIFY(name);
+            name->setText(QStringLiteral("Preserved during theme change"));
+            for (const auto requested : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark}) {
+                QGuiApplication::styleHints()->setColorScheme(requested);
+                const bool light = requested == Qt::ColorScheme::Light;
+                QTRY_COMPARE(dialog->palette().color(QPalette::Window).lightness() > 128, light);
+                QCOMPARE(reopened.palette().color(QPalette::Window).lightness() > 128, light);
+                QCOMPARE(name->text(), QStringLiteral("Preserved during theme change"));
+            }
+            QTest::keyClick(dialog, Qt::Key_Escape);
+            QTRY_VERIFY(!reopened.findChild<QDialog *>("automationEditor"));
+        }
         auto *split = reopened.findChild<QSplitter *>("shellSplitter");
         QCOMPARE(split->sizes().first(), 60);
         settingsSection(reopened, "repositories");
@@ -742,6 +958,7 @@ private slots:
         QCOMPARE(reopenedTable->horizontalHeader()->sortIndicatorOrder(), Qt::DescendingOrder);
         QTRY_COMPARE(repository_cases::selectedBinding(reopenedTable).value("binding_id").toString(), bindingId);
         QTRY_COMPARE(reopenedTable->horizontalScrollBar()->value(), 65);
+        QTest::keyClick(reopened.findChild<QPushButton *>("settingsBack"), Qt::Key_Space);
         QTest::keyClick(reopened.findChild<QToolButton *>("toggleSidebar"), Qt::Key_Space);
         QCOMPARE(split->sizes().first(), savedWidth);
         settingsSection(reopened, "appearance");
@@ -778,6 +995,7 @@ private slots:
         MainWindow window(client);
         const auto ratio = window.devicePixelRatioF();
         window.resize(qRound(1366 / ratio), qRound(768 / ratio));
+        interaction_cases::pinToPrimary(window);
         window.show();
         client.start();
         QTRY_COMPARE(window.findChildren<QLabel *>("automationCardTitle").size(), 3);
@@ -792,7 +1010,7 @@ private slots:
         auto *brand = window.findChild<QLabel *>("brand");
         auto *appearance = window.findChild<QWidget *>("appearancePage");
         QVERIFY(brand && appearance);
-        QTRY_VERIFY(brand->width() >= brand->fontMetrics().horizontalAdvance(brand->text()));
+        QVERIFY(!brand->isVisible());
         for (auto *label : appearance->findChildren<QLabel *>()) {
             if (label->buddy())
                 QTRY_VERIFY(label->width() >= label->fontMetrics().horizontalAdvance(label->text().remove('&')));
@@ -800,10 +1018,49 @@ private slots:
         auto *reset = window.findChild<QPushButton *>("resetLayout");
         QTRY_VERIFY(reset->width() >= reset->fontMetrics().horizontalAdvance(reset->text()) + 16);
         QVERIFY(captureWidget(window, "vi-appearance-text125"));
-        auto *header = window.findChild<QComboBox *>("settingsSection");
-        QVERIFY(header->fontMetrics().horizontalAdvance(header->currentText()) + 18 <= header->width());
+        auto *navigation = window.findChild<QListWidget *>("settingsNavigation");
+        QVERIFY(navigation && navigation->currentItem());
+        const auto item = navigation->currentItem();
+        QVERIFY(navigation->fontMetrics().horizontalAdvance(item->text()) + 16 <=
+                navigation->visualItemRect(item).width());
         client.stop();
         QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
+    void mixedDpiWindowMove()
+    {
+        auto *first = QGuiApplication::primaryScreen();
+        QScreen *second = nullptr;
+        for (auto *screen : QGuiApplication::screens()) {
+            if (qAbs(screen->devicePixelRatio() - first->devicePixelRatio()) > 0.05) {
+                second = screen;
+                break;
+            }
+        }
+        if (!second)
+            QSKIP("This run does not expose two screens with different effective DPI.");
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
+        MainWindow window(client);
+        window.resize(QSize(940, 520).boundedTo(first->availableGeometry().size()));
+        window.move(first->availableGeometry().topLeft() + QPoint(16, 16));
+        interaction_cases::pinToPrimary(window);
+        window.show();
+        QTRY_COMPARE(window.screen(), first);
+        auto *toggle = window.findChild<QToolButton *>("toggleSidebar");
+        QTest::mouseClick(toggle, Qt::LeftButton);
+        auto *splitter = window.findChild<QSplitter *>("shellSplitter");
+        QCOMPARE(splitter->sizes().first(), 60);
+        const auto sourceDpr = window.devicePixelRatioF();
+        QSignalSpy screenChanges(window.windowHandle(), &QWindow::screenChanged);
+        window.move(second->availableGeometry().topLeft() + QPoint(16, 16));
+        QTRY_COMPARE(window.screen(), second);
+        QTRY_VERIFY(qAbs(window.devicePixelRatioF() - sourceDpr) > 0.05);
+        QVERIFY(!screenChanges.isEmpty());
+        qInfo() << "Window moved across DPI" << sourceDpr << "to" << window.devicePixelRatioF();
+        QCOMPARE(splitter->sizes().first(), 60);
+        auto *settings = window.findChild<QToolButton *>("navSettings");
+        QVERIFY(settings->isVisible() && !settings->icon().isNull());
+        QVERIFY(captureWidget(window, "mixed-dpi-sidebar"));
     }
 };
 

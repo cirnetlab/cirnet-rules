@@ -13,6 +13,7 @@
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPushButton>
@@ -20,6 +21,7 @@
 #include <QTableView>
 #include <QTest>
 #include <QTimer>
+#include <QToolButton>
 #include <QUrl>
 
 namespace repository_cases {
@@ -76,6 +78,30 @@ inline void exerciseTable(MainWindow &window, const QJsonObject &binding)
 
     table->selectRow(0);
     QCOMPARE(selectedBinding(table).value("binding_id").toString(), id);
+    if (QApplication::platformName() == QStringLiteral("windows")) {
+        auto *actions = window.findChild<QToolButton *>("repoActions");
+        auto *folder = window.findChild<QAction *>("repoRelinkFolder");
+        QVERIFY(actions && actions->menu() && folder);
+        auto *menu = actions->menu();
+        auto *submenu = qobject_cast<QMenu *>(folder->parent());
+        QVERIFY(submenu && submenu->menuAction()->isEnabled());
+        menu->popup(actions->mapToGlobal(QPoint(0, actions->height())));
+        QTRY_VERIFY(menu->isVisible());
+        menu->setActiveAction(submenu->menuAction());
+        QTest::keyClick(menu, Qt::Key_Right);
+        QTRY_VERIFY(submenu->isVisible());
+        QCOMPARE(submenu->activeAction(), folder);
+        QVERIFY(qAbs(submenu->geometry().top() -
+                     menu->mapToGlobal(menu->actionGeometry(submenu->menuAction()).topLeft()).y()) <= 12);
+        if (const auto capture = qEnvironmentVariable("CGACP_UI_CAPTURE"); !capture.isEmpty())
+            QVERIFY(submenu->grab().save(capture + "/repositories-relink-submenu.png"));
+        QTest::keyClick(submenu, Qt::Key_Escape);
+        QTRY_VERIFY(!submenu->isVisible());
+        QCOMPARE(menu->activeAction(), submenu->menuAction());
+        QTest::keyClick(menu, Qt::Key_Escape);
+        QTRY_VERIFY(!menu->isVisible());
+        QCOMPARE(selectedBinding(table).value("binding_id").toString(), id);
+    }
     const auto path = table->model()->index(0, 1);
     QVERIFY(path.data(Qt::ToolTipRole).toString().contains(root.toHtmlEscaped()));
 #ifdef Q_OS_WIN

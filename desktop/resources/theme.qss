@@ -1,10 +1,13 @@
 QMainWindow, QWidget#content, QStackedWidget#pages { background: @CANVAS@; }
 QFrame#sidebar { background: @RAIL@; }
 QFrame#sidebarFooter { border-top: 1px solid @BORDER@; }
+QFrame#settingsSidebar { background: @RAIL@; border-right: 1px solid @BORDER@; }
+QFrame#settingsGroup { background: @SURFACE@; border: 1px solid @BORDER@; border-radius: 8px; }
+QFrame#settingsSeparator { border: 0; background: @BORDER@; }
 QSplitter::handle { background: @CANVAS@; border-left: 1px solid @BORDER@; }
 QSplitter::handle:hover, QSplitter::handle:pressed { background: @ACCENT@; }
 QLabel, QAbstractButton, QLineEdit, QPlainTextEdit, QComboBox, QAbstractItemView,
-QSpinBox, QTimeEdit, QMenu { color: @TEXT@; font-size: @BODY_SIZE@px; }
+QAbstractSpinBox, QMenu { color: @TEXT@; font-size: @BODY_SIZE@px; }
 QLabel#brand { font-size: @SECTION_SIZE@px; font-weight: 750; }
 QLabel#brandSubtitle, QLabel#eyebrow { color: @MUTED@; font-size: @META_SIZE@px; font-weight: 650; }
 QLabel#heading { font-size: @TITLE_SIZE@px; font-weight: 700; }
@@ -18,27 +21,43 @@ QLabel#chip, QLabel#mutedChip {
     color: @MUTED@; background: @HOVER@; border-radius: 4px; padding: 2px 6px; font-size: @META_SIZE@px;
 }
 QPushButton, QToolButton {
-    background: @SURFACE@; border: 1px solid @CONTROL@; border-radius: 6px;
+    background: transparent; border: 1px solid transparent; border-radius: 6px;
     padding: @VERTICAL_PAD@px 10px;
 }
 QToolButton { padding: @VERTICAL_PAD@px; }
 QPushButton:hover, QToolButton:hover { background: @HOVER@; }
 QPushButton:pressed, QToolButton:pressed { background: @SELECTED@; }
-QPushButton:disabled, QToolButton:disabled { color: @MUTED@; border-color: @BORDER@; }
-QPushButton[primary="true"] { color: @ON_ACCENT@; background: @ACCENT@; border-color: @ACCENT@; font-weight: 650; }
-QPushButton[primary="true"]:hover { color: @TEXT@; background: @SELECTED@; }
-QPushButton[primary="true"]:disabled { color: @MUTED@; background: @SURFACE@; border-color: @BORDER@; }
+QPushButton:disabled, QToolButton:disabled { color: @MUTED@; background: transparent; }
+QPushButton[primary="true"] { color: @ON_ACCENT@; background: @ACCENT@; font-weight: 650; }
+QPushButton[primary="true"]:hover { color: @ON_ACCENT@; background: @PRIMARY_HOVER@; }
+QPushButton[primary="true"]:pressed { color: @ON_ACCENT@; background: @PRIMARY_PRESSED@; }
+QPushButton[primary="true"]:disabled { color: @MUTED@; background: @SURFACE@; }
 QPushButton[navigation="true"], QToolButton[navigation="true"] {
     background: transparent; border-color: transparent; text-align: left;
 }
 QPushButton[navigation="true"]:checked, QToolButton[navigation="true"]:checked { background: @SELECTED@; }
-QPushButton[navigation="true"]:hover, QToolButton[navigation="true"]:hover { background: @HOVER@; }
-QLineEdit, QComboBox, QPlainTextEdit, QSpinBox, QTimeEdit, QTableView, QListWidget {
-    border: 1px solid @CONTROL@; border-radius: 6px; background: @BASE@;
+QPushButton[navigation="true"]:hover:!checked, QToolButton[navigation="true"]:hover:!checked { background: @HOVER@; }
+QPushButton[navigation="true"]:pressed:!checked, QToolButton[navigation="true"]:pressed:!checked { background: @SELECTED@; }
+QPushButton::menu-indicator, QToolButton::menu-indicator {
+    subcontrol-origin: padding; subcontrol-position: center right; width: 16px; height: 12px;
+}
+QToolButton#addRepository, QToolButton#repoActions { padding-right: 22px; }
+QLineEdit, QPlainTextEdit {
+    border: 1px solid @BORDER@; border-radius: 6px; background: @BASE@;
     padding: @VERTICAL_PAD@px; selection-background-color: @SELECTED@; selection-color: @TEXT@;
 }
-QPushButton:focus, QToolButton:focus, QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus,
-QSpinBox:focus, QTimeEdit:focus, QTableView:focus, QListWidget:focus { border-color: @ACCENT@; }
+QLineEdit[clearButtonEnabled="true"], QLineEdit[searchField="true"] {
+    border-color: transparent; background: @HOVER@;
+}
+QLineEdit:focus, QPlainTextEdit:focus,
+QPushButton[keyboardFocusVisible="true"]:focus, QToolButton[keyboardFocusVisible="true"]:focus {
+    border-color: @ACCENT@;
+}
+QAbstractSpinBox QLineEdit, QComboBox QLineEdit {
+    border: 0; padding: 0; background: transparent; selection-background-color: @SELECTED@; selection-color: @TEXT@;
+}
+QLineEdit QToolButton { padding: 0; }
+QPlainTextEdit#conversationTranscript { border-color: transparent; }
 QToolButton#localMenu, QToolButton#navSettings {
     background: transparent; border-color: transparent;
     color: @MUTED@; font-size: @META_SIZE@px; padding: 4px 5px;
@@ -46,14 +65,18 @@ QToolButton#localMenu, QToolButton#navSettings {
 QToolButton#localMenu::menu-indicator { image: none; }
 QToolButton#localMenu:hover, QToolButton#navSettings:hover { background: @HOVER@; color: @TEXT@; }
 QToolButton#localMenu:pressed, QToolButton#navSettings:pressed { background: @SELECTED@; }
-QToolButton#localMenu:focus, QToolButton#navSettings:focus { border-color: @ACCENT@; }
-QCheckBox { spacing: 7px; padding: 3px; border: 1px solid transparent; border-radius: 4px; }
-QCheckBox:focus { border-color: @ACCENT@; }
+QToolButton#navSettings:checked { background: @SELECTED@; }
+QToolButton#localMenu[keyboardFocusVisible="true"]:focus,
+QToolButton#navSettings[keyboardFocusVisible="true"]:focus { border-color: @ACCENT@; }
+QCheckBox, QRadioButton { spacing: 7px; padding: 3px; border: 1px solid transparent; border-radius: 4px; }
+QCheckBox[keyboardFocusVisible="true"]:focus, QRadioButton[keyboardFocusVisible="true"]:focus { border-color: @ACCENT@; }
+QTableView, QListWidget { border: 0; background: @BASE@; selection-background-color: @SELECTED@; selection-color: @TEXT@; }
 QAbstractItemView::item { padding: @VERTICAL_PAD@px; }
+QAbstractItemView::item:hover:!selected { background: @HOVER@; }
 QAbstractItemView::item:selected { background: @SELECTED@; color: @TEXT@; }
-QListWidget#conversationList { background: transparent; border-color: transparent; padding: 0; }
-QListWidget#conversationList:focus { border-color: @ACCENT@; }
-QListWidget#conversationList::item { border-radius: 5px; }
+QAbstractItemView[keyboardFocusVisible="true"]::item:focus { outline: 1px solid @ACCENT@; }
+QListWidget#conversationList, QListWidget#settingsNavigation { background: transparent; padding: 0; }
+QListWidget#conversationList::item, QListWidget#settingsNavigation::item { border-radius: 5px; }
 QHeaderView { background: @SURFACE@; }
 QHeaderView::section { background: @SURFACE@; color: @TEXT@; border: 0; padding: @VERTICAL_PAD@px 8px; }
 QTableView { alternate-background-color: @SURFACE@; }
