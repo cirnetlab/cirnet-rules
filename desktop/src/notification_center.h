@@ -43,6 +43,7 @@ private:
     void fill();
     void reposition();
     void dismiss(quint64 id);
+    static QString severityLabel(const QString &severity);
     void updateHistory();
 
     QWidget &host_;

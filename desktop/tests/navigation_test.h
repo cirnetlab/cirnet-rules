@@ -90,7 +90,7 @@ inline void verifyCollapsedSidebarGrouping(MainWindow &window)
     auto *automation = window.findChild<QPushButton *>("navAutomations");
     auto *footer = window.findChild<QWidget *>("sidebarFooter");
     QVERIFY(rail && logo && toggle && chat && automation && footer);
-    auto *local = footer->findChild<QToolButton *>("localMenu");
+    auto *local = footer->findChild<QToolButton *>("localStatus");
     auto *settings = footer->findChild<QToolButton *>("navSettings");
     auto *back = window.findChild<QPushButton *>("settingsBack");
     QVERIFY(local && settings && back);

@@ -14,7 +14,8 @@ QLabel#heading { font-size: @TITLE_SIZE@px; font-weight: 700; }
 QLabel#sectionTitle, QLabel#automationCardTitle { font-size: @SECTION_SIZE@px; font-weight: 650; }
 QLabel#lead, QLabel#cardBody { color: @MUTED@; }
 QLabel#meta { color: @MUTED@; font-size: @META_SIZE@px; }
-QFrame#card, QFrame#toast { background: @SURFACE@; border: 1px solid @BORDER@; border-radius: 8px; }
+QFrame#card { background: @SURFACE@; border: 1px solid @BORDER@; border-radius: 8px; }
+QFrame#toast { background: @SURFACE@; border: 1px solid @BORDER@; border-radius: 10px; }
 QFrame#toast[severity="error"] { border-color: @DANGER@; }
 QFrame#toast[severity="warning"] { border-color: @WARNING@; }
 QLabel#chip, QLabel#mutedChip {
@@ -25,6 +26,7 @@ QPushButton, QToolButton {
     padding: @VERTICAL_PAD@px 10px;
 }
 QToolButton { padding: @VERTICAL_PAD@px; }
+QToolButton#dismissToast { padding: 0; }
 QPushButton:hover, QToolButton:hover { background: @HOVER@; }
 QPushButton:pressed, QToolButton:pressed { background: @SELECTED@; }
 QPushButton:disabled, QToolButton:disabled { color: @MUTED@; background: transparent; }
@@ -58,15 +60,14 @@ QAbstractSpinBox QLineEdit, QComboBox QLineEdit {
 }
 QLineEdit QToolButton { padding: 0; }
 QPlainTextEdit#conversationTranscript { border-color: transparent; }
-QToolButton#localMenu, QToolButton#navSettings {
+QToolButton#localStatus, QToolButton#navSettings {
     background: transparent; border-color: transparent;
     color: @MUTED@; font-size: @META_SIZE@px; padding: 4px 5px;
 }
-QToolButton#localMenu::menu-indicator { image: none; }
-QToolButton#localMenu:hover, QToolButton#navSettings:hover { background: @HOVER@; color: @TEXT@; }
-QToolButton#localMenu:pressed, QToolButton#navSettings:pressed { background: @SELECTED@; }
+QToolButton#localStatus:hover, QToolButton#navSettings:hover { background: @HOVER@; color: @TEXT@; }
+QToolButton#navSettings:pressed { background: @SELECTED@; }
 QToolButton#navSettings:checked { background: @SELECTED@; }
-QToolButton#localMenu[keyboardFocusVisible="true"]:focus,
+QToolButton#localStatus[keyboardFocusVisible="true"]:focus,
 QToolButton#navSettings[keyboardFocusVisible="true"]:focus { border-color: @ACCENT@; }
 QCheckBox, QRadioButton { spacing: 7px; padding: 3px; border: 1px solid transparent; border-radius: 4px; }
 QCheckBox[keyboardFocusVisible="true"]:focus, QRadioButton[keyboardFocusVisible="true"]:focus { border-color: @ACCENT@; }

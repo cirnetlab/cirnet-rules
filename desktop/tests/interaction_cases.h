@@ -92,6 +92,52 @@ inline void mouseAndKeyboardFocus()
     QVERIFY2(inkPixels(*primary, primaryImage, primarySurface, accent) >= 5, "Primary action must retain its filled surface");
 }
 
+inline void iconStyles()
+{
+    ThemeManager theme;
+    theme.apply("dark", "comfortable", 100);
+    const auto reload = QApplication::style()->standardIcon(QStyle::SP_BrowserReload);
+    const auto clear = QApplication::style()->standardIcon(QStyle::SP_LineEditClearButton);
+    QVERIFY(!reload.isNull());
+    QVERIFY(!clear.isNull());
+
+    for (const auto &mode : {QStringLiteral("dark"), QStringLiteral("light")}) {
+        theme.apply(mode, "comfortable", 100);
+        const auto clearImage = clear.pixmap(QSize(20, 20)).toImage();
+        const auto clearInk = clearImage.pixelColor(clearImage.rect().center());
+        const auto muted = QApplication::palette().color(QPalette::PlaceholderText);
+        QVERIFY(clearInk.alpha() >= 150);
+        QVERIFY(qAbs(clearInk.red() - muted.red()) + qAbs(clearInk.green() - muted.green()) +
+                qAbs(clearInk.blue() - muted.blue()) < 18);
+        for (const auto dpr : {1.0, 1.25, 1.5, 2.0}) {
+            const QSize logical(20, 20);
+            const auto pixmap = reload.pixmap(logical, dpr);
+            QCOMPARE(pixmap.size(), logical * dpr);
+            QCOMPARE(pixmap.devicePixelRatio(), dpr);
+            const auto image = pixmap.toImage();
+            const auto color = QApplication::palette().color(QPalette::WindowText);
+            QRect bounds;
+            int foregroundPixels = 0;
+            for (int y = 0; y < image.height(); ++y) {
+                for (int x = 0; x < image.width(); ++x) {
+                    const auto pixel = image.pixelColor(x, y);
+                    if (pixel.alpha() < 150)
+                        continue;
+                    bounds |= QRect(x, y, 1, 1);
+                    if (qAbs(pixel.red() - color.red()) + qAbs(pixel.green() - color.green()) +
+                        qAbs(pixel.blue() - color.blue()) < 18)
+                        ++foregroundPixels;
+                }
+            }
+            QVERIFY2(foregroundPixels >= 18 * dpr * dpr, "Refresh ink must follow the current foreground palette");
+            QVERIFY(bounds.width() >= 12 * dpr && bounds.height() >= 12 * dpr);
+            QVERIFY(image.rect().adjusted(1, 1, -1, -1).contains(bounds));
+            QVERIFY((bounds.center() - image.rect().center()).manhattanLength() <= 2 * dpr);
+        }
+    }
+    theme.apply("dark", "comfortable", 100);
+}
+
 inline void compoundArrows()
 {
     ThemeManager theme;

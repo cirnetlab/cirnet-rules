@@ -1,5 +1,6 @@
 #include "main_window.h"
 #include "compact_text_edit.h"
+#include "notification_center.h"
 #include "repository_picker.h"
 
 #include <QCheckBox>
@@ -786,7 +787,11 @@ void MainWindow::runAutomation(const QJsonObject &automation)
             break;
         }
         renderAutomationCards();
-        showStatus(tr("Run %1 · %2").arg(run.value("id").toString(), run.value("status").toString()));
+        const auto status = run.value("status").toString();
+        const bool needsAttention = status == "WAITING_APPROVAL" || status == "BLOCKED" ||
+                                    status == "RECOVERY_REQUIRED";
+        notifications_->post(tr("Run %1 · %2").arg(run.value("id").toString(), status),
+                             needsAttention ? "warning" : "info");
         if (!automationMore_->isEnabled())
             refreshAutomations();
     });

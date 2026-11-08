@@ -6,7 +6,10 @@
 
 class QApplication;
 
-enum class UiIcon { Add, Automations, Collapse, Expand, Settings, Status, Close, Info, Warning, Success };
+enum class UiIcon {
+    Add, Automations, Collapse, Expand, Settings, Status, Close, Clear, Refresh,
+    Info, Warning, Success, Error, Question
+};
 
 QIcon uiIcon(UiIcon symbol, const QColor &color = {});
 void applyTheme(QApplication &app);

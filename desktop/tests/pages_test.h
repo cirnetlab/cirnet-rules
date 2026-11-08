@@ -227,6 +227,10 @@ void verifyLegacyAutomation(MainWindow &window, const QString &bindingId, const 
     QCOMPARE(runs.size(), 1);
     const auto runId = runs.first().toObject().value("id").toString();
     QVERIFY(!runId.isEmpty());
+    const auto *notifications = window.findChild<QListWidget *>("notificationHistory");
+    QVERIFY(notifications && notifications->count() > 0);
+    QVERIFY(notifications->item(0)->text().contains(
+        QStringLiteral(" · Information — Run %1 · QUEUED").arg(runId)));
 
     edit->trigger();
     QTRY_VERIFY(window.findChild<QDialog *>("automationEditor"));

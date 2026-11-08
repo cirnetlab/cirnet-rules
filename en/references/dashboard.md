@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 5 -->
+<!-- revision: 6 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -29,20 +29,23 @@ absolute test directory for disposable verification.
 
 ## Operator workflow
 
-Drag the sidebar divider to resize it. Use its chevron or Ctrl+B to collapse
-or expand it. Open Settings from the footer or with Ctrl+, and select a
+Drag the sidebar divider to resize it. Use the panel button or Ctrl+B to
+collapse or expand it. Activate Local in the footer to see the current
+connection status. Open Settings from the footer or with Ctrl+, and select a
 category on the left. Appearance provides theme previews, density, text
 size and Reduced motion. Back to workspace or Escape returns to the previous
 page. Reset layout restores sidebar and repository table presentation. Toasts
-stack up from the lower right and leave the composer clear. Use Notifications
-to review or clear read messages from this session. Warnings and errors remain
-eligible for a toast.
+stack up from the lower right and leave the composer clear. The glyph and
+color identify the notification severity. An automation run queued by the
+runtime displays an informational toast. Use Notifications to review or clear
+read messages from this session. Warnings and errors remain eligible for a toast.
 
 In Settings → Repositories, add a folder or file and review the resolved Git
 root, branch, worktree and file hint before saving. Use Select for task or
 choose a binding in New Chat or Add Automation. Actions can check health,
 copy the full path, open the verified local folder, rename, relink or archive.
-The table can shorten long paths for display. Copy uses the stored path.
+Click a repository row to select it across the full table width. The table can
+shorten long paths for display. Copy uses the stored path.
 Use Relink when a saved checkout has moved. It invalidates older binding
 revisions and affected work needs review. Archive preserves historical
 references and source files.

@@ -5,6 +5,7 @@
 #include "pages_test.h"
 #include "repository_cases.h"
 #include "navigation_test.h"
+#include "notification_visual_test.h"
 #include "settings_polish_test.h"
 #include "interaction_cases.h"
 
@@ -42,6 +43,7 @@
 #include <QStyleHints>
 #include <QSignalSpy>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStyleOption>
 #include <QTest>
@@ -49,6 +51,7 @@
 #include <QTableView>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 #include <QTranslator>
 #include <QWindow>
 #include <algorithm>
@@ -268,6 +271,50 @@ void withDashboardFixture(const std::function<void(MainWindow &)> &test,
 class DesktopTest final : public QObject {
     Q_OBJECT
 private slots:
+    void iconStyles() { interaction_cases::iconStyles(); }
+    void toastAlignmentAndSeverities() { notification_visual::verifyAlignmentAndSeverities(); }
+
+    void localReportsStatusWithoutNavigation()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
+        MainWindow window(client);
+        interaction_cases::pinToPrimary(window);
+        window.show();
+        client.start();
+        auto *local = window.findChild<QToolButton *>("localStatus");
+        auto *pages = window.findChild<QStackedWidget *>("pages");
+        QVERIFY(local && pages);
+        QTRY_COMPARE(local->toolTip(), QStringLiteral("Local runtime connected"));
+        QVERIFY2(!local->menu(), "Local must report status without opening a menu");
+        const auto *page = pages->currentWidget();
+        QTest::mouseClick(local, Qt::LeftButton);
+        QTRY_COMPARE(QToolTip::text(), local->toolTip());
+        QCOMPARE(pages->currentWidget(), page);
+        QVERIFY(!QApplication::activePopupWidget());
+        QVERIFY(captureWidget(window, "local-connected-status"));
+        for (auto *popup : QApplication::topLevelWidgets()) {
+            if (popup->windowType() == Qt::ToolTip && popup->isVisible())
+                QVERIFY(captureWidget(*popup, "local-connected-tooltip"));
+        }
+
+        QToolTip::hideText();
+        auto *toggle = window.findChild<QToolButton *>("toggleSidebar");
+        QVERIFY(toggle);
+        QTest::mouseClick(toggle, Qt::LeftButton);
+        QVERIFY(local->text().isEmpty());
+        QCOMPARE(local->accessibleName(), QStringLiteral("Local — Local runtime connected"));
+        client.request("test.crash", {}, {});
+        QTRY_VERIFY(!client.isRunning());
+        QTRY_VERIFY(local->toolTip() != QStringLiteral("Local runtime connected"));
+        const auto failure = local->toolTip();
+        QVERIFY(!failure.isEmpty());
+        QTest::keyClick(local, Qt::Key_Space);
+        QTRY_COMPARE(QToolTip::text(), failure);
+        QCOMPARE(pages->currentWidget(), page);
+        QVERIFY(captureWidget(window, "local-disconnected-status"));
+        QToolTip::hideText();
+    }
+
     void mouseAndKeyboardFocus() { interaction_cases::mouseAndKeyboardFocus(); }
     void compoundArrows() { interaction_cases::compoundArrows(); }
     void settingsLayoutAndKeyboard() { withDashboardFixture(verifySettingsPolish); }
@@ -344,7 +391,7 @@ private slots:
         auto *footer = window.findChild<QWidget *>("sidebarFooter");
         QCOMPARE(footer->findChildren<QToolButton *>().size(), 2);
         QCOMPARE(footer->width(), sidebar->width());
-        QCOMPARE(window.findChild<QToolButton *>("localMenu")->text(), QString("Local"));
+        QCOMPARE(window.findChild<QToolButton *>("localStatus")->text(), QString("Local"));
         QVERIFY(captureWidget(*footer, "sidebar-footer"));
         QTRY_COMPARE(window.findChildren<QLabel *>("automationCardTitle").size(), 3);
         const auto initialMethods = invoke(client, "test.methods").value("items").toArray();

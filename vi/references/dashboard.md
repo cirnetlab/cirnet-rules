@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 5 -->
-<!-- source-sha256: 53c678954605befec240ac622db2130795954e75ee50949d96666c685c212740 -->
+<!-- revision: 6 -->
+<!-- source-sha256: 6655a27383a37f0f37bee6eba2c9e751f5cdd37b48989b8f8ed0d82484a7ca8c -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -30,19 +30,23 @@ Dùng `--data-dir` với thư mục tuyệt đối riêng để kiểm thử dù
 
 ## Quy trình vận hành
 
-Kéo đường phân cách để đổi độ rộng sidebar. Dùng nút mũi tên hoặc Ctrl+B
-để thu gọn hay mở rộng. Mở Cài đặt từ footer hoặc bằng Ctrl+, rồi chọn
+Kéo đường phân cách để đổi độ rộng sidebar. Dùng nút panel hoặc Ctrl+B
+để thu gọn hay mở rộng. Kích hoạt Local ở chân sidebar để xem trạng thái
+kết nối hiện tại. Mở Cài đặt từ chân sidebar hoặc bằng Ctrl+, rồi chọn
 danh mục bên trái. Giao diện có bản xem trước chủ đề, mật độ, cỡ chữ và
 Giảm chuyển động. Quay lại không gian làm việc hoặc Escape đưa về trang
 trước đó. Đặt lại bố cục khôi phục cách trình bày sidebar và bảng repository.
-Toast xếp lên từ góc dưới phải và chừa chỗ cho ô soạn tin. Mở Thông báo để
-xem hoặc xóa mục đã đọc trong phiên. Cảnh báo và lỗi vẫn có thể hiện toast.
+Toast xếp lên từ góc dưới phải và chừa chỗ cho ô soạn tin. Biểu tượng và
+màu thể hiện mức độ thông báo. Lượt tự động hóa đang chờ trong hàng đợi
+hiện toast thông tin. Mở Thông báo để xem hoặc xóa mục đã đọc trong phiên.
+Cảnh báo và lỗi vẫn có thể hiện toast.
 
 Trong Cài đặt → Kho mã, thêm thư mục hoặc tệp, rồi rà Git root, branch,
 worktree và tệp gợi ý trước khi lưu. Chọn cho nhiệm vụ hoặc chọn binding
 khi tạo hội thoại hay tự động hóa. Menu thao tác hỗ trợ kiểm tra tình trạng,
 sao chép đường dẫn đầy đủ, mở thư mục local đã kiểm tra, đổi tên, liên kết
-lại hoặc lưu trữ. Bảng có thể rút gọn đường dẫn dài khi hiển thị. Thao tác
+lại hoặc lưu trữ. Bấm một hàng repo để chọn trên toàn chiều rộng bảng.
+Bảng có thể rút gọn đường dẫn dài khi hiển thị. Thao tác
 sao chép dùng đường dẫn đã lưu. Liên kết lại khi checkout đổi vị trí làm
 revision binding cũ mất hiệu lực và công việc liên quan cần được rà soát.
 Lưu trữ giữ các tham chiếu lịch sử và tệp nguồn.

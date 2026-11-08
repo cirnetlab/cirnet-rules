@@ -8,6 +8,7 @@
 #include <QFocusEvent>
 #include <QIconEngine>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmapCache>
 #include <QPointer>
 #include <QProxyStyle>
@@ -280,8 +281,6 @@ public:
         }
         if (direction != Qt::NoArrow) {
             auto rect = option->rect;
-            if (part == PE_IndicatorArrowDown && widget && widget->objectName() == "localMenu")
-                return; // Local owns its status menu arrow.
             const auto *push = qobject_cast<const QPushButton *>(widget);
             const auto *tool = qobject_cast<const QToolButton *>(widget);
             if (part == PE_IndicatorArrowDown && ((push && push->menu()) ||
@@ -334,9 +333,15 @@ public:
 
     QIcon standardIcon(StandardPixmap icon, const QStyleOption *option, const QWidget *widget) const override
     {
-        if (icon == SP_LineEditClearButton)
-            return uiIcon(UiIcon::Close, QApplication::palette().color(QPalette::PlaceholderText));
-        return QProxyStyle::standardIcon(icon, option, widget);
+        switch (icon) {
+        case SP_LineEditClearButton: return uiIcon(UiIcon::Clear);
+        case SP_BrowserReload: return uiIcon(UiIcon::Refresh);
+        case SP_MessageBoxInformation: return uiIcon(UiIcon::Info);
+        case SP_MessageBoxWarning: return uiIcon(UiIcon::Warning);
+        case SP_MessageBoxCritical: return uiIcon(UiIcon::Error);
+        case SP_MessageBoxQuestion: return uiIcon(UiIcon::Question);
+        default: return QProxyStyle::standardIcon(icon, option, widget);
+        }
     }
 
 private:
@@ -393,32 +398,37 @@ public:
         p.translate(QRectF(rect).center() - QPointF(extent / 2.0, extent / 2.0));
         p.scale(extent / 18.0, extent / 18.0);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(ink, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setPen(QPen(ink, 1.55, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setBrush(Qt::NoBrush);
         switch (symbol_) {
         case UiIcon::Add:
             p.drawLine(4, 9, 14, 9);
             p.drawLine(9, 4, 9, 14);
             break;
         case UiIcon::Automations:
-            p.drawRoundedRect(QRectF(3, 4, 12, 11), 2, 2);
-            p.drawLine(6, 2, 6, 6);
-            p.drawLine(12, 2, 12, 6);
-            p.drawLine(5, 9, 13, 9);
+            p.drawRoundedRect(QRectF(3, 4.5, 12, 11), 2, 2);
+            p.drawLine(QPointF(6, 2.5), QPointF(6, 5.7));
+            p.drawLine(QPointF(12, 2.5), QPointF(12, 5.7));
+            p.drawLine(QPointF(3, 8), QPointF(15, 8));
+            p.drawPoint(9, 11);
             break;
         case UiIcon::Collapse:
-        case UiIcon::Expand:
-            p.drawRoundedRect(QRectF(2, 3, 14, 12), 2, 2);
+        case UiIcon::Expand: {
+            p.drawRoundedRect(QRectF(2, 3, 14, 12), 2.2, 2.2);
             p.drawLine(QPointF(6.5, 3), QPointF(6.5, 15));
-            if (symbol_ == UiIcon::Collapse)
-                p.drawLine(QPointF(4.2, 5.5), QPointF(4.2, 12.5));
+            const bool collapse = symbol_ == UiIcon::Collapse;
+            const qreal tail = collapse ? 12.7 : 9.8;
+            const qreal tip = collapse ? 10.3 : 12.2;
+            p.drawPolyline(QPolygonF{{tail, 6.9}, {tip, 9}, {tail, 11.1}});
             break;
+        }
         case UiIcon::Settings: {
             const QPointF center(9, 9);
             QPolygonF outline;
             for (int corner = 0; corner < 24; ++corner) {
                 const auto angle = qDegreesToRadians(corner * 15.0 - 112.5);
                 const bool tooth = corner % 4 == 1 || corner % 4 == 2;
-                const auto radius = tooth ? 6.7 : 5.1;
+                const auto radius = tooth ? 6.7 : 5.25;
                 outline.append(center + QPointF(radius * qCos(angle), radius * qSin(angle)));
             }
             p.drawPolygon(outline);
@@ -426,15 +436,22 @@ public:
             break;
         }
         case UiIcon::Status:
+            p.setPen(Qt::NoPen);
             p.setBrush(ink);
-            p.drawEllipse(QPointF(9, 9), 2.7, 2.7);
+            p.drawEllipse(QPointF(9, 9), 3.3, 3.3);
             break;
         case UiIcon::Close:
+        case UiIcon::Clear:
             p.drawLine(5, 5, 13, 13);
             p.drawLine(5, 13, 13, 5);
             break;
+        case UiIcon::Refresh:
+            p.drawArc(QRectF(3, 3, 12, 12), 34 * 16, 300 * 16);
+            p.drawPolyline(QPolygonF{{14.5, 2.6}, {14.1, 5.9}, {10.8, 5.8}});
+            break;
         case UiIcon::Success:
-            p.drawPolyline(QPolygonF{{4, 9}, {7, 12}, {14, 5}});
+            p.drawEllipse(QPointF(9, 9), 6.5, 6.5);
+            p.drawPolyline(QPolygonF{{5.8, 9}, {8.0, 11.2}, {12.2, 7}});
             break;
         case UiIcon::Info:
             p.drawEllipse(QPointF(9, 9), 6.5, 6.5);
@@ -446,6 +463,20 @@ public:
             p.drawLine(9, 7, 9, 10);
             p.drawPoint(9, 12);
             break;
+        case UiIcon::Error:
+            p.drawEllipse(QPointF(9, 9), 6.5, 6.5);
+            p.drawLine(QPointF(6.8, 6.8), QPointF(11.2, 11.2));
+            p.drawLine(QPointF(6.8, 11.2), QPointF(11.2, 6.8));
+            break;
+        case UiIcon::Question: {
+            p.drawEllipse(QPointF(9, 9), 6.5, 6.5);
+            QPainterPath hook(QPointF(6.8, 6.6));
+            hook.cubicTo(7.1, 4.7, 11.2, 4.6, 11.2, 6.8);
+            hook.cubicTo(11.2, 8.1, 9, 8.4, 9, 9.9);
+            p.drawPath(hook);
+            p.drawPoint(QPointF(9, 12.2));
+            break;
+        }
         }
         p.restore();
     }
@@ -453,8 +484,21 @@ public:
 private:
     QColor iconColor(QIcon::Mode mode) const
     {
-        return mode == QIcon::Disabled ? QApplication::palette().color(QPalette::Disabled, QPalette::ButtonText)
-                                      : color_;
+        const auto palette = QApplication::palette();
+        if (mode == QIcon::Disabled)
+            return palette.color(QPalette::Disabled, QPalette::ButtonText);
+        if (color_.isValid())
+            return color_;
+        const bool light = palette.color(QPalette::Window).lightness() >= 128;
+        switch (symbol_) {
+        case UiIcon::Clear: return palette.color(QPalette::PlaceholderText);
+        case UiIcon::Info:
+        case UiIcon::Question: return QColor(light ? "#245f94" : "#8bbcf0");
+        case UiIcon::Success: return QColor(light ? "#176546" : "#80d5a6");
+        case UiIcon::Warning: return QColor(light ? "#794908" : "#ebbf83");
+        case UiIcon::Error: return QColor(light ? "#9e2720" : "#ffaaa3");
+        default: return palette.color(QPalette::WindowText);
+        }
     }
 
     UiIcon symbol_;
@@ -464,7 +508,7 @@ private:
 
 QIcon uiIcon(UiIcon symbol, const QColor &color)
 {
-    return QIcon(new VectorIcon(symbol, color.isValid() ? color : QApplication::palette().color(QPalette::WindowText)));
+    return QIcon(new VectorIcon(symbol, color));
 }
 
 void applyTheme(QApplication &app)

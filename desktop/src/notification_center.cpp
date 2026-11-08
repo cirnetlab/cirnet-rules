@@ -9,6 +9,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
+#include <QPainter>
+#include <QPalette>
 #include <QPropertyAnimation>
 #include <QStringList>
 #include <QTextLayout>
@@ -26,6 +28,37 @@ bool important(const QString &severity)
 {
     return severity == "warning" || severity == "error";
 }
+
+UiIcon severityIcon(const QString &severity)
+{
+    if (severity == "error")
+        return UiIcon::Error;
+    if (severity == "warning")
+        return UiIcon::Warning;
+    if (severity == "success")
+        return UiIcon::Success;
+    return UiIcon::Info;
+}
+
+class ToastIcon final : public QLabel {
+public:
+    explicit ToastIcon(UiIcon symbol) : icon_(uiIcon(symbol))
+    {
+        setFixedSize(22, 22);
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QLabel::paintEvent(event);
+        QPainter painter(this);
+        icon_.paint(&painter, rect().adjusted(2, 2, -2, -2));
+    }
+
+private:
+    const QIcon icon_;
+};
 
 QString plainMessage(const QString &source)
 {
@@ -186,11 +219,13 @@ void NotificationCenter::fill()
         auto *card = new QFrame(&host_);
         card->setObjectName("toast");
         card->setProperty("severity", notice.severity);
+        card->setAccessibleName(severityLabel(notice.severity));
         auto *layout = new QHBoxLayout(card);
-        layout->setContentsMargins(10, 8, 8, 8);
-        auto *icon = new QLabel;
+        layout->setContentsMargins(12, 8, 8, 8);
+        layout->setSpacing(10);
+        auto *icon = new ToastIcon(severityIcon(notice.severity));
         icon->setObjectName("toastIcon");
-        layout->addWidget(icon, 0, Qt::AlignTop);
+        layout->addWidget(icon, 0, Qt::AlignVCenter);
         auto *body = new QLabel(notice.text);
         body->setObjectName("toastBody");
         body->setTextFormat(Qt::PlainText);
@@ -201,9 +236,11 @@ void NotificationCenter::fill()
         layout->addWidget(body, 1);
         auto *close = new QToolButton;
         close->setObjectName("dismissToast");
+        close->setFixedSize(30, 30);
+        close->setIconSize(QSize(16, 16));
         close->setToolTip(tr("Dismiss notification"));
         close->setAccessibleName(tr("Dismiss notification"));
-        layout->addWidget(close, 0, Qt::AlignTop);
+        layout->addWidget(close, 0, Qt::AlignVCenter);
         connect(close, &QToolButton::clicked, this, [this, id = notice.id] { dismiss(id); });
         visible_.append({card, notice.id, important(notice.severity) ? -1 : 5400, notice.text});
         created.append(card);
@@ -234,8 +271,8 @@ void NotificationCenter::reposition()
         toast.widget->setFixedWidth(width);
         auto *body = toast.widget->findChild<QLabel *>("toastBody");
         body->ensurePolished();
-        const auto icon = toast.widget->findChild<QLabel *>("toastIcon")->sizeHint();
-        const auto button = toast.widget->findChild<QToolButton *>("dismissToast")->sizeHint();
+        const auto icon = toast.widget->findChild<QLabel *>("toastIcon")->size();
+        const auto button = toast.widget->findChild<QToolButton *>("dismissToast")->size();
         const auto *layout = toast.widget->layout();
         const auto margins = layout->contentsMargins();
         const auto frame = toast.widget->contentsMargins();
@@ -280,6 +317,17 @@ void NotificationCenter::dismiss(quint64 id)
     fill();
 }
 
+QString NotificationCenter::severityLabel(const QString &severity)
+{
+    if (severity == "error")
+        return tr("Error");
+    if (severity == "warning")
+        return tr("Warning");
+    if (severity == "success")
+        return tr("Success");
+    return tr("Information");
+}
+
 void NotificationCenter::updateHistory()
 {
     if (!history_)
@@ -288,23 +336,18 @@ void NotificationCenter::updateHistory()
     for (auto &item : records_) {
         if (history_->isVisible())
             item.read = true;
-        const auto severity = item.severity == "error" ? tr("Error") :
-                              item.severity == "warning" ? tr("Warning") :
-                              item.severity == "success" ? tr("Success") : tr("Information");
         auto *row = new QListWidgetItem(tr("%1 · %2 — %3")
-                                            .arg(item.time.time().toString("HH:mm"), severity, item.text), history_);
+            .arg(item.time.time().toString("HH:mm"), severityLabel(item.severity), item.text), history_);
         row->setToolTip(item.text.toHtmlEscaped());
     }
 }
 
 void NotificationCenter::refreshIcons()
 {
+    const auto muted = QApplication::palette().color(QPalette::PlaceholderText);
     for (const auto &toast : visible_) {
-        const auto severity = toast.widget->property("severity").toString();
-        auto *icon = toast.widget->findChild<QLabel *>("toastIcon");
-        icon->setPixmap(uiIcon(important(severity) ? UiIcon::Warning :
-                              severity == "success" ? UiIcon::Success : UiIcon::Info).pixmap(18));
-        toast.widget->findChild<QToolButton *>("dismissToast")->setIcon(uiIcon(UiIcon::Close));
+        toast.widget->findChild<QLabel *>("toastIcon")->update();
+        toast.widget->findChild<QToolButton *>("dismissToast")->setIcon(uiIcon(UiIcon::Close, muted));
     }
     reposition();
 }

@@ -130,7 +130,7 @@ private:
     QHBoxLayout *localLayout_ = nullptr;
     QToolButton *sidebarToggle_ = nullptr;
     QToolButton *settingsButton_ = nullptr;
-    QToolButton *localButton_ = nullptr;
+    QToolButton *localStatus_ = nullptr;
     QPushButton *chatButton_ = nullptr;
     QPushButton *automationsButton_ = nullptr;
     QWidget *historyPage_ = nullptr;

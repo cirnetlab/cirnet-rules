@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QHeaderView>
+#include <QImage>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -17,6 +18,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTableView>
 #include <QTest>
@@ -41,6 +43,48 @@ inline QJsonObject selectedBinding(const QTableView *table)
 {
     const auto rows = table->selectionModel()->selectedRows();
     return rows.isEmpty() ? QJsonObject() : rows.first().data(Qt::UserRole + 1).toJsonObject();
+}
+
+inline void exerciseRowSelection(QTableView *table, const QString &bindingId)
+{
+    auto *header = table->horizontalHeader();
+    auto *viewport = table->viewport();
+    QList<int> widths;
+    const auto restoreWidths = qScopeGuard([&] {
+        for (int column = 0; column < widths.size(); ++column)
+            header->resizeSection(column, widths.at(column));
+    });
+    for (int column = 0; column < header->count(); ++column) {
+        widths.append(header->sectionSize(column));
+        header->resizeSection(column, 70);
+    }
+    QTRY_VERIFY(viewport->width() > header->length() + 32);
+    const auto cell = table->visualRect(table->model()->index(0, 0));
+    const QPoint cellSample(cell.right() - 4, cell.center().y());
+    const QPoint trailingSample(viewport->width() - 8, cell.center().y());
+    const QPoint belowRow(trailingSample.x(), cell.bottom() + 8);
+    QVERIFY(viewport->rect().contains(belowRow));
+
+    QTest::mouseClick(viewport, Qt::LeftButton, Qt::NoModifier, cell.center());
+    QCOMPARE(selectedBinding(table).value("binding_id").toString(), bindingId);
+    QCOMPARE(table->selectionModel()->selectedIndexes().size(), header->count());
+    const auto capture = viewport->grab();
+    const auto image = capture.toImage();
+    const auto dpr = capture.devicePixelRatio();
+    const auto colorAt = [&](const QPoint &point) {
+        return image.pixelColor(qRound(point.x() * dpr), qRound(point.y() * dpr));
+    };
+    QCOMPARE(colorAt(trailingSample), colorAt(cellSample));
+    QVERIFY(colorAt(belowRow) != colorAt(trailingSample));
+
+    table->clearSelection();
+    QTest::mouseClick(viewport, Qt::LeftButton, Qt::NoModifier, belowRow);
+    QVERIFY(table->selectionModel()->selectedIndexes().isEmpty());
+    QTest::mouseClick(viewport, Qt::LeftButton, Qt::NoModifier, trailingSample);
+    QCOMPARE(selectedBinding(table).value("binding_id").toString(), bindingId);
+    QCOMPARE(table->selectionModel()->selectedIndexes().size(), header->count());
+    if (const auto captureDirectory = qEnvironmentVariable("CGACP_UI_CAPTURE"); !captureDirectory.isEmpty())
+        QVERIFY(table->grab().save(captureDirectory + "/repositories-full-row-selection.png"));
 }
 
 inline void exerciseTable(MainWindow &window, const QJsonObject &binding)
@@ -76,6 +120,7 @@ inline void exerciseTable(MainWindow &window, const QJsonObject &binding)
     const auto resizedWidth = header->sectionSize(1);
     QVERIFY(resizedWidth > initialWidth);
 
+    exerciseRowSelection(table, id);
     table->selectRow(0);
     QCOMPARE(selectedBinding(table).value("binding_id").toString(), id);
     if (QApplication::platformName() == QStringLiteral("windows")) {
