@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 1 -->
-<!-- source-sha256: 1d203c18d4bc8f4c8a034650f24bc7fded24db46dd681c732735b4d0f9c95207 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 8d7453f450d17be0075856a96d2d22102faed5b2fec599d7e94026490473d853 -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -11,6 +11,15 @@ Tên release ứng viên local là `cirnet-rules-0.1.0`. Rà soát release tách
 riêng khỏi thao tác repository, hội thoại và automation hằng ngày.
 
 ## Build và chạy
+
+Tại thư mục gốc repo, chạy `run-dashboard.bat` trên Windows hoặc
+`sh ./run-dashboard.sh` trên Linux. Mỗi launcher build runtime Rust và
+desktop Qt từ source hiện tại, rồi mở dashboard. Có thể truyền tùy chọn
+ứng dụng sau lệnh launcher.
+
+Launcher Windows cần Visual Studio 2022 với bộ công cụ build C++. Trên
+Linux, CMake cần tìm được trình biên dịch C++ và các gói phát triển Qt 6
+Widgets và LinguistTools.
 
 Dùng Rust toolchain đã pin và bộ Qt 6 Widgets cho trình biên dịch C++ local.
 Build `cgacp-runtime` bằng Cargo, rồi cấu hình CMake với

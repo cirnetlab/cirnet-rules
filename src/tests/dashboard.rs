@@ -294,6 +294,12 @@ fn private_runtime_persists_repo_conversation_and_one_shot_then_rejects_stale_bi
     );
     let snapshot = client.call("storage.backup", json!({}));
     let restored = fixture.0.join("restore");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new().mode(0o700).create(&restored).unwrap();
+    }
+    #[cfg(not(unix))]
     fs::create_dir(&restored).unwrap();
     fs::copy(
         snapshot["path"].as_str().unwrap(),

@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -9,6 +9,15 @@ The local candidate release title is `cirnet-rules-0.1.0`. Release review is
 separate from everyday repository, conversation and automation operations.
 
 ## Build and run
+
+From the repository root, run `run-dashboard.bat` on Windows or
+`sh ./run-dashboard.sh` on Linux. Each launcher builds the Rust runtime and
+Qt desktop from the current source, then opens the dashboard. Pass application
+options after the launcher command.
+
+The Windows launcher requires Visual Studio 2022 with C++ build tools. On
+Linux, CMake must be able to find a C++ compiler and Qt 6 Widgets and
+LinguistTools development packages.
 
 Use the pinned Rust toolchain and a Qt 6 Widgets development kit for the local
 C++ compiler. Build `cgacp-runtime` with Cargo, then configure CMake with

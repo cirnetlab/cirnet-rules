@@ -2,7 +2,6 @@ QWidget { background: #151719; color: #eaedf0; font-size: 14px; }
 QFrame#sidebar { background: #1b1e21; border-right: 1px solid #303338; }
 QFrame#sidebar QLabel { background: transparent; }
 QLabel#brand { color: #f6f9fc; font-size: 21px; font-weight: 800; }
-QFrame#sidebar QLabel#brandMark { color: #091e1d; background: #62d9c5; border-radius: 10px; font-size: 24px; font-weight: 800; }
 QLabel#eyebrow { color: #a2abb4; font-size: 11px; font-weight: 700; }
 QLabel#connection { color: #84d4c8; font-size: 12px; padding: 8px 2px; }
 QLabel#heading { color: #fafbfc; font-size: 28px; font-weight: 750; }

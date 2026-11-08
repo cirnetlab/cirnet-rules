@@ -13,6 +13,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
+#include <QIcon>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
@@ -137,6 +138,10 @@ private slots:
     {
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
         MainWindow window(client);
+        const auto *brandMark = window.findChild<QLabel *>("brandMark");
+        QVERIFY(brandMark);
+        QVERIFY(!brandMark->pixmap().isNull());
+        QVERIFY(!QApplication::windowIcon().isNull());
         const auto scale = window.devicePixelRatioF();
         const auto resizeForDisplay = [&](int width, int height) {
             window.resize(qRound(width / scale), qRound(height / scale));

@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QMessageBox>
@@ -22,6 +23,7 @@
 void applyTheme(QApplication &app)
 {
     Q_INIT_RESOURCE(cgacp_ui);
+    app.setWindowIcon(QIcon(QStringLiteral(":/cgacp/favicon.png")));
     app.setStyle(QStringLiteral("Fusion"));
     QFile qss(QStringLiteral(":/cgacp/dark.qss"));
     if (qss.open(QIODevice::ReadOnly))
@@ -51,10 +53,11 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     rail->setContentsMargins(17, 23, 17, 16);
     rail->setSpacing(8);
     auto *identity = new QHBoxLayout;
-    auto *mark = new QLabel(QStringLiteral("C"));
+    auto *mark = new QLabel;
     mark->setAlignment(Qt::AlignCenter);
     mark->setObjectName("brandMark");
     mark->setFixedSize(35, 35);
+    mark->setPixmap(QApplication::windowIcon().pixmap(mark->size()));
     identity->addWidget(mark);
     auto *brandText = new QVBoxLayout;
     brandText->setSpacing(0);
