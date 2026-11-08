@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-LOCAL -->
-<!-- revision: 1 -->
-<!-- source-sha256: 559ed7c3c22221257ce2e156eeb0c8ed40e5030c8a5f67aa07a1a31d3e82fcd8 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 86ba78e249eddc4f1e71e6824a832f951bb65ddfa4244cbebbf44382190b1092 -->
 <!-- translation-status: synchronized -->
 <a id="operator-workflow"></a>
 
@@ -12,6 +12,10 @@ dựa trên entrypoint đã được Git theo dõi và Git root thực. Với wo
 governance khác, dùng `--governance` hoặc đặt `CGACP_GOVERNANCE` cho tiến
 trình. Liên kết worktree được lưu local dưới `.cgacp/` đã ignore. Dò
 workspace và công việc thông thường chạy offline.
+
+Cập nhật task giải phóng khóa tệp khi thao tác kết thúc, kể cả khi một bản
+sao handle vẫn đang mở. Các lượt cập nhật đồng thời vẫn loại trừ nhau và
+phải dùng revision hiện tại.
 
 1. Chạy `workspace-discover`. Rà mục repo rồi liên kết một checkout bằng
    `workspace-bind --repo NAME --path WORKTREE --actor OPERATOR`.

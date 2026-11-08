@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-LOCAL -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="operator-workflow"></a>
 
 # CGACP local operator workflow
@@ -10,6 +10,10 @@ tracked governance entry files and the actual Git root. For an alternative
 governance worktree, pass its path with `--governance` or set
 `CGACP_GOVERNANCE` for the process. A worktree binding is local and stored
 under ignored `.cgacp/`. Discovery and ordinary work are offline.
+
+Task updates release their file lock when the operation ends, even if a
+duplicated file handle is still open. Concurrent updates remain exclusive and
+must use the current revision.
 
 1. Run `workspace-discover`. Review the repo entry and bind one checkout
    using `workspace-bind --repo NAME --path WORKTREE --actor OPERATOR`.

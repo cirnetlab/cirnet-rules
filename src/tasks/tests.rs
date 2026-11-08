@@ -132,6 +132,18 @@ fn compare_and_swap_allows_only_one_writer_and_releases_the_lock() {
 }
 
 #[test]
+fn completed_task_lock_is_released_when_a_duplicate_handle_remains_open() {
+    let f = Fixture::new();
+    let held = lock(&f.0, "toolbar").unwrap();
+    let duplicate = held.0.try_clone().unwrap();
+    assert!(lock(&f.0, "toolbar").is_err());
+
+    drop(held);
+    assert!(lock(&f.0, "toolbar").is_ok());
+    drop(duplicate);
+}
+
+#[test]
 fn changing_plan_makes_existing_grant_stale() {
     let f = Fixture::new();
     let descriptor = f.descriptor("ui", "toolbar");

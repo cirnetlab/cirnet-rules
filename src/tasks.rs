@@ -399,7 +399,17 @@ fn directory(root: &Path, relative: &str, create: bool) -> Result<PathBuf, Strin
     Ok(path)
 }
 
-fn lock(root: &Path, id: &str) -> Result<File, String> {
+struct TaskLock(File);
+
+impl Drop for TaskLock {
+    fn drop(&mut self) {
+        // A concurrent child can inherit the descriptor until it executes.
+        // Release the lock before closing, even if a duplicate remains open.
+        let _ = self.0.unlock();
+    }
+}
+
+fn lock(root: &Path, id: &str) -> Result<TaskLock, String> {
     let dir = directory(root, STORE, true)?;
     let path = dir.join(format!("{id}.lock"));
     if let Ok(meta) = fs::symlink_metadata(&path)
@@ -416,7 +426,7 @@ fn lock(root: &Path, id: &str) -> Result<File, String> {
         .map_err(|_| "Cannot open local task lock")?;
     file.try_lock()
         .map_err(|_| "Task state is busy; resume with the current revision")?;
-    Ok(file)
+    Ok(TaskLock(file))
 }
 
 fn persist(root: &Path, id: &str, value: &Value) -> Result<(), String> {
