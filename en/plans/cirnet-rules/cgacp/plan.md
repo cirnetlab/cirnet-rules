@@ -1,10 +1,10 @@
-<!-- doc-id: CGACP-V3-PLAN -->
-<!-- revision: 1 -->
+<!-- doc-id: CGACP-PLAN -->
+<!-- revision: 2 -->
 <a id="work"></a>
 
-# CGACP v3 implementation plan
+# CGACP implementation plan
 
-[Specification](../../../specs/cirnet-rules/cgacp-v3/spec.md)
+[Specification](../../../specs/cirnet-rules/cgacp/spec.md)
 
 1. Relocate all Rust into src and establish the regression baseline.
 2. Add local worktree bindings and narrow routing, then test dirty inputs,

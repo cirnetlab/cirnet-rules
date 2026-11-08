@@ -1,8 +1,8 @@
-<!-- doc-id: CGACP-V3-SPEC -->
-<!-- revision: 1 -->
+<!-- doc-id: CGACP-SPEC -->
+<!-- revision: 2 -->
 <a id="scope"></a>
 
-# CGACP v3 implementation specification
+# CGACP implementation specification
 
 The existing bilingual governance CLI owns release checks and portable
 adapters. Its historical six-product audit remains an evidence snapshot.

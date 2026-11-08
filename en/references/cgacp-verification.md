@@ -1,8 +1,8 @@
-<!-- doc-id: CGACP-V3-VERIFICATION -->
-<!-- revision: 1 -->
+<!-- doc-id: CGACP-VERIFICATION -->
+<!-- revision: 2 -->
 <a id="verification"></a>
 
-# CGACP v3 local verification
+# CGACP local verification
 
 The implementation starts from governance commit
 `a83dd8b710d45a5ace1aabe9477ebd887c7f825e` and remains a local change. Windows x64 MSVC used Rust and Cargo

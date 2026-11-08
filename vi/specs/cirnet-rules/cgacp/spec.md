@@ -1,10 +1,10 @@
-<!-- doc-id: CGACP-V3-SPEC -->
-<!-- revision: 1 -->
-<!-- source-sha256: 90be1416b4cbcd31f8c00c3669010e2e828c247d6e157b816758f13b84633df5 -->
+<!-- doc-id: CGACP-SPEC -->
+<!-- revision: 2 -->
+<!-- source-sha256: 951349907a8a12a14d7bb1c34c94e4f30a382bce5dae3d6684a62da9a97fc74a -->
 <!-- translation-status: synchronized -->
 <a id="scope"></a>
 
-# Đặc tả triển khai CGACP v3
+# Đặc tả triển khai CGACP
 
 CLI governance song ngữ hiện có kiểm tra release và tạo gói adapter.
 Audit lịch sử sáu sản phẩm vẫn là snapshot bằng chứng. Control plane

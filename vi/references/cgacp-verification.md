@@ -1,10 +1,10 @@
-<!-- doc-id: CGACP-V3-VERIFICATION -->
-<!-- revision: 1 -->
-<!-- source-sha256: 1988e737f5f168712c0e261dda1ea1556b56a5f243d321180235a95fc42aadcb -->
+<!-- doc-id: CGACP-VERIFICATION -->
+<!-- revision: 2 -->
+<!-- source-sha256: 12c284b6936f44825aa1ae185335b418ce5ac6d87afedbb27f6564b524adbede -->
 <!-- translation-status: synchronized -->
 <a id="verification"></a>
 
-# Kiểm chứng CGACP v3 local
+# Kiểm chứng CGACP trên máy local
 
 Triển khai bắt đầu từ commit governance `a83dd8b710d45a5ace1aabe9477ebd887c7f825e` và đang ở trạng thái thay
 đổi local. Windows x64 MSVC dùng Rust và Cargo 1.99.1 qua alias stable có
