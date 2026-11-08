@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CIRNET exact release gate evidence, schema v1 (proposed)",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "gate",
+    "repository",
+    "sourceCommit",
+    "governanceCommit",
+    "selectionSha256",
+    "command",
+    "toolVersions",
+    "platform",
+    "recordedAt",
+    "exitCode",
+    "result",
+    "evidenceType",
+    "resultFile",
+    "resultSha256",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "gate": {
+      "enum": [
+        "source_provenance",
+        "contract_conformance",
+        "hardware_safe_stop",
+        "simulator_worker",
+        "browser_native",
+        "fpga_scaffold",
+        "clean_windows",
+        "rollback",
+        "legacy_rejection"
+      ]
+    },
+    "repository": {
+      "enum": [
+        "cirnet-contracts",
+        "cirnet-fpga",
+        "cirnet-hardware",
+        "cirnet-interface",
+        "cirnet-remote",
+        "cirnet-simulator"
+      ]
+    },
+    "sourceCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "governanceCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "selectionSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "command": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "toolVersions": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 24,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "recordedAt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "exitCode": {
+      "const": 0
+    },
+    "result": {
+      "const": "PASS"
+    },
+    "evidenceType": {
+      "enum": [
+        "review",
+        "contract_test",
+        "native_integration",
+        "protocol_test",
+        "browser_e2e",
+        "rtl_test",
+        "clean_install",
+        "rollback_test"
+      ]
+    },
+    "resultFile": {
+      "type": "string",
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "resultSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "limitations": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  },
+  "additionalProperties": false
+}

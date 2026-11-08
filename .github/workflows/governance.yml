@@ -1,0 +1,34 @@
+name: Governance verification
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo build --locked
+      - run: cargo test --locked
+      - run: cargo run --locked -- validate
+      - run: cargo run --locked -- check-translations
+      - name: Missing product evidence must block release readiness
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/empty-product-workspace"
+          result=0
+          cargo run --locked -- check-release --workspace "$RUNNER_TEMP/empty-product-workspace" || result=$?
+          test "$result" -eq 2

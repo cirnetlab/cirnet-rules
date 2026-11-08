@@ -1,0 +1,15 @@
+{
+  "command": "check-release",
+  "result": {
+    "activation": "NOT_ACTIVATED",
+    "authority": "cirnet-remote/integration/release-set.json",
+    "check": "check-release",
+    "manifest_sha256": "90a8ef4d30ddc19d3024dcb3790fef5d5e041f45fa47922bfd5e34c2fd19c419",
+    "observed_release": "0.1.4",
+    "reason": "the selected historical release is not a verified native cutover manifest",
+    "status": "BLOCKED",
+    "target_family": "0.2",
+    "target_release_train": "0.2.4"
+  },
+  "status": "BLOCKED"
+}

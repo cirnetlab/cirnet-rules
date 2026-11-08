@@ -1,0 +1,490 @@
+{
+  "governance": {
+    "version": "0.1.0",
+    "registry_revision": 1,
+    "locale": "en"
+  },
+  "baseline": {
+    "release_train": "0.2.4",
+    "family": "0.2",
+    "activation": "NOT_ACTIVATED"
+  },
+  "authority": {
+    "release_set": {
+      "repository": "cirnet-remote",
+      "path": "integration/release-set.json"
+    },
+    "contracts": {
+      "repository": "cirnet-contracts",
+      "path": "contracts/manifest.json"
+    },
+    "public_http": {
+      "repository": "cirnet-remote",
+      "path": "native/src/openapi.rs"
+    },
+    "hardware_evidence": {
+      "repository": "cirnet-hardware",
+      "path": "docs/en/contributing/verification.md"
+    },
+    "rtl_evidence": {
+      "repository": "cirnet-fpga",
+      "path": "docs/en/verification.md"
+    }
+  },
+  "repositories": {
+    "cirnet-contracts": {
+      "remote": "https://github.com/cirnetlab/cirnet-contracts.git",
+      "snapshot": {
+        "commit": "4bfd0950f564aaf24abaf6b8b82399c2d54d0e39",
+        "tree": "5365983a29060c009e07d504bc1c84616e517f2e",
+        "branch": "master"
+      },
+      "profile": "contracts-codegen",
+      "ownership": "schema, wire contracts, and generated binding provenance",
+      "plan": "en/plans/cirnet-contracts/cutover.md",
+      "spec": "en/specs/cirnet-contracts/audit.md",
+      "depends_on": []
+    },
+    "cirnet-simulator": {
+      "remote": "https://github.com/cirnetlab/cirnet-simulator.git",
+      "snapshot": {
+        "commit": "c05be23bef71de44a9027319af945d3e635d0882",
+        "tree": "3c6dac7c4163a36b26df9cc29de31310f3945021",
+        "branch": "master"
+      },
+      "profile": "cpp-worker",
+      "ownership": "bounded C++ worker and deterministic simulation",
+      "plan": "en/plans/cirnet-simulator/cutover.md",
+      "spec": "en/specs/cirnet-simulator/audit.md",
+      "depends_on": [
+        {
+          "repository": "cirnet-contracts",
+          "relation": "model-contract"
+        }
+      ]
+    },
+    "cirnet-fpga": {
+      "remote": "https://github.com/cirnetlab/cirnet-fpga.git",
+      "snapshot": {
+        "commit": "bd9d37ee3a3e1a526fb32b00c5ef71f2e8008cd0",
+        "tree": "be702be824405c099d5ac80fb4f03260e366a46a",
+        "branch": "master"
+      },
+      "profile": "fpga-rtl",
+      "ownership": "RTL, synthesis inputs, and board evidence",
+      "plan": "en/plans/cirnet-fpga/cutover.md",
+      "spec": "en/specs/cirnet-fpga/audit.md",
+      "depends_on": [
+        {
+          "repository": "cirnet-contracts",
+          "relation": "logical-contract"
+        }
+      ]
+    },
+    "cirnet-hardware": {
+      "remote": "https://github.com/cirnetlab/cirnet-hardware.git",
+      "snapshot": {
+        "commit": "2139cccc8b36dc403c2f7182dfb670a97513858a",
+        "tree": "e59bab4b1750b19e203ca36e0aa9a0a761e47268",
+        "branch": "master"
+      },
+      "profile": "rust-service",
+      "ownership": "station lifecycle, local RPC, and electrical cleanup",
+      "plan": "en/plans/cirnet-hardware/cutover.md",
+      "spec": "en/specs/cirnet-hardware/audit.md",
+      "depends_on": [
+        {
+          "repository": "cirnet-contracts",
+          "relation": "rpc-bindings"
+        },
+        {
+          "repository": "cirnet-simulator",
+          "relation": "worker-ipc"
+        },
+        {
+          "repository": "cirnet-fpga",
+          "relation": "board-boundary"
+        }
+      ]
+    },
+    "cirnet-interface": {
+      "remote": "https://github.com/cirnetlab/cirnet-interface.git",
+      "snapshot": {
+        "commit": "f1ff70b9f22554c0680b92679e9e44a5544247ff",
+        "tree": "1f7e59f4b3e219fea6fa27b0183337c6d63a15c6",
+        "branch": "master"
+      },
+      "profile": "frontend",
+      "ownership": "browser workbench and native compatibility",
+      "plan": "en/plans/cirnet-interface/cutover.md",
+      "spec": "en/specs/cirnet-interface/audit.md",
+      "depends_on": [
+        {
+          "repository": "cirnet-contracts",
+          "relation": "sdk-input"
+        }
+      ]
+    },
+    "cirnet-remote": {
+      "remote": "https://github.com/cirnetlab/cirnet-remote.git",
+      "snapshot": {
+        "commit": "1a38c1331a07bdc3b5644c70eebb40590ae53452",
+        "tree": "fbd18a76493861a713e7fdad88fb4628cb9c18bc",
+        "branch": "master"
+      },
+      "profile": "rust-service",
+      "ownership": "public HTTP, system selection, and scheduler",
+      "plan": "en/plans/cirnet-remote/cutover.md",
+      "spec": "en/specs/cirnet-remote/audit.md",
+      "depends_on": [
+        {
+          "repository": "cirnet-contracts",
+          "relation": "schema-and-sdk"
+        },
+        {
+          "repository": "cirnet-hardware",
+          "relation": "local-rpc"
+        },
+        {
+          "repository": "cirnet-interface",
+          "relation": "web-assets"
+        },
+        {
+          "repository": "cirnet-simulator",
+          "relation": "selected-worker"
+        },
+        {
+          "repository": "cirnet-fpga",
+          "relation": "selected-source"
+        }
+      ]
+    }
+  },
+  "context": {
+    "common": [
+      "en/AGENTS.md",
+      "en/policies/governance.md",
+      "en/rules/architecture.md",
+      "en/rules/coding.md",
+      "en/rules/documentation.md",
+      "en/rules/security.md",
+      "en/rules/testing.md",
+      "en/profiles/product-architecture.md"
+    ],
+    "tasks": {
+      "audit": {
+        "profile": "en/profiles/architect.md",
+        "skill": "en/skills/audit/SKILL.md"
+      },
+      "implementation": {
+        "profile": "en/profiles/developer.md",
+        "skill": "en/skills/implementation/SKILL.md"
+      },
+      "debugging": {
+        "profile": "en/profiles/developer.md",
+        "skill": "en/skills/debugging/SKILL.md"
+      },
+      "verification": {
+        "profile": "en/profiles/verifier.md",
+        "skill": "en/skills/verification/SKILL.md"
+      },
+      "contract-change": {
+        "profile": "en/profiles/architect.md",
+        "skill": "en/skills/contract-change/SKILL.md"
+      },
+      "release-readiness": {
+        "profile": "en/profiles/release-maintainer.md",
+        "skill": "en/skills/release-readiness/SKILL.md"
+      },
+      "bilingual-sync": {
+        "profile": "en/profiles/reviewer.md",
+        "skill": "en/skills/bilingual-sync/SKILL.md"
+      },
+      "hardware-evidence": {
+        "profile": "en/profiles/verifier.md",
+        "skill": "en/skills/hardware-evidence/SKILL.md"
+      },
+      "refactoring": {
+        "profile": "en/profiles/developer.md",
+        "skill": "en/skills/refactoring/SKILL.md"
+      }
+    }
+  },
+  "release_policy": {
+    "approved_matrix_sha256": null,
+    "approved_evidence": null,
+    "approved_publication_sha256": null,
+    "required_domains": [
+      "http",
+      "realtime",
+      "hardware_rpc",
+      "simulator_ipc",
+      "circuit_graph",
+      "execution_result",
+      "capability",
+      "capture",
+      "fpga_logical",
+      "fpga_register_map",
+      "data_storage",
+      "release_manifest"
+    ],
+    "required_gates": {
+      "source_provenance": {
+        "repository": "cirnet-remote",
+        "evidence_type": "review"
+      },
+      "contract_conformance": {
+        "repository": "cirnet-contracts",
+        "evidence_type": "contract_test"
+      },
+      "hardware_safe_stop": {
+        "repository": "cirnet-hardware",
+        "evidence_type": "native_integration"
+      },
+      "simulator_worker": {
+        "repository": "cirnet-simulator",
+        "evidence_type": "protocol_test"
+      },
+      "browser_native": {
+        "repository": "cirnet-interface",
+        "evidence_type": "browser_e2e"
+      },
+      "fpga_scaffold": {
+        "repository": "cirnet-fpga",
+        "evidence_type": "rtl_test"
+      },
+      "clean_windows": {
+        "repository": "cirnet-remote",
+        "evidence_type": "clean_install"
+      },
+      "rollback": {
+        "repository": "cirnet-remote",
+        "evidence_type": "rollback_test"
+      },
+      "legacy_rejection": {
+        "repository": "cirnet-remote",
+        "evidence_type": "native_integration"
+      }
+    }
+  },
+  "rules": [
+    {
+      "id": "ARCH-01",
+      "path": "en/rules/architecture.md",
+      "title": "Producer boundaries and architecture",
+      "severity": "BLOCK",
+      "owner": "CIRNETLAB repository maintainers"
+    },
+    {
+      "id": "LANG-01",
+      "path": "en/rules/coding.md",
+      "title": "Runtime language and platform boundary",
+      "severity": "BLOCK",
+      "owner": "CIRNETLAB repository maintainers"
+    },
+    {
+      "id": "DOC-01",
+      "path": "en/rules/documentation.md",
+      "title": "English authority and paired translation",
+      "severity": "BLOCK",
+      "owner": "CIRNETLAB repository maintainers"
+    },
+    {
+      "id": "SEC-01",
+      "path": "en/rules/security.md",
+      "title": "Write scope and hardware safety",
+      "severity": "BLOCK",
+      "owner": "CIRNETLAB repository maintainers"
+    },
+    {
+      "id": "QA-01",
+      "path": "en/rules/testing.md",
+      "title": "Evidence and verification gates",
+      "severity": "BLOCK",
+      "owner": "CIRNETLAB repository maintainers"
+    },
+    {
+      "id": "REL-01",
+      "path": "en/policies/governance.md",
+      "title": "Immutable release and exact allowlists",
+      "severity": "BLOCK",
+      "owner": "CIRNETLAB repository maintainers"
+    }
+  ],
+  "document_states": {
+    "en/references/adr-0001.md": {
+      "state": "DRAFT",
+      "review": "CIRNETLAB owner approval required before adopting additional proposals"
+    },
+    "en/plans/cirnet-contracts/cutover.md": {
+      "state": "DRAFT",
+      "review": "Product owner review and explicit authorization required"
+    },
+    "en/plans/cirnet-simulator/cutover.md": {
+      "state": "DRAFT",
+      "review": "Product owner review and explicit authorization required"
+    },
+    "en/plans/cirnet-fpga/cutover.md": {
+      "state": "DRAFT",
+      "review": "Product owner review and explicit authorization required"
+    },
+    "en/plans/cirnet-hardware/cutover.md": {
+      "state": "DRAFT",
+      "review": "Product owner review and explicit authorization required"
+    },
+    "en/plans/cirnet-interface/cutover.md": {
+      "state": "DRAFT",
+      "review": "Product owner review and explicit authorization required"
+    },
+    "en/plans/cirnet-remote/cutover.md": {
+      "state": "DRAFT",
+      "review": "Product owner review and explicit authorization required"
+    }
+  },
+  "tasks": [
+    {
+      "id": "CUT-CONTRACTS",
+      "requirement": "REL-01",
+      "repository": "cirnet-contracts",
+      "plan": "en/plans/cirnet-contracts/cutover.md",
+      "spec": "en/specs/cirnet-contracts/audit.md",
+      "status": "PLANNED",
+      "depends_on": [],
+      "evidence": []
+    },
+    {
+      "id": "CUT-SIMULATOR",
+      "requirement": "REL-01",
+      "repository": "cirnet-simulator",
+      "plan": "en/plans/cirnet-simulator/cutover.md",
+      "spec": "en/specs/cirnet-simulator/audit.md",
+      "status": "PLANNED",
+      "depends_on": [
+        "CUT-CONTRACTS"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CUT-FPGA",
+      "requirement": "REL-01",
+      "repository": "cirnet-fpga",
+      "plan": "en/plans/cirnet-fpga/cutover.md",
+      "spec": "en/specs/cirnet-fpga/audit.md",
+      "status": "PLANNED",
+      "depends_on": [
+        "CUT-CONTRACTS"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CUT-HARDWARE",
+      "requirement": "REL-01",
+      "repository": "cirnet-hardware",
+      "plan": "en/plans/cirnet-hardware/cutover.md",
+      "spec": "en/specs/cirnet-hardware/audit.md",
+      "status": "PLANNED",
+      "depends_on": [
+        "CUT-CONTRACTS",
+        "CUT-SIMULATOR",
+        "CUT-FPGA"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CUT-INTERFACE",
+      "requirement": "REL-01",
+      "repository": "cirnet-interface",
+      "plan": "en/plans/cirnet-interface/cutover.md",
+      "spec": "en/specs/cirnet-interface/audit.md",
+      "status": "PLANNED",
+      "depends_on": [
+        "CUT-CONTRACTS"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "CUT-REMOTE",
+      "requirement": "REL-01",
+      "repository": "cirnet-remote",
+      "plan": "en/plans/cirnet-remote/cutover.md",
+      "spec": "en/specs/cirnet-remote/audit.md",
+      "status": "PLANNED",
+      "depends_on": [
+        "CUT-CONTRACTS",
+        "CUT-HARDWARE",
+        "CUT-INTERFACE",
+        "CUT-SIMULATOR",
+        "CUT-FPGA"
+      ],
+      "evidence": []
+    }
+  ],
+  "exceptions": [],
+  "translation": {
+    "authority": "en",
+    "review_locale": "vi",
+    "normalization": "utf8-lf",
+    "root_exemptions": {
+      "README.md": "Bilingual navigation to paired indexes",
+      "AGENTS.md": "English-only bootstrap, explained in vi/AGENTS.md"
+    },
+    "excluded_from_discovery": [
+      "vi",
+      "history"
+    ]
+  },
+  "migration": [
+    {
+      "from": "adapters",
+      "to": "en/adapters"
+    },
+    {
+      "from": "commands",
+      "to": "en/commands"
+    },
+    {
+      "from": "hooks",
+      "to": "en/hooks"
+    },
+    {
+      "from": "plans",
+      "to": "en/plans"
+    },
+    {
+      "from": "policies",
+      "to": "en/policies"
+    },
+    {
+      "from": "profiles",
+      "to": "en/profiles"
+    },
+    {
+      "from": "references",
+      "to": "en/references"
+    },
+    {
+      "from": "rules",
+      "to": "en/rules"
+    },
+    {
+      "from": "schemas",
+      "to": "en/schemas"
+    },
+    {
+      "from": "skills",
+      "to": "en/skills"
+    },
+    {
+      "from": "specs",
+      "to": "en/specs"
+    },
+    {
+      "from": "tests",
+      "to": "en/tests"
+    },
+    {
+      "from": "tools",
+      "to": "en/tools"
+    }
+  ]
+}

@@ -1,0 +1,386 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CIRNET Remote-owned native release selection, schema v2 (proposed)",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "releaseTrain",
+    "family",
+    "distribution",
+    "repositories",
+    "contracts",
+    "rollback",
+    "compatibilityMatrixSha256",
+    "evidence"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "releaseTrain": {
+      "const": "0.2.4"
+    },
+    "family": {
+      "const": "0.2"
+    },
+    "distribution": {
+      "enum": [
+        "candidate",
+        "published"
+      ]
+    },
+    "repositories": {
+      "type": "object",
+      "required": [
+        "cirnet-contracts",
+        "cirnet-fpga",
+        "cirnet-hardware",
+        "cirnet-interface",
+        "cirnet-remote",
+        "cirnet-simulator"
+      ],
+      "properties": {
+        "cirnet-contracts": {
+          "$ref": "#/$defs/component"
+        },
+        "cirnet-fpga": {
+          "$ref": "#/$defs/component"
+        },
+        "cirnet-hardware": {
+          "$ref": "#/$defs/component"
+        },
+        "cirnet-interface": {
+          "$ref": "#/$defs/component"
+        },
+        "cirnet-remote": {
+          "$ref": "#/$defs/component"
+        },
+        "cirnet-simulator": {
+          "$ref": "#/$defs/component"
+        }
+      },
+      "additionalProperties": false
+    },
+    "contracts": {
+      "type": "object",
+      "required": [
+        "http",
+        "realtime",
+        "hardware_rpc",
+        "simulator_ipc",
+        "circuit_graph",
+        "execution_result",
+        "capability",
+        "capture",
+        "fpga_logical",
+        "fpga_register_map",
+        "data_storage",
+        "release_manifest"
+      ],
+      "properties": {
+        "http": {
+          "$ref": "#/$defs/contract"
+        },
+        "realtime": {
+          "$ref": "#/$defs/contract"
+        },
+        "hardware_rpc": {
+          "$ref": "#/$defs/contract"
+        },
+        "simulator_ipc": {
+          "$ref": "#/$defs/contract"
+        },
+        "circuit_graph": {
+          "$ref": "#/$defs/contract"
+        },
+        "execution_result": {
+          "$ref": "#/$defs/contract"
+        },
+        "capability": {
+          "$ref": "#/$defs/contract"
+        },
+        "capture": {
+          "$ref": "#/$defs/contract"
+        },
+        "fpga_logical": {
+          "$ref": "#/$defs/contract"
+        },
+        "fpga_register_map": {
+          "$ref": "#/$defs/contract"
+        },
+        "data_storage": {
+          "$ref": "#/$defs/contract"
+        },
+        "release_manifest": {
+          "$ref": "#/$defs/contract"
+        }
+      },
+      "additionalProperties": false
+    },
+    "rollback": {
+      "type": "object",
+      "required": [
+        "automaticStartReplay",
+        "matchingDatabaseBackupRequired",
+        "matchingCaptureBackupRequired",
+        "preserveQuarantine",
+        "automaticDowngrade"
+      ],
+      "properties": {
+        "automaticStartReplay": {
+          "const": false
+        },
+        "matchingDatabaseBackupRequired": {
+          "const": true
+        },
+        "matchingCaptureBackupRequired": {
+          "const": true
+        },
+        "preserveQuarantine": {
+          "const": true
+        },
+        "automaticDowngrade": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "compatibilityMatrixSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "source_provenance",
+        "contract_conformance",
+        "hardware_safe_stop",
+        "simulator_worker",
+        "browser_native",
+        "fpga_scaffold",
+        "clean_windows",
+        "rollback",
+        "legacy_rejection"
+      ],
+      "properties": {
+        "source_provenance": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "contract_conformance": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "hardware_safe_stop": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "simulator_worker": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "browser_native": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "fpga_scaffold": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "clean_windows": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "rollback": {
+          "$ref": "#/$defs/gateReference"
+        },
+        "legacy_rejection": {
+          "$ref": "#/$defs/gateReference"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "component": {
+      "type": "object",
+      "required": [
+        "version",
+        "tag",
+        "commit",
+        "target",
+        "toolchain",
+        "lockSha256",
+        "capabilities",
+        "artifacts"
+      ],
+      "properties": {
+        "version": {
+          "const": "0.2.4"
+        },
+        "tag": {
+          "const": "v0.2.4"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "toolchain": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 12,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "lockSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "capabilities": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 32,
+          "additionalProperties": {
+            "$ref": "#/$defs/capability"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "capability": {
+      "type": "object",
+      "required": [
+        "implemented",
+        "validated",
+        "available"
+      ],
+      "properties": {
+        "implemented": {
+          "type": "boolean"
+        },
+        "validated": {
+          "type": "boolean"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "filename",
+        "kind",
+        "sha256",
+        "size"
+      ],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "kind": {
+          "enum": [
+            "contract-package",
+            "native-executable",
+            "web-static",
+            "rtl-source",
+            "source",
+            "npm-sdk"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967296
+        }
+      },
+      "additionalProperties": false
+    },
+    "contract": {
+      "type": "object",
+      "required": [
+        "family",
+        "revision",
+        "filename",
+        "sha256",
+        "repository",
+        "commit",
+        "encoding"
+      ],
+      "properties": {
+        "family": {
+          "const": "0.2"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "filename": {
+          "type": "string",
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "repository": {
+          "enum": [
+            "cirnet-contracts",
+            "cirnet-fpga",
+            "cirnet-hardware",
+            "cirnet-interface",
+            "cirnet-remote",
+            "cirnet-simulator"
+          ]
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "encoding": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "additionalProperties": false
+    },
+    "gateReference": {
+      "type": "object",
+      "required": [
+        "filename",
+        "sha256"
+      ],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
