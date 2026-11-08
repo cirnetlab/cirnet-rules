@@ -85,14 +85,8 @@
           "additionalProperties": false,
           "properties": {
             "repository": {
-              "enum": [
-                "cirnet-contracts",
-                "cirnet-simulator",
-                "cirnet-fpga",
-                "cirnet-hardware",
-                "cirnet-interface",
-                "cirnet-remote"
-              ]
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
             },
             "path": {
               "type": "string",
@@ -109,14 +103,8 @@
           "additionalProperties": false,
           "properties": {
             "repository": {
-              "enum": [
-                "cirnet-contracts",
-                "cirnet-simulator",
-                "cirnet-fpga",
-                "cirnet-hardware",
-                "cirnet-interface",
-                "cirnet-remote"
-              ]
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
             },
             "path": {
               "type": "string",
@@ -133,14 +121,8 @@
           "additionalProperties": false,
           "properties": {
             "repository": {
-              "enum": [
-                "cirnet-contracts",
-                "cirnet-simulator",
-                "cirnet-fpga",
-                "cirnet-hardware",
-                "cirnet-interface",
-                "cirnet-remote"
-              ]
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
             },
             "path": {
               "type": "string",
@@ -157,14 +139,8 @@
           "additionalProperties": false,
           "properties": {
             "repository": {
-              "enum": [
-                "cirnet-contracts",
-                "cirnet-simulator",
-                "cirnet-fpga",
-                "cirnet-hardware",
-                "cirnet-interface",
-                "cirnet-remote"
-              ]
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
             },
             "path": {
               "type": "string",
@@ -181,14 +157,8 @@
           "additionalProperties": false,
           "properties": {
             "repository": {
-              "enum": [
-                "cirnet-contracts",
-                "cirnet-simulator",
-                "cirnet-fpga",
-                "cirnet-hardware",
-                "cirnet-interface",
-                "cirnet-remote"
-              ]
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$"
             },
             "path": {
               "type": "string",
@@ -496,7 +466,11 @@
         "approved_evidence",
         "approved_publication_sha256",
         "required_domains",
-        "required_gates"
+        "required_gates",
+        "matrix_path",
+        "components",
+        "domain_owners",
+        "openapi_handoff"
       ],
       "additionalProperties": false,
       "properties": {
@@ -592,7 +566,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-remote"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "review"
@@ -608,7 +583,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-contracts"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "contract_test"
@@ -624,7 +600,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-hardware"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "native_integration"
@@ -640,7 +617,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-simulator"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "protocol_test"
@@ -656,7 +634,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-interface"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "browser_e2e"
@@ -672,7 +651,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-fpga"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "rtl_test"
@@ -688,7 +668,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-remote"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "clean_install"
@@ -704,7 +685,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-remote"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "rollback_test"
@@ -720,7 +702,8 @@
               "additionalProperties": false,
               "properties": {
                 "repository": {
-                  "const": "cirnet-remote"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
                 "evidence_type": {
                   "const": "native_integration"
@@ -736,6 +719,99 @@
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
           }
+        },
+        "matrix_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "components": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 64,
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "format",
+              "manifest",
+              "lock",
+              "kind",
+              "target"
+            ],
+            "properties": {
+              "format": {
+                "enum": [
+                  "cargo",
+                  "npm",
+                  "cmake",
+                  "text"
+                ]
+              },
+              "manifest": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "lock": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "kind": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "contracts_dependency": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "sdk_handoff": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "sdk_package": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "require_sdk": {
+                "type": "boolean"
+              },
+              "legacy": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              }
+            }
+          }
+        },
+        "domain_owners": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          }
+        },
+        "openapi_handoff": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
         }
       }
     },
@@ -834,14 +910,8 @@
             "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
           },
           "repository": {
-            "enum": [
-              "cirnet-contracts",
-              "cirnet-simulator",
-              "cirnet-fpga",
-              "cirnet-hardware",
-              "cirnet-interface",
-              "cirnet-remote"
-            ]
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
           },
           "plan": {
             "type": "string",

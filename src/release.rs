@@ -12,32 +12,53 @@ mod inventory;
 #[cfg(test)]
 mod tests;
 
-const RELEASE_PATH: &str = "integration/release-set.json";
-const MATRIX_PATH: &str = "integration/compatibility-matrix.json";
 const RELEASE_SCHEMA: &str = include_str!("../en/schemas/native-release.schema.json");
 const MATRIX_SCHEMA: &str = include_str!("../en/schemas/compatibility-matrix.schema.json");
 const EVIDENCE_SCHEMA: &str = include_str!("../en/schemas/release-evidence.schema.json");
-const REMOTE: &str = "cirnet-remote";
 const INPUT_LIMIT: u64 = 16 * 1024 * 1024;
 const ARTIFACT_LIMIT: u64 = 4 * 1024 * 1024 * 1024;
-const REPOS: [&str; 6] = [
-    "cirnet-contracts",
-    "cirnet-fpga",
-    "cirnet-hardware",
-    "cirnet-interface",
-    REMOTE,
-    "cirnet-simulator",
-];
-pub fn release_scope_matches(scope: &Value) -> bool {
-    REPOS.iter().all(|repo| {
-        scope
-            .get(repo)
-            .and_then(Value::as_array)
-            .is_some_and(|granted| {
-                inventory::release_inputs(repo)
-                    .iter()
-                    .all(|path| granted.iter().any(|value| value == path))
+fn components(registry: &Value) -> GateResult<&Map<String, Value>> {
+    registry["release_policy"]["components"]
+        .as_object()
+        .filter(|items| !items.is_empty() && items.len() <= 64)
+        .ok_or_else(|| failed("Release component profile is missing or empty"))
+}
+
+fn relative_input(path: &str) -> bool {
+    !path.contains(['\\', ':'])
+        && path
+            .split('/')
+            .all(|part| !part.is_empty() && !matches!(part, "." | ".."))
+        && !path.is_empty()
+}
+
+fn authority<'a>(registry: &'a Value, kind: &str) -> GateResult<(&'a str, &'a str)> {
+    let item = &registry["authority"][kind];
+    let repo = item["repository"]
+        .as_str()
+        .filter(|repo| portable_filename(repo))
+        .ok_or_else(|| failed("Release authority repository is absent"))?;
+    let path = item["path"]
+        .as_str()
+        .filter(|path| relative_input(path))
+        .ok_or_else(|| failed("Release authority input path is unsafe"))?;
+    Ok((repo, path))
+}
+
+pub fn release_scope_matches(scope: &Value, registry: &Value) -> bool {
+    components(registry).is_ok_and(|items| {
+        items.keys().all(|repo| {
+            inventory::release_inputs(repo, registry).is_ok_and(|inputs| {
+                scope
+                    .get(repo)
+                    .and_then(Value::as_array)
+                    .is_some_and(|granted| {
+                        inputs
+                            .iter()
+                            .all(|path| granted.iter().any(|value| value == path))
+                    })
             })
+        })
     })
 }
 const DOMAINS: [&str; 12] = [
@@ -55,59 +76,49 @@ const DOMAINS: [&str; 12] = [
     "release_manifest",
 ];
 
-struct Gate {
-    id: &'static str,
-    repo: &'static str,
-    kind: &'static str,
+struct Gate<'a> {
+    id: &'a str,
+    repo: &'a str,
+    kind: &'a str,
 }
 
-const GATES: [Gate; 9] = [
-    Gate {
-        id: "source_provenance",
-        repo: REMOTE,
-        kind: "review",
-    },
-    Gate {
-        id: "contract_conformance",
-        repo: "cirnet-contracts",
-        kind: "contract_test",
-    },
-    Gate {
-        id: "hardware_safe_stop",
-        repo: "cirnet-hardware",
-        kind: "native_integration",
-    },
-    Gate {
-        id: "simulator_worker",
-        repo: "cirnet-simulator",
-        kind: "protocol_test",
-    },
-    Gate {
-        id: "browser_native",
-        repo: "cirnet-interface",
-        kind: "browser_e2e",
-    },
-    Gate {
-        id: "fpga_scaffold",
-        repo: "cirnet-fpga",
-        kind: "rtl_test",
-    },
-    Gate {
-        id: "clean_windows",
-        repo: REMOTE,
-        kind: "clean_install",
-    },
-    Gate {
-        id: "rollback",
-        repo: REMOTE,
-        kind: "rollback_test",
-    },
-    Gate {
-        id: "legacy_rejection",
-        repo: REMOTE,
-        kind: "native_integration",
-    },
-];
+fn gates(registry: &Value) -> GateResult<Vec<Gate<'_>>> {
+    const REQUIRED: &[(&str, &str)] = &[
+        ("source_provenance", "review"),
+        ("contract_conformance", "contract_test"),
+        ("hardware_safe_stop", "native_integration"),
+        ("simulator_worker", "protocol_test"),
+        ("browser_native", "browser_e2e"),
+        ("fpga_scaffold", "rtl_test"),
+        ("clean_windows", "clean_install"),
+        ("rollback", "rollback_test"),
+        ("legacy_rejection", "native_integration"),
+    ];
+    let source = registry["release_policy"]["required_gates"]
+        .as_object()
+        .ok_or_else(|| failed("Release gate policy is missing"))?;
+    if source.len() != REQUIRED.len() {
+        return Err(failed(
+            "Release gate policy does not preserve all mandatory gates",
+        ));
+    }
+    REQUIRED
+        .iter()
+        .map(|&(id, kind)| {
+            let row = source
+                .get(id)
+                .ok_or_else(|| failed("A mandatory release gate is missing"))?;
+            let repo = row["repository"]
+                .as_str()
+                .filter(|repo| components(registry).is_ok_and(|items| items.contains_key(*repo)))
+                .ok_or_else(|| failed("Release gate owner is not in the selected profile"))?;
+            if row["evidence_type"] != kind {
+                return Err(failed("Release gate evidence kind differs from policy"));
+            }
+            Ok(Gate { id, repo, kind })
+        })
+        .collect()
+}
 
 #[derive(Debug)]
 enum GateError {
@@ -390,32 +401,66 @@ pub(crate) fn worktree_is_clean(repo: &Path) -> Result<bool, String> {
         })
 }
 
-fn normalized_remote(value: &str, name: &str) -> bool {
-    let value = value.strip_suffix(".git").unwrap_or(value);
-    value == format!("https://github.com/cirnetlab/{name}")
-        || value == format!("git@github.com:cirnetlab/{name}")
-        || value == format!("ssh://git@github.com/cirnetlab/{name}")
+fn normalized_remote(value: &str, expected: &str) -> bool {
+    fn network_endpoint(address: &str) -> Option<(&str, &str)> {
+        let address = address.trim();
+        let (host, path) = if let Some(ssh) = address.strip_prefix("git@") {
+            ssh.split_once(':')?
+        } else {
+            address
+                .strip_prefix("https://")
+                .or_else(|| address.strip_prefix("ssh://git@"))?
+                .split_once('/')?
+        };
+        let path = path.strip_suffix('/').unwrap_or(path);
+        let path = path.strip_suffix(".git").unwrap_or(path);
+        if host.is_empty()
+            || !host
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b".-".contains(&b))
+            || !relative_input(path)
+            || path.contains(['?', '#', '@'])
+            || path.chars().any(char::is_whitespace)
+        {
+            return None;
+        }
+        Some((host, path))
+    }
+    match (network_endpoint(value), network_endpoint(expected)) {
+        (Some(actual), Some(configured)) => actual == configured,
+        (None, None) => !expected.trim().is_empty() && value.trim() == expected.trim(),
+        _ => false,
+    }
 }
 
 fn checkout(root: &Path, name: &str, registry: &Value) -> GateResult<PathBuf> {
-    if let Some(governance) = registry["_cgacp_release_governance"].as_str() {
-        return crate::workspace::resolve(Path::new(governance), Some(root), name, registry)
+    let repo = if let Some(governance) = registry["_cgacp_release_governance"].as_str() {
+        crate::workspace::resolve(Path::new(governance), Some(root), name, registry)
             .map(|binding| binding.path)
-            .map_err(blocked);
-    }
-    let repo = safe_child(root, Path::new(name))?;
+            .map_err(blocked)?
+    } else {
+        safe_child(root, Path::new(name))?
+    };
     let top = git_text(&repo, &["rev-parse", "--show-toplevel"])?;
     if Path::new(&top).canonicalize().ok().as_ref() != Some(&repo) {
         return Err(failed(format!("{name} is not the checkout root")));
     }
-    let expected = registry["repositories"][name]["remote"]
-        .as_str()
-        .unwrap_or_default();
-    let actual = git_text(&repo, &["config", "--local", "--get", "remote.origin.url"])?;
-    if !normalized_remote(expected, name) || !normalized_remote(&actual, name) {
-        return Err(failed(format!(
-            "Git origin is outside the reviewed CIRNET registry for {name}"
-        )));
+    if let Some(expected) = registry["repositories"][name]["remote"].as_str() {
+        let actual = git_text(
+            &repo,
+            &[
+                "config",
+                "--local",
+                "--no-includes",
+                "--get",
+                "remote.origin.url",
+            ],
+        )?;
+        if !normalized_remote(&actual, expected) {
+            return Err(failed(format!(
+                "Git origin differs from configured provenance for {name}"
+            )));
+        }
     }
     Ok(repo)
 }
@@ -434,20 +479,40 @@ fn baseline(registry: &Value) -> GateResult<(&str, &str)> {
 
 fn validate_registry(registry: &Value) -> GateResult<()> {
     baseline(registry)?;
+    let (owner, _) = authority(registry, "release_set")?;
+    let (contracts, _) = authority(registry, "contracts")?;
+    let items = components(registry)?;
     if !matches!(
         registry["baseline"]["activation"].as_str(),
         Some("NOT_ACTIVATED" | "ACTIVATED")
-    ) || registry["authority"]["release_set"]["repository"] != REMOTE
-        || registry["authority"]["release_set"]["path"] != RELEASE_PATH
-        || REPOS
-            .iter()
-            .any(|name| registry["repositories"].get(*name).is_none())
+    ) || !items.contains_key(owner)
+        || !items.contains_key(contracts)
+        || items
+            .keys()
+            .any(|name| !portable_filename(name) || registry["repositories"].get(name).is_none())
+        || !registry["release_policy"]["matrix_path"]
+            .as_str()
+            .is_some_and(relative_input)
     {
         return Err(failed(
-            "registry has an invalid train, contract family, member set or release-set owner",
+            "Release profile, provenance, or activation is invalid",
         ));
     }
+    for name in items.keys() {
+        inventory::release_inputs(name, registry)?;
+    }
     Ok(())
+}
+
+pub fn validate_profile(registry: &Value) -> Result<(), String> {
+    (|| {
+        validate_registry(registry)?;
+        gates(registry)?;
+        Ok(())
+    })()
+    .map_err(|error| match error {
+        GateError::Failed(reason) | GateError::Blocked(reason) => reason,
+    })
 }
 
 pub fn check_drift(root: &Path, registry: &Value) -> Result<Value, String> {
@@ -458,7 +523,7 @@ pub fn check_drift(root: &Path, registry: &Value) -> Result<Value, String> {
             let root = workspace(root)?;
             let mut changes = Vec::new();
             let mut observations = Map::new();
-            for name in REPOS {
+            for name in components(registry)?.keys().map(String::as_str) {
                 let repo = checkout(&root, name, registry)?;
                 let observed = &registry["repositories"][name]["snapshot"];
                 if !sha(&observed["commit"], 40) || !sha(&observed["tree"], 40) {
@@ -589,15 +654,22 @@ fn check_policy(registry: &Value) -> GateResult<&str> {
             "release policy omits a mandatory contract domain or duplicates an identity",
         ));
     }
-    let gates = &policy["required_gates"];
-    if gates.as_object().is_none_or(|map| map.len() != GATES.len())
-        || GATES.iter().any(|gate| {
-            gates[gate.id]["repository"] != gate.repo
-                || gates[gate.id]["evidence_type"] != gate.kind
+    gates(registry)?;
+    let owners = policy["domain_owners"]
+        .as_object()
+        .ok_or_else(|| failed("Configured contract domain owners are missing"))?;
+    if owners.len() != DOMAINS.len()
+        || DOMAINS.iter().any(|name| {
+            !owners
+                .get(*name)
+                .and_then(Value::as_str)
+                .is_some_and(|repo| {
+                    components(registry).is_ok_and(|items| items.contains_key(repo))
+                })
         })
     {
         return Err(failed(
-            "release policy omits a mandatory gate or changes its owner or evidence kind",
+            "Configured contract domains do not have exact reviewed owners",
         ));
     }
     Ok(approved)
@@ -650,23 +722,22 @@ fn check_capabilities(capabilities: &Value) -> GateResult<()> {
     Ok(())
 }
 
-fn expected_kind(repo: &str) -> &str {
-    match repo {
-        "cirnet-contracts" => "contract-package",
-        "cirnet-fpga" => "rtl-source",
-        "cirnet-interface" => "web-static",
-        _ => "native-executable",
-    }
-}
-
-fn check_components(manifest: &Value, train: &str, family: &str) -> GateResult<()> {
+fn check_components(
+    manifest: &Value,
+    registry: &Value,
+    train: &str,
+    family: &str,
+) -> GateResult<()> {
     let repositories = &manifest["repositories"];
-    if !same_keys(repositories, &REPOS) {
+    let configured = components(registry)?;
+    let expected: Vec<_> = configured.keys().map(String::as_str).collect();
+    let (owner, _) = authority(registry, "release_set")?;
+    if !same_keys(repositories, &expected) {
         return Err(failed(
-            "native release must select all six official product repositories",
+            "Native release must select the exact configured repository set",
         ));
     }
-    for name in REPOS {
+    for name in components(registry)?.keys().map(String::as_str) {
         let entry = &repositories[name];
         if !same_keys(
             entry,
@@ -697,13 +768,14 @@ fn check_components(manifest: &Value, train: &str, family: &str) -> GateResult<(
                 "{name} has a mixed train, missing provenance or malformed metadata"
             )));
         }
-        let target = match name {
-            "cirnet-interface" => json!("web-static"),
-            "cirnet-fpga" => json!("portable-source"),
-            _ => repositories[REMOTE]["target"].clone(),
+        let component = &configured[name];
+        let target = if component["target"] == "release-owner" {
+            repositories[owner]["target"].clone()
+        } else {
+            component["target"].clone()
         };
         if entry["target"] != target
-            || (name == REMOTE
+            || (name == owner
                 && !target
                     .as_str()
                     .unwrap_or_default()
@@ -750,14 +822,14 @@ fn check_components(manifest: &Value, train: &str, family: &str) -> GateResult<(
                     "invalid artifact name, bytes or kind for {name}"
                 )));
             }
-            includes_required_kind |= kind == expected_kind(name);
+            includes_required_kind |= component["kind"] == kind;
         }
         if !includes_required_kind {
             return Err(failed(format!(
                 "required native artifact kind is missing for {name}"
             )));
         }
-        if name == "cirnet-contracts"
+        if component["require_sdk"] == true
             && !artifacts
                 .iter()
                 .any(|artifact| artifact["kind"] == "npm-sdk")
@@ -775,11 +847,9 @@ fn check_components(manifest: &Value, train: &str, family: &str) -> GateResult<(
     }
     for name in DOMAINS {
         let contract = &contracts[name];
-        let owner = match name {
-            "http" | "realtime" | "data_storage" | "release_manifest" => REMOTE,
-            "simulator_ipc" => "cirnet-simulator",
-            _ => "cirnet-contracts",
-        };
+        let owner = registry["release_policy"]["domain_owners"][name]
+            .as_str()
+            .ok_or_else(|| failed("Contract owner is absent from the selected profile"))?;
         if !same_keys(
             contract,
             &[
@@ -849,7 +919,7 @@ fn unreviewed_python(path: &str) -> bool {
 
 fn check_evidence(
     evidence: &Value,
-    gate: &Gate,
+    gate: &Gate<'_>,
     source: &str,
     governance: &str,
     selection: &str,
@@ -978,13 +1048,17 @@ fn check_native(
             "native manifest is malformed or outside the configured baseline",
         ));
     }
-    if !same_keys(&manifest["evidence"], &GATES.each_ref().map(|gate| gate.id)) {
+    let gates = gates(registry)?;
+    if !same_keys(
+        &manifest["evidence"],
+        &gates.iter().map(|gate| gate.id).collect::<Vec<_>>(),
+    ) {
         return Err(blocked(
             "native release is missing one or more required acceptance gates",
         ));
     }
     check_schema(manifest, RELEASE_SCHEMA, "native release selection")?;
-    check_components(manifest, train, family)?;
+    check_components(manifest, registry, train, family)?;
     if registry["_governance_origin_verified"] != true || registry["_governance_clean"] != true {
         return Err(blocked(
             "native release verification requires a clean governance checkout of verified origin",
@@ -996,13 +1070,16 @@ fn check_native(
             "release set does not select the approved compatibility matrix",
         ));
     }
-    let matrix = read_input(remote, MATRIX_PATH)?;
+    let matrix_path = registry["release_policy"]["matrix_path"]
+        .as_str()
+        .ok_or_else(|| failed("No matrix path configured"))?;
+    let matrix = read_input(remote, matrix_path)?;
     if digest(&matrix) != approved {
         return Err(failed(
             "compatibility matrix bytes differ from the approved digest",
         ));
     }
-    let selection = check_matrix(&read_json(&matrix, MATRIX_PATH)?, manifest, train, family)?;
+    let selection = check_matrix(&read_json(&matrix, matrix_path)?, manifest, train, family)?;
     let current_governance = registry["_governance_commit"]
         .as_str()
         .filter(|value| hex(value, 40))
@@ -1015,14 +1092,15 @@ fn check_native(
         Path::new(&format!("cirnet-release-evidence/{selection}")),
     )?;
     let published = manifest["distribution"] == "published";
-    for name in REPOS {
+    for name in components(registry)?.keys().map(String::as_str) {
         let repo = checkout(root, name, registry)?;
         let entry = &manifest["repositories"][name];
         inventory::check_producer(
             &repo,
             name,
             entry,
-            &manifest["repositories"]["cirnet-contracts"],
+            registry,
+            &manifest["repositories"][authority(registry, "contracts")?.0],
             published,
             &evidence_root,
         )?;
@@ -1048,7 +1126,7 @@ fn check_native(
             None,
         )?;
     }
-    for gate in &GATES {
+    for gate in &gates {
         let reference = &manifest["evidence"][gate.id];
         if !same_keys(reference, &["filename", "sha256"])
             || reference["filename"] != format!("{}.json", gate.id)
@@ -1109,9 +1187,10 @@ pub fn check_release(root: &Path, registry: &Value) -> Result<Value, String> {
             validate_registry(registry)?;
             let (train, family) = baseline(registry)?;
             let root = workspace(root)?;
-            let remote = checkout(&root, REMOTE, registry)?;
-            let bytes = read_input(&remote, RELEASE_PATH)?;
-            let manifest = read_json(&bytes, RELEASE_PATH)?;
+            let (owner, release_path) = authority(registry, "release_set")?;
+            let remote = checkout(&root, owner, registry)?;
+            let bytes = read_input(&remote, release_path)?;
+            let manifest = read_json(&bytes, release_path)?;
             if manifest["schemaVersion"] == 1 {
                 let selected = manifest["releaseVersion"]
                     .as_str()
@@ -1128,7 +1207,7 @@ pub fn check_release(root: &Path, registry: &Value) -> Result<Value, String> {
                 return Ok(
                     json!({"check": "check-release", "status": "BLOCKED", "observed_release": selected,
                 "manifest_sha256": digest(&bytes), "target_release_train": train, "target_family": family,
-                "activation": registry["baseline"]["activation"], "authority": "cirnet-remote/integration/release-set.json",
+                "activation": registry["baseline"]["activation"], "authority": format!("{owner}/{release_path}"),
                 "reason": "the selected historical release is not a verified native cutover manifest"}),
                 );
             }
@@ -1138,7 +1217,7 @@ pub fn check_release(root: &Path, registry: &Value) -> Result<Value, String> {
             if manifest["distribution"] == "published" {
                 if git(
                     &remote,
-                    &["cat-file", "blob", "HEAD:integration/release-set.json"],
+                    &["cat-file", "blob", &format!("HEAD:{release_path}")],
                 )? != bytes
                 {
                     return Err(failed(

@@ -1,4 +1,5 @@
 mod adapter;
+mod application_identity;
 mod docs;
 mod lifecycle;
 mod policy;
@@ -64,11 +65,7 @@ fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
     let current = env::current_dir().map_err(|error| error.to_string())?;
     for ancestor in current.ancestors().take(10) {
         for candidate in [ancestor.to_path_buf(), ancestor.join("cirnet-rules")] {
-            if candidate
-                .file_name()
-                .is_none_or(|name| name != "cirnet-rules")
-                || !candidate.join("governance.yaml").is_file()
-                || !candidate.join("VERSION").is_file()
+            if !candidate.join("governance.yaml").is_file() || !candidate.join("VERSION").is_file()
             {
                 continue;
             }
@@ -141,7 +138,7 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
             }
             tasks::authorize(&task, "release")?;
             tasks::authorize(&task, "read")?;
-            if !release::release_scope_matches(&descriptor["read_scope"]) {
+            if !release::release_scope_matches(&descriptor["read_scope"], &registry) {
                 return Ok(
                     json!({"status":"BLOCKED","reason":"RELEASE scope must authorize each declared producer, manifest and build input in the selected profile"}),
                 );
@@ -359,7 +356,15 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if command == "--version" {
-        println!("cirnet-governance {}", env!("CARGO_PKG_VERSION"));
+        println!("cirnet-governance {}", application_identity::VERSION);
+        return ExitCode::SUCCESS;
+    }
+    if command == "--application-info" {
+        println!(
+            "{}",
+            json!({"product_generation":application_identity::GENERATION,
+            "version":application_identity::VERSION,"release_name":application_identity::release_name()})
+        );
         return ExitCode::SUCCESS;
     }
     let result = if COMMANDS.contains(&command.as_str()) {

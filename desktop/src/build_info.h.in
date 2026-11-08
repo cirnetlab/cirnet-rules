@@ -1,0 +1,5 @@
+#pragma once
+
+#define CGACP_APP_VERSION "@PROJECT_VERSION@"
+#define CGACP_RELEASE_NAME "cirnet-rules-" CGACP_APP_VERSION
+#define CGACP_PRODUCT_GENERATION "CGACP v1"

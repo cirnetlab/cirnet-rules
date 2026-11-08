@@ -149,6 +149,87 @@ fn runner_times_out_and_honors_a_cancel_request() {
     assert!(!result.timed_out);
 }
 
+#[test]
+fn runner_finishes_when_an_owned_descendant_inherits_the_pipes() {
+    let fixture = std::env::temp_dir().join(format!(
+        "cgacp-runner-tree-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir(&fixture).unwrap();
+    let mut command = fixture_command("parent");
+    command.env("CGACP_TREE_FIXTURE", &fixture);
+    let result = run_process(&mut command, Duration::from_secs(5), 2048, None).unwrap();
+    assert!(result.exit.success());
+    assert!(
+        fixture.join("ready").is_file(),
+        "Fixture descendant never started"
+    );
+    assert!(
+        !fixture.join("late").exists(),
+        "Owned descendant outlived the leader"
+    );
+    std::fs::remove_file(fixture.join("ready")).unwrap();
+    std::fs::remove_dir(fixture).unwrap();
+}
+
+#[test]
+fn timeout_and_cancel_stop_owned_descendants_before_they_write() {
+    for cancelled in [false, true] {
+        let fixture = std::env::temp_dir().join(format!(
+            "cgacp-runner-stop-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&fixture).unwrap();
+        let ready = fixture.join("ready");
+        let marker = fixture.join("cancel");
+        let signal = cancelled.then(|| {
+            let ready = ready.clone();
+            let marker = marker.clone();
+            std::thread::spawn(move || {
+                let until = std::time::Instant::now() + Duration::from_secs(4);
+                while !ready.is_file() && std::time::Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                std::fs::write(marker, b"cancel").unwrap();
+            })
+        });
+        let mut command = fixture_command("parent-wait");
+        command.env("CGACP_TREE_FIXTURE", &fixture);
+        let timeout = Duration::from_millis(if cancelled { 5000 } else { 1100 });
+        let receipt = process_receipt(
+            run_process(
+                &mut command,
+                timeout,
+                2048,
+                cancelled.then_some(marker.as_path()),
+            )
+            .unwrap(),
+        );
+        if let Some(signal) = signal {
+            signal.join().unwrap();
+            std::fs::remove_file(marker).unwrap();
+        }
+        assert!(ready.is_file(), "Fixture descendant never started");
+        assert_eq!(receipt["cancelled"], cancelled);
+        assert_eq!(receipt["timed_out"], !cancelled);
+        assert_eq!(receipt["output_drained"], true);
+        assert!(
+            !fixture.join("late").exists(),
+            "Descendant outlived tree cancellation"
+        );
+        std::fs::remove_file(ready).unwrap();
+        std::fs::remove_dir(fixture).unwrap();
+    }
+}
+
 fn fixture_command(mode: &str) -> std::process::Command {
     let mut command = std::process::Command::new(std::env::current_exe().unwrap());
     command
@@ -166,6 +247,25 @@ fn subprocess_fixture() {
     match std::env::var("CGACP_RUNNER_FIXTURE").as_deref() {
         Ok("emit") => println!("SECRET_FIXTURE{}", "x".repeat(5000)),
         Ok("wait") => std::thread::sleep(std::time::Duration::from_secs(30)),
+        Ok(mode @ ("parent" | "parent-wait")) => {
+            let dir = std::path::PathBuf::from(std::env::var_os("CGACP_TREE_FIXTURE").unwrap());
+            let mut descendant = fixture_command("descendant").spawn().unwrap();
+            let until = std::time::Instant::now() + Duration::from_secs(3);
+            while !dir.join("ready").is_file() {
+                assert!(std::time::Instant::now() < until);
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert!(descendant.try_wait().unwrap().is_none());
+            if mode == "parent-wait" {
+                std::thread::sleep(Duration::from_secs(30));
+            }
+        }
+        Ok("descendant") => {
+            let dir = std::path::PathBuf::from(std::env::var_os("CGACP_TREE_FIXTURE").unwrap());
+            std::fs::write(dir.join("ready"), b"1").unwrap();
+            std::thread::sleep(Duration::from_secs(3));
+            std::fs::write(dir.join("late"), b"1").unwrap();
+        }
         _ => {}
     }
 }

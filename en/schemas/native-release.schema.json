@@ -33,35 +33,14 @@
     },
     "repositories": {
       "type": "object",
-      "required": [
-        "cirnet-contracts",
-        "cirnet-fpga",
-        "cirnet-hardware",
-        "cirnet-interface",
-        "cirnet-remote",
-        "cirnet-simulator"
-      ],
-      "properties": {
-        "cirnet-contracts": {
-          "$ref": "#/$defs/component"
-        },
-        "cirnet-fpga": {
-          "$ref": "#/$defs/component"
-        },
-        "cirnet-hardware": {
-          "$ref": "#/$defs/component"
-        },
-        "cirnet-interface": {
-          "$ref": "#/$defs/component"
-        },
-        "cirnet-remote": {
-          "$ref": "#/$defs/component"
-        },
-        "cirnet-simulator": {
-          "$ref": "#/$defs/component"
-        }
+      "minProperties": 1,
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$"
       },
-      "additionalProperties": false
+      "additionalProperties": {
+        "$ref": "#/$defs/component"
+      }
     },
     "contracts": {
       "type": "object",
@@ -347,14 +326,8 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "repository": {
-          "enum": [
-            "cirnet-contracts",
-            "cirnet-fpga",
-            "cirnet-hardware",
-            "cirnet-interface",
-            "cirnet-remote",
-            "cirnet-simulator"
-          ]
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
         },
         "commit": {
           "type": "string",

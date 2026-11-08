@@ -2,22 +2,11 @@ use super::*;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use sha2::Sha512;
 
-fn product_input(repo: &str) -> &'static str {
-    match repo {
-        "cirnet-simulator" => "CMakeLists.txt",
-        "cirnet-interface" => "package.json",
-        "cirnet-fpga" => "VERSION",
-        _ => "Cargo.toml",
-    }
-}
-
-fn lock_input(repo: &str) -> &'static str {
-    match repo {
-        "cirnet-simulator" => "CMakeLists.txt",
-        "cirnet-interface" => "package-lock.json",
-        "cirnet-fpga" => "integration/toolchain-lock.json",
-        _ => "Cargo.lock",
-    }
+fn input<'a>(profile: &'a Value, field: &str) -> GateResult<&'a str> {
+    profile[field]
+        .as_str()
+        .filter(|path| relative_input(path))
+        .ok_or_else(|| failed(format!("Invalid release profile input {field}")))
 }
 
 fn utf8<'a>(bytes: &'a [u8], path: &str) -> GateResult<&'a str> {
@@ -42,9 +31,8 @@ fn cmake_version(source: &str) -> Option<&str> {
     for line in source.lines().map(str::trim) {
         if let Some(project) = line.strip_prefix("project(") {
             let mut tokens = project.split(')').next()?.split_ascii_whitespace();
-            if tokens.next()? == "cirnet_simulator"
-                && tokens.find(|token| *token == "VERSION").is_some()
-            {
+            tokens.next()?;
+            if tokens.any(|token| token == "VERSION") {
                 if found.is_some() {
                     return None;
                 }
@@ -55,20 +43,21 @@ fn cmake_version(source: &str) -> Option<&str> {
     found
 }
 
-fn primary(repo: &str, bytes: &[u8]) -> GateResult<String> {
-    let path = product_input(repo);
-    let value = match repo {
-        "cirnet-simulator" => cmake_version(utf8(bytes, path)?)
+fn primary(repo: &str, profile: &Value, bytes: &[u8]) -> GateResult<String> {
+    let path = input(profile, "manifest")?;
+    let value = match profile["format"].as_str().unwrap_or_default() {
+        "cmake" => cmake_version(utf8(bytes, path)?)
             .unwrap_or_default()
             .to_owned(),
-        "cirnet-interface" => read_json(bytes, path)?["version"]
+        "npm" => read_json(bytes, path)?["version"]
             .as_str()
             .unwrap_or_default()
             .to_owned(),
-        "cirnet-fpga" => utf8(bytes, path)?.trim().to_owned(),
-        _ => toml_text(&toml(bytes, path)?, &["package", "version"])
+        "text" => utf8(bytes, path)?.trim().to_owned(),
+        "cargo" => toml_text(&toml(bytes, path)?, &["package", "version"])
             .unwrap_or_default()
             .to_owned(),
+        _ => return Err(failed("Unsupported release producer format")),
     };
     if !version(&value) {
         return Err(failed(format!(
@@ -96,7 +85,13 @@ fn cargo_lock_version<'a>(lock: &'a toml::Value, name: &str) -> GateResult<&'a t
     Ok(package)
 }
 
-fn cargo_observations(repo: &str, manifest: &[u8], lock: &[u8]) -> GateResult<Value> {
+fn cargo_observations(
+    repo: &str,
+    profile: &Value,
+    manifest: &[u8],
+    lock: &[u8],
+    registry: &Value,
+) -> GateResult<Value> {
     let manifest = toml(manifest, "Cargo.toml")?;
     let lock = toml(lock, "Cargo.lock")?;
     let name = toml_text(&manifest, &["package", "name"])
@@ -111,13 +106,16 @@ fn cargo_observations(repo: &str, manifest: &[u8], lock: &[u8]) -> GateResult<Va
     }
     let mut observation =
         json!({"package": name, "msrv": toml_text(&manifest, &["package", "rust-version"])});
-    if matches!(repo, REMOTE | "cirnet-hardware") {
-        let dep = "cirnet-contracts-native";
+    if let Some(dep) = profile["contracts_dependency"].as_str() {
+        let contracts_owner = authority(registry, "contracts")?.0;
+        let expected_remote = registry["repositories"][contracts_owner]["remote"]
+            .as_str()
+            .ok_or_else(|| failed("Selected Contracts Git provenance is absent"))?;
         let requirement = |section: &str| {
             let rev = toml_text(&manifest, &[section, dep, "rev"])?;
             let ver = toml_text(&manifest, &[section, dep, "version"])?.strip_prefix('=')?;
             let source = toml_text(&manifest, &[section, dep, "git"])?;
-            (normalized_remote(source, "cirnet-contracts") && hex(rev, 40) && version(ver))
+            (normalized_remote(source, expected_remote) && hex(rev, 40) && version(ver))
                 .then_some((rev, ver))
         };
         let (rev, ver) = requirement("dependencies")
@@ -134,7 +132,7 @@ fn cargo_observations(repo: &str, manifest: &[u8], lock: &[u8]) -> GateResult<Va
             .strip_prefix("git+")
             .and_then(|value| value.split('?').next())
             .unwrap_or_default();
-        if !normalized_remote(source, "cirnet-contracts")
+        if !normalized_remote(source, expected_remote)
             || selected_rev != rev
             || toml_text(locked, &["version"]) != Some(ver)
         {
@@ -147,11 +145,19 @@ fn cargo_observations(repo: &str, manifest: &[u8], lock: &[u8]) -> GateResult<Va
     Ok(observation)
 }
 
-fn npm_observations(package: &[u8], lock: &[u8], contracts: &[u8]) -> GateResult<Value> {
+fn npm_observations(
+    package: &[u8],
+    lock: &[u8],
+    contracts: &[u8],
+    profile: &Value,
+) -> GateResult<Value> {
     let package = read_json(package, "package.json")?;
     let lock = read_json(lock, "package-lock.json")?;
-    let contracts = read_json(contracts, "integration/contracts-artifacts.json")?;
-    let dependency = "@cirnet/contracts";
+    let contracts = read_json(contracts, input(profile, "sdk_handoff")?)?;
+    let dependency = profile["sdk_package"]
+        .as_str()
+        .filter(|value| !value.trim().is_empty() && value.len() <= 256)
+        .ok_or_else(|| failed("SDK package identity is missing"))?;
     let locked = &lock["packages"][format!("node_modules/{dependency}")];
     let filename = contracts["npm"]["filename"]
         .as_str()
@@ -231,38 +237,45 @@ fn scan_python(tracked: &[u8]) -> GateResult<Vec<&str>> {
         .collect())
 }
 
-fn legacy_inputs(repo: &str) -> &'static [(&'static str, &'static str)] {
-    // These checks recognize the specific old runtime lanes observed in the
-    // audit. General protocol aliases still require the legacy-rejection gate.
-    match repo {
-        REMOTE => &[
-            ("services/api/pyproject.toml", "uvicorn"),
-            ("deployment/systemd/cirnet-api.service", "uvicorn"),
-        ],
-        "cirnet-hardware" => &[
-            ("hardware_service/server.py", "hardware_service"),
-            ("integration/simulator-version.json", "\"legacy\""),
-        ],
-        "cirnet-simulator" => &[("cirnet_sim/backends.py", "legacy")],
-        "cirnet-contracts" => &[("pyproject.toml", "setuptools")],
-        _ => &[],
+pub(super) fn release_inputs<'a>(repo: &str, registry: &'a Value) -> GateResult<Vec<&'a str>> {
+    let profile = components(registry)?
+        .get(repo)
+        .ok_or_else(|| failed("Unknown release producer"))?;
+    let mut paths = vec![input(profile, "manifest")?, input(profile, "lock")?];
+    for path in profile["legacy"]
+        .as_object()
+        .into_iter()
+        .flat_map(|values| values.keys())
+    {
+        if !relative_input(path) {
+            return Err(failed("Unsafe historical input path"));
+        }
+        paths.push(path);
     }
+    let (owner, path) = authority(registry, "release_set")?;
+    if repo == owner {
+        paths.extend([path, input(&registry["release_policy"], "matrix_path")?]);
+    }
+    if repo == authority(registry, "contracts")?.0 {
+        paths.push(input(&registry["release_policy"], "openapi_handoff")?);
+    }
+    if profile.get("sdk_handoff").is_some() {
+        paths.push(input(profile, "sdk_handoff")?);
+    }
+    Ok(paths)
 }
 
-pub(super) fn release_inputs(repo: &str) -> Vec<&'static str> {
-    let mut paths = vec![product_input(repo), lock_input(repo)];
-    paths.extend(legacy_inputs(repo).iter().map(|(path, _)| *path));
-    match repo {
-        REMOTE => paths.extend([RELEASE_PATH, MATRIX_PATH]),
-        "cirnet-interface" => paths.push("integration/contracts-artifacts.json"),
-        _ => {}
-    }
-    paths
-}
-
-fn legacy_indicators(root: &Path, repo: &str, commit: Option<&str>) -> GateResult<Vec<String>> {
+fn legacy_indicators(
+    root: &Path,
+    profile: &Value,
+    commit: Option<&str>,
+) -> GateResult<Vec<String>> {
     let mut indicators = Vec::new();
-    for (path, token) in legacy_inputs(repo) {
+    for (path, token) in profile["legacy"].as_object().into_iter().flatten() {
+        let token = token
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| failed("Invalid legacy rule"))?;
         let content = match commit {
             Some(revision) => {
                 if git(root, &["cat-file", "-e", &format!("{revision}:{path}")]).is_err() {
@@ -278,7 +291,7 @@ fn legacy_indicators(root: &Path, repo: &str, commit: Option<&str>) -> GateResul
             }
         };
         if utf8(&content, path)?.contains(token) {
-            indicators.push((*path).to_owned());
+            indicators.push(path.to_owned());
         }
     }
     Ok(indicators)
@@ -290,15 +303,17 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
     let root = workspace(root)?;
     let mut observations = Map::new();
     let mut pending = Vec::new();
-    for name in REPOS {
+    for (name, profile) in components(registry)? {
         let repo = checkout(&root, name, registry)?;
-        let manifest = read_input(&repo, product_input(name))?;
-        let lock = read_input(&repo, lock_input(name))?;
-        let product_version = primary(name, &manifest)?;
+        let manifest_path = input(profile, "manifest")?;
+        let lock_path = input(profile, "lock")?;
+        let manifest = read_input(&repo, manifest_path)?;
+        let lock = read_input(&repo, lock_path)?;
+        let product_version = primary(name, profile, &manifest)?;
         let mut observation = json!({
             "product_version": product_version,
-            "manifest": product_input(name),
-            "lock_or_build_input": lock_input(name),
+            "manifest": manifest_path,
+            "lock_or_build_input": lock_path,
             "lock_or_build_input_sha256": digest(&lock),
             "checkout_commit": git_text(&repo, &["rev-parse", "HEAD"])?,
         });
@@ -307,10 +322,10 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
                 "{name}: observed product {product_version} differs from target train {train}"
             ));
         }
-        match name {
-            "cirnet-interface" => {
-                let contracts = read_input(&repo, "integration/contracts-artifacts.json")?;
-                let mut identity = npm_observations(&manifest, &lock, &contracts)?;
+        match profile["format"].as_str().unwrap_or_default() {
+            "npm" if profile.get("sdk_handoff").is_some() => {
+                let contracts = read_input(&repo, input(profile, "sdk_handoff")?)?;
+                let mut identity = npm_observations(&manifest, &lock, &contracts, profile)?;
                 if identity["package_version"] != train {
                     pending.push(format!(
                         "{name}: selected SDK differs from the target Contracts product train"
@@ -328,14 +343,14 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
                 };
                 observation["contracts"] = identity;
             }
-            "cirnet-simulator" => {
+            "cmake" => {
                 observation["native_language"] = json!("C++");
             }
-            "cirnet-fpga" => {
-                observation["toolchain"] = read_json(&lock, lock_input(name))?["tag"].clone();
+            "text" => {
+                observation["toolchain"] = read_json(&lock, lock_path)?["tag"].clone();
             }
-            _ => {
-                let mut cargo = cargo_observations(name, &manifest, &lock)?;
+            "cargo" => {
+                let mut cargo = cargo_observations(name, profile, &manifest, &lock, registry)?;
                 cargo["toolchain"] = json!(toml_text(
                     &toml(
                         &read_input(&repo, "rust-toolchain.toml")?,
@@ -343,13 +358,14 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
                     )?,
                     &["toolchain", "channel"]
                 ));
-                if matches!(name, REMOTE | "cirnet-hardware")
+                if profile.get("contracts_dependency").is_some()
                     && cargo["contracts"]["package_version"] != train
                 {
                     pending.push(format!("{name}: locked Contracts crate differs from the target Contracts product train"));
                 }
                 observation["cargo"] = cargo;
             }
+            _ => {}
         }
         if repo.join("pyproject.toml").is_file() {
             let config = toml(&read_input(&repo, "pyproject.toml")?, "pyproject.toml")?;
@@ -357,7 +373,7 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
         }
         let tracked = git(&repo, &["ls-files", "-z", "--", "*.py"])?;
         let python = scan_python(&tracked)?;
-        let legacy = legacy_indicators(&repo, name, None)?;
+        let legacy = legacy_indicators(&repo, profile, None)?;
         if !python.is_empty() || !legacy.is_empty() {
             pending.push(format!(
                 "{name}: Python or an observed legacy lane still requires classification or removal"
@@ -367,8 +383,9 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
         observation["legacy_indicators"] = json!(legacy);
         observations.insert(name.to_owned(), observation);
     }
-    let remote = checkout(&root, REMOTE, registry)?;
-    let release = read_json(&read_input(&remote, RELEASE_PATH)?, RELEASE_PATH)?;
+    let (owner, release_path) = authority(registry, "release_set")?;
+    let remote = checkout(&root, owner, registry)?;
+    let release = read_json(&read_input(&remote, release_path)?, release_path)?;
     let selected = match release["schemaVersion"].as_u64() {
         Some(1) => {
             let value = release["releaseVersion"]
@@ -388,11 +405,10 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
         }
         _ => return Err(failed("unknown release manifest schema")),
     };
-    let contracts = checkout(&root, "cirnet-contracts", registry)?;
-    let openapi = read_json(
-        &read_input(&contracts, "contracts/api/openapi.json")?,
-        "contracts/api/openapi.json",
-    )?;
+    let (contracts_id, _) = authority(registry, "contracts")?;
+    let contracts = checkout(&root, contracts_id, registry)?;
+    let openapi_path = input(&registry["release_policy"], "openapi_handoff")?;
+    let openapi = read_json(&read_input(&contracts, openapi_path)?, openapi_path)?;
     if !text(&openapi["openapi"]) || !text(&openapi["info"]["version"]) {
         return Err(failed(
             "Contracts OpenAPI dialect or document version is missing",
@@ -411,6 +427,7 @@ pub(super) fn check_producer(
     repo: &Path,
     name: &str,
     entry: &Value,
+    registry: &Value,
     contracts: &Value,
     published: bool,
     evidence_root: &Path,
@@ -442,35 +459,39 @@ pub(super) fn check_producer(
             other => other,
         })
     };
-    let manifest = source(product_input(name))?;
-    let lock = source(lock_input(name))?;
-    if primary(name, &manifest)? != train || entry["lockSha256"] != digest(&lock) {
+    let profile = &components(registry)?[name];
+    let manifest = source(input(profile, "manifest")?)?;
+    let lock = source(input(profile, "lock")?)?;
+    if primary(name, profile, &manifest)? != train || entry["lockSha256"] != digest(&lock) {
         return Err(failed(format!(
             "{name} selected source has a different product version or build lock"
         )));
     }
-    let locked_contracts = match name {
-        "cirnet-interface" => npm_observations(
+    let locked_contracts = match profile["format"].as_str().unwrap_or_default() {
+        "npm" if profile.get("sdk_handoff").is_some() => npm_observations(
             &manifest,
             &lock,
-            &source("integration/contracts-artifacts.json")?,
+            &source(input(profile, "sdk_handoff")?)?,
+            profile,
         )?,
-        "cirnet-fpga" | "cirnet-simulator" => json!(null),
-        _ => cargo_observations(name, &manifest, &lock)?["contracts"].clone(),
+        "cargo" => {
+            cargo_observations(name, profile, &manifest, &lock, registry)?["contracts"].clone()
+        }
+        _ => Value::Null,
     };
     if !locked_contracts.is_null() && locked_contracts["package_version"] != contracts["version"] {
         return Err(failed(format!(
             "{name} selected source still pins a different first-party Contracts package"
         )));
     }
-    if matches!(name, REMOTE | "cirnet-hardware")
+    if profile.get("contracts_dependency").is_some()
         && locked_contracts["source_commit"] != contracts["commit"]
     {
         return Err(failed(format!(
             "{name} does not pin the exact selected Contracts source commit"
         )));
     }
-    if name == "cirnet-interface" {
+    if profile.get("sdk_handoff").is_some() {
         if !contracts["artifacts"]
             .as_array()
             .unwrap()
@@ -488,14 +509,16 @@ pub(super) fn check_producer(
         check_sdk_bytes(
             evidence_root,
             &format!(
-                "artifacts/cirnet-contracts/{}",
+                "artifacts/{}/{}",
+                authority(registry, "contracts")?.0,
                 locked_contracts["filename"].as_str().unwrap()
             ),
             &locked_contracts,
         )?;
     }
     let paths = git(repo, &["ls-tree", "-r", "-z", "--name-only", commit])?;
-    if !scan_python(&paths)?.is_empty() || !legacy_indicators(repo, name, Some(commit))?.is_empty()
+    if !scan_python(&paths)?.is_empty()
+        || !legacy_indicators(repo, profile, Some(commit))?.is_empty()
     {
         return Err(failed(format!(
             "{name} selected source still has unreviewed Python or an observed legacy lane"

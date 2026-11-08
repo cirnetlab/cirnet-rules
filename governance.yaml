@@ -280,7 +280,86 @@
     },
     "historical_system_releases": [
       "0.1.4"
-    ]
+    ],
+    "matrix_path": "integration/compatibility-matrix.json",
+    "components": {
+      "cirnet-remote": {
+        "format": "cargo",
+        "manifest": "Cargo.toml",
+        "lock": "Cargo.lock",
+        "kind": "native-executable",
+        "target": "release-owner",
+        "contracts_dependency": "cirnet-contracts-native",
+        "legacy": {
+          "services/api/pyproject.toml": "uvicorn",
+          "deployment/systemd/cirnet-api.service": "uvicorn"
+        }
+      },
+      "cirnet-hardware": {
+        "format": "cargo",
+        "manifest": "Cargo.toml",
+        "lock": "Cargo.lock",
+        "kind": "native-executable",
+        "target": "release-owner",
+        "contracts_dependency": "cirnet-contracts-native",
+        "legacy": {
+          "hardware_service/server.py": "hardware_service",
+          "integration/simulator-version.json": "\"legacy\""
+        }
+      },
+      "cirnet-contracts": {
+        "format": "cargo",
+        "manifest": "Cargo.toml",
+        "lock": "Cargo.lock",
+        "kind": "contract-package",
+        "target": "release-owner",
+        "require_sdk": true,
+        "legacy": {
+          "pyproject.toml": "setuptools"
+        }
+      },
+      "cirnet-interface": {
+        "format": "npm",
+        "manifest": "package.json",
+        "lock": "package-lock.json",
+        "kind": "web-static",
+        "target": "web-static",
+        "sdk_handoff": "integration/contracts-artifacts.json",
+        "sdk_package": "@cirnet/contracts"
+      },
+      "cirnet-simulator": {
+        "format": "cmake",
+        "manifest": "CMakeLists.txt",
+        "lock": "CMakeLists.txt",
+        "kind": "native-executable",
+        "target": "release-owner",
+        "legacy": {
+          "cirnet_sim/backends.py": "legacy"
+        }
+      },
+      "cirnet-fpga": {
+        "format": "text",
+        "manifest": "VERSION",
+        "lock": "integration/toolchain-lock.json",
+        "kind": "rtl-source",
+        "target": "portable-source"
+      }
+    },
+    "domain_owners": {
+      "http": "cirnet-remote",
+      "realtime": "cirnet-remote",
+      "hardware_rpc": "cirnet-contracts",
+      "simulator_ipc": "cirnet-simulator",
+      "circuit_graph": "cirnet-contracts",
+      "execution_result": "cirnet-contracts",
+      "capability": "cirnet-contracts",
+      "capture": "cirnet-contracts",
+      "fpga_logical": "cirnet-contracts",
+      "fpga_register_map": "cirnet-contracts",
+      "data_storage": "cirnet-remote",
+      "release_manifest": "cirnet-remote"
+    },
+    "openapi_handoff": "contracts/api/openapi.json"
   },
   "rules": [
     {

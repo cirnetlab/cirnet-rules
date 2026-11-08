@@ -3,10 +3,14 @@ use sha2::{Digest, Sha256};
 use std::{
     io::{self, Read},
     path::Path,
-    process::{Command, ExitStatus, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
+    sync::mpsc::{self, Receiver, RecvTimeoutError},
     thread,
     time::{Duration, Instant},
 };
+
+mod owned;
+const CLEANUP_LIMIT: Duration = Duration::from_secs(2);
 
 pub(super) struct Output {
     pub prefix: Vec<u8>,
@@ -36,6 +40,55 @@ pub(super) struct ResultRecord {
     elapsed_ms: u64,
     pub timed_out: bool,
     pub cancelled: bool,
+    drained: bool,
+}
+
+fn wait_bounded(child: &mut Child) -> Result<ExitStatus, String> {
+    let deadline = Instant::now() + CLEANUP_LIMIT;
+    loop {
+        if let Some(exit) = child
+            .try_wait()
+            .map_err(|_| "Unable to observe the owned process")?
+        {
+            return Ok(exit);
+        }
+        if Instant::now() >= deadline {
+            return Err(
+                "The owned process has not confirmed termination within the cleanup deadline"
+                    .into(),
+            );
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn start_capture(reader: impl Read + Send + 'static, limit: usize) -> Receiver<io::Result<Output>> {
+    let (sender, receiver) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let _ = sender.send(capture(reader, limit));
+    });
+    receiver
+}
+
+fn drain(
+    receiver: Receiver<io::Result<Output>>,
+    deadline: Instant,
+) -> Result<(Output, bool), String> {
+    match receiver.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+        Ok(Ok(output)) => Ok((output, true)),
+        Err(RecvTimeoutError::Timeout) => {
+            // Never wait forever for a pipe still held by a process outside
+            // the owned tree. Treat absent output as incomplete evidence.
+            Ok((
+                Output {
+                    prefix: Vec::new(),
+                    truncated: true,
+                },
+                false,
+            ))
+        }
+        _ => Err("Unable to collect the approved process output".into()),
+    }
 }
 
 pub(super) fn run_process(
@@ -45,46 +98,34 @@ pub(super) fn run_process(
     cancel: Option<&Path>,
 ) -> Result<ResultRecord, String> {
     let start = Instant::now();
-    let mut child = command
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| "Unable to start the approved executable")?;
+        .stderr(Stdio::piped());
+    let (mut child, tree) = owned::spawn(command)?;
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
-    let output = thread::spawn(move || capture(stdout, limit));
-    let error = thread::spawn(move || capture(stderr, limit));
+    let output = start_capture(stdout, limit);
+    let error = start_capture(stderr, limit);
     let mut timed_out = false;
     let mut cancelled = false;
     let exit = loop {
-        match child.try_wait() {
-            Ok(Some(exit)) => break exit,
-            Ok(None) => {}
-            Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err("Unable to observe the owned process".into());
-            }
+        if let Some(exit) = tree.poll(&mut child)? {
+            break exit;
         }
         cancelled = cancel.is_some_and(Path::is_file);
         timed_out = !cancelled && start.elapsed() >= timeout;
         if cancelled || timed_out {
-            let _ = child.kill();
-            break child
-                .wait()
-                .map_err(|_| "Unable to stop the owned process")?;
+            tree.stop()?;
+            break wait_bounded(&mut child)?;
         }
         thread::sleep(Duration::from_millis(10));
     };
-    let output = output
-        .join()
-        .map_err(|_| "Unable to collect approved command stdout")?
-        .map_err(|_| "Unable to read approved command stdout")?;
-    let mut error = error
-        .join()
-        .map_err(|_| "Unable to collect approved command stderr")?
-        .map_err(|_| "Unable to read approved command stderr")?;
+    let deadline = Instant::now() + CLEANUP_LIMIT;
+    let (mut output, output_drained) = drain(output, deadline)?;
+    let (mut error, error_drained) = drain(error, deadline)?;
+    let drained = output_drained && error_drained;
+    output.truncated |= !drained;
     let remaining = limit - output.prefix.len();
     if error.prefix.len() > remaining {
         error.prefix.truncate(remaining);
@@ -97,6 +138,7 @@ pub(super) fn run_process(
         elapsed_ms: start.elapsed().as_millis().min(u64::MAX as u128) as u64,
         timed_out,
         cancelled,
+        drained,
     })
 }
 
@@ -122,6 +164,8 @@ pub(super) fn process_receipt(result: ResultRecord) -> Value {
         "output_bytes": result.output.prefix.len() + result.error.prefix.len(),
         "output_truncated": truncated,
         "output_retained": false,
+        "output_drained": result.drained,
+        "process_ownership": owned::OWNERSHIP,
         "timed_out": result.timed_out,
         "cancelled": result.cancelled
     })

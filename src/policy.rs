@@ -151,10 +151,7 @@ fn text(value: &Value) -> &str {
 }
 
 pub fn validate(root: &Path, registry: &Value) -> Result<(), String> {
-    let owner = &registry["authority"]["release_set"];
-    if owner["repository"] != "cirnet-remote" || owner["path"] != "integration/release-set.json" {
-        return Err("System release-set authority must remain in Remote".into());
-    }
+    crate::release::validate_profile(registry)?;
     let mut migrated = BTreeSet::new();
     for entry in registry["migration"].as_array().unwrap() {
         let from = text(&entry["from"]);
@@ -171,9 +168,13 @@ pub fn validate(root: &Path, registry: &Value) -> Result<(), String> {
     for authority in registry["authority"].as_object().unwrap().values() {
         // Relative to the owning product checkout, inspected separately by doctor.
         let path = text(&authority["path"]);
-        if path
-            .split('/')
-            .any(|part| part.is_empty() || matches!(part, "." | ".."))
+        if registry["repositories"]
+            .get(text(&authority["repository"]))
+            .is_none()
+            || path.contains(['\\', ':'])
+            || path
+                .split('/')
+                .any(|part| part.is_empty() || matches!(part, "." | ".."))
         {
             return Err("Unsafe product authority path".into());
         }

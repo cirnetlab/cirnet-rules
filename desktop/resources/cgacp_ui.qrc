@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/cgacp">
+    <file>dark.qss</file>
+  </qresource>
+</RCC>

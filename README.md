@@ -4,6 +4,8 @@
 
 Local Rust tooling for scoped task routing, execution, verification and governance.
 
+[Dashboard operator guide](en/references/dashboard.md) · [Hướng dẫn Dashboard](vi/references/dashboard.md)
+
 `cirnet-rules` quản lý quy trình làm việc và bằng chứng cho các repo CIRNET.
 Repo sản phẩm vẫn sở hữu source code, contract và artifact của mình; Remote
 sở hữu lựa chọn release hệ thống.

@@ -5,6 +5,42 @@ use std::fs;
 
 const TRAIN: &str = "0.2.4";
 const FAMILY: &str = "0.2";
+const REMOTE: &str = "cirnet-remote";
+const RELEASE_PATH: &str = "integration/release-set.json";
+const MATRIX_PATH: &str = "integration/compatibility-matrix.json";
+const REPOS: [&str; 6] = [
+    "cirnet-contracts",
+    "cirnet-fpga",
+    "cirnet-hardware",
+    "cirnet-interface",
+    REMOTE,
+    "cirnet-simulator",
+];
+
+fn fixture_policy() -> Value {
+    serde_json::from_str(include_str!("../../governance.yaml")).unwrap()
+}
+
+#[test]
+fn release_origin_requires_the_configured_transport_and_exact_path() {
+    let expected = "https://example.invalid/team/component.git";
+    assert!(normalized_remote(
+        "git@example.invalid:team/component.git",
+        expected
+    ));
+    assert!(!normalized_remote(
+        "example.invalid/team/component",
+        expected
+    ));
+    assert!(!normalized_remote(
+        "https://example.invalid/team/component.git.git",
+        expected
+    ));
+    assert!(!normalized_remote(
+        "git@wrong.invalid:team/component",
+        expected
+    ));
+}
 
 #[test]
 fn exact_training_tuple_and_compatibility_allowlist_are_independent() {
@@ -43,13 +79,31 @@ fn future_train_and_family_are_configurable_but_must_be_approved_exactly() {
     assert!(check_matrix(&matrix, &manifest, TRAIN, FAMILY).is_err());
     manifest["contracts"] = json!({"http":{"revision":"0.3.7"}});
     assert!(check_matrix(&matrix, &manifest, train, family).is_err());
-    let mut grants = json!({});
-    for name in REPOS {
-        grants[name] = json!(inventory::release_inputs(name));
+    let mut profile = fixture_policy();
+    let remote = profile["release_policy"]["components"]
+        .as_object_mut()
+        .unwrap()
+        .remove(REMOTE)
+        .unwrap();
+    profile["release_policy"]["components"] = json!({"new-producer":remote});
+    profile["repositories"] = json!({"new-producer":{"profile":"fixture"}});
+    profile["authority"]["release_set"]["repository"] = json!("new-producer");
+    profile["authority"]["contracts"]["repository"] = json!("new-producer");
+    for gate in profile["release_policy"]["required_gates"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        gate["repository"] = json!("new-producer");
     }
-    assert!(release_scope_matches(&grants));
-    grants[REMOTE] = json!(["README.md"]);
-    assert!(!release_scope_matches(&grants));
+    assert!(validate_profile(&profile).is_ok());
+    let mut grants = json!({});
+    for name in components(&profile).unwrap().keys() {
+        grants[name] = json!(inventory::release_inputs(name, &profile).unwrap());
+    }
+    assert!(release_scope_matches(&grants, &profile));
+    grants["new-producer"] = json!(["README.md"]);
+    assert!(!release_scope_matches(&grants, &profile));
 }
 
 #[test]
@@ -320,8 +374,12 @@ fn exact_local_release_requires_review_and_activation_and_rejects_repackaging() 
             "cirnet-interface" => "web-static",
             _ => "x86_64-pc-windows-msvc",
         };
+        let policy = fixture_policy();
+        let kind = policy["release_policy"]["components"][name]["kind"]
+            .as_str()
+            .unwrap();
         let mut artifacts = vec![json!({
-            "filename": filename, "kind": expected_kind(name), "sha256": digest(&bytes), "size": bytes.len()
+            "filename": filename, "kind": kind, "sha256": digest(&bytes), "size": bytes.len()
         })];
         payloads.push((format!("artifacts/{name}/{filename}"), bytes));
         if name == "cirnet-contracts" {
@@ -374,8 +432,8 @@ fn exact_local_release_requires_review_and_activation_and_rejects_repackaging() 
     for (path, bytes) in payloads {
         write(&evidence_root, &path, bytes);
     }
-    let mut gates = Map::new();
-    for gate in &GATES {
+    let seed = fixture_policy();
+    for gate in super::gates(&seed).unwrap() {
         let filename = format!("{}.json", gate.id);
         let result = format!("fixture result for {}", gate.id);
         write(
@@ -396,18 +454,16 @@ fn exact_local_release_requires_review_and_activation_and_rejects_repackaging() 
             }),
         );
         manifest["evidence"][gate.id] = json!({"filename": filename, "sha256": evidence_sha});
-        gates.insert(
-            gate.id.to_owned(),
-            json!({"repository": gate.repo, "evidence_type": gate.kind}),
-        );
     }
     write_json(&remote, RELEASE_PATH, &manifest);
-    let mut registry = json!({
-        "baseline": {"release_train": TRAIN, "family": FAMILY, "activation": "NOT_ACTIVATED"},
-        "authority": {"release_set": {"repository": REMOTE, "path": RELEASE_PATH}}, "repositories": registration,
-        "release_policy": {"approved_matrix_sha256": matrix_sha, "required_domains": DOMAINS, "required_gates": gates},
-        "_governance_commit": governance, "_governance_clean": true, "_governance_origin_verified": true
-    });
+    let mut registry = seed;
+    registry["baseline"] =
+        json!({"release_train": TRAIN, "family": FAMILY, "activation": "NOT_ACTIVATED"});
+    registry["repositories"] = json!(registration);
+    registry["release_policy"]["approved_matrix_sha256"] = json!(matrix_sha);
+    registry["_governance_commit"] = json!(governance);
+    registry["_governance_clean"] = json!(true);
+    registry["_governance_origin_verified"] = json!(true);
     let unapproved = check_release(root, &registry).unwrap();
     assert_eq!(unapproved["status"], "BLOCKED", "{unapproved}");
     assert_eq!(unapproved["integrity_validation"], "PASS", "{unapproved}");
