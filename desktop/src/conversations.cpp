@@ -33,6 +33,7 @@
 namespace {
 constexpr int IdRole = Qt::UserRole;
 constexpr int RecordRole = Qt::UserRole + 1;
+constexpr int conversationPageSize = 30;
 
 QString requestKey()
 {
@@ -177,25 +178,26 @@ QWidget *MainWindow::makeConversationHistory()
     conversationList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     conversationList_->setTextElideMode(Qt::ElideRight);
     conversationList_->setContextMenuPolicy(Qt::CustomContextMenu);
-    conversationMore_ = new QPushButton(tr("Load more"));
-    conversationMore_->hide();
     auto *state = label(tr("Connect to load saved chats."), "meta");
     state->setObjectName("conversationHistoryState");
     layout->addWidget(conversationSearch_);
     layout->addWidget(state);
     layout->addWidget(conversationList_, 1);
-    layout->addWidget(conversationMore_);
 
     auto *searchDelay = new QTimer(history);
     searchDelay->setSingleShot(true);
     searchDelay->setInterval(220);
     connect(conversationSearch_, &QLineEdit::textChanged, this, [this, searchDelay] {
         ++conversationRequest_;
-        conversationMore_->setEnabled(false);
+        conversationLoading_ = true;
         searchDelay->start();
     });
     connect(searchDelay, &QTimer::timeout, this, [this] { refreshConversations(); });
-    connect(conversationMore_, &QPushButton::clicked, this, [this] { refreshConversations(true); });
+    auto *scroll = conversationList_->verticalScrollBar();
+    connect(scroll, &QScrollBar::valueChanged, this, [this, scroll](int value) {
+        if (conversationList_->isVisible() && scroll->maximum() > 0 && value == scroll->maximum())
+            refreshConversations(true);
+    });
     connect(conversationList_, &QListWidget::itemActivated, this, [this](QListWidgetItem *item) {
         showPage(conversationsPage_);
         openConversation(item->data(IdRole).toString());
@@ -209,22 +211,35 @@ QWidget *MainWindow::makeConversationHistory()
         const auto *row = conversationList_->itemAt(pos);
         if (!row)
             row = conversationList_->currentItem();
-        if (!row)
-            return;
-        const auto record = row->data(RecordRole).toJsonObject();
         QMenu menu(this);
-        auto *resume = menu.addAction(tr("Open conversation"));
-        auto *rename = menu.addAction(tr("Rename"));
-        auto *archive = menu.addAction(tr("Archive"));
-        const bool active = online_ && record.value("state").toString() != "ARCHIVED";
-        resume->setEnabled(online_);
-        rename->setEnabled(active);
-        archive->setEnabled(active);
-        const auto choice = menu.exec(conversationList_->viewport()->mapToGlobal(pos));
-        if (choice == resume) {
+        const auto record = row ? row->data(RecordRole).toJsonObject() : QJsonObject{};
+        QAction *resume = nullptr;
+        QAction *rename = nullptr;
+        QAction *archive = nullptr;
+        if (row) {
+            const bool active = online_ && record.value("state").toString() != "ARCHIVED";
+            resume = menu.addAction(tr("Open conversation"));
+            rename = menu.addAction(tr("Rename"));
+            archive = menu.addAction(tr("Archive"));
+            resume->setEnabled(online_);
+            rename->setEnabled(active);
+            archive->setEnabled(active);
+        }
+        QAction *more = nullptr;
+        if (canLoadMoreConversations()) {
+            if (row)
+                menu.addSeparator();
+            more = menu.addAction(tr("Load more"));
+        }
+        const auto choice = menu.isEmpty() ? nullptr : menu.exec(conversationList_->viewport()->mapToGlobal(pos));
+        if (!choice)
+            return;
+        if (choice == more) {
+            refreshConversations(true);
+        } else if (choice == resume) {
             showPage(conversationsPage_);
             openConversation(record.value("id").toString());
-        } else if (choice && (choice == rename || choice == archive)) {
+        } else if (choice == rename || choice == archive) {
             editConversation(choice == archive, record);
         }
     });
@@ -339,16 +354,22 @@ void MainWindow::updateConversationAvailability()
         details->setVisible(saved);
 }
 
+bool MainWindow::canLoadMoreConversations() const
+{
+    return online_ && !conversationLoading_ && hasCursor(conversationCursor_) &&
+           conversationList_->property("loadedQuery").toString() == conversationSearch_->text().trimmed();
+}
+
 void MainWindow::refreshConversations(bool append)
 {
-    if (!online_ || !conversationSearch_)
+    if (!online_ || !conversationSearch_ || (append && !canLoadMoreConversations()))
         return;
     const auto query = conversationSearch_->text().trimmed();
-    QJsonObject params{{"limit", 30}, {"query", query}};
-    if (append && hasCursor(conversationCursor_))
+    QJsonObject params{{"limit", conversationPageSize}, {"query", query}};
+    if (append)
         params.insert("before", conversationCursor_);
     const auto request = ++conversationRequest_;
-    conversationMore_->setEnabled(false);
+    conversationLoading_ = true;
     auto *state = conversationList_->parentWidget()->findChild<QLabel *>("conversationHistoryState");
     if (conversationList_->count() == 0) {
         state->setText(tr("Loading conversations…"));
@@ -357,15 +378,16 @@ void MainWindow::refreshConversations(bool append)
     call("conversation.list", params, [this, request, append, query, state](const QJsonObject &data, const QString &error) {
         if (request != conversationRequest_)
             return;
-        conversationMore_->setEnabled(true);
         if (!error.isEmpty()) {
+            conversationLoading_ = false;
             state->setText(tr("Conversation history could not load."));
             state->show();
             showStatus(error, true);
             return;
         }
-        const QSignalBlocker guard(conversationList_);
-        const auto scroll = conversationList_->verticalScrollBar()->value();
+        auto *scrollbar = conversationList_->verticalScrollBar();
+        const QSignalBlocker listSignals(conversationList_);
+        const auto scroll = scrollbar->value();
         const auto selected = currentConversation_;
         const auto firstPage = data.value("items").toArray();
         auto records = firstPage;
@@ -409,13 +431,16 @@ void MainWindow::refreshConversations(bool append)
             if (id == selected)
                 conversationList_->setCurrentItem(item);
         }
-        conversationList_->verticalScrollBar()->setValue(scroll);
-        if (!keepTail)
-            conversationCursor_ = data.value("next_before");
-        conversationMore_->setVisible(hasCursor(conversationCursor_));
+        scrollbar->setValue(scroll);
+        if (!keepTail) {
+            const auto next = data.value("next_before");
+            conversationCursor_ = firstPage.size() == conversationPageSize && (!append || next != conversationCursor_)
+                ? next : QJsonValue{};
+        }
         state->setText(conversationSearch_->text().trimmed().isEmpty() ? tr("No conversations yet.")
                                                                       : tr("No matching conversations."));
         state->setVisible(conversationList_->count() == 0);
+        conversationLoading_ = false;
     });
 }
 

@@ -84,6 +84,7 @@ private:
 
     QWidget *makeConversations();
     QWidget *makeConversationHistory();
+    bool canLoadMoreConversations() const;
     void refreshConversations(bool append = false);
     void newConversation(const QString &preselected = {});
     void openConversation(const QString &id);
@@ -191,7 +192,6 @@ private:
 
     QLineEdit *conversationSearch_ = nullptr;
     QListWidget *conversationList_ = nullptr;
-    QPushButton *conversationMore_ = nullptr;
     QPushButton *conversationActions_ = nullptr;
     QPushButton *cancelTask_ = nullptr;
     QPushButton *send_ = nullptr;
@@ -203,6 +203,7 @@ private:
     QJsonArray conversationTasks_;
     QJsonArray conversationBindings_;
     QJsonValue conversationCursor_;
+    bool conversationLoading_ = false;
     QString currentConversation_;
     QHash<QString, QString> conversationDrafts_, conversationRetryKeys_, conversationRetryContents_;
     QSet<QString> conversationSending_;

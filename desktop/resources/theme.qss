@@ -1,5 +1,6 @@
 QMainWindow, QWidget#content, QStackedWidget#pages { background: @CANVAS@; }
 QFrame#sidebar { background: @RAIL@; }
+QFrame#sidebarFooter { border-top: 1px solid @BORDER@; }
 QSplitter::handle { background: @CANVAS@; border-left: 1px solid @BORDER@; }
 QSplitter::handle:hover, QSplitter::handle:pressed { background: @ACCENT@; }
 QLabel, QAbstractButton, QLineEdit, QPlainTextEdit, QComboBox, QAbstractItemView,
@@ -21,8 +22,6 @@ QPushButton, QToolButton {
     padding: @VERTICAL_PAD@px 10px;
 }
 QToolButton { padding: @VERTICAL_PAD@px; }
-QToolButton#localMenu { padding: @VERTICAL_PAD@px 6px; }
-QToolButton#localMenu::menu-indicator { image: none; }
 QPushButton:hover, QToolButton:hover { background: @HOVER@; }
 QPushButton:pressed, QToolButton:pressed { background: @SELECTED@; }
 QPushButton:disabled, QToolButton:disabled { color: @MUTED@; border-color: @BORDER@; }
@@ -40,6 +39,14 @@ QLineEdit, QComboBox, QPlainTextEdit, QSpinBox, QTimeEdit, QTableView, QListWidg
 }
 QPushButton:focus, QToolButton:focus, QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus,
 QSpinBox:focus, QTimeEdit:focus, QTableView:focus, QListWidget:focus { border-color: @ACCENT@; }
+QToolButton#localMenu, QToolButton#navSettings {
+    background: transparent; border-color: transparent;
+    color: @MUTED@; font-size: @META_SIZE@px; padding: 4px 5px;
+}
+QToolButton#localMenu::menu-indicator { image: none; }
+QToolButton#localMenu:hover, QToolButton#navSettings:hover { background: @HOVER@; color: @TEXT@; }
+QToolButton#localMenu:pressed, QToolButton#navSettings:pressed { background: @SELECTED@; }
+QToolButton#localMenu:focus, QToolButton#navSettings:focus { border-color: @ACCENT@; }
 QCheckBox { spacing: 7px; padding: 3px; border: 1px solid transparent; border-radius: 4px; }
 QCheckBox:focus { border-color: @ACCENT@; }
 QAbstractItemView::item { padding: @VERTICAL_PAD@px; }

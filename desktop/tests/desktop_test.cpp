@@ -28,6 +28,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -89,6 +90,17 @@ QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
                  {"root", R"(\\?\C:\Fixtures\Workspaces\Unicode and spaces\2026\Dashboard UX verification\Fixture UI)"},
                  {"repo_id", "repo-fixture"}, {"branch", "fixture-branch"},
                  {"binding_id", "binding-11111111111111111111111111111111"}, {"status", "ACTIVE"}, {"revision", 1}}}}};
+    if (mode == "paged-conversations" && method == "conversation.list") {
+        const auto cursor = params.value("before").toString().toInt();
+        const int first = cursor > 0 ? cursor + 1 : 1;
+        const int last = params.value("query").toString().isEmpty() ? qMin(first + 29, 65) : first;
+        QJsonArray items;
+        for (int index = first; index <= last; ++index) {
+            items.append(QJsonObject{{"id", QString::number(index)}, {"title", QString("Fixture chat %1").arg(index)},
+                                     {"state", "ACTIVE"}, {"revision", 1}});
+        }
+        return {{"items", items}, {"next_before", items.isEmpty() ? QJsonValue() : QJsonValue(QString::number(last))}};
+    }
     if (method == "conversation.list") {
         const auto now = QDateTime::currentSecsSinceEpoch();
         return {{"items", QJsonArray{QJsonObject{{"id", "chat-1"}, {"title", "Fixture chat"}, {"state", "ACTIVE"},
@@ -254,8 +266,11 @@ private slots:
         QVERIFY(brand->geometry().right() < subtitle->geometry().left());
         QVERIFY(!window.findChild<QWidget *>("feedback"));
         QVERIFY(!window.findChild<QWidget *>("navRepositories"));
-        QCOMPARE(window.findChild<QWidget *>("sidebarFooter")->findChildren<QToolButton *>().size(), 2);
+        auto *footer = window.findChild<QWidget *>("sidebarFooter");
+        QCOMPARE(footer->findChildren<QToolButton *>().size(), 2);
+        QCOMPARE(footer->width(), sidebar->width());
         QCOMPARE(window.findChild<QToolButton *>("localMenu")->text(), QString("Local"));
+        QVERIFY(captureWidget(*footer, "sidebar-footer"));
         QTRY_COMPARE(window.findChildren<QLabel *>("automationCardTitle").size(), 3);
         const auto initialMethods = invoke(client, "test.methods").value("items").toArray();
         qInfo() << "Populated fixture ready ms" << startup.elapsed() << "requests through readiness" << initialMethods.size() - 1;
@@ -394,6 +409,50 @@ private slots:
         QTest::keyClick(window.findChild<QPushButton *>("settingsBack"), Qt::Key_Space);
         QTRY_VERIFY(composer->isVisible() && !composer->isReadOnly());
         QCOMPARE(composer->toPlainText(), tr("Draft kept while reviewing preferences"));
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
+    void conversationHistoryPagesWithoutSidebarButton()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "paged-conversations"});
+        MainWindow window(client);
+        window.resize(1000, 580);
+        window.show();
+        client.start();
+        auto *history = window.findChild<QWidget *>("conversationHistory");
+        auto *list = history->findChild<QListWidget *>("conversationList");
+        QTRY_COMPARE(list->count(), 30);
+        for (auto *button : history->findChildren<QPushButton *>())
+            QVERIFY(!button->isVisible() || button->text() != "Load more");
+
+        list->setFocus();
+        QTest::keyClick(list, Qt::Key_End);
+        QTRY_COMPARE(list->count(), 60);
+        QCOMPARE(list->item(59)->text(), QString("Fixture chat 60"));
+
+        bool menuHasPagination = false;
+        QTimer::singleShot(20, &window, [&] {
+            auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+            if (!menu)
+                return;
+            for (auto *action : menu->actions()) {
+                if (action->text() == "Load more") {
+                    menuHasPagination = true;
+                    menu->setActiveAction(action);
+                    QTest::keyClick(menu, Qt::Key_Return);
+                    return;
+                }
+            }
+            menu->close();
+        });
+        emit list->customContextMenuRequested(list->visualItemRect(list->currentItem()).center());
+        QVERIFY(menuHasPagination);
+        QTRY_COMPARE(list->count(), 65);
+        QTest::keyClick(list, Qt::Key_End);
+        QTest::qWait(80);
+        const auto methods = invoke(client, "test.methods").value("items").toArray();
+        QCOMPARE(std::count(methods.cbegin(), methods.cend(), QJsonValue("conversation.list")), 3);
         client.stop();
         QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
     }

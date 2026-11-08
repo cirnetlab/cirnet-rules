@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 3 -->
+<!-- revision: 4 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -46,7 +46,9 @@ references and source files.
 
 New Chat opens a conversation. Ctrl+Enter sends the message and creates a
 scoped intake proposal. Switch conversations in the sidebar or use Back from
-Settings to continue your draft. Unsent drafts live in the open application.
+Settings to continue your draft. Scroll to the end of the conversation list
+to load older conversations, or choose Load more from the list context menu
+while another page is available. Unsent drafts live in the open application.
 The handoff profile shows waiting approval. View committed messages after
 reopening. Automations provide manual runs and a daily IANA timezone
 schedule. Use the preview before enabling and confirm an inactive one-shot.

@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 3 -->
-<!-- source-sha256: dfbd488f432c607e94bc89dbfab69665f2d694241a86a65d839b90e34c44a09f -->
+<!-- revision: 4 -->
+<!-- source-sha256: da3257fadd9007acbe9050ea62b2d7dfcb7b8d9a2154f85f79ad3f2720cc57b0 -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -47,7 +47,9 @@ Lưu trữ giữ các tham chiếu lịch sử và tệp nguồn.
 
 Hội thoại mới mở một cuộc trò chuyện. Ctrl+Enter gửi tin nhắn và tạo đề xuất
 task theo phạm vi. Đổi hội thoại qua sidebar hoặc dùng Quay lại từ Cài đặt
-để tiếp tục bản nháp. Bản nháp chưa gửi nằm trong ứng dụng đang mở. Profile
+để tiếp tục bản nháp. Cuộn tới cuối danh sách để tải hội thoại cũ hơn, hoặc
+chọn Tải thêm trong menu ngữ cảnh khi còn trang. Bản nháp chưa gửi nằm trong
+ứng dụng đang mở. Profile
 handoff hiển thị trạng thái chờ duyệt. Có thể xem tin nhắn đã lưu sau khi
 mở lại ứng dụng. Automation hỗ
 trợ chạy thủ công và lịch hằng ngày theo múi giờ IANA. Xem trước lịch trước

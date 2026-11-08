@@ -12,6 +12,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPointer>
 #include <QPushButton>
 #include <QScreen>
@@ -24,6 +25,24 @@
 #include <utility>
 
 namespace {
+class LocalMenuButton final : public QToolButton {
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QToolButton::paintEvent(event);
+        if (toolButtonStyle() == Qt::ToolButtonIconOnly)
+            return;
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(QPen(palette().color(QPalette::PlaceholderText), 1.2, Qt::SolidLine,
+                            Qt::RoundCap, Qt::RoundJoin));
+        const QPointF center(layoutDirection() == Qt::RightToLeft ? 11 : width() - 11, height() / 2.0);
+        painter.drawPolyline(QPolygonF{center + QPointF(-3, -1.5), center + QPointF(0, 1.5),
+                                       center + QPointF(3, -1.5)});
+    }
+};
+
 QToolButton *iconButton(const QString &name, const QString &label)
 {
     auto *button = new QToolButton;
@@ -61,9 +80,13 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
 
     sidebar_ = new QFrame;
     sidebar_->setObjectName("sidebar");
-    auto *rail = new QVBoxLayout(sidebar_);
-    rail->setContentsMargins(10, 12, 10, 9);
+    auto *sidebarLayout = new QVBoxLayout(sidebar_);
+    sidebarLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarLayout->setSpacing(0);
+    auto *rail = new QVBoxLayout;
+    rail->setContentsMargins(10, 12, 10, 4);
     rail->setSpacing(6);
+    sidebarLayout->addLayout(rail, 1);
     identityLayout_ = new QHBoxLayout;
     identityLayout_->setSpacing(5);
     auto *mark = new QLabel;
@@ -122,12 +145,16 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     rail->addWidget(historyPage_, 1);
     auto *footer = new QFrame;
     footer->setObjectName("sidebarFooter");
+    footer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     localLayout_ = new QHBoxLayout(footer);
-    localLayout_->setContentsMargins(0, 0, 0, 0);
+    localLayout_->setContentsMargins(8, 5, 8, 5);
     localLayout_->setSpacing(4);
-    localButton_ = iconButton("localMenu", tr("Local"));
-    localButton_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    localButton_->setProperty("navigation", true);
+    localButton_ = new LocalMenuButton;
+    localButton_->setObjectName("localMenu");
+    localButton_->setFocusPolicy(Qt::StrongFocus);
+    localButton_->setIconSize(QSize(14, 14));
+    localButton_->setMinimumHeight(30);
+    localButton_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     auto *localMenu = new QMenu(localButton_);
     auto *runtimeMenu = localMenu->addAction(tr("Agents & Runtime"));
     connect(runtimeMenu, &QAction::triggered, this, [this] { showSettings("runtime"); });
@@ -136,10 +163,11 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     localButton_->setMenu(localMenu);
     localButton_->setPopupMode(QToolButton::InstantPopup);
     settingsButton_ = iconButton("navSettings", tr("Settings"));
-    localLayout_->addWidget(localButton_, 0, Qt::AlignLeft);
-    localLayout_->addStretch(1);
-    localLayout_->addWidget(settingsButton_);
-    rail->addWidget(footer);
+    settingsButton_->setIconSize(QSize(16, 16));
+    settingsButton_->setMinimumSize(30, 30);
+    localLayout_->addWidget(localButton_, 1);
+    localLayout_->addWidget(settingsButton_, 0, Qt::AlignCenter);
+    sidebarLayout->addWidget(footer);
     splitter_->addWidget(sidebar_);
     splitter_->addWidget(content);
     splitter_->setStretchFactor(0, 0);
@@ -288,7 +316,7 @@ void MainWindow::updateShellIcons()
     sidebarToggle_->setToolTip(toggle);
     sidebarToggle_->setAccessibleName(toggle);
     sidebarToggle_->setIcon(uiIcon(sidebarCollapsed_ ? UiIcon::Expand : UiIcon::Collapse));
-    settingsButton_->setIcon(uiIcon(UiIcon::Settings));
+    settingsButton_->setIcon(uiIcon(UiIcon::Settings, QApplication::palette().color(QPalette::PlaceholderText)));
     chatButton_->setText(sidebarCollapsed_ ? QString{} : newChatAction_->text());
     chatButton_->setIcon(uiIcon(UiIcon::Add));
     automationsButton_->setText(sidebarCollapsed_ ? QString{} : tr("Automations"));
@@ -298,7 +326,7 @@ void MainWindow::updateShellIcons()
     localButton_->setToolTip(connectionStatus_);
     localButton_->setAccessibleName(tr("Local — %1").arg(connectionStatus_));
     const bool light = QApplication::palette().color(QPalette::Window).lightness() > 128;
-    const QColor status = online_ ? QColor(light ? "#086a55" : "#75d8a4") :
+    const QColor status = online_ ? QColor(light ? "#086a55" : "#25bd64") :
                          connecting_ ? QColor(light ? "#7e540a" : "#e9bf7f") :
                                        QColor(light ? "#a32f27" : "#ffaaa3");
     localButton_->setIcon(uiIcon(UiIcon::Status, status));

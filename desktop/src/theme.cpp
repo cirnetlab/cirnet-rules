@@ -85,17 +85,19 @@ QIcon uiIcon(UiIcon symbol, const QColor &color)
         case UiIcon::Expand:
             p.drawPolyline(QPolygonF{{7, 4}, {12, 9}, {7, 14}});
             break;
-        case UiIcon::Settings:
-            p.drawEllipse(QPointF(9, 9), 4.5, 4.5);
-            p.drawEllipse(QPointF(9, 9), 1.4, 1.4);
-            for (int spoke = 0; spoke < 8; ++spoke) {
-                p.save();
-                p.translate(9, 9);
-                p.rotate(spoke * 45);
-                p.drawLine(0, -5, 0, -7);
-                p.restore();
+        case UiIcon::Settings: {
+            const QPointF center(9, 9);
+            QPolygonF outline;
+            for (int corner = 0; corner < 24; ++corner) {
+                const auto angle = qDegreesToRadians(corner * 15.0 - 112.5);
+                const bool tooth = corner % 4 == 1 || corner % 4 == 2;
+                const auto radius = tooth ? 6.7 : 5.1;
+                outline.append(center + QPointF(radius * qCos(angle), radius * qSin(angle)));
             }
+            p.drawPolygon(outline);
+            p.drawEllipse(center, 1.9, 1.9);
             break;
+        }
         case UiIcon::Status:
             p.setBrush(ink);
             p.drawEllipse(QPointF(9, 9), 2.7, 2.7);
