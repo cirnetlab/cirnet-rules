@@ -189,17 +189,7 @@ struct Scratch(PathBuf);
 
 impl Scratch {
     fn new() -> Self {
-        let parent = std::env::temp_dir().canonicalize().unwrap();
-        let id = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = parent.join(format!(
-            "cirnet-governance-test-{}-{id}",
-            std::process::id()
-        ));
-        fs::create_dir(&path).unwrap();
-        Self(path)
+        Self(crate::test_support::temporary_directory("cirnet-governance-test").unwrap())
     }
 }
 

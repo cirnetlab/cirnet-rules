@@ -1,10 +1,13 @@
+#[path = "../test_support.rs"]
+mod test_support;
+
 use serde_json::{Value, json};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 struct Runtime {
@@ -72,14 +75,7 @@ impl Drop for Runtime {
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root =
-            std::env::temp_dir().join(format!("dashboard-fixture-{}-{nonce}", std::process::id()));
-        fs::create_dir(&root).unwrap();
-        Self(root)
+        Self(test_support::temporary_directory("dashboard-fixture").unwrap())
     }
 }
 impl Drop for Fixture {

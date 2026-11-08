@@ -4,7 +4,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 struct Fixture {
@@ -15,12 +14,7 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let workspace =
-            std::env::temp_dir().join(format!("cgacp-e2e-{}-{nonce}", std::process::id()));
+        let workspace = crate::test_support::temporary_directory("cgacp-e2e").unwrap();
         let governance = workspace.join("cirnet-rules");
         let product = workspace.join("Interface feature worktree");
         fs::create_dir_all(&governance).unwrap();

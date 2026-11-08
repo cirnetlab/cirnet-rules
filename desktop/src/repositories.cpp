@@ -185,10 +185,6 @@ QWidget *MainWindow::makeRepositories()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(10);
     layout->addWidget(plainLabel(tr("Repositories"), "heading"));
-    auto *intro = plainLabel(
-        tr("Register a Git folder or a file inside it. Review the detected worktree before saving."), "lead");
-    intro->setWordWrap(true);
-    layout->addWidget(intro);
 
     auto *tools = new QHBoxLayout;
     auto *add = new QToolButton;

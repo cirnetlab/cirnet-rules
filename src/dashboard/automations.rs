@@ -917,13 +917,7 @@ mod tests {
     }
     impl Fixture {
         fn new() -> (Self, Database, String) {
-            let nonce = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            let root =
-                std::env::temp_dir().join(format!("cgacp-session-{}-{nonce}", std::process::id()));
-            std::fs::create_dir(&root).unwrap();
+            let root = crate::test_support::temporary_directory("cgacp-session").unwrap();
             let checkout = root.join("đồ án bất kỳ");
             std::fs::create_dir(&checkout).unwrap();
             fn git(repo: &std::path::Path, args: &[&str]) {

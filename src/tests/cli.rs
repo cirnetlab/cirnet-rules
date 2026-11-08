@@ -1,5 +1,7 @@
 use serde_json::Value;
 mod cgacp;
+#[path = "../test_support.rs"]
+mod test_support;
 use std::{path::Path, process::Command};
 
 fn run(arguments: &[&str]) -> (i32, Value) {

@@ -3,6 +3,9 @@
 mod application_identity;
 #[path = "../dashboard/mod.rs"]
 mod dashboard;
+#[cfg(test)]
+#[path = "../test_support.rs"]
+mod test_support;
 
 use application_identity::{GENERATION, VERSION, release_name};
 use dashboard::{

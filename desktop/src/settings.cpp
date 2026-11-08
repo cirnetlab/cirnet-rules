@@ -247,7 +247,6 @@ QWidget *MainWindow::makeSettings()
     appearanceLayout->setContentsMargins(2, 2, 2, 12);
     appearanceLayout->setSpacing(12);
     appearanceLayout->addWidget(label(tr("Appearance"), "heading"));
-    appearanceLayout->addWidget(label(tr("Customize the desktop layout, theme and text size."), "lead"));
     appearanceLayout->addSpacing(6);
     appearanceLayout->addWidget(label(tr("Visual style"), "sectionTitle"));
     auto *themePanel = settingsGroup();
@@ -355,7 +354,6 @@ QWidget *MainWindow::makeSettings()
     auto *noticesLayout = new QVBoxLayout(notices);
     noticesLayout->setContentsMargins(2, 8, 2, 8);
     noticesLayout->addWidget(label(tr("Notifications"), "heading"));
-    noticesLayout->addWidget(label(tr("Warnings and errors remain visible. Review notifications from this session below."), "lead"));
     auto *noticeControls = new QHBoxLayout;
     notificationChoice_ = new QComboBox;
     notificationChoice_->setObjectName("notificationLevel");

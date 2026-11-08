@@ -1,20 +1,11 @@
 use super::*;
-use std::{process::Command, time::SystemTime};
+use std::process::Command;
 
 struct Fixture(PathBuf);
 
 impl Fixture {
     fn new() -> Self {
-        let nonce = SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir()
-            .canonicalize()
-            .unwrap()
-            .join(format!("cgacp-catalog-{}-{nonce}", std::process::id()));
-        fs::create_dir(&path).unwrap();
-        Self(path)
+        Self(crate::test_support::temporary_directory("cgacp-catalog").unwrap())
     }
 
     fn git(path: &Path, args: &[&str]) {

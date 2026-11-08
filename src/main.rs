@@ -6,6 +6,8 @@ mod policy;
 mod release;
 mod runner;
 mod tasks;
+#[cfg(test)]
+mod test_support;
 mod workspace;
 
 use serde_json::{Value, json};

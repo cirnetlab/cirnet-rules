@@ -43,7 +43,6 @@
     <message><source>Back</source><translation>Quay lại</translation></message>
     <message><source>Settings section</source><translation>Mục cài đặt</translation></message>
     <message><source>Appearance</source><translation>Giao diện</translation></message>
-    <message><source>Customize the desktop layout, theme and text size.</source><translation>Tùy chỉnh bố cục, chủ đề và cỡ chữ.</translation></message>
     <message><source>Dark</source><translation>Tối</translation></message>
     <message><source>Light</source><translation>Sáng</translation></message>
     <message><source>System</source><translation>Theo hệ thống</translation></message>
@@ -61,7 +60,6 @@
     <message><source>Disconnected</source><translation>Đã ngắt kết nối</translation></message>
     <message><source>CGACP %1&#10;Runtime: %2&#10;%3</source><translation>CGACP %1&#10;Runtime: %2&#10;%3</translation></message>
     <message><source>Copy diagnostics</source><translation>Sao chép chẩn đoán</translation></message>
-    <message><source>Warnings and errors remain visible. Review notifications from this session below.</source><translation>Cảnh báo và lỗi vẫn hiển thị. Xem lại thông báo của phiên này bên dưới.</translation></message>
     <message><source>Toast level</source><translation>Mức thông báo nhanh</translation></message>
     <message><source>All toasts</source><translation>Tất cả thông báo nhanh</translation></message>
     <message><source>Warnings and errors</source><translation>Cảnh báo và lỗi</translation></message>
@@ -94,7 +92,6 @@
     <message><source>Branch</source><translation>Nhánh</translation></message>
     <message><source>Cancel pending run</source><translation>Hủy lượt chạy đang chờ</translation></message>
     <message><source>Cancel pending task</source><translation>Hủy nhiệm vụ đang chờ</translation></message>
-    <message><source>Register a Git folder or a file inside it. Review the detected worktree before saving.</source><translation>Đăng ký thư mục Git hoặc một tệp bên trong. Kiểm tra worktree đã phát hiện trước khi lưu.</translation></message>
     <message><source>Search name, path or branch</source><translation>Tìm theo tên, đường dẫn hoặc nhánh</translation></message>
     <message><source>Search repositories</source><translation>Tìm repo</translation></message>
     <message><source>Filter repository status</source><translation>Lọc trạng thái repo</translation></message>
