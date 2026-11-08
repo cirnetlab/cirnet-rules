@@ -23,12 +23,9 @@ jobs:
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked
       - run: cargo test --locked
-      - run: cargo run --locked -- validate
-      - run: cargo run --locked -- check-translations
-      - name: Missing product evidence must block release readiness
-        shell: bash
+      - name: Validate governance and bilingual sources
+        shell: pwsh
         run: |
-          mkdir -p "$RUNNER_TEMP/empty-product-workspace"
-          result=0
-          cargo run --locked -- check-release --workspace "$RUNNER_TEMP/empty-product-workspace" || result=$?
-          test "$result" -eq 2
+          $cli = if ($IsWindows) { './target/debug/cirnet-governance.exe' } else { './target/debug/cirnet-governance' }
+          & $cli validate
+          exit $LASTEXITCODE

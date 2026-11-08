@@ -1,15 +1,17 @@
 <!-- doc-id: INDEX -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="index"></a>
 
-# CIRNETLAB governance
+# CIRNET Governance & Agent Control Plane
 
 [Tiếng Việt](../vi/README.md) · [Bootstrap](AGENTS.md) · [Registry](../governance.yaml)
 
-This checkout supplies one English authority and one synchronized Vietnamese
-reading branch. It defines the target release train `0.2.4` and compatibility
-family `0.2`. Product owners retain contracts, runtime, release-set and evidence.
+CGACP routes scoped local tasks, keeps spec and plan records centrally, and
+controls verification and documentation sync. English is the instruction
+authority. The current release policy targets `0.2.4` and family `0.2`.
+Product owners retain contracts, runtime, release-set and evidence.
 
+- [Local operator workflow](references/cgacp-local.md), [routing](routing/README.md) and [verification](references/cgacp-verification.md)
 - [Policies and transition rules](policies/governance.md)
 - [Ownership and architecture profiles](profiles/product-architecture.md)
 - [Six-repository audit](references/product-audit.md)

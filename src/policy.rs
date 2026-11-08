@@ -85,6 +85,13 @@ pub fn registry(root: &Path) -> Result<Value, String> {
     validator
         .validate(&registry)
         .map_err(|error| format!("Governance schema violation at {}", error.instance_path))?;
+    let control_schema: Value =
+        serde_json::from_str(include_str!("../en/schemas/cgacp-policy.schema.json"))
+            .map_err(|_| "Invalid control plane schema")?;
+    jsonschema::validator_for(&control_schema)
+        .map_err(|_| "Cannot compile the control plane schema")?
+        .validate(&registry["control_plane"])
+        .map_err(|error| format!("Control plane schema violation at {}", error.instance_path))?;
     let version = read(&safe_path(root, "VERSION")?)?;
     if registry["governance"]["version"].as_str() != Some(version.trim())
         || version.trim() != env!("CARGO_PKG_VERSION")
@@ -189,18 +196,24 @@ pub fn validate(root: &Path, registry: &Value) -> Result<(), String> {
     }
     let mut repos = BTreeMap::new();
     for (repo, entry) in registry["repositories"].as_object().unwrap() {
-        for (key, dir) in [("plan", "plans"), ("spec", "specs")] {
-            let path = text(&entry[key]);
-            if !path.starts_with(&format!("en/{dir}/{repo}/")) {
-                return Err(format!("Misassigned {key} for {repo}"));
+        if entry.get("plan").is_some() || entry.get("spec").is_some() {
+            for (key, dir) in [("plan", "plans"), ("spec", "specs")] {
+                let path = entry[key]
+                    .as_str()
+                    .ok_or("Historical plan/spec pair is incomplete")?;
+                if !path.starts_with(&format!("en/{dir}/{repo}/")) {
+                    return Err(format!("Misassigned {key} for {repo}"));
+                }
+                english(root, registry, path)?;
             }
-            english(root, registry, path)?;
-        }
-        let spec = read(&english(root, registry, text(&entry["spec"]))?)?;
-        for identity in ["commit", "tree"] {
-            let expected = format!("`{}`", text(&entry["snapshot"][identity]));
-            if !spec.contains(&expected) {
-                return Err(format!("Audit {identity} differs from registry for {repo}"));
+            let spec = read(&english(root, registry, text(&entry["spec"]))?)?;
+            for identity in ["commit", "tree"] {
+                let value = entry["snapshot"][identity]
+                    .as_str()
+                    .ok_or("Historical snapshot is incomplete")?;
+                if !spec.contains(&format!("`{value}`")) {
+                    return Err(format!("Audit {identity} differs from registry for {repo}"));
+                }
             }
         }
         repos.insert(
@@ -214,6 +227,38 @@ pub fn validate(root: &Path, registry: &Value) -> Result<(), String> {
         );
     }
     validate_graph(&repos)?;
+    let control = &registry["control_plane"];
+    english(root, registry, text(&control["entrypoint"]))?;
+    for skill in control["skills"].as_object().unwrap().values() {
+        english(root, registry, text(skill))?;
+    }
+    let known = |repo: &str| registry["repositories"].get(repo).is_some();
+    for (repo, routes) in control["routes"].as_object().unwrap() {
+        if !known(repo) {
+            return Err(format!(
+                "Routing refers to an unregistered repository: {repo}"
+            ));
+        }
+        let mut route_ids = BTreeSet::new();
+        for route in routes.as_array().unwrap() {
+            if !route_ids.insert(text(&route["id"])) {
+                return Err(format!("Duplicate route ID for {repo}"));
+            }
+            if route["impact"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|edge| !known(text(&edge["repository"])))
+            {
+                return Err(format!("Routing impact is not registered for {repo}"));
+            }
+        }
+    }
+    for rule in control["commands"].as_object().unwrap().values() {
+        if !known(text(&rule["repository"])) {
+            return Err("Command repository is not registered".into());
+        }
+    }
     for (path, entry) in registry["document_states"].as_object().unwrap() {
         safe_path(root, path)?;
         if entry["state"] == "APPROVED" && entry.get("approval_ref").is_none() {
@@ -313,7 +358,8 @@ fn has_old_content(path: &Path, depth: usize) -> Result<bool, String> {
 }
 
 pub fn git(root: &Path, args: &[&str]) -> Result<String, String> {
-    let mut command = Command::new("git");
+    let caller = std::env::current_dir().unwrap_or_else(|_| root.to_path_buf());
+    let mut command = Command::new(crate::runner::git_executable(root, &caller)?);
     for (key, _) in std::env::vars_os() {
         if key
             .to_string_lossy()
@@ -470,7 +516,12 @@ pub fn doctor(root: &Path, workspace: Option<&Path>, registry: &Value) -> Result
     let mut rows = Vec::new();
     let mut missing = !matches_version(&rust) || !matches_version(&cargo) || workspace.is_none();
     if let Some(workspace) = workspace {
-        for repo in registry["repositories"].as_object().unwrap().keys() {
+        for repo in registry["repositories"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .filter_map(|(repo, entry)| entry["remote"].is_string().then_some(repo))
+        {
             match identify(workspace, repo, registry) {
                 Ok((path, commit)) => {
                     rows.push(json!({"repo":repo,"status":"PASS","commit":commit,"path":path}))

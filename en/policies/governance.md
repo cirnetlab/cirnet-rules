@@ -1,5 +1,5 @@
 <!-- doc-id: POLICY -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="release"></a>
 
 # Release, approvals and transitions
@@ -43,10 +43,12 @@ verified output or an authorized fresh dataset.
 Authors propose design as `DRAFT`. The owning maintainer records a real
 approval reference before `APPROVED`. A replacement or retirement marks
 `SUPERSEDED` or `RETIRED` and removes the source from active instructions.
-Tasks move `PLANNED` → `IN_PROGRESS` → `IMPLEMENTED` → `VERIFIED` →
-`RELEASED`. An unmet prerequisite yields `BLOCKED`. Release maintainers
-record actual publication evidence. Verification requires an independent
-check tied to the product commit and governance revision.
+Historical cutover records retain `PLANNED` and `RELEASED`. New local tasks
+move `PROPOSED` → `READY` → `IN_PROGRESS` → `IMPLEMENTED` → `VERIFIED` →
+`ACCEPTED` → `DOCS_SYNCED` → `CLOSED`. An unmet prerequisite yields
+`BLOCKED`. An explicit documentation waiver can close an accepted task.
+Release maintainers record publication separately. Verification binds checked
+inputs to the governance and task revision. See the [CGACP workflow](../references/cgacp-local.md).
 
 The initial exception list is closed. A future scoped exception requires
 rule ID, owner, rationale, expiry and approval. An agent cannot waive its own

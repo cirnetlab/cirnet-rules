@@ -1,29 +1,25 @@
 <!-- doc-id: TOOLS -->
-<!-- revision: 1 -->
-<!-- source-sha256: f02306439c3435f2966763b51b29fdd55d1f9926c3e4e61acb9ec6ab150a01f0 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 6915c32b23a6e2f9e8a4f9617c9b9b63eca45bc6811dcb74c6701f2b90739ee5 -->
 <!-- translation-status: synchronized -->
 
 <a id="commands"></a>
 
 # Công cụ quản trị Rust
 
-Dùng Rust và Cargo 1.99.1, Git và workspace sản phẩm có sáu checkout cùng cấp
-đọc được. MSRV trong metadata Cargo khác với toolchain chính xác. Lệnh trả
-JSON. Exit 0 là đạt phép kiểm yêu cầu, 1 là lỗi chính sách hoặc đầu vào, 2 là
-bị chặn hoặc chưa chạy.
+Dùng Rust và Cargo 1.99.1 cùng Git. Task WORK cần các checkout đã liên kết
+trong phạm vi. Build một lần rồi chạy binary cho các bước sau. Mã 0 là
+PASS, 1 là lỗi chính sách hoặc đầu vào và 2 là bị chặn hoặc chưa chạy.
 
 ~~~sh
-cargo run --locked -- validate
-cargo run --locked -- check-translations
-cargo run --locked -- doctor --workspace ..
-cargo run --locked -- context --workspace .. --repo cirnet-remote --task audit
-cargo run --locked -- check-versions --workspace ..
-cargo run --locked -- check-drift --workspace ..
-cargo run --locked -- check-release --workspace ..
+cargo build --locked
+./target/debug/cirnet-governance workspace-discover
+./target/debug/cirnet-governance validate
+./target/debug/cirnet-governance check-translations --paths en/routing/README.md
 ~~~
 
-Chạy từ checkout governance hoặc truyền path bằng tùy chọn governance.
-Lệnh sản phẩm chỉ đọc và không tải hoặc build sản phẩm. Context ghi commit,
-trạng thái dirty và hash bytes tiếng Anh đã chuẩn hóa. Đặt target và cache
-Cargo bên ngoài khi chạy cô lập. Xem [adapter](../adapters/README.md) và
-[schema phát hành](../schemas/README.md).
+Trên Windows binary có đuôi exe. Cargo target là src/main.rs và
+src/tests/cli.rs. Schema ở en/schemas. Xem [quy trình local](../references/cgacp-local.md)
+để tạo, thực thi, nghiệm thu task và chọn chế độ release tường minh.
+Các lệnh context, doctor, version và drift cũ vẫn dùng cho audit lịch sử.
+Luồng thường dùng scoped health và task context.

@@ -13,7 +13,8 @@
     "tasks",
     "exceptions",
     "translation",
-    "migration"
+    "migration",
+    "control_plane"
   ],
   "additionalProperties": false,
   "properties": {
@@ -49,10 +50,12 @@
       "additionalProperties": false,
       "properties": {
         "release_train": {
-          "const": "0.2.4"
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
         },
         "family": {
-          "const": "0.2"
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
         },
         "activation": {
           "enum": [
@@ -197,560 +200,93 @@
     },
     "repositories": {
       "type": "object",
-      "required": [
-        "cirnet-contracts",
-        "cirnet-simulator",
-        "cirnet-fpga",
-        "cirnet-hardware",
-        "cirnet-interface",
-        "cirnet-remote"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "cirnet-contracts": {
-          "type": "object",
-          "required": [
-            "remote",
-            "snapshot",
-            "profile",
-            "ownership",
-            "plan",
-            "spec",
-            "depends_on"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "remote": {
-              "const": "https://github.com/cirnetlab/cirnet-contracts.git"
-            },
-            "snapshot": {
+      "minProperties": 1,
+      "maxProperties": 128,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "profile",
+          "ownership",
+          "depends_on"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "remote": {
+            "type": "string",
+            "minLength": 1
+          },
+          "snapshot": {
+            "type": "object",
+            "required": [
+              "commit",
+              "tree",
+              "branch"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "tree": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "branch": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+              }
+            }
+          },
+          "profile": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "ownership": {
+            "type": "string",
+            "minLength": 1
+          },
+          "plan": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+          },
+          "spec": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
               "type": "object",
               "required": [
-                "commit",
-                "tree",
-                "branch"
+                "repository",
+                "relation"
               ],
               "additionalProperties": false,
               "properties": {
-                "commit": {
+                "repository": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
                 },
-                "tree": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "branch": {
+                "relation": {
                   "type": "string",
                   "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
                 }
               }
             },
-            "profile": {
-              "enum": [
-                "rust-service",
-                "cpp-worker",
-                "frontend",
-                "contracts-codegen",
-                "fpga-rtl"
-              ]
-            },
-            "ownership": {
-              "type": "string",
-              "minLength": 1
-            },
-            "plan": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "spec": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "depends_on": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "repository",
-                  "relation"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "repository": {
-                    "enum": [
-                      "cirnet-contracts",
-                      "cirnet-simulator",
-                      "cirnet-fpga",
-                      "cirnet-hardware",
-                      "cirnet-interface",
-                      "cirnet-remote"
-                    ]
-                  },
-                  "relation": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                  }
-                }
-              },
-              "minItems": 0,
-              "uniqueItems": true
-            }
-          }
-        },
-        "cirnet-simulator": {
-          "type": "object",
-          "required": [
-            "remote",
-            "snapshot",
-            "profile",
-            "ownership",
-            "plan",
-            "spec",
-            "depends_on"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "remote": {
-              "const": "https://github.com/cirnetlab/cirnet-simulator.git"
-            },
-            "snapshot": {
-              "type": "object",
-              "required": [
-                "commit",
-                "tree",
-                "branch"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "commit": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "tree": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "branch": {
-                  "type": "string",
-                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                }
-              }
-            },
-            "profile": {
-              "enum": [
-                "rust-service",
-                "cpp-worker",
-                "frontend",
-                "contracts-codegen",
-                "fpga-rtl"
-              ]
-            },
-            "ownership": {
-              "type": "string",
-              "minLength": 1
-            },
-            "plan": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "spec": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "depends_on": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "repository",
-                  "relation"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "repository": {
-                    "enum": [
-                      "cirnet-contracts",
-                      "cirnet-simulator",
-                      "cirnet-fpga",
-                      "cirnet-hardware",
-                      "cirnet-interface",
-                      "cirnet-remote"
-                    ]
-                  },
-                  "relation": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                  }
-                }
-              },
-              "minItems": 0,
-              "uniqueItems": true
-            }
-          }
-        },
-        "cirnet-fpga": {
-          "type": "object",
-          "required": [
-            "remote",
-            "snapshot",
-            "profile",
-            "ownership",
-            "plan",
-            "spec",
-            "depends_on"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "remote": {
-              "const": "https://github.com/cirnetlab/cirnet-fpga.git"
-            },
-            "snapshot": {
-              "type": "object",
-              "required": [
-                "commit",
-                "tree",
-                "branch"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "commit": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "tree": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "branch": {
-                  "type": "string",
-                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                }
-              }
-            },
-            "profile": {
-              "enum": [
-                "rust-service",
-                "cpp-worker",
-                "frontend",
-                "contracts-codegen",
-                "fpga-rtl"
-              ]
-            },
-            "ownership": {
-              "type": "string",
-              "minLength": 1
-            },
-            "plan": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "spec": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "depends_on": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "repository",
-                  "relation"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "repository": {
-                    "enum": [
-                      "cirnet-contracts",
-                      "cirnet-simulator",
-                      "cirnet-fpga",
-                      "cirnet-hardware",
-                      "cirnet-interface",
-                      "cirnet-remote"
-                    ]
-                  },
-                  "relation": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                  }
-                }
-              },
-              "minItems": 0,
-              "uniqueItems": true
-            }
-          }
-        },
-        "cirnet-hardware": {
-          "type": "object",
-          "required": [
-            "remote",
-            "snapshot",
-            "profile",
-            "ownership",
-            "plan",
-            "spec",
-            "depends_on"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "remote": {
-              "const": "https://github.com/cirnetlab/cirnet-hardware.git"
-            },
-            "snapshot": {
-              "type": "object",
-              "required": [
-                "commit",
-                "tree",
-                "branch"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "commit": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "tree": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "branch": {
-                  "type": "string",
-                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                }
-              }
-            },
-            "profile": {
-              "enum": [
-                "rust-service",
-                "cpp-worker",
-                "frontend",
-                "contracts-codegen",
-                "fpga-rtl"
-              ]
-            },
-            "ownership": {
-              "type": "string",
-              "minLength": 1
-            },
-            "plan": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "spec": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "depends_on": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "repository",
-                  "relation"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "repository": {
-                    "enum": [
-                      "cirnet-contracts",
-                      "cirnet-simulator",
-                      "cirnet-fpga",
-                      "cirnet-hardware",
-                      "cirnet-interface",
-                      "cirnet-remote"
-                    ]
-                  },
-                  "relation": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                  }
-                }
-              },
-              "minItems": 0,
-              "uniqueItems": true
-            }
-          }
-        },
-        "cirnet-interface": {
-          "type": "object",
-          "required": [
-            "remote",
-            "snapshot",
-            "profile",
-            "ownership",
-            "plan",
-            "spec",
-            "depends_on"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "remote": {
-              "const": "https://github.com/cirnetlab/cirnet-interface.git"
-            },
-            "snapshot": {
-              "type": "object",
-              "required": [
-                "commit",
-                "tree",
-                "branch"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "commit": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "tree": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "branch": {
-                  "type": "string",
-                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                }
-              }
-            },
-            "profile": {
-              "enum": [
-                "rust-service",
-                "cpp-worker",
-                "frontend",
-                "contracts-codegen",
-                "fpga-rtl"
-              ]
-            },
-            "ownership": {
-              "type": "string",
-              "minLength": 1
-            },
-            "plan": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "spec": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "depends_on": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "repository",
-                  "relation"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "repository": {
-                    "enum": [
-                      "cirnet-contracts",
-                      "cirnet-simulator",
-                      "cirnet-fpga",
-                      "cirnet-hardware",
-                      "cirnet-interface",
-                      "cirnet-remote"
-                    ]
-                  },
-                  "relation": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                  }
-                }
-              },
-              "minItems": 0,
-              "uniqueItems": true
-            }
-          }
-        },
-        "cirnet-remote": {
-          "type": "object",
-          "required": [
-            "remote",
-            "snapshot",
-            "profile",
-            "ownership",
-            "plan",
-            "spec",
-            "depends_on"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "remote": {
-              "const": "https://github.com/cirnetlab/cirnet-remote.git"
-            },
-            "snapshot": {
-              "type": "object",
-              "required": [
-                "commit",
-                "tree",
-                "branch"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "commit": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "tree": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{40}$"
-                },
-                "branch": {
-                  "type": "string",
-                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                }
-              }
-            },
-            "profile": {
-              "enum": [
-                "rust-service",
-                "cpp-worker",
-                "frontend",
-                "contracts-codegen",
-                "fpga-rtl"
-              ]
-            },
-            "ownership": {
-              "type": "string",
-              "minLength": 1
-            },
-            "plan": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "spec": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-            },
-            "depends_on": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "repository",
-                  "relation"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "repository": {
-                    "enum": [
-                      "cirnet-contracts",
-                      "cirnet-simulator",
-                      "cirnet-fpga",
-                      "cirnet-hardware",
-                      "cirnet-interface",
-                      "cirnet-remote"
-                    ]
-                  },
-                  "relation": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
-                  }
-                }
-              },
-              "minItems": 0,
-              "uniqueItems": true
-            }
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "classification": {
+            "enum": [
+              "active",
+              "supporting",
+              "archived",
+              "excluded"
+            ]
           }
         }
       }
@@ -977,22 +513,38 @@
         },
         "approved_evidence": {
           "oneOf": [
-            { "type": "null" },
+            {
+              "type": "null"
+            },
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["governance_commit", "index_sha256"],
+              "required": [
+                "governance_commit",
+                "index_sha256"
+              ],
               "properties": {
-                "governance_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-                "index_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+                "governance_commit": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "index_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
               }
             }
           ]
         },
         "approved_publication_sha256": {
           "oneOf": [
-            { "type": "null" },
-            { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
           ]
         },
         "required_domains": {
@@ -1176,6 +728,14 @@
               }
             }
           }
+        },
+        "historical_system_releases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          }
         }
       }
     },
@@ -1357,7 +917,13 @@
                   "const": 0
                 },
                 "kind": {
-                  "enum": ["review", "software", "clean_environment", "hardware", "publication"]
+                  "enum": [
+                    "review",
+                    "software",
+                    "clean_environment",
+                    "hardware",
+                    "publication"
+                  ]
                 },
                 "result": {
                   "type": "string",
@@ -1519,6 +1085,9 @@
       "type": "array",
       "maxItems": 13,
       "uniqueItems": true
+    },
+    "control_plane": {
+      "type": "object"
     }
   }
 }

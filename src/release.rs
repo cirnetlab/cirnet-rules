@@ -14,12 +14,10 @@ mod tests;
 
 const RELEASE_PATH: &str = "integration/release-set.json";
 const MATRIX_PATH: &str = "integration/compatibility-matrix.json";
-const RELEASE_SCHEMA: &str = include_str!("../../schemas/native-release.schema.json");
-const MATRIX_SCHEMA: &str = include_str!("../../schemas/compatibility-matrix.schema.json");
-const EVIDENCE_SCHEMA: &str = include_str!("../../schemas/release-evidence.schema.json");
+const RELEASE_SCHEMA: &str = include_str!("../en/schemas/native-release.schema.json");
+const MATRIX_SCHEMA: &str = include_str!("../en/schemas/compatibility-matrix.schema.json");
+const EVIDENCE_SCHEMA: &str = include_str!("../en/schemas/release-evidence.schema.json");
 const REMOTE: &str = "cirnet-remote";
-const TRAIN: &str = "0.2.4";
-const FAMILY: &str = "0.2";
 const INPUT_LIMIT: u64 = 16 * 1024 * 1024;
 const ARTIFACT_LIMIT: u64 = 4 * 1024 * 1024 * 1024;
 const REPOS: [&str; 6] = [
@@ -30,6 +28,18 @@ const REPOS: [&str; 6] = [
     REMOTE,
     "cirnet-simulator",
 ];
+pub fn release_scope_matches(scope: &Value) -> bool {
+    REPOS.iter().all(|repo| {
+        scope
+            .get(repo)
+            .and_then(Value::as_array)
+            .is_some_and(|granted| {
+                inventory::release_inputs(repo)
+                    .iter()
+                    .all(|path| granted.iter().any(|value| value == path))
+            })
+    })
+}
 const DOMAINS: [&str; 12] = [
     "http",
     "realtime",
@@ -289,7 +299,9 @@ fn checked_bytes(
 }
 
 fn git(repo: &Path, args: &[&str]) -> GateResult<Vec<u8>> {
-    let mut command = Command::new("git");
+    let caller = std::env::current_dir().unwrap_or_else(|_| repo.to_path_buf());
+    let git = crate::runner::git_executable(repo, &caller).map_err(blocked)?;
+    let mut command = Command::new(git);
     command
         .current_dir(repo)
         .arg("--no-replace-objects")
@@ -386,6 +398,11 @@ fn normalized_remote(value: &str, name: &str) -> bool {
 }
 
 fn checkout(root: &Path, name: &str, registry: &Value) -> GateResult<PathBuf> {
+    if let Some(governance) = registry["_cgacp_release_governance"].as_str() {
+        return crate::workspace::resolve(Path::new(governance), Some(root), name, registry)
+            .map(|binding| binding.path)
+            .map_err(blocked);
+    }
     let repo = safe_child(root, Path::new(name))?;
     let top = git_text(&repo, &["rev-parse", "--show-toplevel"])?;
     if Path::new(&top).canonicalize().ok().as_ref() != Some(&repo) {
@@ -403,16 +420,28 @@ fn checkout(root: &Path, name: &str, registry: &Value) -> GateResult<PathBuf> {
     Ok(repo)
 }
 
+fn baseline(registry: &Value) -> GateResult<(&str, &str)> {
+    let train = registry["baseline"]["release_train"]
+        .as_str()
+        .filter(|value| version(value))
+        .ok_or_else(|| failed("Invalid configured release train"))?;
+    let family = registry["baseline"]["family"]
+        .as_str()
+        .filter(|value| value.split('.').count() == 2 && version(&format!("{value}.0")))
+        .ok_or_else(|| failed("Invalid configured string contract family"))?;
+    Ok((train, family))
+}
+
 fn validate_registry(registry: &Value) -> GateResult<()> {
-    if registry["baseline"]["release_train"] != TRAIN
-        || registry["baseline"]["family"] != FAMILY
-        || !matches!(
-            registry["baseline"]["activation"].as_str(),
-            Some("NOT_ACTIVATED" | "ACTIVATED")
-        )
-        || registry["authority"]["release_set"]["repository"] != REMOTE
+    baseline(registry)?;
+    if !matches!(
+        registry["baseline"]["activation"].as_str(),
+        Some("NOT_ACTIVATED" | "ACTIVATED")
+    ) || registry["authority"]["release_set"]["repository"] != REMOTE
         || registry["authority"]["release_set"]["path"] != RELEASE_PATH
-        || !same_keys(&registry["repositories"], &REPOS)
+        || REPOS
+            .iter()
+            .any(|name| registry["repositories"].get(*name).is_none())
     {
         return Err(failed(
             "registry has an invalid train, contract family, member set or release-set owner",
@@ -501,7 +530,7 @@ fn sorted(value: &Value) -> Value {
     }
 }
 
-fn check_matrix(matrix: &Value, manifest: &Value) -> GateResult<String> {
+fn check_matrix(matrix: &Value, manifest: &Value, train: &str, family: &str) -> GateResult<String> {
     check_schema(matrix, MATRIX_SCHEMA, "compatibility matrix")?;
     if !same_keys(
         matrix,
@@ -512,10 +541,10 @@ fn check_matrix(matrix: &Value, manifest: &Value) -> GateResult<String> {
             "allowedSelections",
         ],
     ) || matrix["schemaVersion"] != 1
-        || matrix["releaseTrain"] != TRAIN
-        || matrix["family"] != FAMILY
-        || manifest["releaseTrain"] != TRAIN
-        || manifest["family"] != FAMILY
+        || matrix["releaseTrain"] != train
+        || matrix["family"] != family
+        || manifest["releaseTrain"] != train
+        || manifest["family"] != family
     {
         return Err(failed(
             "release train or compatibility family differs from the approved baseline",
@@ -630,7 +659,7 @@ fn expected_kind(repo: &str) -> &str {
     }
 }
 
-fn check_components(manifest: &Value) -> GateResult<()> {
+fn check_components(manifest: &Value, train: &str, family: &str) -> GateResult<()> {
     let repositories = &manifest["repositories"];
     if !same_keys(repositories, &REPOS) {
         return Err(failed(
@@ -651,8 +680,8 @@ fn check_components(manifest: &Value) -> GateResult<()> {
                 "capabilities",
                 "artifacts",
             ],
-        ) || entry["version"] != TRAIN
-            || entry["tag"] != format!("v{TRAIN}")
+        ) || entry["version"] != train
+            || entry["tag"] != format!("v{train}")
             || !sha(&entry["commit"], 40)
             || !sha(&entry["lockSha256"], 64)
             || !entry["target"].as_str().is_some_and(portable_filename)
@@ -695,7 +724,7 @@ fn check_components(manifest: &Value) -> GateResult<()> {
             let filename = artifact["filename"].as_str().unwrap_or_default();
             let kind = artifact["kind"].as_str().unwrap_or_default();
             let versioned_name = filename
-                .strip_prefix(&format!("{name}-{TRAIN}"))
+                .strip_prefix(&format!("{name}-{train}"))
                 .is_some_and(|tail| {
                     tail.starts_with('-') || [".zip", ".tar.gz", ".tgz", ".exe"].contains(&tail)
                 });
@@ -762,7 +791,7 @@ fn check_components(manifest: &Value) -> GateResult<()> {
                 "commit",
                 "encoding",
             ],
-        ) || contract["family"] != FAMILY
+        ) || contract["family"] != family
             || !contract["revision"].as_str().is_some_and(version)
             || !contract["filename"].as_str().is_some_and(portable_filename)
             || !sha(&contract["sha256"], 64)
@@ -924,6 +953,7 @@ fn check_native(
     registry: &Value,
     manifest: &Value,
 ) -> GateResult<Value> {
+    let (train, family) = baseline(registry)?;
     if !same_keys(
         manifest,
         &[
@@ -937,15 +967,15 @@ fn check_native(
             "compatibilityMatrixSha256",
             "evidence",
         ],
-    ) || manifest["releaseTrain"] != TRAIN
-        || manifest["family"] != FAMILY
+    ) || manifest["releaseTrain"] != train
+        || manifest["family"] != family
         || !matches!(
             manifest["distribution"].as_str(),
             Some("candidate" | "published")
         )
     {
         return Err(failed(
-            "native manifest is malformed or outside the exact 0.2.4 / 0.2 baseline",
+            "native manifest is malformed or outside the configured baseline",
         ));
     }
     if !same_keys(&manifest["evidence"], &GATES.each_ref().map(|gate| gate.id)) {
@@ -954,7 +984,7 @@ fn check_native(
         ));
     }
     check_schema(manifest, RELEASE_SCHEMA, "native release selection")?;
-    check_components(manifest)?;
+    check_components(manifest, train, family)?;
     if registry["_governance_origin_verified"] != true || registry["_governance_clean"] != true {
         return Err(blocked(
             "native release verification requires a clean governance checkout of verified origin",
@@ -972,7 +1002,7 @@ fn check_native(
             "compatibility matrix bytes differ from the approved digest",
         ));
     }
-    let selection = check_matrix(&read_json(&matrix, MATRIX_PATH)?, manifest)?;
+    let selection = check_matrix(&read_json(&matrix, MATRIX_PATH)?, manifest, train, family)?;
     let current_governance = registry["_governance_commit"]
         .as_str()
         .filter(|value| hex(value, 40))
@@ -1067,7 +1097,7 @@ fn check_native(
     }
     Ok(
         json!({"check": "check-release", "status": "PASS", "activation": "ACTIVATED",
-        "release_train": TRAIN, "family": FAMILY, "selection_sha256": selection, "evidence_index_sha256":evidence_index_sha256,
+        "release_train": train, "family": family, "selection_sha256": selection, "evidence_index_sha256":evidence_index_sha256,
         "scope": "local artifact, Git tag and software evidence verification"}),
     )
 }
@@ -1077,6 +1107,7 @@ pub fn check_release(root: &Path, registry: &Value) -> Result<Value, String> {
         "check-release",
         (|| {
             validate_registry(registry)?;
+            let (train, family) = baseline(registry)?;
             let root = workspace(root)?;
             let remote = checkout(&root, REMOTE, registry)?;
             let bytes = read_input(&remote, RELEASE_PATH)?;
@@ -1086,14 +1117,17 @@ pub fn check_release(root: &Path, registry: &Value) -> Result<Value, String> {
                     .as_str()
                     .filter(|v| version(v))
                     .ok_or_else(|| failed("historical manifest has no valid release identity"))?;
-                if selected != "0.1.4" {
+                if !registry["release_policy"]["historical_system_releases"]
+                    .as_array()
+                    .is_some_and(|versions| versions.iter().any(|value| value == selected))
+                {
                     return Err(failed(
                         "unreviewed v1 release manifest cannot activate the baseline",
                     ));
                 }
                 return Ok(
                     json!({"check": "check-release", "status": "BLOCKED", "observed_release": selected,
-                "manifest_sha256": digest(&bytes), "target_release_train": TRAIN, "target_family": FAMILY,
+                "manifest_sha256": digest(&bytes), "target_release_train": train, "target_family": family,
                 "activation": registry["baseline"]["activation"], "authority": "cirnet-remote/integration/release-set.json",
                 "reason": "the selected historical release is not a verified native cutover manifest"}),
                 );

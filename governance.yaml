@@ -43,7 +43,8 @@
       "ownership": "schema, wire contracts, and generated binding provenance",
       "plan": "en/plans/cirnet-contracts/cutover.md",
       "spec": "en/specs/cirnet-contracts/audit.md",
-      "depends_on": []
+      "depends_on": [],
+      "classification": "active"
     },
     "cirnet-simulator": {
       "remote": "https://github.com/cirnetlab/cirnet-simulator.git",
@@ -61,7 +62,8 @@
           "repository": "cirnet-contracts",
           "relation": "model-contract"
         }
-      ]
+      ],
+      "classification": "active"
     },
     "cirnet-fpga": {
       "remote": "https://github.com/cirnetlab/cirnet-fpga.git",
@@ -79,7 +81,8 @@
           "repository": "cirnet-contracts",
           "relation": "logical-contract"
         }
-      ]
+      ],
+      "classification": "active"
     },
     "cirnet-hardware": {
       "remote": "https://github.com/cirnetlab/cirnet-hardware.git",
@@ -105,7 +108,8 @@
           "repository": "cirnet-fpga",
           "relation": "board-boundary"
         }
-      ]
+      ],
+      "classification": "active"
     },
     "cirnet-interface": {
       "remote": "https://github.com/cirnetlab/cirnet-interface.git",
@@ -123,7 +127,8 @@
           "repository": "cirnet-contracts",
           "relation": "sdk-input"
         }
-      ]
+      ],
+      "classification": "active"
     },
     "cirnet-remote": {
       "remote": "https://github.com/cirnetlab/cirnet-remote.git",
@@ -157,7 +162,14 @@
           "repository": "cirnet-fpga",
           "relation": "selected-source"
         }
-      ]
+      ],
+      "classification": "active"
+    },
+    "cirnet-rules": {
+      "classification": "supporting",
+      "profile": "governance",
+      "ownership": "local CGACP registry, routing, authority and verification",
+      "depends_on": []
     }
   },
   "context": {
@@ -265,7 +277,10 @@
         "repository": "cirnet-remote",
         "evidence_type": "native_integration"
       }
-    }
+    },
+    "historical_system_releases": [
+      "0.1.4"
+    ]
   },
   "rules": [
     {
@@ -486,5 +501,162 @@
       "from": "tools",
       "to": "en/tools"
     }
-  ]
+  ],
+  "control_plane": {
+    "entrypoint": "en/AGENTS.md",
+    "budgets": {
+      "context_bytes": 32768,
+      "context_files": 32,
+      "cache_entries": 32,
+      "cache_ttl_seconds": 86400,
+      "discovery_entries": 128,
+      "timeout_ms": 5000,
+      "max_output_bytes": 4096,
+      "retries": 0,
+      "concurrency": 1
+    },
+    "skills": {
+      "WORK": "en/skills/implementation/SKILL.md",
+      "VERIFY": "en/skills/verification/SKILL.md",
+      "ACCEPT": "en/skills/verification/SKILL.md",
+      "AUDIT": "en/skills/audit/SKILL.md",
+      "RELEASE": "en/skills/release-readiness/SKILL.md"
+    },
+    "boundaries": [
+      "auth",
+      "permission",
+      "run",
+      "stop",
+      "safety",
+      "rpc",
+      "serializer",
+      "lock",
+      "deploy",
+      "build"
+    ],
+    "routes": {
+      "cirnet-interface": [
+        {
+          "id": "browser-ui",
+          "paths": [
+            "src/components",
+            "src/styles",
+            "tests"
+          ],
+          "impact": []
+        },
+        {
+          "id": "api-client",
+          "paths": [
+            "src/services/api"
+          ],
+          "impact": [
+            {
+              "repository": "cirnet-remote",
+              "paths": [
+                "native/src/openapi.rs"
+              ],
+              "reason": "Remote owns public HTTP operation semantics"
+            }
+          ]
+        }
+      ],
+      "cirnet-remote": [
+        {
+          "id": "http-api",
+          "paths": [
+            "native/src/openapi.rs"
+          ],
+          "impact": [
+            {
+              "repository": "cirnet-contracts",
+              "paths": [
+                "contracts/api/openapi.json"
+              ],
+              "reason": "Contracts owns the handoff"
+            },
+            {
+              "repository": "cirnet-interface",
+              "paths": [
+                "src/services/api/client.ts"
+              ],
+              "reason": "Interface is a direct consumer"
+            }
+          ]
+        },
+        {
+          "id": "release-selection",
+          "paths": [
+            "integration/release-set.json"
+          ],
+          "impact": []
+        }
+      ],
+      "cirnet-simulator": [
+        {
+          "id": "simulator-worker",
+          "paths": [
+            "native/worker.cpp"
+          ],
+          "impact": [
+            {
+              "repository": "cirnet-hardware",
+              "paths": [
+                "native/src/simulator/protocol.rs"
+              ],
+              "reason": "Hardware owns worker supervision and its codec"
+            }
+          ]
+        }
+      ],
+      "cirnet-rules": [
+        {
+          "id": "governance-cli",
+          "paths": [
+            "src",
+            "en/schemas",
+            "governance.yaml"
+          ],
+          "impact": []
+        }
+      ]
+    },
+    "commands": {
+      "governance-diff": {
+        "program": "git",
+        "args": [
+          "diff",
+          "--check"
+        ],
+        "repository": "cirnet-rules",
+        "paths": [],
+        "mode": "VERIFY",
+        "timeout_ms": 4000,
+        "max_output_bytes": 4096
+      },
+      "interface-diff": {
+        "program": "git",
+        "args": [
+          "diff",
+          "--check"
+        ],
+        "repository": "cirnet-interface",
+        "paths": [],
+        "mode": "VERIFY",
+        "timeout_ms": 4000,
+        "max_output_bytes": 4096
+      },
+      "contracts-json": {
+        "program": "check-json",
+        "args": [],
+        "repository": "cirnet-contracts",
+        "paths": [
+          "contracts/api/openapi.json"
+        ],
+        "mode": "VERIFY",
+        "timeout_ms": 4000,
+        "max_output_bytes": 4096
+      }
+    }
+  }
 }

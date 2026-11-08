@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CGACP task descriptor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "request", "objective", "non_goals", "primary_repo", "hints", "read_scope", "write_scope", "verification_scope", "documentation_scope", "risk", "role", "mode", "owner", "authorization", "spec", "plan", "acceptance", "commands", "docs_targets"],
+  "properties": {
+    "id": { "$ref": "#/$defs/id" },
+    "request": { "$ref": "#/$defs/note" },
+    "objective": { "$ref": "#/$defs/note" },
+    "non_goals": { "$ref": "#/$defs/notes" },
+    "primary_repo": {
+      "anyOf": [{ "$ref": "#/$defs/id" }, { "const": "_workspace" }]
+    },
+    "hints": { "$ref": "#/$defs/paths" },
+    "read_scope": { "$ref": "#/$defs/scope" },
+    "write_scope": { "$ref": "#/$defs/scope" },
+    "verification_scope": { "$ref": "#/$defs/scope" },
+    "documentation_scope": { "$ref": "#/$defs/scope" },
+    "risk": { "enum": ["low", "normal", "high", "hardware"] },
+    "role": { "$ref": "#/$defs/id" },
+    "mode": { "enum": ["WORK", "VERIFY", "ACCEPT", "RELEASE", "AUDIT"] },
+    "owner": { "$ref": "#/$defs/id" },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basis", "owner", "actions"],
+      "properties": {
+        "basis": { "$ref": "#/$defs/note" },
+        "owner": { "$ref": "#/$defs/id" },
+        "actions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["read", "write", "run", "verify", "review", "accept", "docs", "release", "network"] }
+        },
+        "expires_at": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "spec": { "$ref": "#/$defs/path" },
+    "plan": { "$ref": "#/$defs/path" },
+    "acceptance": { "$ref": "#/$defs/notes", "minItems": 1 },
+    "commands": { "$ref": "#/$defs/ids" },
+    "docs_targets": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repo", "path", "locale"],
+        "properties": {
+          "repo": { "$ref": "#/$defs/id" },
+          "path": { "$ref": "#/$defs/path" },
+          "locale": { "enum": ["en", "vi"] },
+          "section": { "type": "string", "minLength": 1, "maxLength": 120 }
+        }
+      }
+    },
+    "docs_not_required": { "$ref": "#/$defs/note" },
+    "parent": { "$ref": "#/$defs/id" },
+    "required_children": { "$ref": "#/$defs/ids" },
+    "depends_on": { "$ref": "#/$defs/ids" },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "context_bytes": { "type": "integer", "minimum": 1, "maximum": 4194304 },
+        "context_files": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
+        "retries": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "concurrency": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "log_bytes": { "type": "integer", "minimum": 1, "maximum": 4194304 }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+    "ids": { "type": "array", "uniqueItems": true, "maxItems": 64, "items": { "$ref": "#/$defs/id" } },
+    "path": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "paths": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+    "scope": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "$ref": "#/$defs/paths", "minItems": 1 }
+    },
+    "note": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "\\S" },
+    "notes": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "$ref": "#/$defs/note" } }
+  }
+}

@@ -1,5 +1,5 @@
 <!-- doc-id: MIGRATION-MAP -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="migration-map"></a>
 
 # Old to new paths
@@ -13,7 +13,9 @@ tracked placeholders. This migration retains the license and Git history.
 | Root rules and profiles | Matching English and Vietnamese rules and profiles. |
 | Root policies YAML placeholders | Shared policy prose and the single root governance registry. |
 | Root schemas | Executable governance schemas under en/schemas, with one Vietnamese guide. |
-| Root tools Python placeholders | Rust engine under en/tools, with a Vietnamese guide. |
+| Root tools Python placeholders | Replaced by the Rust engine in the previous migration. |
+| Previous Rust under en/tools/src and en/tests | Binary, modules and tests moved to src. EN/VI retain guides. |
+| Previous cutover/audit pairs | Historical audit and migration planning. New work uses central repo/task directories. |
 | Root adapter, hook, test and reference placeholders | Functional directories under en and vi. |
 | Root commands per-repo placeholders | Shared commands guides. |
 | Root plans and specs | Six product plans/specs under en and vi. The CLI placeholder is ancillary and outside the baseline. |

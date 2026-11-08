@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entrypoint",
+    "budgets",
+    "skills",
+    "boundaries",
+    "routes",
+    "commands"
+  ],
+  "properties": {
+    "entrypoint": {
+      "$ref": "#/$defs/english"
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_bytes",
+        "context_files",
+        "cache_entries",
+        "cache_ttl_seconds",
+        "discovery_entries",
+        "timeout_ms",
+        "max_output_bytes",
+        "retries",
+        "concurrency"
+      ],
+      "properties": {
+        "context_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 262144
+        },
+        "context_files": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "cache_entries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "cache_ttl_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 604800
+        },
+        "discovery_entries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120000
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 0
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "WORK": {
+          "$ref": "#/$defs/english"
+        },
+        "VERIFY": {
+          "$ref": "#/$defs/english"
+        },
+        "ACCEPT": {
+          "$ref": "#/$defs/english"
+        },
+        "AUDIT": {
+          "$ref": "#/$defs/english"
+        },
+        "RELEASE": {
+          "$ref": "#/$defs/english"
+        }
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "routes": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "maxItems": 64,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "paths",
+            "impact"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/id"
+            },
+            "paths": {
+              "$ref": "#/$defs/paths"
+            },
+            "impact": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "repository",
+                  "paths",
+                  "reason"
+                ],
+                "properties": {
+                  "repository": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "paths": {
+                    "$ref": "#/$defs/paths"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "program",
+          "args",
+          "repository",
+          "paths",
+          "mode",
+          "timeout_ms",
+          "max_output_bytes"
+        ],
+        "properties": {
+          "program": {
+            "enum": [
+              "git",
+              "check-json",
+              "check-utf8"
+            ]
+          },
+          "args": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          "repository": {
+            "$ref": "#/$defs/id"
+          },
+          "paths": {
+            "$ref": "#/$defs/paths"
+          },
+          "mode": {
+            "enum": [
+              "WORK",
+              "VERIFY"
+            ]
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 120000
+          },
+          "max_output_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65536
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "english": {
+      "type": "string",
+      "pattern": "^en/[^\\\\:]+\\.md$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "pattern": "^[^/:\\\\][^:\\\\]*$",
+        "maxLength": 256
+      }
+    }
+  }
+}

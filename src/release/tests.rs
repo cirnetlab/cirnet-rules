@@ -3,6 +3,9 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use sha2::Sha512;
 use std::fs;
 
+const TRAIN: &str = "0.2.4";
+const FAMILY: &str = "0.2";
+
 #[test]
 fn exact_training_tuple_and_compatibility_allowlist_are_independent() {
     let mut manifest = json!({
@@ -19,14 +22,34 @@ fn exact_training_tuple_and_compatibility_allowlist_are_independent() {
         "family": "0.2",
         "allowedSelections": [reviewed]
     });
-    assert!(check_matrix(&matrix, &manifest).is_ok());
+    assert!(check_matrix(&matrix, &manifest, TRAIN, FAMILY).is_ok());
     manifest["contracts"]["http"]["revision"] = json!("0.2.1");
-    assert!(check_matrix(&matrix, &manifest).is_err());
+    assert!(check_matrix(&matrix, &manifest, TRAIN, FAMILY).is_err());
     manifest["releaseTrain"] = json!("0.2.5");
-    assert!(check_matrix(&matrix, &manifest).is_err());
+    assert!(check_matrix(&matrix, &manifest, TRAIN, FAMILY).is_err());
     manifest["releaseTrain"] = json!("0.2.4");
     manifest["family"] = json!(0.2);
-    assert!(check_matrix(&matrix, &manifest).is_err());
+    assert!(check_matrix(&matrix, &manifest, TRAIN, FAMILY).is_err());
+}
+
+#[test]
+fn future_train_and_family_are_configurable_but_must_be_approved_exactly() {
+    let registry = json!({"baseline":{"release_train":"0.3.7","family":"0.3"}});
+    let (train, family) = baseline(&registry).unwrap();
+    let mut manifest = json!({"releaseTrain":train,"family":family,"repositories":{},"contracts":{},"rollback":{}});
+    let selection = selection_digest(&manifest).unwrap();
+    let matrix = json!({"schemaVersion":1,"releaseTrain":train,"family":family,"allowedSelections":[selection]});
+    assert!(check_matrix(&matrix, &manifest, train, family).is_ok());
+    assert!(check_matrix(&matrix, &manifest, TRAIN, FAMILY).is_err());
+    manifest["contracts"] = json!({"http":{"revision":"0.3.7"}});
+    assert!(check_matrix(&matrix, &manifest, train, family).is_err());
+    let mut grants = json!({});
+    for name in REPOS {
+        grants[name] = json!(inventory::release_inputs(name));
+    }
+    assert!(release_scope_matches(&grants));
+    grants[REMOTE] = json!(["README.md"]);
+    assert!(!release_scope_matches(&grants));
 }
 
 #[test]

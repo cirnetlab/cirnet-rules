@@ -270,6 +270,30 @@ pub fn verify(root: &Path) -> Result<usize, String> {
     Ok(english.len())
 }
 
+pub fn verify_paths(root: &Path, paths: &[String]) -> Result<usize, String> {
+    let mut visited = BTreeSet::new();
+    for path in paths {
+        let (_, relative) = path
+            .split_once('/')
+            .filter(|(locale, path)| matches!(*locale, "en" | "vi") && path.ends_with(".md"))
+            .ok_or("Scoped translation checks require EN or VI Markdown paths")?;
+        if !visited.insert(relative) {
+            continue;
+        }
+        let en = format!("en/{relative}");
+        let vi = format!("vi/{relative}");
+        let source = read(&safe_path(root, &en)?)?;
+        let translation = read(&safe_path(root, &vi)?)?;
+        verify_pair(&source, &translation).map_err(|error| format!("{en}: {error}"))?;
+        links(root, &en, &source)?;
+        links(root, &vi, &translation)?;
+    }
+    if visited.is_empty() {
+        return Err("No selected translation pair".into());
+    }
+    Ok(visited.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

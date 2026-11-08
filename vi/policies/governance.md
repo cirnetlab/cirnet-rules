@@ -1,6 +1,6 @@
 <!-- doc-id: POLICY -->
-<!-- revision: 1 -->
-<!-- source-sha256: 2de9c5f40235fe54e8f534b491d51da8328a185ddf91a6d465747eea7b564973 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 25dc1a7952d24ac92906cb43f60089bf4cce0cea07998dd97578ae11bdb6265f -->
 <!-- translation-status: synchronized -->
 
 <a id="release"></a>
@@ -43,11 +43,13 @@ liệu mới được cấp phép.
 
 Tác giả đưa thiết kế ở `DRAFT`. Maintainer sở hữu ghi tham chiếu phê duyệt
 thật trước `APPROVED`. Thiết kế thay thế hoặc nghỉ dùng ghi `SUPERSEDED`
-hoặc `RETIRED` và rời danh sách chỉ dẫn hiện hành. Công việc đi từ
-`PLANNED` → `IN_PROGRESS` → `IMPLEMENTED` → `VERIFIED` →
-`RELEASED`. Thiếu điều kiện cho `BLOCKED`. Người quản lý release ghi bằng
-chứng phát hành thật. Xác minh cần phép kiểm tra độc lập gắn commit sản phẩm
-và revision governance.
+hoặc `RETIRED` và rời danh sách chỉ dẫn hiện hành. Hồ sơ cutover lịch sử
+giữ `PLANNED` và `RELEASED`. Task local mới đi từ `PROPOSED` → `READY` →
+`IN_PROGRESS` → `IMPLEMENTED` → `VERIFIED` → `ACCEPTED` → `DOCS_SYNCED`
+→ `CLOSED`. Thiếu điều kiện cho `BLOCKED`. Quyết định miễn tài liệu tường
+minh có thể đóng task đã nghiệm thu. Người quản lý release ghi bằng chứng
+phát hành riêng. Kiểm chứng gắn đầu vào đã kiểm với revision governance và task.
+Xem [quy trình CGACP](../references/cgacp-local.md).
 
 Danh sách ngoại lệ ban đầu đóng. Ngoại lệ tương lai cần ID quy tắc, owner,
 lý do, hạn và phê duyệt. Agent không tự miễn gate của mình. Quy tắc và hook

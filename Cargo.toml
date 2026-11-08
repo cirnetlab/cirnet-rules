@@ -8,11 +8,11 @@ publish = false
 
 [[bin]]
 name = "cirnet-governance"
-path = "en/tools/src/main.rs"
+path = "src/main.rs"
 
 [[test]]
 name = "cli"
-path = "en/tests/cli.rs"
+path = "src/tests/cli.rs"
 
 [dependencies]
 base64 = "=0.22.1"

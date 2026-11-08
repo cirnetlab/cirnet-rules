@@ -1,5 +1,5 @@
-# cirnet-rules
+# CIRNET Governance & Agent Control Plane
 
 [English](en/README.md) · [Tiếng Việt](vi/README.md)
 
-Governance and verification tooling for CIRNETLAB.
+Local Rust tooling for scoped task routing, execution, verification and governance.

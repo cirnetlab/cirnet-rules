@@ -231,10 +231,10 @@ fn scan_python(tracked: &[u8]) -> GateResult<Vec<&str>> {
         .collect())
 }
 
-fn legacy_indicators(root: &Path, repo: &str, commit: Option<&str>) -> GateResult<Vec<String>> {
+fn legacy_inputs(repo: &str) -> &'static [(&'static str, &'static str)] {
     // These checks recognize the specific old runtime lanes observed in the
     // audit. General protocol aliases still require the legacy-rejection gate.
-    let entries: &[(&str, &str)] = match repo {
+    match repo {
         REMOTE => &[
             ("services/api/pyproject.toml", "uvicorn"),
             ("deployment/systemd/cirnet-api.service", "uvicorn"),
@@ -246,9 +246,23 @@ fn legacy_indicators(root: &Path, repo: &str, commit: Option<&str>) -> GateResul
         "cirnet-simulator" => &[("cirnet_sim/backends.py", "legacy")],
         "cirnet-contracts" => &[("pyproject.toml", "setuptools")],
         _ => &[],
-    };
+    }
+}
+
+pub(super) fn release_inputs(repo: &str) -> Vec<&'static str> {
+    let mut paths = vec![product_input(repo), lock_input(repo)];
+    paths.extend(legacy_inputs(repo).iter().map(|(path, _)| *path));
+    match repo {
+        REMOTE => paths.extend([RELEASE_PATH, MATRIX_PATH]),
+        "cirnet-interface" => paths.push("integration/contracts-artifacts.json"),
+        _ => {}
+    }
+    paths
+}
+
+fn legacy_indicators(root: &Path, repo: &str, commit: Option<&str>) -> GateResult<Vec<String>> {
     let mut indicators = Vec::new();
-    for (path, token) in entries {
+    for (path, token) in legacy_inputs(repo) {
         let content = match commit {
             Some(revision) => {
                 if git(root, &["cat-file", "-e", &format!("{revision}:{path}")]).is_err() {
@@ -272,6 +286,7 @@ fn legacy_indicators(root: &Path, repo: &str, commit: Option<&str>) -> GateResul
 
 pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
     validate_registry(registry)?;
+    let (train, family) = baseline(registry)?;
     let root = workspace(root)?;
     let mut observations = Map::new();
     let mut pending = Vec::new();
@@ -287,16 +302,16 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
             "lock_or_build_input_sha256": digest(&lock),
             "checkout_commit": git_text(&repo, &["rev-parse", "HEAD"])?,
         });
-        if product_version != TRAIN {
+        if product_version != train {
             pending.push(format!(
-                "{name}: observed product {product_version} differs from target train {TRAIN}"
+                "{name}: observed product {product_version} differs from target train {train}"
             ));
         }
         match name {
             "cirnet-interface" => {
                 let contracts = read_input(&repo, "integration/contracts-artifacts.json")?;
                 let mut identity = npm_observations(&manifest, &lock, &contracts)?;
-                if identity["package_version"] != TRAIN {
+                if identity["package_version"] != train {
                     pending.push(format!(
                         "{name}: selected SDK differs from the target Contracts product train"
                     ));
@@ -329,7 +344,7 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
                     &["toolchain", "channel"]
                 ));
                 if matches!(name, REMOTE | "cirnet-hardware")
-                    && cargo["contracts"]["package_version"] != TRAIN
+                    && cargo["contracts"]["package_version"] != train
                 {
                     pending.push(format!("{name}: locked Contracts crate differs from the target Contracts product train"));
                 }
@@ -364,12 +379,12 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
             value
         }
         Some(2) => {
-            if release["releaseTrain"] != TRAIN || release["family"] != FAMILY {
+            if release["releaseTrain"] != train || release["family"] != family {
                 return Err(failed(
                     "Remote release-set does not select the reviewed train and family",
                 ));
             }
-            TRAIN
+            train
         }
         _ => return Err(failed("unknown release manifest schema")),
     };
@@ -385,7 +400,7 @@ pub(super) fn check(root: &Path, registry: &Value) -> GateResult<Value> {
     }
     Ok(
         json!({"check": "check-versions", "status": if pending.is_empty() {"PASS"} else {"BLOCKED"},
-        "observed": observations, "selected_system_release": selected, "target_release_train": TRAIN, "target_family": FAMILY,
+        "observed": observations, "selected_system_release": selected, "target_release_train": train, "target_family": family,
         "openapi_dialect": openapi["openapi"], "openapi_document_version": openapi["info"]["version"],
         "reason": if pending.is_empty() {"version and known source checks passed; use check-release for cutover"}
             else {"observed source or selected release requires cutover work"}, "pending": pending}),
@@ -401,6 +416,7 @@ pub(super) fn check_producer(
     evidence_root: &Path,
 ) -> GateResult<()> {
     let commit = entry["commit"].as_str().unwrap();
+    let train = entry["version"].as_str().unwrap();
     if git_text(repo, &["cat-file", "-t", commit])? != "commit" {
         return Err(failed(format!(
             "{name} source identity is not a Git commit"
@@ -412,7 +428,7 @@ pub(super) fn check_producer(
             &[
                 "rev-parse",
                 "--verify",
-                &format!("refs/tags/v{TRAIN}^{{commit}}"),
+                &format!("refs/tags/v{train}^{{commit}}"),
             ],
         )? != commit
     {
@@ -428,7 +444,7 @@ pub(super) fn check_producer(
     };
     let manifest = source(product_input(name))?;
     let lock = source(lock_input(name))?;
-    if primary(name, &manifest)? != TRAIN || entry["lockSha256"] != digest(&lock) {
+    if primary(name, &manifest)? != train || entry["lockSha256"] != digest(&lock) {
         return Err(failed(format!(
             "{name} selected source has a different product version or build lock"
         )));
@@ -442,7 +458,7 @@ pub(super) fn check_producer(
         "cirnet-fpga" | "cirnet-simulator" => json!(null),
         _ => cargo_observations(name, &manifest, &lock)?["contracts"].clone(),
     };
-    if !locked_contracts.is_null() && locked_contracts["package_version"] != TRAIN {
+    if !locked_contracts.is_null() && locked_contracts["package_version"] != contracts["version"] {
         return Err(failed(format!(
             "{name} selected source still pins a different first-party Contracts package"
         )));

@@ -1,18 +1,20 @@
 <!-- doc-id: INDEX -->
-<!-- revision: 1 -->
-<!-- source-sha256: 5bd052653593e924b78657fbf794da289b1a1f7d383c662c39551118ab443a22 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 6adb6b50c7bb68497988dbd7d8feeba96735cfc5f38009c34fcdb59860c60a7b -->
 <!-- translation-status: synchronized -->
 
 <a id="index"></a>
 
-# Quản trị CIRNETLAB
+# CIRNET Governance & Agent Control Plane
 
 [English](../en/README.md) · [Bootstrap](AGENTS.md) · [Registry](../governance.yaml)
 
-Checkout có một nguồn chuẩn tiếng Anh và một nhánh đọc tiếng Việt đồng bộ.
-Nó quy định release train đích `0.2.4` và họ tương thích `0.2`. Repo sản phẩm
-sở hữu contract, runtime, release-set và bằng chứng.
+CGACP định tuyến task local theo phạm vi, quản lý tập trung spec và plan,
+điều phối kiểm chứng và đồng bộ tài liệu. Tiếng Anh là nguồn chỉ dẫn chuẩn.
+Chính sách release hiện tại nhắm tới `0.2.4` và family `0.2`.
+Repo sản phẩm sở hữu contract, runtime, release-set và bằng chứng.
 
+- [Quy trình vận hành local](references/cgacp-local.md), [định tuyến](routing/README.md) và [kiểm chứng](references/cgacp-verification.md)
 - [Chính sách và chuyển trạng thái](policies/governance.md)
 - [Quyền sở hữu và hồ sơ kiến trúc](profiles/product-architecture.md)
 - [Audit sáu repo](references/product-audit.md)
