@@ -28,7 +28,7 @@ chrono = { version = "=0.4.42", default-features = false, features = ["std"] }
 chrono-tz = "=0.10.4"
 jsonschema = { version = "=0.33.0", default-features = false }
 pulldown-cmark = { version = "=0.13.0", default-features = false }
-rusqlite = { version = "=0.37.0", features = ["bundled", "backup"] }
+rusqlite = { version = "=0.37.0", features = ["bundled", "backup", "hooks"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.145"
 serde_yaml = "=0.9.34"
@@ -39,4 +39,4 @@ toml = "=0.9.8"
 libc = "=0.2.191"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading"] }

@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 2 -->
-<!-- source-sha256: 6ac2a1435102ad3c3354ee32c4ddcd6047917605516f825e93a4f72665229a0b -->
+<!-- revision: 4 -->
+<!-- source-sha256: 8b35a28791a810976cde163f7736c4bd62a54d25067635be8b1529d0978febbf -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 
@@ -28,19 +28,40 @@ release định nghĩa riêng đầu vào producer, owner của gate và miền 
 thích trong dữ liệu governance.
 
 SQLite dùng migration giao dịch, khóa ngoại, WAL và thời gian chờ hữu hạn.
-Schema 4 thêm tùy chọn trình bày và tạo snapshot đã kiểm tra toàn vẹn của
-kho schema 3 hiện có trong thư mục riêng `backups/` trước khi nâng cấp.
-Nâng cấp dừng nếu chưa tạo được snapshot. Client Qt gọi bất đồng bộ
+Schema 5 thêm biên nhận vòng đời, định danh tăng dần và xem trước phạm vi xóa.
+Nâng cấp tạo snapshot của kho hiện có trong `backups/` riêng và dừng nếu
+chưa xác minh được snapshot. Schema 6 ghi dấu xóa Automation để định nghĩa
+đã xóa không thể chạy theo lịch hoặc xuất hiện lại khi phát lại yêu cầu tạo.
+Khi xóa cả Hội thoại, runtime tìm lượt chạy gốc theo ID đã lưu, kiểm tra
+revision và lượt chạy đang hoạt động, rồi xóa định nghĩa trong cùng giao dịch.
+Client Qt gọi bất đồng bộ
 `preferences.get` và `preferences.set` và gộp các thay đổi bố cục liên tiếp
 trước khi ghi. Revision dự kiến ngăn cửa sổ thứ hai âm thầm ghi đè lần cập
 nhật mới hơn. Tùy chọn chỉ chứa dữ liệu bố cục và giao diện, tách khỏi quyền
-task và đường dẫn repository. Dịch vụ SQLite nằm trong backend Rust.
+task và đường dẫn repository. Repository vòng đời có kiểu dữ liệu và unit
+of work SQLite commit cùng nhau phạm vi xóa, biên nhận idempotency và
+metadata lượt chạy cần giữ. Intake và tự động hóa cũ còn phụ thuộc SQLite.
 Chuyển sang PostgreSQL cần hợp đồng
 repository cho truy vấn có phạm vi, cập nhật lạc quan, occurrence duy nhất,
 fencing claim, outbox và rollback. Adapter và bộ test hợp đồng còn pending.
 Xuất offline rồi nhập có kiểm chứng vào database riêng, đối chiếu ID và
 digest, sau đó chuyển runtime trong cửa sổ bảo trì. Giữ kho cũ đến khi
 xác minh database mới và quy trình phục hồi.
+
+Qt xác minh executable cùng thư mục trên worker có thể hủy, rồi áp dụng
+frame stdio trên GUI theo lát tối đa tám frame hoặc năm mili giây giữa các
+ranh giới frame. Client xử lý các phản hồi hoàn chỉnh trước khi kết thúc
+yêu cầu chưa có phản hồi lúc tiến trình thoát. Một timer theo dõi tối đa
+32 yêu cầu đang chờ. Mỗi trang
+transcript có tối đa bốn tin. View áp dụng trang mới theo ordinal và giới
+hạn dữ liệu hiển thị của transcript và sidebar.
+
+Runtime dùng kênh vào và ra có giới hạn. Dispatcher sở hữu kết nối SQLite
+tương tác và scheduler dùng kết nối riêng. Worker lưu trữ có một luồng
+chạy, ba vị trí thao tác đang hoạt động và lịch sử có giới hạn. Backup,
+kiểm tra, quét và thu gọn báo trạng thái, hỗ trợ hủy cộng tác. Khóa SQLite
+vẫn có thể làm chậm thao tác ghi trong ngân sách chờ. Git local và nhập
+dữ liệu cũ còn chạy đồng bộ trong dispatcher. Worker không sở hữu widget.
 
 CLI hiện có vẫn quản lý file task và evidence lịch sử. Intake Dashboard
 không nâng mức tin cậy của các record đó hoặc cấp quyền ghi. Dashboard ban

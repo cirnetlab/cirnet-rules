@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 7 -->
-<!-- source-sha256: 7c9a26952c6673fe12eacb03a5bda410fae2cfa76e6ed66e8d41799b22efa96f -->
+<!-- revision: 9 -->
+<!-- source-sha256: 2742a440a58cdc3ddbae22195284ded7629d3e4ade91388a32cf65a462608ca2 -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -70,13 +70,41 @@ Definition bị tạm dừng hoặc stale phải được kiểm tra trước kh
 ## Lưu trữ và vận hành
 
 Rust sở hữu SQLite trong thư mục dữ liệu ứng dụng local hoặc thư mục do
-người vận hành chỉ định. Runtime mới tạo snapshot có kiểm tra toàn vẹn
-trước khi nâng cấp kho schema 3 lên schema 4. Runtime cũ cần dùng bản sao
-đã rà trong thư mục riêng. Dùng `storage.backup` qua runtime để tạo snapshot
-online và `storage.verify` để kiểm tra. Khi diễn tập khôi phục, đóng
+người vận hành chỉ định. Trước khi nâng kho hiện có lên schema 6, runtime
+tạo snapshot đã kiểm tra toàn vẹn. Runtime cũ cần bản sao tương thích đã
+rà trong thư mục riêng. Trong Cài đặt → Lưu trữ, Quét chỉ đo thư mục dữ
+liệu local. Kích thước tệp vật lý, byte tin nhắn logic và trang SQLite tái
+sử dụng là các đại lượng riêng. Tạo và kiểm tra bản sao lưu online ở trang
+này. Thu gọn database yêu cầu số đo mới và xác nhận số trang đã quan sát.
+Thao tác nền báo tiến độ và hỗ trợ hủy. Ứng dụng chưa có capability dọn
+worktree do hệ thống quản lý. Khi diễn tập khôi phục, đóng
 runtime, phục hồi bản sao đã rà vào thư mục riêng mới và kiểm tra tại đó
 trước khi đổi đường dẫn. Giữ thư mục gốc và các file WAL. Bản sao lưu là
 dữ liệu nhạy cảm local.
+
+## Vòng đời hội thoại và Cài đặt
+
+Xóa bản nháp tác động đến văn bản chưa gửi và có hoàn tác trong phiên.
+Dùng menu ngữ cảnh bản ghi hội thoại để xóa tin đã gửi, hoặc Thao tác để
+xóa hội thoại. Rà ID ổn định, phạm vi local và đối tượng đang chặn trước
+khi xác nhận. Hủy hoặc xử lý riêng các nhiệm vụ và lượt chạy đang hoạt
+động trước khi thử lại. Xóa gỡ payload SQLite đang dùng và dữ liệu dẫn xuất
+local. Dashboard không khôi phục được thao tác này. Trang SQLite trống,
+WAL, bản sao lưu và bản sao bên nhà cung cấp có thể còn byte dữ liệu.
+Nếu Hội thoại do một lượt chạy tạo ra, bản xem trước chỉ ra Automation gốc.
+Xác nhận xóa cũng gỡ định nghĩa Automation và dừng lịch của nó. Lượt chạy
+đang hoạt động của định nghĩa đó chặn xóa. Tệp kho mã, các Hội thoại khác
+và metadata kiểm toán lượt chạy đã kết thúc vẫn truy cập được.
+Dùng Thao tác → Xóa Automation để xóa Automation độc lập hoặc thẻ còn lại
+sau khi Hội thoại đã bị xóa từ trước.
+Lưu trữ giữ lịch sử. Trong Hội thoại đã lưu trữ, tìm rồi chọn từng hội thoại
+để bỏ lưu trữ hoặc xóa vĩnh viễn. Bỏ lưu trữ giữ định danh và không lên lịch
+chạy công việc.
+
+Cấu hình hiển thị capability hiệu lực và nguồn thẩm quyền của runtime.
+Thực thi native giữ HANDOFF_ONLY khi áp dụng. Giao diện lưu màu nhấn, font UI,
+cỡ chữ nội dung và mã qua API tùy chọn local. Đặt lại giao diện độc lập với
+đặt lại bố cục.
 
 Có thể xem trước và lưu trữ kho file CLI đã dừng bằng `legacy.preview`
 và `legacy.apply`. Áp dụng cần digest manifest đã rà và xác nhận tiến

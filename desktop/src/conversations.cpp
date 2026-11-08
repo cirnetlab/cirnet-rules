@@ -31,11 +31,17 @@
 #include <QUuid>
 #include <QVariant>
 #include <QVBoxLayout>
+#include <utility>
 
 namespace {
 constexpr int IdRole = Qt::UserRole;
 constexpr int RecordRole = Qt::UserRole + 1;
 constexpr int conversationPageSize = 30;
+constexpr int conversationCacheLimit = 300;
+constexpr int draftLimit = 128;
+constexpr int draftBytes = 8192;
+constexpr int transcriptLimit = 48;
+constexpr int transcriptBlockLimit = 3500;
 
 QString requestKey()
 {
@@ -54,6 +60,21 @@ QLabel *label(const QString &text, const char *name)
 bool hasCursor(const QJsonValue &cursor)
 {
     return !cursor.isUndefined() && !cursor.isNull();
+}
+
+QString displayedMessage(const QJsonObject &row, const QString &you, const QString &shortened)
+{
+    auto content = row.value("content").toString();
+    int end = -1;
+    for (int line = 0; line < 400; ++line) {
+        end = content.indexOf(u'\n', end + 1);
+        if (end < 0)
+            break;
+    }
+    if (end >= 0)
+        content = content.left(end) + QStringLiteral("\n") + shortened;
+    const auto role = row.value("role").toString();
+    return (role == "USER" ? you : role) + QStringLiteral("\n") + content;
 }
 
 void reactivate(QDialog *dialog)
@@ -216,16 +237,22 @@ QWidget *MainWindow::makeConversationHistory()
         QAction *resume = nullptr;
         QAction *rename = nullptr;
         QAction *archive = nullptr;
+        QAction *remove = nullptr;
         if (row) {
             const bool active = online_ && record.value("state").toString() != "ARCHIVED";
             resume = menu.addAction(tr("Open conversation"));
             rename = menu.addAction(tr("Rename"));
             archive = menu.addAction(tr("Archive"));
+            remove = menu.addAction(tr("Delete conversation…"));
             resume->setEnabled(online_);
             rename->setEnabled(active);
             archive->setEnabled(active);
+            remove->setEnabled(online_);
         }
         QAction *more = nullptr;
+        QAction *newest = nullptr;
+        if (conversationList_->property("historyWindowMoved").toBool())
+            newest = menu.addAction(tr("Show newest conversations"));
         if (canLoadMoreConversations()) {
             if (row)
                 menu.addSeparator();
@@ -236,10 +263,16 @@ QWidget *MainWindow::makeConversationHistory()
             return;
         if (choice == more) {
             refreshConversations(true);
+        } else if (choice == newest) {
+            conversationList_->setProperty("historyWindowMoved", false);
+            conversationList_->setProperty("historyPaged", false);
+            refreshConversations();
         } else if (choice == resume) {
             navigateConversation(record.value("id").toString());
         } else if (choice == rename || choice == archive) {
             editConversation(choice == archive, record);
+        } else if (choice == remove) {
+            deleteConversationData(record.value("id").toString());
         }
     });
     return history;
@@ -269,8 +302,11 @@ QWidget *MainWindow::makeConversations()
     auto *menu = new QMenu(conversationActions_);
     auto *rename = menu->addAction(tr("Rename"));
     auto *archive = menu->addAction(tr("Archive"));
+    auto *remove = menu->addAction(tr("Delete conversation…"));
+    remove->setObjectName("deleteConversation");
     connect(rename, &QAction::triggered, this, [this] { editConversation(false); });
     connect(archive, &QAction::triggered, this, [this] { editConversation(true); });
+    connect(remove, &QAction::triggered, this, [this] { deleteConversationData(currentConversation_); });
     conversationActions_->setMenu(menu);
     header->addWidget(conversationActions_);
     layout->addLayout(header);
@@ -291,6 +327,18 @@ QWidget *MainWindow::makeConversations()
     cancelTask_ = new QPushButton(tr("Cancel pending task"));
     actions->addWidget(taskDetails);
     actions->addWidget(cancelTask_);
+    olderMessages_ = new QPushButton(tr("Load older messages"));
+    olderMessages_->setObjectName("loadOlderMessages");
+    actions->addWidget(olderMessages_);
+    connect(olderMessages_, &QPushButton::clicked, this, [this] {
+        openConversation(currentConversation_, TranscriptPage::Older);
+    });
+    latestMessages_ = new QPushButton(tr("Latest messages"));
+    latestMessages_->setObjectName("loadLatestMessages");
+    actions->addWidget(latestMessages_);
+    connect(latestMessages_, &QPushButton::clicked, this, [this] {
+        openConversation(currentConversation_);
+    });
     actions->addStretch();
     layout->addLayout(actions);
 
@@ -299,7 +347,32 @@ QWidget *MainWindow::makeConversations()
     transcript_->setReadOnly(true);
     transcript_->setAccessibleName(tr("Conversation transcript"));
     transcript_->setPlaceholderText(tr("Saved messages and task outcomes appear here."));
-    transcript_->setMaximumBlockCount(3500);
+    transcript_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(transcript_, &QWidget::customContextMenuRequested, this, [this](const QPoint &position) {
+        auto *menu = transcript_->createStandardContextMenu(position);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        const int positionInText = transcript_->cursorForPosition(position).position();
+        int start = 0;
+        QString messageId;
+        for (const auto &row : transcriptRows_) {
+            const auto length = displayedMessage(row, tr("You"), tr("Display shortened.")).size();
+            if (positionInText >= start && positionInText < start + length) {
+                messageId = row.value("id").toString();
+                break;
+            }
+            start += int(length) + 2;
+        }
+        if (online_ && !messageId.isEmpty()) {
+            const auto id = currentConversation_;
+            menu->addSeparator();
+            auto *remove = menu->addAction(tr("Delete submitted message…"));
+            remove->setObjectName("deleteSubmittedMessage");
+            connect(remove, &QAction::triggered, this, [this, id, messageId] {
+                deleteConversationData(id, messageId);
+            });
+        }
+        menu->popup(transcript_->viewport()->mapToGlobal(position));
+    });
     layout->addWidget(transcript_, 1);
     composer_ = new CompactTextEdit(5);
     composer_->setObjectName("conversationComposer");
@@ -308,6 +381,14 @@ QWidget *MainWindow::makeConversations()
     layout->addWidget(composer_);
     auto *commands = new QHBoxLayout;
     commands->addWidget(label(tr("Local handoff · Ctrl+Enter to send"), "meta"), 1);
+    auto *clear = new QPushButton(tr("Clear draft"));
+    clear->setObjectName("clearDraft");
+    auto *restore = new QPushButton(tr("Undo clear"));
+    restore->setObjectName("restoreDraft");
+    commands->addWidget(clear);
+    commands->addWidget(restore);
+    connect(clear, &QPushButton::clicked, this, &MainWindow::clearCurrentDraft);
+    connect(restore, &QPushButton::clicked, this, &MainWindow::restoreCurrentDraft);
     send_ = new QPushButton(tr("Send"));
     send_->setObjectName("sendMessage");
     send_->setProperty("primary", true);
@@ -318,8 +399,19 @@ QWidget *MainWindow::makeConversations()
     shortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(shortcut, &QShortcut::activated, this, &MainWindow::sendMessage);
     connect(composer_, &QPlainTextEdit::textChanged, this, [this] {
-        if (!currentConversation_.isEmpty())
-            conversationDrafts_[currentConversation_] = composer_->toPlainText();
+        if (!currentConversation_.isEmpty()) {
+            const auto draft = composer_->toPlainText();
+            if (draft.toUtf8().size() > draftBytes) {
+                const QSignalBlocker guard(composer_);
+                composer_->setPlainText(conversationDrafts_.value(currentConversation_));
+                composer_->moveCursor(QTextCursor::End);
+                showError(tr("Drafts are limited to 8 KiB."));
+            } else if (draft.isEmpty()) {
+                conversationDrafts_.remove(currentConversation_);
+            } else {
+                conversationDrafts_.insert(currentConversation_, draft);
+            }
+        }
         updateConversationAvailability();
     });
     connect(send_, &QPushButton::clicked, this, &MainWindow::sendMessage);
@@ -336,17 +428,37 @@ void MainWindow::updateConversationAvailability()
     const auto content = composer_->toPlainText().trimmed();
     const bool saved = !conversation_.isEmpty();
     const bool active = saved && conversation_.value("state").toString() != "ARCHIVED";
-    const auto taskState = conversationTasks_.isEmpty()
-        ? QString() : conversationTasks_.first().toObject().value("state").toString();
-    composer_->setReadOnly(!active);
-    send_->setEnabled(online_ && active && !content.isEmpty() && content.toUtf8().size() <= 8192
-                      && !conversationSending_.contains(currentConversation_));
-    send_->setToolTip(content.toUtf8().size() > 8192 ? tr("Enter a message of up to 8 KiB.")
+    bool pendingTask = false;
+    for (const auto &value : conversationBlockers_) {
+        const auto row = value.toObject();
+        pendingTask |= row.value("kind") == "task" && row.value("state") == "WAITING_APPROVAL";
+    }
+    if (!pendingTask) {
+        for (const auto &value : conversationTasks_)
+            pendingTask |= value.toObject().value("state") == "WAITING_APPROVAL" ||
+                           value.toObject().value("state") == "PROPOSED";
+    }
+    const bool canDraft = conversationDrafts_.contains(currentConversation_) || conversationDrafts_.size() < draftLimit;
+    composer_->setReadOnly(!active || !canDraft);
+    composer_->setToolTip(canDraft ? QString{} : tr("Clear another draft to start editing this conversation."));
+    send_->setEnabled(online_ && active && !content.isEmpty() && content.toUtf8().size() <= draftBytes
+                      && !conversationSending_.contains(currentConversation_)
+                      && !conversationDeletes_.contains(currentConversation_));
+    send_->setToolTip(content.toUtf8().size() > draftBytes ? tr("Enter a message of up to 8 KiB.")
         : !online_ ? tr("Connect the runtime to send.") : tr("Send (Ctrl+Enter)"));
     conversationActions_->setVisible(saved);
     conversationActions_->setEnabled(online_ && active);
-    cancelTask_->setVisible(saved && !taskState.isEmpty());
-    cancelTask_->setEnabled(online_ && active && (taskState == "PROPOSED" || taskState == "WAITING_APPROVAL"));
+    cancelTask_->setVisible(saved && (!conversationTasks_.isEmpty() || pendingTask));
+    cancelTask_->setEnabled(online_ && active && pendingTask);
+    olderMessages_->setVisible(saved && hasCursor(transcriptBefore_));
+    olderMessages_->setEnabled(online_ && !transcriptLoading_);
+    latestMessages_->setVisible(saved && transcriptDetached_);
+    latestMessages_->setEnabled(online_ && !transcriptLoading_);
+    auto *panel = composer_->parentWidget();
+    panel->findChild<QPushButton *>("clearDraft")->setEnabled(active && !composer_->document()->isEmpty()
+        && !conversationSending_.contains(currentConversation_));
+    panel->findChild<QPushButton *>("restoreDraft")->setVisible(active && composer_->document()->isEmpty()
+        && clearedDrafts_.contains(currentConversation_));
     if (auto *start = composer_->parentWidget()->findChild<QPushButton *>("emptyNewChat"))
         start->setVisible(!saved);
     if (auto *details = composer_->parentWidget()->findChild<QPushButton *>("conversationTaskDetails"))
@@ -378,20 +490,31 @@ void MainWindow::refreshConversations(bool append)
 {
     if (!online_ || !conversationSearch_ || (append && !canLoadMoreConversations()))
         return;
+    if (conversationListInFlight_) {
+        if (!append)
+            conversationRefreshQueued_ = true;
+        return;
+    }
     const auto query = conversationSearch_->text().trimmed();
     QJsonObject params{{"limit", conversationPageSize}, {"query", query}};
     if (append)
         params.insert("before", conversationCursor_);
     const auto request = ++conversationRequest_;
     conversationLoading_ = true;
+    conversationListInFlight_ = true;
     auto *state = conversationList_->parentWidget()->findChild<QLabel *>("conversationHistoryState");
     if (conversationList_->count() == 0) {
         state->setText(tr("Loading conversations…"));
         state->show();
     }
     call("conversation.list", params, [this, request, append, query, state](const QJsonObject &data, const QString &error) {
-        if (request != conversationRequest_)
+        conversationListInFlight_ = false;
+        const bool refreshQueued = std::exchange(conversationRefreshQueued_, false);
+        if (request != conversationRequest_ || refreshQueued) {
+            if (refreshQueued)
+                refreshConversations();
             return;
+        }
         if (!error.isEmpty()) {
             conversationLoading_ = false;
             state->setText(tr("Conversation history could not load."));
@@ -419,11 +542,16 @@ void MainWindow::refreshConversations(bool append)
                     records.append(row->data(RecordRole).toJsonObject());
             }
         }
-        if (!append) {
-            conversationList_->clear();
-            conversationList_->setProperty("loadedQuery", query);
-        }
+        if (!append && conversationList_->property("loadedQuery").toString() != query)
+            conversationList_->setProperty("historyWindowMoved", false);
+        conversationList_->setProperty("loadedQuery", query);
         conversationList_->setProperty("historyPaged", append || keepTail);
+        QHash<QString, QListWidgetItem *> existing;
+        for (int index = 0; index < conversationList_->count(); ++index) {
+            auto *item = conversationList_->item(index);
+            existing.insert(item->data(IdRole).toString(), item);
+        }
+        int rowIndex = append ? conversationList_->count() : 0;
         for (const auto &value : records) {
             const auto row = value.toObject();
             const auto title = row.value("title").toString();
@@ -436,22 +564,43 @@ void MainWindow::refreshConversations(bool append)
                 age = seconds < 60 ? tr("now") : seconds < 3600 ? tr("%1m").arg(seconds / 60)
                     : seconds < 86400 ? tr("%1h").arg(seconds / 3600) : tr("%1d").arg(seconds / 86400);
             }
-            auto *item = new QListWidgetItem(age.isEmpty() ? title : tr("%1 · %2").arg(title, age), conversationList_);
-            item->setToolTip((title + QStringLiteral("\n") + status).toHtmlEscaped());
-            item->setData(IdRole, id);
-            item->setData(RecordRole, row);
-            item->setData(Qt::AccessibleTextRole, tr("%1 · %2").arg(title, status));
-            if (status == "ARCHIVED")
-                item->setText(tr("Archived · %1").arg(item->text()));
+            auto *item = existing.value(id);
+            if (append && item)
+                continue;
+            if (!item) {
+                item = new QListWidgetItem;
+                conversationList_->insertItem(rowIndex, item);
+            } else if (const auto previous = conversationList_->row(item); previous != rowIndex) {
+                conversationList_->insertItem(rowIndex, conversationList_->takeItem(previous));
+            }
+            const auto caption = age.isEmpty() ? title : tr("%1 · %2").arg(title, age);
+            if (item->text() != caption)
+                item->setText(caption);
+            if (item->data(RecordRole).toJsonObject() != row) {
+                item->setToolTip((title + QStringLiteral("\n") + status).toHtmlEscaped());
+                item->setData(IdRole, id);
+                item->setData(RecordRole, row);
+                item->setData(Qt::AccessibleTextRole, tr("%1 · %2").arg(title, status));
+            }
             if (!append && !focusedId.isEmpty() && id == focusedId)
                 conversationList_->setCurrentItem(item, QItemSelectionModel::NoUpdate);
+            ++rowIndex;
         }
+        while (conversationList_->count() > rowIndex)
+            delete conversationList_->takeItem(conversationList_->count() - 1);
+        const int excess = qMax(0, conversationList_->count() - conversationCacheLimit);
+        for (int index = 0; index < excess; ++index)
+            delete conversationList_->takeItem(append ? 0 : conversationList_->count() - 1);
+        if (append && excess)
+            conversationList_->setProperty("historyWindowMoved", true);
         updateConversationSelection();
-        scrollbar->setValue(scroll);
+        scrollbar->setValue(append ? qMax(0, scroll - excess) : scroll);
         if (!keepTail) {
             const auto next = data.value("next_before");
             conversationCursor_ = firstPage.size() == conversationPageSize && (!append || next != conversationCursor_)
                 ? next : QJsonValue{};
+        } else if (excess) {
+            conversationCursor_ = conversationList_->item(conversationList_->count() - 1)->data(IdRole).toString();
         }
         state->setText(conversationSearch_->text().trimmed().isEmpty() ? tr("No conversations yet.")
                                                                       : tr("No matching conversations."));
@@ -589,7 +738,7 @@ void MainWindow::navigateConversation(const QString &id)
     showPage(conversationsPage_);
 }
 
-void MainWindow::openConversation(const QString &id)
+void MainWindow::openConversation(const QString &id, TranscriptPage page)
 {
     if (!online_ || id.isEmpty())
         return;
@@ -600,6 +749,12 @@ void MainWindow::openConversation(const QString &id)
         conversation_ = {};
         conversationTasks_ = {};
         conversationBindings_ = {};
+        conversationBlockers_ = {};
+        transcriptRows_.clear();
+        transcriptBefore_ = {};
+        transcriptNewest_ = 0;
+        transcriptDetached_ = false;
+        transcriptRefreshQueued_ = false;
         const QSignalBlocker guard(composer_);
         composer_->setPlainText(conversationDrafts_.value(id));
         transcript_->clear();
@@ -607,38 +762,123 @@ void MainWindow::openConversation(const QString &id)
         conversationDetail_->setText(tr("Loading conversation…"));
         updateConversationAvailability();
     }
+    if (page != TranscriptPage::Latest && transcriptLoading_) {
+        transcriptRefreshQueued_ |= page == TranscriptPage::Newer;
+        return;
+    }
+    QJsonObject params{{"id", id}};
+    if (page == TranscriptPage::Older) {
+        if (!hasCursor(transcriptBefore_))
+            return;
+        params.insert("before", transcriptBefore_);
+    } else if (page == TranscriptPage::Newer) {
+        params.insert("after", QString::number(transcriptNewest_));
+    }
     const auto request = ++detailRequest_;
-    call("conversation.get", {{"id", id}}, [this, id, request](const QJsonObject &result, const QString &error) {
+    transcriptLoading_ = true;
+    updateConversationAvailability();
+    call("conversation.get", params, [this, id, request, page](const QJsonObject &result, const QString &error) {
         if (request != detailRequest_ || currentConversation_ != id)
             return;
+        transcriptLoading_ = false;
+        const bool queued = std::exchange(transcriptRefreshQueued_, false);
         if (!error.isEmpty()) {
+            if (result.value("code") == "NOT_FOUND") {
+                forgetConversation(id, true);
+                return;
+            }
             conversationDetail_->setText(error);
+            updateConversationAvailability();
             showStatus(error, true);
             return;
         }
         conversation_ = result.value("conversation").toObject();
-        conversationTasks_ = result.value("tasks").toArray();
+        const auto tasks = result.value("tasks").toArray();
+        if (page == TranscriptPage::Latest || (page == TranscriptPage::Newer && !tasks.isEmpty()))
+            conversationTasks_ = tasks;
         conversationBindings_ = result.value("bindings").toArray();
+        conversationBlockers_ = result.value("blockers").toArray();
         conversationTitle_->setText(conversation_.value("title").toString(tr("Conversation")));
+        applyTranscriptPage(result, page);
         updateConversationAvailability();
-        QStringList messages;
-        for (const auto &value : result.value("messages").toArray()) {
-            const auto row = value.toObject();
-            const auto role = row.value("role").toString();
-            messages.append((role == "USER" ? tr("You") : role) + "\n" + row.value("content").toString());
-        }
-        const auto text = messages.join(QStringLiteral("\n\n"));
-        if (transcript_->toPlainText() != text) {
-            const auto scroll = transcript_->verticalScrollBar()->value();
-            const bool following = scroll >= transcript_->verticalScrollBar()->maximum();
-            transcript_->setPlainText(text);
-            if (following)
-                transcript_->moveCursor(QTextCursor::End);
-            else
-                transcript_->verticalScrollBar()->setValue(scroll);
-        }
         updateConversationSummary();
+        if (queued || (page == TranscriptPage::Newer && result.value("has_more").toBool()
+                       && !result.value("messages").toArray().isEmpty()))
+            QTimer::singleShot(0, this, [this, id] {
+                if (currentConversation_ == id && pages_->currentWidget() == conversationsPage_)
+                    openConversation(id, TranscriptPage::Newer);
+            });
     });
+}
+
+void MainWindow::applyTranscriptPage(const QJsonObject &data, TranscriptPage page)
+{
+    QList<QJsonObject> incoming;
+    for (const auto &value : data.value("messages").toArray()) {
+        const auto row = value.toObject();
+        if (page != TranscriptPage::Older)
+            transcriptNewest_ = qMax(transcriptNewest_, row.value("ordinal").toInteger());
+        if (page == TranscriptPage::Latest || !transcriptRows_.contains(row))
+            incoming.append(row);
+    }
+    if (page != TranscriptPage::Newer)
+        transcriptBefore_ = data.value("next_before");
+    if (page == TranscriptPage::Newer && (incoming.isEmpty() || transcriptDetached_))
+        return;
+    if (page == TranscriptPage::Older && incoming.isEmpty())
+        return;
+    if (page == TranscriptPage::Latest && incoming == transcriptRows_) {
+        transcriptDetached_ = false;
+        return;
+    }
+    auto *scrollbar = transcript_->verticalScrollBar();
+    const auto previous = scrollbar->value();
+    const auto maximum = scrollbar->maximum();
+    const auto textFor = [this](const QList<QJsonObject> &rows) {
+        QStringList parts;
+        for (const auto &row : rows)
+            parts.append(displayedMessage(row, tr("You"), tr("Display shortened.")));
+        return parts.join(QStringLiteral("\n\n"));
+    };
+    const bool older = page == TranscriptPage::Older;
+    const bool replacing = page == TranscriptPage::Latest;
+    if (replacing) {
+        transcriptRows_ = incoming;
+        transcriptDetached_ = false;
+    } else if (older) {
+        transcriptRows_ = incoming + transcriptRows_;
+    } else {
+        transcriptRows_.append(incoming);
+    }
+    qsizetype blocks = 0;
+    for (const auto &row : transcriptRows_)
+        blocks += qMin<qsizetype>(400, row.value("content").toString().count(u'\n')) + 4;
+    bool trimmed = false;
+    while (transcriptRows_.size() > transcriptLimit || blocks > transcriptBlockLimit) {
+        const auto removed = older ? transcriptRows_.takeLast() : transcriptRows_.takeFirst();
+        blocks -= qMin<qsizetype>(400, removed.value("content").toString().count(u'\n')) + 4;
+        trimmed = true;
+    }
+    if (trimmed && older)
+        transcriptDetached_ = true;
+    if (trimmed && !older && !transcriptRows_.isEmpty())
+        transcriptBefore_ = QString::number(transcriptRows_.first().value("ordinal").toInteger());
+    if (replacing || trimmed) {
+        transcript_->setPlainText(textFor(transcriptRows_));
+    } else {
+        QTextCursor cursor(transcript_->document());
+        cursor.movePosition(older ? QTextCursor::Start : QTextCursor::End);
+        const auto text = textFor(incoming);
+        cursor.insertText(older ? text + QStringLiteral("\n\n")
+            : (transcript_->document()->isEmpty() ? QString{} : QStringLiteral("\n\n")) + text);
+    }
+    if (older) {
+        scrollbar->setValue(previous + qMax(0, scrollbar->maximum() - maximum));
+    } else if (previous >= maximum) {
+        transcript_->moveCursor(QTextCursor::End);
+    } else {
+        scrollbar->setValue(previous);
+    }
 }
 
 void MainWindow::updateConversationSummary()
@@ -664,6 +904,11 @@ void MainWindow::updateConversationSummary()
     const auto state = conversationTasks_.isEmpty() ? QString() : conversationTasks_.first().toObject().value("state").toString();
     if (!state.isEmpty())
         detail += QStringLiteral("\n") + tr("Latest task: %1").arg(state);
+    for (const auto &value : conversationBlockers_) {
+        const auto blocker = value.toObject();
+        detail += QStringLiteral("\n") + tr("%1 %2 · %3")
+            .arg(blocker.value("kind").toString(), blocker.value("id").toString(), blocker.value("state").toString());
+    }
     conversationDetail_->setText(detail);
 }
 
@@ -680,8 +925,9 @@ void MainWindow::conversationTaskDetails()
     auto *description = label(tr("Persisted local intake, repository bindings and routing state."), "lead");
     layout->addWidget(description);
     auto *details = new QPlainTextEdit(QString::fromUtf8(QJsonDocument(
-        QJsonObject{{"bindings", conversationBindings_}, {"tasks", conversationTasks_}})
+        QJsonObject{{"bindings", conversationBindings_}, {"tasks", conversationTasks_}, {"blockers", conversationBlockers_}})
         .toJson(QJsonDocument::Indented)));
+    details->setProperty("codeText", true);
     details->setAccessibleName(tr("Task and route details"));
     details->setReadOnly(true);
     layout->addWidget(details, 1);
@@ -694,11 +940,27 @@ void MainWindow::conversationTaskDetails()
 
 void MainWindow::cancelConversationTask()
 {
-    if (!online_ || conversationTasks_.isEmpty())
+    if (!online_)
         return;
     const auto id = currentConversation_;
-    const auto task = conversationTasks_.first().toObject().value("id");
-    if (task.toString().isEmpty())
+    QString task;
+    for (const auto &value : conversationBlockers_) {
+        const auto blocker = value.toObject();
+        if (blocker.value("kind") == "task" && blocker.value("state") == "WAITING_APPROVAL") {
+            task = blocker.value("id").toString();
+            break;
+        }
+    }
+    if (task.isEmpty()) {
+        for (const auto &value : conversationTasks_) {
+            const auto candidate = value.toObject();
+            if (candidate.value("state") == "WAITING_APPROVAL" || candidate.value("state") == "PROPOSED") {
+                task = candidate.value("id").toString();
+                break;
+            }
+        }
+    }
+    if (task.isEmpty())
         return;
     cancelTask_->setEnabled(false);
     call("conversation.cancel", {{"id", id}, {"task_id", task}},
@@ -738,9 +1000,14 @@ void MainWindow::editConversation(bool archive, const QJsonObject &record)
         params.insert("title", rename.textValue().trimmed());
     }
     call(archive ? "conversation.archive" : "conversation.rename", params,
-         [this, id](const QJsonObject &updated, const QString &error) {
+         [this, id, archive](const QJsonObject &updated, const QString &error) {
         if (!error.isEmpty()) {
             showError(error);
+            return;
+        }
+        if (archive) {
+            forgetConversation(id, false);
+            showStatus(tr("Conversation archived."));
             return;
         }
         for (int index = 0; index < conversationList_->count(); ++index) {
@@ -760,6 +1027,188 @@ void MainWindow::editConversation(bool archive, const QJsonObject &record)
     });
 }
 
+void MainWindow::clearCurrentDraft()
+{
+    const auto id = currentConversation_;
+    if (id.isEmpty() || composer_->isReadOnly() || conversationSending_.contains(id))
+        return;
+    if (clearedDrafts_.size() >= draftLimit && !clearedDrafts_.contains(id)) {
+        showError(tr("The undo buffer for cleared drafts is full."));
+        return;
+    }
+    clearedDrafts_.insert(id, composer_->toPlainText());
+    composer_->clear();
+    composer_->setFocus();
+}
+
+void MainWindow::restoreCurrentDraft()
+{
+    const auto id = currentConversation_;
+    if (id.isEmpty() || !composer_->document()->isEmpty() || composer_->isReadOnly())
+        return;
+    const auto draft = clearedDrafts_.take(id);
+    if (draft.isEmpty())
+        return;
+    composer_->setPlainText(draft);
+    composer_->moveCursor(QTextCursor::End);
+    composer_->setFocus();
+}
+
+void MainWindow::forgetConversation(const QString &id, bool deleted)
+{
+    if (deleted) {
+        conversationDrafts_.remove(id);
+        conversationRetryKeys_.remove(id);
+        conversationRetryContents_.remove(id);
+        clearedDrafts_.remove(id);
+    }
+    ++conversationRequest_;
+    for (int index = 0; index < conversationList_->count(); ++index) {
+        if (conversationList_->item(index)->data(IdRole).toString() == id) {
+            delete conversationList_->takeItem(index);
+            break;
+        }
+    }
+    if (id == currentConversation_) {
+        ++detailRequest_;
+        ++navigationRevision_;
+        currentConversation_.clear();
+        conversation_ = {};
+        conversationTasks_ = {};
+        conversationBindings_ = {};
+        conversationBlockers_ = {};
+        transcriptRows_.clear();
+        transcriptBefore_ = {};
+        transcriptNewest_ = 0;
+        transcriptLoading_ = false;
+        transcriptDetached_ = false;
+        transcriptRefreshQueued_ = false;
+        eventCursor_ = 0;
+        composer_->clear();
+        transcript_->clear();
+        conversationTitle_->setText(tr("Chat"));
+        conversationDetail_->setText(tr("Select a saved conversation or start a new chat."));
+        updateConversationAvailability();
+        updateConversationSelection();
+    }
+    refreshConversations();
+}
+
+void MainWindow::deleteConversationData(const QString &id, const QString &messageId,
+                                        std::function<void(bool)> onComplete)
+{
+    if (!online_ || id.isEmpty() || conversationSending_.contains(id) ||
+        conversationDeletes_.contains(id) || conversationDeletes_.size() >= 8) {
+        if (onComplete)
+            onComplete(false);
+        showError(tr("The conversation cannot be deleted while another change is pending."));
+        return;
+    }
+    conversationDeletes_.insert(id);
+    updateConversationAvailability();
+    const auto finish = [this, id, onComplete = std::move(onComplete)](bool success) {
+        conversationDeletes_.remove(id);
+        updateConversationAvailability();
+        if (onComplete)
+            onComplete(success);
+    };
+    QJsonObject params{{"id", id}};
+    if (!messageId.isEmpty())
+        params.insert("message_id", messageId);
+    const auto method = messageId.isEmpty() ? QStringLiteral("conversation.delete") : QStringLiteral("message.delete");
+    const auto navigation = navigationRevision_;
+    const auto section = pages_->currentWidget() == settingsPage_ ? settingsSection() : QString{};
+    call(method + QStringLiteral(".preview"), params,
+         [this, params, id, messageId, method, finish, navigation, section](const QJsonObject &preview, const QString &error) {
+        if (navigation != navigationRevision_ || (!section.isEmpty() && section != settingsSection())) {
+            finish(false);
+            return;
+        }
+        if (!error.isEmpty()) {
+            finish(false);
+            showError(error);
+            return;
+        }
+        if (preview.value("blocker_count").toInteger() > 0) {
+            QStringList blockers;
+            for (const auto &value : preview.value("blockers").toArray()) {
+                const auto row = value.toObject();
+                blockers.append(tr("%1 %2 · %3").arg(row.value("kind").toString(), row.value("id").toString(),
+                                                      row.value("state").toString()));
+            }
+            finish(false);
+            auto *notice = new QMessageBox(QMessageBox::Warning, tr("Deletion blocked"),
+                tr("Resolve the active tasks or runs before retrying.\n%1").arg(blockers.join(u'\n')),
+                QMessageBox::Close, this);
+            notice->setTextFormat(Qt::PlainText);
+            notice->setAttribute(Qt::WA_DeleteOnClose);
+            notice->open();
+            return;
+        }
+        const auto title = messageId.isEmpty() ? tr("Delete conversation") : tr("Delete submitted message");
+        const auto target = messageId.isEmpty() ? tr("Conversation %1").arg(id)
+            : tr("Message %1 in conversation %2").arg(messageId, id);
+        auto description =
+            tr("%1 · %2\nDelete %3 local message(s) and %4 task record(s)? Existing backups and provider copies may "
+               "retain content. Repository files are kept.")
+                .arg(target, preview.value("title").toString()).arg(preview.value("message_count").toInteger())
+                .arg(preview.value("task_count").toInteger());
+        QStringList automationIds;
+        if (messageId.isEmpty()) {
+            QStringList automationLabels;
+            for (const auto &value : preview.value("automations").toArray()) {
+                const auto row = value.toObject();
+                const auto automationId = row.value("id").toString();
+                if (automationId.isEmpty())
+                    continue;
+                automationIds.append(automationId);
+                automationLabels.append(tr("Automation %1 · %2").arg(automationId, row.value("name").toString()));
+            }
+            if (!automationIds.isEmpty()) {
+                description += QStringLiteral("\n\n") +
+                    tr("Delete %1 linked automation(s) and stop their schedules. Terminal run history is retained.")
+                        .arg(automationIds.size()) + QStringLiteral("\n") + automationLabels.join(u'\n');
+            }
+        }
+        auto *confirm = new QMessageBox(QMessageBox::Warning, title, description,
+                                         QMessageBox::Yes | QMessageBox::Cancel, this);
+        confirm->setObjectName("deleteDataConfirmation");
+        confirm->setTextFormat(Qt::PlainText);
+        confirm->button(QMessageBox::Yes)->setText(tr("Delete permanently"));
+        confirm->setDefaultButton(QMessageBox::Cancel);
+        confirm->setAttribute(Qt::WA_DeleteOnClose);
+        connect(confirm, &QMessageBox::finished, this,
+                [this, id, messageId, method, params, preview, finish, automationIds](int answer) {
+            if (answer != QMessageBox::Yes) {
+                finish(false);
+                return;
+            }
+            auto mutation = params;
+            mutation.insert("key", requestKey());
+            mutation.insert("revision", preview.value("revision"));
+            mutation.insert("token", preview.value("token"));
+            call(method, mutation, [this, id, messageId, finish, automationIds](const QJsonObject &, const QString &failure) {
+                if (!failure.isEmpty()) {
+                    finish(false);
+                    showError(failure);
+                    return;
+                }
+                if (messageId.isEmpty()) {
+                    forgetConversation(id, true);
+                    forgetAutomations(automationIds);
+                } else if (id == currentConversation_) {
+                    transcriptRows_.clear();
+                    transcript_->clear();
+                    openConversation(id);
+                }
+                finish(true);
+                showStatus(messageId.isEmpty() ? tr("Conversation deleted.") : tr("Submitted message deleted."));
+            });
+        });
+        confirm->open();
+    });
+}
+
 void MainWindow::sendMessage()
 {
     if (!send_->isEnabled())
@@ -772,12 +1221,16 @@ void MainWindow::sendMessage()
     }
     conversationSending_.insert(id);
     updateConversationAvailability();
-    call("conversation.send", {{"id", id}, {"content", content}, {"key", conversationRetryKeys_.value(id)}},
-         [this, id, content](const QJsonObject &, const QString &error) {
+    QJsonObject params{{"id", id}, {"content", content}, {"key", conversationRetryKeys_.value(id)}};
+    if (conversation_.value("revision").toInteger() > 0)
+        params.insert("revision", conversation_.value("revision"));
+    call("conversation.send", params, [this, id, content](const QJsonObject &result, const QString &error) {
         conversationSending_.remove(id);
         if (!error.isEmpty()) {
             updateConversationAvailability();
             showStatus(error, true);
+            if (id == currentConversation_ && result.value("code") == "CONFLICT")
+                openConversation(id);
             return;
         }
         conversationRetryContents_.remove(id);
@@ -790,8 +1243,10 @@ void MainWindow::sendMessage()
             }
         }
         if (id == currentConversation_) {
+            if (result.value("conversation_revision").isDouble())
+                conversation_.insert("revision", result.value("conversation_revision"));
             updateConversationAvailability();
-            openConversation(id);
+            openConversation(id, TranscriptPage::Newer);
         }
         showStatus(tr("Message saved. Review task status in the chat."));
         refreshConversations();
@@ -805,15 +1260,26 @@ void MainWindow::refreshConversationEvents()
         return;
     const auto id = currentConversation_;
     eventRequestPending_ = true;
-    call("conversation.events", {{"id", id}, {"after", qint64(eventCursor_)}, {"limit", 30}},
+    call("conversation.events", {{"id", id}, {"after", QString::number(eventCursor_)}, {"limit", 30}},
          [this, id](const QJsonObject &result, const QString &error) {
         eventRequestPending_ = false;
-        if (!error.isEmpty() || id != currentConversation_ || pages_->currentWidget() != conversationsPage_)
+        if (id != currentConversation_ || pages_->currentWidget() != conversationsPage_)
             return;
-        const auto next = quint64(qMax<qint64>(0, result.value("next_after").toInteger()));
+        if (!error.isEmpty()) {
+            if (result.value("code") == "NOT_FOUND")
+                forgetConversation(id, true);
+            return;
+        }
+        const auto cursor = result.value("next_after");
+        const auto next = cursor.isString() ? cursor.toString().toULongLong() : quint64(qMax<qint64>(0, cursor.toInteger()));
         if (next > eventCursor_) {
             eventCursor_ = next;
-            openConversation(id);
+            bool reset = false;
+            for (const auto &value : result.value("items").toArray()) {
+                const auto type = value.toObject().value("type").toString();
+                reset |= type == "MESSAGE_DELETED" || type == "CONVERSATION_ARCHIVED" || type == "PROPOSAL_CANCELLED";
+            }
+            openConversation(id, reset ? TranscriptPage::Latest : TranscriptPage::Newer);
         }
     });
 }

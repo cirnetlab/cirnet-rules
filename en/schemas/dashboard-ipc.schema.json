@@ -2,6 +2,54 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CGACP local stdio protocol",
   "$defs": {
+    "recordId": {"type": "string", "pattern": "^[1-9][0-9]{0,18}$"},
+    "pageCursor": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,18})$"},
+    "mutationKey": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,80}$"},
+    "operationId": {"type": "string", "pattern": "^operation-[0-9a-f]{16}-[1-9][0-9]{0,19}$"},
+    "backupName": {"type": "string", "pattern": "^snapshot-[0-9A-Fa-f]{32}\\.sqlite3$"},
+    "count": {"type": "integer", "minimum": 0},
+    "runtimeError": {
+      "type": "object", "additionalProperties": false, "required": ["code", "message"],
+      "properties": {
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "details": {"type": "object"}
+      }
+    },
+    "storageOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation_id", "kind", "state", "progress", "result", "error"],
+      "properties": {
+        "operation_id": {"$ref": "#/$defs/operationId"},
+        "kind": {"enum": ["SCAN", "BACKUP", "VERIFY", "COMPACT"]},
+        "state": {"enum": ["QUEUED", "RUNNING", "CANCEL_REQUESTED", "CANCELLED", "SUCCEEDED", "FAILED"]},
+        "progress": {
+          "type": "object", "additionalProperties": false, "required": ["phase", "completed", "total"],
+          "properties": {
+            "phase": {"enum": ["QUEUED", "MEASURE_FILES", "MEASURE_SQLITE", "COPY_PAGES", "VERIFY_SNAPSHOT", "VERIFY_SQLITE", "CHECK_MAINTENANCE", "COMPACT_SQLITE"]},
+            "completed": {"$ref": "#/$defs/count"},
+            "total": {"oneOf": [{"$ref": "#/$defs/count"}, {"type": "null"}]}
+          }
+        },
+        "result": {"type": ["object", "null"]},
+        "error": {"oneOf": [{"$ref": "#/$defs/runtimeError"}, {"type": "null"}]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "SUCCEEDED"}}},
+          "then": {"properties": {"result": {"type": "object"}, "error": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"state": {"enum": ["FAILED", "CANCELLED"]}}},
+          "then": {"properties": {"result": {"type": "null"}, "error": {"$ref": "#/$defs/runtimeError"}}}
+        },
+        {
+          "if": {"properties": {"state": {"enum": ["QUEUED", "RUNNING", "CANCEL_REQUESTED"]}}},
+          "then": {"properties": {"result": {"type": "null"}, "error": {"type": "null"}}}
+        }
+      ]
+    },
     "repositoryLayout": {
       "type": "object",
       "additionalProperties": false,
@@ -32,6 +80,16 @@
         "theme": {"enum": ["dark", "light", "system"]},
         "density": {"enum": ["comfortable", "compact"]},
         "text_scale": {"type": "integer", "minimum": 85, "maximum": 150},
+        "appearance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "accent": {"enum": ["cirnet", "cobalt"]},
+            "ui_font": {"enum": ["system", "monospace"]},
+            "content_scale": {"oneOf": [{"const": 0}, {"type": "integer", "minimum": 85, "maximum": 150}]},
+            "code_scale": {"oneOf": [{"const": 0}, {"type": "integer", "minimum": 85, "maximum": 150}]}
+          }
+        },
         "sidebar_width": {"type": "integer", "minimum": 210, "maximum": 360},
         "sidebar_collapsed": {"type": "boolean"},
         "reduced_motion": {"type": "boolean", "default": false},
@@ -80,6 +138,89 @@
               }
             }
           }
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["conversation.delete.preview", "message.delete.preview", "conversation.delete", "message.delete", "conversation.unarchive"]}}},
+          "then": {
+            "required": ["params"],
+            "properties": {
+              "params": {
+                "type": "object", "additionalProperties": false, "required": ["id"],
+                "properties": {
+                  "id": {"$ref": "#/$defs/recordId"},
+                  "message_id": {"$ref": "#/$defs/recordId"},
+                  "revision": {"type": "integer", "minimum": 1},
+                  "token": {"type": "string", "minLength": 1, "maxLength": 512},
+                  "key": {"$ref": "#/$defs/mutationKey"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["message.delete.preview", "message.delete"]}}},
+          "then": {"properties": {"params": {"required": ["message_id"]}}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["conversation.delete", "message.delete"]}}},
+          "then": {"properties": {"params": {"required": ["revision", "token", "key"]}}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "conversation.unarchive"}}},
+          "then": {"properties": {"params": {"required": ["revision"]}}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "conversation.get"}}},
+          "then": {"properties": {"params": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": {"$ref": "#/$defs/recordId"},
+              "before": {"$ref": "#/$defs/pageCursor"},
+              "after": {"$ref": "#/$defs/pageCursor"},
+              "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+            },
+            "not": {"required": ["before", "after"]}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "automation.delete"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "required": ["id", "revision"], "additionalProperties": false,
+            "properties": {
+              "id": {"$ref": "#/$defs/recordId"},
+              "revision": {"type": "integer", "minimum": 1}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["operation.get", "operation.cancel"]}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "required": ["operation_id"], "additionalProperties": false,
+            "properties": {"operation_id": {"$ref": "#/$defs/operationId"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["storage.scan", "storage.backup", "storage.backup.start"]}}},
+          "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["storage.verify", "storage.verify.start"]}}},
+          "then": {"properties": {"params": {
+            "type": "object", "additionalProperties": false,
+            "properties": {"backup": {"oneOf": [{"$ref": "#/$defs/backupName"}, {"type": "null"}]}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "storage.compact.start"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "additionalProperties": false,
+            "required": ["expected_page_count", "expected_free_pages"],
+            "properties": {
+              "expected_page_count": {"$ref": "#/$defs/count"},
+              "expected_free_pages": {"$ref": "#/$defs/count"}
+            }
+          }}}
         }
       ],
       "properties": {
@@ -108,6 +249,8 @@
         "ok",
         "result"
       ],
+      "if": {"properties": {"result": {"type": "object", "required": ["operation_id"]}}},
+      "then": {"properties": {"result": {"$ref": "#/$defs/storageOperation"}}},
       "properties": {
         "v": {
           "const": 1
@@ -140,22 +283,7 @@
         "ok": {
           "const": false
         },
-        "error": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "code",
-            "message"
-          ],
-          "properties": {
-            "code": {
-              "type": "string"
-            },
-            "message": {
-              "type": "string"
-            }
-          }
-        }
+        "error": {"$ref": "#/$defs/runtimeError"}
       }
     }
   ]

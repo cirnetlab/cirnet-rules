@@ -3,6 +3,8 @@
 mod application_identity;
 #[path = "../dashboard/mod.rs"]
 mod dashboard;
+#[path = "../dashboard/operations.rs"]
+mod operations;
 #[cfg(test)]
 #[path = "../test_support.rs"]
 mod test_support;
@@ -12,6 +14,7 @@ use dashboard::{
     automations, catalog, preferences, sessions,
     storage::{self, AppError, Database},
 };
+use operations::Operations;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -50,7 +53,8 @@ fn info() -> Value {
         "native_agent":{"codex":"HANDOFF_ONLY","claude":"HANDOFF_ONLY","antigravity":"HANDOFF_ONLY"},
         "execution_enforcement":{"READ_ONLY_BUILTIN":"AVAILABLE","TRUSTED_LOCAL_PROCESS":"LIMITED",
             "ISOLATED_EXECUTION":"BLOCKED","authenticated_independent_review":"BLOCKED"},
-        "scheduler":"runtime while running; manual --scheduler supports a separate foreground process"
+        "scheduler":"runtime while running; manual --scheduler supports a separate foreground process",
+        "storage_jobs":operations::limits()
     })
 }
 
@@ -61,7 +65,7 @@ fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value, App
         Some("storage") => storage::dispatch(db, method, params),
         Some("preferences") => preferences::dispatch(db, method, params),
         Some("legacy") => dashboard::legacy::dispatch(db, method, params),
-        Some("conversation" | "events") => sessions::dispatch(db, method, params),
+        Some("conversation" | "events" | "message") => sessions::dispatch(db, method, params),
         Some("automation") => automations::dispatch(db, method, params),
         _ => Err(AppError::new(
             "METHOD_NOT_FOUND",
@@ -78,8 +82,70 @@ fn valid_id(value: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
 }
 
-fn reply(db: &mut Database, bytes: &[u8]) -> Value {
-    let error = |id: &str, code: &str, message: &str| json!({"v":PROTOCOL,"id":id,"ok":false,"error":{"code":code,"message":message}});
+fn envelope(id: &str, outcome: Result<Value, AppError>) -> Value {
+    match outcome {
+        Ok(result) => json!({"v":PROTOCOL,"id":id,"ok":true,"result":result}),
+        Err(issue) => json!({"v":PROTOCOL,"id":id,"ok":false,"error":issue.wire()}),
+    }
+}
+
+struct Trace {
+    remaining: usize,
+    lines: Option<mpsc::SyncSender<String>>,
+}
+
+impl Trace {
+    fn new() -> Self {
+        let enabled = env::var_os("CGACP_TRACE_IPC").is_some_and(|value| value == "1");
+        let lines = if enabled {
+            let (sender, receiver) = mpsc::sync_channel::<String>(64);
+            thread::spawn(move || {
+                for line in receiver {
+                    if writeln!(io::stderr().lock(), "{line}").is_err() {
+                        break;
+                    }
+                }
+            });
+            Some(sender)
+        } else {
+            None
+        };
+        Self {
+            remaining: 2048,
+            lines,
+        }
+    }
+
+    fn request(
+        &mut self,
+        id: &str,
+        method: &str,
+        queued: Duration,
+        execution: Duration,
+        pending: usize,
+    ) {
+        if let Some(lines) = &self.lines
+            && self.remaining > 0
+        {
+            self.remaining -= 1;
+            let _ = lines.try_send(format!(
+                "cgacp-ipc id={id} method={method} queued_us={} dispatch_us={} storage_pending={pending}",
+                queued.as_micros(), execution.as_micros(),
+            ));
+        }
+    }
+}
+
+fn reply(
+    db: &mut Database,
+    operations: &mut Operations,
+    trace: &mut Trace,
+    bytes: &[u8],
+    enqueued: Instant,
+) -> Option<Value> {
+    let started = Instant::now();
+    let error =
+        |id: &str, code, message: &str| Some(envelope(id, Err(AppError::new(code, message))));
     let Ok(request) = serde_json::from_slice::<Request>(bytes) else {
         return error(
             "",
@@ -104,9 +170,35 @@ fn reply(db: &mut Database, bytes: &[u8]) -> Value {
             "Expected a method and object parameters",
         );
     }
-    match dispatch(db, &request.method, request.params) {
-        Ok(result) => json!({"v":PROTOCOL,"id":request.id,"ok":true,"result":result}),
-        Err(issue) => error(&request.id, issue.code, &issue.message),
+    let legacy = matches!(request.method.as_str(), "storage.backup" | "storage.verify");
+    let Request {
+        id, method, params, ..
+    } = request;
+    let outcome = match method.as_str() {
+        "storage.scan"
+        | "storage.backup"
+        | "storage.verify"
+        | "storage.backup.start"
+        | "storage.verify.start"
+        | "storage.compact.start" => {
+            operations.start(&method, params, legacy.then_some(id.as_str()))
+        }
+        "operation.get" | "operation.cancel" => {
+            operations.inspect(params, method == "operation.cancel")
+        }
+        _ => dispatch(db, &method, params),
+    };
+    trace.request(
+        &id,
+        &method,
+        started.duration_since(enqueued),
+        started.elapsed(),
+        operations.pending(),
+    );
+    if legacy && outcome.is_ok() {
+        None
+    } else {
+        Some(envelope(&id, outcome))
     }
 }
 
@@ -141,6 +233,10 @@ fn frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
 }
 
 fn stdio(db: &mut Database) -> io::Result<()> {
+    let nonce = db.operation_nonce().map_err(io::Error::other)?;
+    let mut operations = Operations::new(db.data_dir().to_owned(), &nonce)?;
+    let scheduler = LocalScheduler::start(db.data_dir().to_owned())?;
+    let mut trace = Trace::new();
     let (sender, requests) = mpsc::sync_channel(16);
     thread::spawn(move || {
         let stdin = io::stdin();
@@ -148,7 +244,7 @@ fn stdio(db: &mut Database) -> io::Result<()> {
         loop {
             match frame(&mut input) {
                 Ok(Some(bytes)) => {
-                    if sender.send(Ok(bytes)).is_err() {
+                    if sender.send(Ok((Instant::now(), bytes))).is_err() {
                         break;
                     }
                 }
@@ -174,41 +270,51 @@ fn stdio(db: &mut Database) -> io::Result<()> {
         })();
         let _ = report.send(result);
     });
-    let mut last_tick = Instant::now() - TICK;
     loop {
         if let Ok(result) = delivery.try_recv() {
             return result;
         }
-        if last_tick.elapsed() >= TICK {
-            tick(db);
-            last_tick = Instant::now();
+        for (id, outcome) in operations.reap() {
+            send(&responses, envelope(&id, outcome))?;
         }
-        match requests.recv_timeout(TICK.saturating_sub(last_tick.elapsed())) {
-            Ok(Ok(bytes)) => {
-                let response = reply(db, &bytes);
-                let mut serialized = serde_json::to_vec(&response)?;
-                if serialized.len() > MAX_FRAME {
-                    serialized = serde_json::to_vec(
-                        &json!({"v":PROTOCOL,"id":response["id"],"ok":false,
-                        "error":{"code":"RESPONSE_LIMIT","message":"Use pagination or a narrower request"}}),
-                    )?;
+        let interval = if operations.busy() {
+            Duration::from_millis(5)
+        } else {
+            TICK
+        };
+        match requests.recv_timeout(interval) {
+            Ok(Ok((enqueued, bytes))) => {
+                if let Some(response) = reply(db, &mut operations, &mut trace, &bytes, enqueued) {
+                    send(&responses, response)?;
                 }
-                serialized.push(b'\n');
-                responses
-                    .try_send(serialized)
-                    .map_err(|error| match error {
-                        mpsc::TrySendError::Full(_) => io::Error::new(
-                            io::ErrorKind::WouldBlock,
-                            "Operator response queue exceeded its bound",
-                        ),
-                        mpsc::TrySendError::Disconnected(_) => {
-                            io::Error::new(io::ErrorKind::BrokenPipe, "Operator channel closed")
-                        }
-                    })?;
             }
             Ok(Err(issue)) => return Err(issue),
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => {
+                // A one-shot stdio caller may close stdin before reading its legacy response.
+                let until = Instant::now() + Duration::from_secs(2);
+                while operations.has_deferred() && Instant::now() < until {
+                    for (id, outcome) in operations.reap() {
+                        send(&responses, envelope(&id, outcome))?;
+                    }
+                    if operations.has_deferred() {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                }
+                for id in operations.take_deferred() {
+                    send(
+                        &responses,
+                        envelope(
+                            &id,
+                            Err(AppError::new(
+                                "OPERATION_OUTCOME_UNKNOWN",
+                                "The operator channel closed before the storage outcome was confirmed.",
+                            )),
+                        ),
+                    )?;
+                }
+                drop(operations);
+                drop(scheduler);
                 drop(responses);
                 return delivery.recv_timeout(Duration::from_secs(2)).map_err(
                     |error| match error {
@@ -222,6 +328,66 @@ fn stdio(db: &mut Database) -> io::Result<()> {
                         ),
                     },
                 )?;
+            }
+        }
+    }
+}
+
+fn send(responses: &mpsc::SyncSender<Vec<u8>>, response: Value) -> io::Result<()> {
+    let mut serialized = serde_json::to_vec(&response)?;
+    if serialized.len() > MAX_FRAME {
+        serialized = serde_json::to_vec(&json!({"v":PROTOCOL,"id":response["id"],"ok":false,
+            "error":{"code":"RESPONSE_LIMIT","message":"Use pagination or a narrower request"}}))?;
+    }
+    serialized.push(b'\n');
+    // A slow reader applies backpressure through both bounded queues.
+    responses
+        .send(serialized)
+        .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "Operator channel closed"))
+}
+
+struct LocalScheduler {
+    stop: mpsc::Sender<()>,
+    worker: Option<thread::JoinHandle<()>>,
+}
+
+impl LocalScheduler {
+    fn start(data_dir: PathBuf) -> io::Result<Self> {
+        let (stop, stopped) = mpsc::channel();
+        let worker = thread::Builder::new()
+            .name("cgacp-scheduler".into())
+            .spawn(move || {
+                let mut db = match Database::open(&data_dir) {
+                    Ok(db) => db,
+                    Err(error) => {
+                        eprintln!("Scheduler initialization failed: {}", error.code);
+                        return;
+                    }
+                };
+                loop {
+                    tick(&mut db);
+                    if stopped.recv_timeout(TICK) != Err(mpsc::RecvTimeoutError::Timeout) {
+                        break;
+                    }
+                }
+            })?;
+        Ok(Self {
+            stop,
+            worker: Some(worker),
+        })
+    }
+}
+
+impl Drop for LocalScheduler {
+    fn drop(&mut self) {
+        let _ = self.stop.send(());
+        if let Some(worker) = self.worker.take() {
+            let until = Instant::now() + Duration::from_secs(1);
+            while !worker.is_finished() && Instant::now() < until {
+                thread::sleep(Duration::from_millis(10));
+            }
+            if worker.is_finished() {
+                let _ = worker.join();
             }
         }
     }

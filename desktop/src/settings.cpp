@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "build_info.h"
 #include "notification_center.h"
+#include "settings_panels.h"
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -50,6 +51,19 @@ void selectData(QComboBox *combo, const QString &data)
 {
     if (const int index = combo->findData(data); index >= 0)
         combo->setCurrentIndex(index);
+}
+
+void selectScale(QComboBox *combo, int scale)
+{
+    if (const int index = combo->findData(scale); index >= 0)
+        combo->setCurrentIndex(index);
+    else
+        combo->setCurrentIndex(0);
+}
+
+void setPreferenceRevert(QWidget *page, bool visible)
+{
+    page->findChild<QPushButton *>("preferencesRevert")->setVisible(visible);
 }
 
 QString themeMode(const QButtonGroup &choices)
@@ -293,6 +307,63 @@ QWidget *MainWindow::makeSettings()
     addSettingRow(*rows, 1, tr("Text &size"), tr("Scale text throughout the desktop."), textScale_);
     addSettingRow(*rows, 2, tr("&Reduced motion"), tr("Skip motion effects while keeping visual feedback."), reducedMotion_);
     appearanceLayout->addWidget(layoutPanel);
+
+    appearanceLayout->addWidget(label(tr("Advanced appearance"), "sectionTitle"));
+    auto *advancedPanel = settingsGroup();
+    auto *advanced = new QGridLayout(advancedPanel);
+    advanced->setContentsMargins(12, 12, 12, 12);
+    advanced->setHorizontalSpacing(12);
+    advanced->setVerticalSpacing(10);
+    advanced->setColumnStretch(0, 1);
+    accentChoice_ = new QComboBox;
+    accentChoice_->setObjectName("accentChoice");
+    accentChoice_->setAccessibleName(tr("Accent"));
+    accentChoice_->addItem(tr("CIRNET teal"), "cirnet");
+    accentChoice_->addItem(tr("Cobalt blue"), "cobalt");
+    uiFontChoice_ = new QComboBox;
+    uiFontChoice_->setObjectName("uiFontChoice");
+    uiFontChoice_->setAccessibleName(tr("Interface font"));
+    uiFontChoice_->addItem(tr("System"), "system");
+    uiFontChoice_->addItem(tr("Monospace"), "monospace");
+    const auto scaleOptions = [this](const char *name, const QString &title) {
+        auto *control = new QComboBox;
+        control->setObjectName(QLatin1StringView(name));
+        control->setAccessibleName(title);
+        control->addItem(tr("Follow interface"), 0);
+        for (int scale = 85; scale <= 150; scale += 5)
+            control->addItem(QString::number(scale) + '%', scale);
+        return control;
+    };
+    contentScaleChoice_ = scaleOptions("contentScaleChoice", tr("Conversation text size"));
+    codeScaleChoice_ = scaleOptions("codeScaleChoice", tr("Code text size"));
+    addSettingRow(*advanced, 0, tr("&Accent"), tr("Choose a contrast-checked CGACP palette."), accentChoice_);
+    addSettingRow(*advanced, 1, tr("Interface &font"), tr("Change the font used by the desktop."), uiFontChoice_);
+    addSettingRow(*advanced, 2, tr("&Conversation text size"), tr("Scale the transcript and composer independently."), contentScaleChoice_);
+    addSettingRow(*advanced, 3, tr("Code text si&ze"), tr("Scale monospaced diagnostics and structured details."), codeScaleChoice_);
+    appearanceLayout->addWidget(advancedPanel);
+    auto *resetAppearance = new QPushButton(tr("Reset appearance"));
+    resetAppearance->setObjectName("resetAppearance");
+    appearanceLayout->addWidget(resetAppearance, 0, Qt::AlignLeft);
+    connect(resetAppearance, &QPushButton::clicked, this, [this] {
+        const QSignalBlocker themeSignals(themeChoice_);
+        const QSignalBlocker densitySignals(densityChoice_);
+        const QSignalBlocker scaleSignals(textScale_);
+        const QSignalBlocker motionSignals(reducedMotion_);
+        const QSignalBlocker accentSignals(accentChoice_);
+        const QSignalBlocker fontSignals(uiFontChoice_);
+        const QSignalBlocker contentSignals(contentScaleChoice_);
+        const QSignalBlocker codeSignals(codeScaleChoice_);
+        selectTheme(*themeChoice_, "dark");
+        selectData(densityChoice_, "comfortable");
+        textScale_->setValue(100);
+        reducedMotion_->setChecked(false);
+        accentChoice_->setCurrentIndex(0);
+        uiFontChoice_->setCurrentIndex(0);
+        contentScaleChoice_->setCurrentIndex(0);
+        codeScaleChoice_->setCurrentIndex(0);
+        applyAppearance();
+        schedulePreferencesSave();
+    });
     auto *reset = new QPushButton(tr("Reset layout"));
     reset->setObjectName("resetLayout");
     appearanceLayout->addWidget(reset, 0, Qt::AlignLeft);
@@ -304,7 +375,7 @@ QWidget *MainWindow::makeSettings()
         applyingPreferences_ = false;
         schedulePreferencesSave();
     });
-    section(tr("Appearance"), "appearance", tr("theme density text size reduced motion reset layout system light dark"),
+    section(tr("Appearance"), "appearance", tr("theme density text size reduced motion reset layout system light dark accent font"),
             scrollPanel(appearance));
     section(tr("Repositories"), "repositories", tr("binding folder path worktree relink archive"), repositoriesPage_);
 
@@ -333,6 +404,7 @@ QWidget *MainWindow::makeSettings()
         auto *body = new QVBoxLayout(&dialog);
         body->addWidget(label(tr("Review connection and capability information before copying."), "lead"));
         auto *text = new QPlainTextEdit;
+        text->setProperty("codeText", true);
         text->setReadOnly(true);
         const auto state = online_ ? tr("Connected") : connecting_ ? tr("Connecting") : tr("Disconnected");
         text->setPlainText(tr("CGACP %1\nRuntime: %2\n%3")
@@ -349,6 +421,53 @@ QWidget *MainWindow::makeSettings()
         dialog.exec();
     });
     section(tr("Agents & Runtime"), "runtime", tr("connection reconnect diagnostics capability"), scrollPanel(runtime));
+
+    auto *configuration = new QWidget;
+    configuration->setObjectName("configurationPage");
+    auto *configurationLayout = new QVBoxLayout(configuration);
+    configurationLayout->addWidget(label(tr("Configuration"), "heading"));
+    auto *controlsPanel = settingsGroup();
+    auto *configurationRows = new QGridLayout(controlsPanel);
+    configurationRows->setColumnStretch(0, 1);
+    auto *agentInspect = new QComboBox;
+    agentInspect->setObjectName("configurationAdapter");
+    agentInspect->setAccessibleName(tr("Inspect adapter"));
+    agentInspect->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    agentInspect->setMinimumContentsLength(14);
+    addSettingRow(*configurationRows, 0, tr("Inspect &adapter"),
+                  tr("View the capability reported by the local runtime."), agentInspect);
+    auto *capabilityDetails = label({}, "configurationCapability");
+    capabilityDetails->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    configurationRows->addWidget(capabilityDetails, 1, 0, 1, 2);
+    auto *limits = label({}, "configurationLimits");
+    limits->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    configurationRows->addWidget(limits, 2, 0, 1, 2);
+    configurationLayout->addWidget(controlsPanel);
+    configurationLayout->addWidget(label(tr("The desktop requests local handoff. Approval, scope, and execution permissions come from runtime policy and task grants."), "lead"));
+    configurationLayout->addWidget(label(tr("Native execution, provider settings, and global Agent configuration are unavailable here."), "meta"));
+    auto *configurationDiagnostics = new QPushButton(tr("Diagnostics"));
+    configurationDiagnostics->setObjectName("configurationDiagnostics");
+    configurationLayout->addWidget(configurationDiagnostics, 0, Qt::AlignLeft);
+    connect(configurationDiagnostics, &QPushButton::clicked, diagnostics, &QPushButton::click);
+    connect(agentInspect, &QComboBox::currentIndexChanged, this, [this, capabilityDetails, agentInspect] {
+        const auto native = runtimeInfo_.value("native_agent").toObject();
+        const auto adapter = agentInspect->currentText();
+        capabilityDetails->setText(tr("Requested: Local handoff\nEffective: %1\nSource: local runtime")
+            .arg(online_ ? native.value(adapter).toString(tr("Unavailable")) : tr("Unavailable")));
+    });
+    configurationLayout->addStretch();
+    section(tr("Configuration"), "configuration", tr("agent profile approval sandbox scope permission"), scrollPanel(configuration));
+
+    const SettingsRequest request = [this](const QString &method, QJsonObject params, RuntimeClient::Reply reply) {
+        call(method, std::move(params), std::move(reply));
+    };
+    section(tr("Storage"), "storage", tr("disk backup verify compact measure data folder cleanup"),
+            scrollPanel(makeStorageSettings(client_, request, [this] { selectSettingsSection("archived"); })));
+    section(tr("Archived chats"), "archived", tr("conversation search unarchive restore delete"),
+            makeArchivedChats(request, [this] { return repositories_; }, [this] { refreshConversations(); },
+            [this](const QString &id, std::function<void(bool)> complete) {
+                deleteConversationData(id, {}, std::move(complete));
+            }));
 
     auto *notices = new QWidget;
     auto *noticesLayout = new QVBoxLayout(notices);
@@ -395,7 +514,23 @@ QWidget *MainWindow::makeSettings()
     preferencesRetry_->setObjectName("preferencesRetry");
     preferencesRetry_->hide();
     saveRow->addWidget(preferencesRetry_);
+    auto *preferencesRevert = new QPushButton(tr("Revert unsaved changes"));
+    preferencesRevert->setObjectName("preferencesRevert");
+    preferencesRevert->hide();
+    saveRow->addWidget(preferencesRevert);
     layout->addLayout(saveRow);
+    connect(preferencesRevert, &QPushButton::clicked, this, [this, preferencesRevert] {
+        if (preferencesSaving_ || preferencesLoading_)
+            return;
+        preferencesTimer_->stop();
+        preferencesDirty_ = false;
+        preferencesRetryRequired_ = false;
+        applyPreferences(savedPreferences_);
+        preferencesStatus_->hide();
+        preferencesRetry_->hide();
+        preferencesRevert->hide();
+        loadPreferences();
+    });
     connect(preferencesRetry_, &QPushButton::clicked, this, [this] {
         preferencesRetryRequired_ = false;
         loadPreferences();
@@ -452,10 +587,15 @@ QWidget *MainWindow::makeSettings()
         target->setFocus(Qt::ShortcutFocusReason);
     });
     const auto visualChange = [this] {
-        theme_->apply(themeMode(*themeChoice_), densityChoice_->currentData().toString(),
-                      textScale_->value());
-        notifications_->setLevel(notificationChoice_->currentData().toString());
-        notifications_->setReducedMotion(reducedMotion_->isChecked());
+        applyAppearance();
+        schedulePreferencesSave();
+    };
+    auto *previewTimer = new QTimer(page);
+    previewTimer->setSingleShot(true);
+    previewTimer->setInterval(45);
+    connect(previewTimer, &QTimer::timeout, this, &MainWindow::applyAppearance);
+    const auto queuePreview = [this, previewTimer] {
+        previewTimer->start();
         schedulePreferencesSave();
     };
     connect(themeChoice_, &QButtonGroup::buttonToggled, this, [visualChange](QAbstractButton *, bool checked) {
@@ -463,7 +603,9 @@ QWidget *MainWindow::makeSettings()
             visualChange();
     });
     connect(densityChoice_, &QComboBox::currentIndexChanged, this, visualChange);
-    connect(textScale_, &QSpinBox::valueChanged, this, visualChange);
+    connect(textScale_, &QSpinBox::valueChanged, this, queuePreview);
+    for (auto *control : {accentChoice_, uiFontChoice_, contentScaleChoice_, codeScaleChoice_})
+        connect(control, &QComboBox::currentIndexChanged, this, queuePreview);
     connect(notificationChoice_, &QComboBox::currentIndexChanged, this, visualChange);
     connect(reducedMotion_, &QCheckBox::toggled, this, visualChange);
     return page;
@@ -539,6 +681,22 @@ void MainWindow::updateRuntimeDetails()
         capability += QStringLiteral("\n\n") + tr("Execution controls: %1").arg(details.join(QStringLiteral("\n")));
     }
     runtimeCapabilities_->setText(capability);
+    auto *agentInspect = settingsPage_->findChild<QComboBox *>("configurationAdapter");
+    auto *capabilityDetails = settingsPage_->findChild<QLabel *>("configurationCapability");
+    const QSignalBlocker inspectSignals(agentInspect);
+    const auto selectedAdapter = agentInspect->currentText();
+    agentInspect->clear();
+    agentInspect->addItems(native.keys());
+    agentInspect->setCurrentText(selectedAdapter);
+    agentInspect->setEnabled(!native.isEmpty());
+    capabilityDetails->setText(tr("Requested: Local handoff\nEffective: %1\nSource: local runtime")
+        .arg(native.value(agentInspect->currentText()).toString(tr("Unavailable"))));
+    const auto storageLimits = online_ ? runtimeInfo_.value("storage_jobs").toObject() : QJsonObject{};
+    auto *limits = settingsPage_->findChild<QLabel *>("configurationLimits");
+    limits->setText(storageLimits.isEmpty() ? tr("Storage worker limits are unavailable.")
+        : tr("Storage: %1 worker(s), %2 admitted operations, %3 retained results, %4 s execution budget.")
+            .arg(storageLimits.value("workers").toInt()).arg(storageLimits.value("active_limit").toInt())
+            .arg(storageLimits.value("retained_limit").toInt()).arg(storageLimits.value("deadline_seconds").toInt()));
     aboutDetails_->setText(tr("%1\nApplication %2\nRelease %3\n\n%4")
                               .arg(QStringLiteral(CGACP_PRODUCT_GENERATION), QStringLiteral(CGACP_APP_VERSION),
                                    QStringLiteral(CGACP_RELEASE_NAME), capability));
@@ -551,8 +709,23 @@ QJsonObject MainWindow::preferenceSettings() const
             {"text_scale", textScale_->value()}, {"sidebar_width", sidebarWidth_},
             {"sidebar_collapsed", sidebarCollapsed_},
             {"reduced_motion", reducedMotion_->isChecked()},
+            {"appearance", QJsonObject{{"accent", accentChoice_->currentData().toString()},
+                                       {"ui_font", uiFontChoice_->currentData().toString()},
+                                       {"content_scale", contentScaleChoice_->currentData().toInt()},
+                                       {"code_scale", codeScaleChoice_->currentData().toInt()}}},
             {"repository_layout", repoLayout.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(repoLayout)},
             {"notification_level", notificationChoice_->currentData().toString()}};
+}
+
+void MainWindow::applyAppearance()
+{
+    const QJsonObject appearance{{"accent", accentChoice_->currentData().toString()},
+                                 {"ui_font", uiFontChoice_->currentData().toString()},
+                                 {"content_scale", contentScaleChoice_->currentData().toInt()},
+                                 {"code_scale", codeScaleChoice_->currentData().toInt()}};
+    theme_->apply(themeMode(*themeChoice_), densityChoice_->currentData().toString(), textScale_->value(), appearance);
+    notifications_->setLevel(notificationChoice_->currentData().toString());
+    notifications_->setReducedMotion(reducedMotion_->isChecked());
 }
 
 void MainWindow::applyPreferences(const QJsonObject &settings)
@@ -563,19 +736,25 @@ void MainWindow::applyPreferences(const QJsonObject &settings)
     const QSignalBlocker scaleSignals(textScale_);
     const QSignalBlocker notificationSignals(notificationChoice_);
     const QSignalBlocker motionSignals(reducedMotion_);
+    const QSignalBlocker accentSignals(accentChoice_);
+    const QSignalBlocker fontSignals(uiFontChoice_);
+    const QSignalBlocker contentSignals(contentScaleChoice_);
+    const QSignalBlocker codeSignals(codeScaleChoice_);
     selectTheme(*themeChoice_, settings.value("theme").toString("dark"));
     selectData(densityChoice_, settings.value("density").toString("comfortable"));
     textScale_->setValue(settings.value("text_scale").toInt(100));
     reducedMotion_->setChecked(settings.value("reduced_motion").toBool());
+    const auto appearance = settings.value("appearance").toObject();
+    selectData(accentChoice_, appearance.value("accent").toString("cirnet"));
+    selectData(uiFontChoice_, appearance.value("ui_font").toString("system"));
+    selectScale(contentScaleChoice_, appearance.value("content_scale").toInt());
+    selectScale(codeScaleChoice_, appearance.value("code_scale").toInt());
     selectData(notificationChoice_, settings.value("notification_level").toString("all"));
     sidebarWidth_ = qBound(210, settings.value("sidebar_width").toInt(260), 360);
     sidebarCollapsed_ = settings.value("sidebar_collapsed").toBool();
-    theme_->apply(themeMode(*themeChoice_), densityChoice_->currentData().toString(),
-                  textScale_->value());
+    applyAppearance();
     changeSidebar(sidebarCollapsed_);
     restoreRepositoryLayout(settings.value("repository_layout").toObject());
-    notifications_->setLevel(notificationChoice_->currentData().toString());
-    notifications_->setReducedMotion(reducedMotion_->isChecked());
     applyingPreferences_ = false;
 }
 
@@ -591,6 +770,7 @@ void MainWindow::loadPreferences()
             preferencesStatus_->setText(tr("Could not load saved preferences. Current settings are in memory."));
             preferencesStatus_->show();
             preferencesRetry_->show();
+            setPreferenceRevert(settingsPage_, preferencesDirty_);
             showStatus(preferencesStatus_->text(), true);
             return;
         }
@@ -602,8 +782,18 @@ void MainWindow::loadPreferences()
         auto merged = remote;
         if (preferencesDirty_) {
             for (auto it = local.begin(); it != local.end(); ++it) {
-                if (it.value() != savedPreferences_.value(it.key()))
+                if (it.key() == "appearance") {
+                    auto style = remote.value("appearance").toObject();
+                    const auto before = savedPreferences_.value("appearance").toObject();
+                    const auto pending = it.value().toObject();
+                    for (auto part = pending.begin(); part != pending.end(); ++part) {
+                        if (part.value() != before.value(part.key()))
+                            style.insert(part.key(), part.value());
+                    }
+                    merged.insert("appearance", style);
+                } else if (it.value() != savedPreferences_.value(it.key())) {
                     merged.insert(it.key(), it.value());
+                }
             }
         }
         preferencesLoaded_ = true;
@@ -613,6 +803,7 @@ void MainWindow::loadPreferences()
             preferencesStatus_->setText(tr("Preferences changed in another window. Review or retry your pending changes."));
             preferencesStatus_->show();
             preferencesRetry_->show();
+            setPreferenceRevert(settingsPage_, true);
             showStatus(preferencesStatus_->text(), true);
             return;
         }
@@ -623,6 +814,7 @@ void MainWindow::loadPreferences()
         preferencesRetryRequired_ = false;
         preferencesRetry_->hide();
         preferencesStatus_->hide();
+        setPreferenceRevert(settingsPage_, false);
         if (preferencesDirty_)
             savePreferences();
     });
@@ -636,6 +828,7 @@ void MainWindow::schedulePreferencesSave()
     if (!online_ || preferencesRetryRequired_) {
         preferencesStatus_->setText(tr("Preferences have unsaved changes."));
         preferencesStatus_->show();
+        setPreferenceRevert(settingsPage_, true);
         return;
     }
     preferencesTimer_->start();
@@ -657,6 +850,7 @@ void MainWindow::savePreferences()
             preferencesStatus_->setText(tr("Could not save preferences. Your changes are still in this window."));
             preferencesStatus_->show();
             preferencesRetry_->show();
+            setPreferenceRevert(settingsPage_, true);
             showStatus(preferencesStatus_->text(), true);
             return;
         }
@@ -665,6 +859,7 @@ void MainWindow::savePreferences()
         preferencesDirty_ = preferenceSettings() != settings;
         preferencesStatus_->hide();
         preferencesRetry_->hide();
+        setPreferenceRevert(settingsPage_, false);
         if (preferencesDirty_) {
             preferencesTimer_->start();
         } else if (closeAfterSave_) {

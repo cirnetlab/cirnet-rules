@@ -133,7 +133,7 @@ class AutomationCard final : public QFrame {
     Q_DECLARE_TR_FUNCTIONS(AutomationCard)
 public:
     using Action = std::function<void(const QJsonObject &)>;
-    AutomationCard(Action runAction, Action editAction, Action toggleAction, Action historyAction)
+    AutomationCard(Action runAction, Action editAction, Action toggleAction, Action historyAction, Action deleteAction)
     {
         setObjectName("card");
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -167,11 +167,15 @@ public:
         toggle_ = menu->addAction(tr("Pause"));
         auto *history = menu->addAction(tr("Run history"));
         history->setObjectName("showAutomationHistory");
+        menu->addSeparator();
+        remove_ = menu->addAction(tr("Delete automation…"));
+        remove_->setObjectName("deleteAutomationDefinition");
         more->setMenu(menu);
         connect(run_, &QPushButton::clicked, this, [this, action = std::move(runAction)] { action(record_); });
         connect(edit_, &QAction::triggered, this, [this, action = std::move(editAction)] { action(record_); });
         connect(toggle_, &QAction::triggered, this, [this, action = std::move(toggleAction)] { action(record_); });
         connect(history, &QAction::triggered, this, [this, action = std::move(historyAction)] { action(record_); });
+        connect(remove_, &QAction::triggered, this, [this, action = std::move(deleteAction)] { action(record_); });
     }
 
     void update(const QJsonObject &item, const QString &repository, bool online, bool pending)
@@ -179,6 +183,7 @@ public:
         run_->setEnabled(online && !pending);
         edit_->setEnabled(online && !pending);
         toggle_->setEnabled(online && !pending);
+        remove_->setEnabled(online && !pending);
         if (record_ == item && repository_ == repository)
             return;
         record_ = item;
@@ -216,6 +221,7 @@ private:
     QPushButton *run_ = nullptr;
     QAction *edit_ = nullptr;
     QAction *toggle_ = nullptr;
+    QAction *remove_ = nullptr;
 };
 }
 
@@ -423,11 +429,13 @@ void MainWindow::renderAutomationCards()
                     [this](const QJsonObject &record) { runAutomation(record); },
                     [this](const QJsonObject &record) { editAutomation(record); },
                     [this](const QJsonObject &record) { toggleAutomation(record); },
-                    [this](const QJsonObject &record) { automationHistory(record); });
+                    [this](const QJsonObject &record) { automationHistory(record); },
+                    [this](const QJsonObject &record) { deleteAutomation(record); });
                 card->setParent(section);
                 automationCardWidgets_[id] = card;
             }
-            card->update(item, repository, online_, automationRunsPending_.contains(id));
+            card->update(item, repository, online_,
+                         automationRunsPending_.contains(id) || automationDeletesPending_.contains(id));
             cards.append(card);
             remaining.insert(id);
         }
@@ -748,7 +756,7 @@ void MainWindow::runAutomation(const QJsonObject &automation)
         return;
     }
     const auto id = automation.value("id").toString();
-    if (automationRunsPending_.contains(id))
+    if (automationRunsPending_.contains(id) || automationDeletesPending_.contains(id))
         return;
     automationRunsPending_.insert(id);
     renderAutomationCards();
@@ -771,10 +779,10 @@ void MainWindow::runAutomation(const QJsonObject &automation)
         runKeys_.insert(id, key);
     }
     call("automation.run", {{"id", id}, {"key", key}, {"confirm_inactive", inactive}},
-         [this, id](const QJsonObject &run, const QString &error) {
+         [this, id, automation](const QJsonObject &run, const QString &error) {
         automationRunsPending_.remove(id);
         if (!error.isEmpty()) {
-            showError(error);
+            showAutomationBlockers(automation, run, error);
             renderAutomationCards();
             return;
         }
@@ -819,6 +827,87 @@ void MainWindow::toggleAutomation(const QJsonObject &automation)
         else
             refreshAutomations();
     });
+}
+
+void MainWindow::deleteAutomation(const QJsonObject &automation)
+{
+    const auto id = automation.value("id").toString();
+    if (!online_ || id.isEmpty() || automationDeletesPending_.contains(id) || automationRunsPending_.contains(id))
+        return;
+    const auto definition = automation;
+    automationDeletesPending_.insert(id);
+    renderAutomationCards();
+
+    auto *confirm = new QMessageBox(QMessageBox::Warning, tr("Delete automation"),
+        tr("Delete automation %1 · %2 and stop its schedule? Terminal run history is retained.")
+            .arg(id, definition.value("name").toString()),
+        QMessageBox::Yes | QMessageBox::Cancel, this);
+    confirm->setObjectName("deleteAutomationConfirmation");
+    confirm->setTextFormat(Qt::PlainText);
+    confirm->button(QMessageBox::Yes)->setText(tr("Delete permanently"));
+    confirm->setDefaultButton(QMessageBox::Cancel);
+    confirm->setAttribute(Qt::WA_DeleteOnClose);
+    connect(confirm, &QMessageBox::finished, this, [this, id, definition](int answer) {
+        if (answer != QMessageBox::Yes) {
+            automationDeletesPending_.remove(id);
+            renderAutomationCards();
+            return;
+        }
+        call("automation.delete", {{"id", id}, {"revision", definition.value("revision")}},
+             [this, id, definition](const QJsonObject &result, const QString &error) {
+            automationDeletesPending_.remove(id);
+            if (!error.isEmpty()) {
+                showAutomationBlockers(definition, result, error);
+                renderAutomationCards();
+                refreshAutomations();
+                return;
+            }
+            if (result.value("id") != id || result.value("status") != "DELETED") {
+                showError(tr("The runtime did not confirm the automation deletion."));
+                renderAutomationCards();
+                refreshAutomations();
+                return;
+            }
+            forgetAutomations({id});
+            showStatus(tr("Automation deleted."));
+        });
+    });
+    confirm->open();
+}
+
+void MainWindow::forgetAutomations(const QStringList &ids)
+{
+    // Invalidate replies from pages requested before the committed deletion.
+    ++automationRequest_;
+    for (qsizetype index = automations_.size(); index > 0; --index)
+        if (ids.contains(automations_.at(index - 1).toObject().value("id").toString()))
+            automations_.removeAt(index - 1);
+    for (const auto &id : ids)
+        runKeys_.remove(id);
+    renderAutomationCards();
+    refreshAutomations();
+}
+
+void MainWindow::showAutomationBlockers(const QJsonObject &automation, const QJsonObject &result, const QString &error)
+{
+    const auto blockers = result.value("blockers").toArray();
+    if (blockers.isEmpty()) {
+        showError(error);
+        return;
+    }
+    QStringList states;
+    for (const auto &value : blockers) {
+        const auto row = value.toObject();
+        states.append(tr("Run %1 · %2").arg(row.value("id").toString(),
+            row.value("status").toString(row.value("state").toString())));
+    }
+    auto *notice = new QMessageBox(QMessageBox::Warning, tr("Active automation run"),
+        error + QStringLiteral("\n") + states.join(u'\n'), QMessageBox::Close, this);
+    notice->setTextFormat(Qt::PlainText);
+    notice->setAttribute(Qt::WA_DeleteOnClose);
+    auto *history = notice->addButton(tr("Run history"), QMessageBox::ActionRole);
+    connect(history, &QPushButton::clicked, this, [this, automation] { automationHistory(automation); });
+    notice->open();
 }
 
 void MainWindow::automationHistory(const QJsonObject &automation)

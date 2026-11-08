@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QIcon>
+#include <QJsonObject>
 #include <QObject>
 
 class QApplication;
@@ -18,7 +19,8 @@ class ThemeManager final : public QObject {
     Q_OBJECT
 public:
     explicit ThemeManager(QObject *parent = nullptr);
-    void apply(const QString &theme, const QString &density, int textScale);
+    void apply(const QString &theme, const QString &density, int textScale,
+               const QJsonObject &appearance = {});
 
 signals:
     void changed();
@@ -27,5 +29,6 @@ private:
     QString theme_;
     QString density_;
     int textScale_ = 100;
+    QJsonObject appearance_;
     bool light_ = false;
 };

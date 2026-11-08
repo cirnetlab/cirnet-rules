@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 7 -->
+<!-- revision: 9 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -69,14 +69,41 @@ new proposal silently.
 ## Storage and operations
 
 Rust owns the SQLite database in the local application data directory or the
-explicit operator directory. Opening a schema 3 store with the new runtime
-creates an integrity-checked pre-upgrade snapshot before migrating to schema 4.
-An earlier runtime requires a reviewed snapshot in a separate directory.
-Use `storage.backup` through the local runtime
-for an online snapshot and `storage.verify` to check it. To rehearse restore,
+explicit operator directory. Before upgrading an existing store to schema 6,
+the runtime creates an integrity-checked pre-upgrade snapshot. An earlier
+runtime requires a reviewed compatible snapshot in a separate directory.
+In Settings → Storage, Scan measures only the local data root. Physical files,
+logical message bytes and reusable SQLite pages describe different quantities.
+Create and verify an online backup from Storage. Compact requires a current
+scan and confirmation of the observed page counts. Operations report progress
+and support cancellation. The app has no managed worktree cleanup capability.
+To rehearse restore,
 close the runtime, restore a reviewed backup into a fresh private data
 directory and verify it there before switching the operator path. Preserve the
 original directory and its WAL files. Backups are local sensitive data.
+
+## Conversation lifecycle and Settings
+
+Clear draft affects unsent text and offers Undo clear in the same session.
+Use the transcript context menu to delete a submitted message, or Actions
+to delete its conversation. Review the stable IDs, local scope and blockers
+before confirming. Cancel or resolve active tasks and runs separately before
+retrying a blocked deletion. A deletion removes live SQLite payload and its
+local derivatives. The action is irreversible in the Dashboard. SQLite free
+pages, WAL, existing backups and external provider copies can retain bytes.
+When an Automation run created the Conversation, the preview identifies its
+Automation. Confirming deletion also removes that definition and stops its
+schedule. Any active run of that definition blocks deletion. Repository files,
+other Conversations, and terminal run audit metadata remain available.
+Use Actions → Delete automation to remove a standalone Automation or a card
+whose Conversation was already deleted. Archive preserves history. In Archived chats, search the archived
+catalog and select an individual chat to unarchive or permanently delete.
+Unarchive keeps its original identity and does not schedule any work.
+
+Configuration reports effective runtime capabilities and their authority.
+Native execution stays HANDOFF_ONLY where applicable. Appearance persists
+supported accent, UI font, content and code text scales through the local
+preference API. Reset appearance acts independently from Reset layout.
 
 The legacy import can preview and archive a stopped CLI file store using
 `legacy.preview` and `legacy.apply`. Apply requires the reviewed manifest

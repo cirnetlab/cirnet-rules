@@ -8,7 +8,7 @@ configure_file(src/build_info.h.in "${CMAKE_CURRENT_BINARY_DIR}/build_info.h" @O
 add_library(cgacp-widgets STATIC
     src/runtime_client.cpp src/runtime_client.h
     src/main_window.cpp src/main_window.h
-    src/settings.cpp
+    src/settings.cpp src/settings_panels.cpp src/settings_panels.h
     src/theme.cpp src/theme.h
     src/notification_center.cpp src/notification_center.h
     src/repositories.cpp src/conversations.cpp src/automations.cpp

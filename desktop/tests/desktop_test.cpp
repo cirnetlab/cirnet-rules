@@ -50,6 +50,8 @@
 #include <QTest>
 #include <QTemporaryDir>
 #include <QTableView>
+#include <QTextCursor>
+#include <QTextDocument>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -118,10 +120,41 @@ QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
                                       QJsonObject{{"id", "chat-2"}, {"title", "Other chat"}, {"state", "ACTIVE"},
                                                   {"updated_at", now - 3600}, {"revision", 1}}}}};
     }
+    if (mode == "transcript-paged" && method == "conversation.get") {
+        const bool earlier = params.value("before").toString() == "3";
+        const auto after = params.value("after").toString();
+        const int start = earlier ? 1 : after.isEmpty() ? 3 : after == "4" ? 5 : 6;
+        const int end = earlier ? 2 : after.isEmpty() ? 4 : 5;
+        QJsonArray messages;
+        for (int ordinal = start; ordinal <= end; ++ordinal)
+            messages.append(QJsonObject{{"id", QString::number(ordinal)}, {"ordinal", ordinal},
+                                        {"role", "USER"}, {"content", QString("Message %1").arg(ordinal)}});
+        return {{"conversation", QJsonObject{{"id", params.value("id")}, {"title", "Fixture chat"},
+                                               {"state", "ACTIVE"}, {"revision", 1}}},
+                {"messages", messages}, {"next_before", after.isEmpty() && !earlier ? QJsonValue("3") : QJsonValue()},
+                {"has_more", false}};
+    }
+    if (mode == "transcript-paged" && method == "conversation.events")
+        return {{"next_after", "1"}, {"items", QJsonArray{QJsonObject{{"type", "MESSAGE_SAVED"}}}}};
+    if (mode == "automation-cascade" && method == "conversation.delete.preview")
+        return {{"title", "Fixture chat"}, {"revision", 1}, {"token", "fixture-preview"},
+                {"automation_count", 1}, {"automations", QJsonArray{QJsonObject{
+                    {"id", "100"}, {"name", "Shared title"}, {"revision", 7}, {"enabled", false}}}}};
     if (method == "conversation.get")
         return {{"conversation", QJsonObject{{"id", params.value("id")}, {"title", params.value("id") == "chat-1" ?
                              "Fixture chat" : "Other chat"}, {"state", "ACTIVE"}, {"revision", 1}}},
                 {"messages", QJsonArray{QJsonObject{{"role", "USER"}, {"content", "Saved fixture message"}}}}};
+    if (method == "automation.list" && (mode == "automation-delete" || mode == "automation-cascade")) {
+        QJsonArray items;
+        if (!methods.contains("automation.delete") && !methods.contains("conversation.delete"))
+            items.append(QJsonObject{{"id", "100"}, {"name", "Shared title"}, {"prompt", "Target automation"},
+                                     {"enabled", false}, {"revision", 7}});
+        items.append(QJsonObject{{"id", "101"}, {"name", "Shared title"}, {"prompt", "Independent automation"},
+                                 {"enabled", false}, {"revision", 3}});
+        return {{"items", items}};
+    }
+    if (method == "automation.delete" || method == "conversation.delete")
+        return {{"id", params.value("id")}, {"status", "DELETED"}};
     if (method == "automation.list")
         return {{"items", mode == "empty" ? QJsonArray{} : QJsonArray{
                     QJsonObject{{"id", "read-check"}, {"name", "Scoped review"}, {"prompt", "Review the selected worktree."},
@@ -143,6 +176,7 @@ int runFixture(const QString &mode)
     QJsonObject lastRepoSelection;
     QList<QByteArray> heldReplies;
     bool firstPreferenceWrite = true;
+    bool holdAutomationList = false;
     while (std::fgets(line, sizeof line, stdin)) {
         const auto request = QJsonDocument::fromJson(QByteArray(line)).object();
         const auto method = request.value("method").toString();
@@ -153,21 +187,38 @@ int runFixture(const QString &mode)
         }
         if (method == "test.crash")
             return 18;
+        if (method == "test.slow")
+            QTest::qSleep(2300);
+        const auto params = request.value("params").toObject();
         if (method == "repo.select")
-            lastRepoSelection = request.value("params").toObject();
+            lastRepoSelection = params;
+        if (method == "test.holdAutomationList")
+            holdAutomationList = true;
         methods.append(method);
         QJsonObject responseObject{{"v", 1}, {"id", request.value("id")}};
         if (mode == "save-error" && method == "preferences.set" && firstPreferenceWrite) {
             firstPreferenceWrite = false;
             responseObject.insert("ok", false);
             responseObject.insert("error", QJsonObject{{"code", "STORAGE_UNAVAILABLE"}, {"message", "Fixture write denied."}});
+        } else if (mode == "automation-delete" && method == "automation.delete"
+                   && (params.value("id") != "100" || params.value("revision") != 7)) {
+            responseObject.insert("ok", false);
+            responseObject.insert("error", QJsonObject{{"code", "INVALID_REQUEST"}, {"message", "Wrong automation scope"}});
         } else {
             responseObject.insert("ok", true);
             responseObject.insert("result", method == "test.lastSelection" ? lastRepoSelection :
-                                  fixtureResult(method, request.value("params").toObject(), methods, mode));
+                                  fixtureResult(method, params, methods, mode));
         }
         const auto response = QJsonDocument(responseObject).toJson(QJsonDocument::Compact) + '\n';
-        const auto params = request.value("params").toObject();
+        if (method == "automation.list" && holdAutomationList) {
+            holdAutomationList = false;
+            heldReplies.append(response);
+            continue;
+        }
+        if (mode == "eof-burst") {
+            heldReplies.append(response);
+            continue;
+        }
         if (mode == "navigation-delayed" &&
             ((method == "conversation.get" && params.value("id") == "chat-1") ||
              (method == "conversation.list" && !params.value("query").toString().isEmpty()))) {
@@ -184,6 +235,11 @@ int runFixture(const QString &mode)
         std::fflush(stdout);
         QTest::qSleep(7);
         std::fwrite(response.data() + half, 1, size_t(response.size() - half), stdout);
+        std::fflush(stdout);
+    }
+    if (mode == "eof-burst") {
+        for (const auto &reply : heldReplies)
+            std::fwrite(reply.constData(), 1, size_t(reply.size()), stdout);
         std::fflush(stdout);
     }
     return 0;
@@ -272,6 +328,202 @@ void withDashboardFixture(const std::function<void(MainWindow &)> &test,
 class DesktopTest final : public QObject {
     Q_OBJECT
 private slots:
+    void automationDeletionUsesIdAndRevision()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "automation-delete"});
+        MainWindow window(client);
+        window.show();
+        client.start();
+        const auto cardBody = [&window](const QString &prompt) -> QLabel * {
+            for (auto *body : window.findChildren<QLabel *>("cardBody"))
+                if (body->text() == prompt)
+                    return body;
+            return nullptr;
+        };
+        QTRY_VERIFY(cardBody("Target automation") && cardBody("Independent automation"));
+        auto *remove = cardBody("Target automation")->parentWidget()->findChild<QAction *>("deleteAutomationDefinition");
+        QVERIFY(remove && remove->isEnabled());
+        remove->trigger();
+        QTRY_VERIFY(window.findChild<QMessageBox *>("deleteAutomationConfirmation"));
+        auto *confirmation = window.findChild<QMessageBox *>("deleteAutomationConfirmation");
+        QVERIFY(confirmation->text().contains("100"));
+        QVERIFY(captureWidget(*confirmation, "delete-automation-confirmation"));
+        confirmation->button(QMessageBox::Yes)->click();
+        QTRY_VERIFY(!cardBody("Target automation"));
+        QVERIFY(cardBody("Independent automation"));
+        client.stop();
+        QTRY_VERIFY(!client.isRunning());
+    }
+
+    void conversationDeletionRefreshesAutomationWithoutReplayingStalePage()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "automation-cascade"});
+        MainWindow window(client);
+        window.show();
+        client.start();
+        QTRY_COMPARE(window.findChildren<QLabel *>("automationCardTitle").size(), 2);
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *editor = window.findChild<QPlainTextEdit *>("conversationComposer");
+        auto *refresh = window.findChild<QPushButton *>("refreshAutomations");
+        QVERIFY(history && editor && refresh);
+        QTRY_VERIFY(history->count() > 0);
+        QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier,
+                          history->visualItemRect(history->item(0)).center());
+        QTRY_VERIFY(editor->isVisible() && !editor->isReadOnly());
+        auto *remove = window.findChild<QAction *>("deleteConversation");
+        QVERIFY(remove);
+        remove->trigger();
+        QTRY_VERIFY(window.findChild<QMessageBox *>("deleteDataConfirmation"));
+        auto *confirmation = window.findChild<QMessageBox *>("deleteDataConfirmation");
+        QVERIFY(confirmation->text().contains("Shared title"));
+        QVERIFY(confirmation->text().contains("100"));
+        QVERIFY(captureWidget(*confirmation, "conversation-automation-delete-confirmation"));
+        invoke(client, "test.holdAutomationList");
+        refresh->click();
+        confirmation->button(QMessageBox::Yes)->click();
+        QTRY_COMPARE(window.findChildren<QLabel *>("automationCardTitle").size(), 1);
+        invoke(client, "test.releaseNavigation");
+        QVERIFY(!invoke(client, "test.methods").value("items").toArray().contains("automation.delete"));
+        QCOMPARE(window.findChildren<QLabel *>("automationCardTitle").size(), 1);
+        QCOMPARE(window.findChildren<QLabel *>("automationCardTitle").first()->parentWidget()
+                     ->findChild<QLabel *>("cardBody")->text(), QString("Independent automation"));
+        client.stop();
+        QTRY_VERIFY(!client.isRunning());
+    }
+
+    void closingRuntimeAppliesAllBufferedReplies()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "eof-burst"});
+        QSignalSpy ready(&client, &RuntimeClient::ready);
+        QSignalSpy stopped(&client, &RuntimeClient::stopped);
+        client.start();
+        QTRY_COMPARE(ready.size(), 1);
+        int accepted = 0;
+        QStringList failures;
+        for (int index = 0; index < 32; ++index)
+            client.request("runtime.info", {}, [&](const QJsonObject &, const QString &failure) {
+                if (failure.isEmpty())
+                    ++accepted;
+                else
+                    failures.append(failure);
+            });
+        client.stop();
+        QTRY_COMPARE(stopped.size(), 1);
+        QCOMPARE(accepted, 32);
+        QVERIFY(failures.isEmpty());
+    }
+
+    void transcriptPagesAppendEventsWithoutReset()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "transcript-paged"});
+        MainWindow window(client);
+        window.show();
+        client.start();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *transcript = window.findChild<QPlainTextEdit *>("conversationTranscript");
+        auto *older = window.findChild<QPushButton *>("loadOlderMessages");
+        auto *poll = window.findChild<QTimer *>("conversationEventPoll");
+        QVERIFY(history && transcript && older && poll);
+        QTRY_VERIFY(history->count() > 0);
+        QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier,
+                          history->visualItemRect(history->item(0)).center());
+        QTRY_VERIFY(transcript->toPlainText().contains("Message 4"));
+        QVERIFY(!transcript->toPlainText().contains("Message 1"));
+        QTRY_VERIFY(older->isVisible() && older->isEnabled());
+        older->click();
+        QTRY_VERIFY(transcript->toPlainText().startsWith("You\nMessage 1"));
+        const auto before = transcript->toPlainText();
+        QSignalSpy edits(transcript->document(), &QTextDocument::contentsChange);
+        QVERIFY(QMetaObject::invokeMethod(poll, "timeout"));
+        QTRY_VERIFY(transcript->toPlainText().endsWith("Message 5"));
+        QVERIFY(transcript->toPlainText().startsWith(before));
+        QVERIFY(!edits.isEmpty());
+        for (const auto &change : edits) {
+            QVERIFY(change.at(0).toInt() >= before.size());
+            QCOMPARE(change.at(1).toInt(), 0);
+        }
+        client.stop();
+        QTRY_VERIFY(!client.isRunning());
+    }
+
+    void desktopRouteLoad()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
+        MainWindow window(client);
+        window.resize(1200, 700);
+        interaction_cases::pinToPrimary(window);
+        window.show();
+        client.start();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *composer = window.findChild<QPlainTextEdit *>("conversationComposer");
+        auto *automations = window.findChild<QPushButton *>("navAutomations");
+        auto *settings = window.findChild<QToolButton *>("navSettings");
+        auto *back = window.findChild<QPushButton *>("settingsBack");
+        QVERIFY(history && composer && automations && settings && back);
+        QTRY_VERIFY(history->count() > 0);
+        const auto open = [&] {
+            QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier,
+                              history->visualItemRect(history->item(0)).center());
+        };
+        open();
+        QTRY_VERIFY(composer->isVisible() && !composer->isReadOnly());
+        const auto cycle = [&] {
+            settings->click();
+            QVERIFY(back->isVisible());
+            back->click();
+            QVERIFY(composer->isVisible());
+            automations->click();
+            QVERIFY(automations->isChecked());
+            open();
+            QVERIFY(composer->isVisible());
+        };
+        for (int index = 0; index < 10; ++index)
+            cycle();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        const auto objectsBefore = window.findChildren<QObject *>().size();
+        const auto widgetsBefore = window.findChildren<QWidget *>().size();
+        const auto timersBefore = client.findChildren<QTimer *>().size() + window.findChildren<QTimer *>().size();
+        bool finished = false;
+        QString failure;
+        QElapsedTimer roundTrip;
+        roundTrip.start();
+        qint64 responseMs = -1;
+        client.request("test.slow", {}, [&](const QJsonObject &, const QString &error) {
+            responseMs = roundTrip.elapsed();
+            failure = error;
+            finished = true;
+        });
+        composer->setFocus();
+        QTest::keyClicks(composer, "Typing while backend is delayed");
+        QVERIFY(!finished);
+        QList<double> samples;
+        for (int index = 0; index < 100; ++index) {
+            QElapsedTimer elapsed;
+            elapsed.start();
+            cycle();
+            samples.append(elapsed.nsecsElapsed() / 1.0e6);
+            QTest::qWait(1);
+        }
+        QCOMPARE(composer->toPlainText(), QStringLiteral("Typing while backend is delayed"));
+        QTRY_VERIFY_WITH_TIMEOUT(finished, 5000);
+        QVERIFY(failure.isEmpty());
+        QVERIFY(responseMs >= 2000);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        std::sort(samples.begin(), samples.end());
+        qInfo() << "route_load cycles" << samples.size() << "logical_window" << window.size()
+                << "DPR" << window.devicePixelRatioF() << "ms p50 p95 p99 max"
+                << samples[49] << samples[94] << samples[98] << samples.last()
+                << "slow_ipc_ms" << responseMs << "objects"
+                << objectsBefore << window.findChildren<QObject *>().size()
+                << "widgets" << widgetsBefore << window.findChildren<QWidget *>().size()
+                << "timers" << timersBefore
+                << client.findChildren<QTimer *>().size() + window.findChildren<QTimer *>().size();
+        QVERIFY(samples[94] <= 100);
+        QVERIFY(samples.last() <= 250);
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
     void iconStyles() { interaction_cases::iconStyles(); }
     void toastAlignmentAndSeverities() { notification_visual::verifyAlignmentAndSeverities(); }
 
@@ -903,6 +1155,8 @@ private slots:
         repository_cases::exerciseTable(window, binding);
         verifyLegacyAutomation(window, bindingId, QFileInfo(source).fileName(),
             [&client](const QString &method, QJsonObject params) { return invoke(client, method, std::move(params)); });
+        verifyRuntimeSettingsData(window, bindingId,
+            [&client](const QString &method, QJsonObject params) { return invoke(client, method, std::move(params)); });
         const auto conversation = invoke(client, "conversation.create", {{"title", "Temporary UI task"},
             {"bindings", QJsonArray{bindingId}}, {"profile", "handoff"}, {"key", "desktop-fixture-conversation"}});
         const auto conversationId = conversation.value("id").toString(conversation.value("conversation").toObject().value("id").toString());
@@ -924,6 +1178,61 @@ private slots:
         QCOMPARE(saved.value("messages").toArray().size(), 1);
         QCOMPARE(saved.value("messages").toArray()[0].toObject().value("content").toString(),
                  QStringLiteral("Check the fixture interface"));
+        if (auto *settingsBack = window.findChild<QPushButton *>("settingsBack"); settingsBack->isVisible())
+            settingsBack->click();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *historySearch = window.findChild<QLineEdit *>("conversationSearch");
+        QVERIFY(history && historySearch);
+        historySearch->setText("Temporary UI task");
+        QTRY_VERIFY(history->count() == 1 && history->item(0)->text().contains("Temporary UI task"));
+        QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier, history->visualItemRect(history->item(0)).center());
+        auto *editor = window.findChild<QPlainTextEdit *>("conversationComposer");
+        auto *transcript = window.findChild<QPlainTextEdit *>("conversationTranscript");
+        auto *clear = window.findChild<QPushButton *>("clearDraft");
+        auto *restore = window.findChild<QPushButton *>("restoreDraft");
+        QVERIFY(editor && transcript && clear && restore);
+        QTRY_VERIFY(transcript->toPlainText().contains("Check the fixture interface"));
+        editor->setPlainText("Unsent fixture draft");
+        clear->click();
+        QCOMPARE(editor->toPlainText(), QString());
+        QVERIFY(restore->isVisible());
+        restore->click();
+        QCOMPARE(editor->toPlainText(), QStringLiteral("Unsent fixture draft"));
+        const auto messageId = accepted.value("message").toObject().value("id");
+        const auto taskId = accepted.value("task").toObject().value("id");
+        const auto blocked = invoke(client, "message.delete.preview", {{"id", conversationId}, {"message_id", messageId}});
+        QVERIFY(blocked.value("blocker_count").toInteger() > 0);
+        QCOMPARE(invoke(client, "conversation.cancel", {{"id", conversationId}, {"task_id", taskId}}).value("state").toString(),
+                 QStringLiteral("CANCELLED"));
+        QTextCursor location(transcript->document());
+        location.movePosition(QTextCursor::Down);
+        emit transcript->customContextMenuRequested(transcript->cursorRect(location).center());
+        auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+        QVERIFY(menu);
+        auto *removeMessage = menu->findChild<QAction *>("deleteSubmittedMessage");
+        QVERIFY(removeMessage);
+        removeMessage->trigger();
+        menu->close();
+        QTRY_VERIFY(window.findChild<QMessageBox *>("deleteDataConfirmation"));
+        auto *confirmMessage = window.findChild<QMessageBox *>("deleteDataConfirmation");
+        QVERIFY(captureWidget(*confirmMessage, "delete-message-confirmation"));
+        confirmMessage->button(QMessageBox::Yes)->click();
+        QTRY_VERIFY(transcript->toPlainText().isEmpty());
+        QTRY_COMPARE(invoke(client, "conversation.get", {{"id", conversationId}}).value("messages").toArray().size(), 0);
+        QCOMPARE(editor->toPlainText(), QStringLiteral("Unsent fixture draft"));
+        auto *removeConversation = window.findChild<QAction *>("deleteConversation");
+        QVERIFY(removeConversation);
+        removeConversation->trigger();
+        QTRY_VERIFY(window.findChild<QMessageBox *>("deleteDataConfirmation"));
+        window.findChild<QMessageBox *>("deleteDataConfirmation")->button(QMessageBox::Yes)->click();
+        QTRY_COMPARE(history->count(), 0);
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+        client.start();
+        QTRY_COMPARE(connected.size(), 3);
+        QCOMPARE(invoke(client, "conversation.get", {{"id", conversationId}}).value("code").toString(),
+                 QStringLiteral("NOT_FOUND"));
+        historySearch->clear();
         const auto relocated = fixture.filePath(QStringLiteral("Đã chuyển worktree"));
         QVERIFY(QDir().rename(directory, relocated));
         QCOMPARE(invoke(client, "repo.health", {{"binding_id", bindingId}}).value("status").toString(),

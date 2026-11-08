@@ -2,6 +2,7 @@
 
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QFontDatabase>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFile>
@@ -526,22 +527,25 @@ ThemeManager::ThemeManager(QObject *parent) : QObject(parent)
 {
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this] {
         if (theme_ == QStringLiteral("system"))
-            apply(theme_, density_, textScale_);
+            apply(theme_, density_, textScale_, appearance_);
     });
 }
 
-void ThemeManager::apply(const QString &theme, const QString &density, int textScale)
+void ThemeManager::apply(const QString &theme, const QString &density, int textScale,
+                         const QJsonObject &appearance)
 {
     const auto scheme = QGuiApplication::styleHints()->colorScheme();
     const bool light = theme == "light" || (theme == "system" &&
                        (scheme == Qt::ColorScheme::Light ||
                         (scheme == Qt::ColorScheme::Unknown &&
                          systemPalette.color(QPalette::Window).lightness() >= 128)));
-    if (theme_ == theme && density_ == density && textScale_ == textScale && light_ == light)
+    if (theme_ == theme && density_ == density && textScale_ == textScale &&
+        light_ == light && appearance_ == appearance)
         return;
     theme_ = theme;
     density_ = density;
     textScale_ = textScale;
+    appearance_ = appearance;
     light_ = light;
     if (dashboardStyle)
         dashboardStyle->setCompact(density == "compact");
@@ -558,9 +562,10 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     const auto text = tone("#ececec", "#202020");
     const auto muted = tone("#b1b1b1", "#575757");
     const auto hover = tone("#303030", "#e7e7e3");
-    const auto selected = tone("#29423e", "#d6ebe7");
-    const auto accent = tone("#70d7c6", "#006a5e");
-    const auto onAccent = tone("#102421", "#ffffff");
+    const bool cobalt = appearance.value("accent") == QStringLiteral("cobalt");
+    const auto selected = cobalt ? tone("#273b58", "#dde8fb") : tone("#29423e", "#d6ebe7");
+    const auto accent = cobalt ? tone("#94beff", "#174eaa") : tone("#70d7c6", "#006a5e");
+    const auto onAccent = cobalt ? tone("#142740", "#ffffff") : tone("#102421", "#ffffff");
     const auto danger = tone("#ffaaa3", "#9e2720");
     const auto warning = tone("#ebbf83", "#794908");
 
@@ -585,30 +590,47 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
         palette.setColor(QPalette::Disabled, role, QColor(muted));
     palette.setColor(QPalette::Disabled, QPalette::Highlight, QColor(control));
     palette.setColor(QPalette::Disabled, QPalette::HighlightedText, QColor(onAccent));
-    QApplication::setPalette(palette);
-    QFont font = systemFont;
+    if (QApplication::palette() != palette)
+        QApplication::setPalette(palette);
+    const auto fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    QFont font = appearance.value("ui_font") == QStringLiteral("monospace") ? fixedFont : systemFont;
     if (font.pointSizeF() > 0)
         font.setPointSizeF(font.pointSizeF() * textScale / 100.0);
     else if (font.pixelSize() > 0)
         font.setPixelSize(qRound(font.pixelSize() * textScale / 100.0));
-    QApplication::setFont(font);
+    if (QApplication::font() != font)
+        QApplication::setFont(font);
 
-    QFile file(":/cgacp/theme.qss");
-    if (file.open(QIODevice::ReadOnly)) {
-        auto style = QString::fromUtf8(file.readAll());
+    static const auto templateStyle = [] {
+        QFile file(":/cgacp/theme.qss");
+        return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString{};
+    }();
+    if (!templateStyle.isEmpty()) {
+        auto style = templateStyle;
         const auto scaled = [textScale](int size) { return QString::number(qRound(size * textScale / 100.0)); };
+        const auto sizeFor = [textScale, &appearance](const char *key) {
+            const auto scale = appearance.value(QLatin1StringView(key)).toInt();
+            return QString::number(qRound(13 * (scale == 0 ? textScale : scale) / 100.0));
+        };
+        auto fixedFamily = fixedFont.family();
+        fixedFamily.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
+        fixedFamily.replace(QStringLiteral("\""), QStringLiteral("\\\""));
         const QList<QPair<QString, QString>> tokens{
             {"CANVAS", canvas}, {"RAIL", rail}, {"SURFACE", surface}, {"BASE", base}, {"ALTERNATE_ROW", alternateRow},
             {"BORDER", border}, {"CONTROL", control}, {"TEXT", text}, {"MUTED", muted},
             {"HOVER", hover}, {"SELECTED", selected}, {"ACCENT", accent}, {"ON_ACCENT", onAccent},
-            {"PRIMARY_HOVER", tone("#92e6d8", "#08786a")}, {"PRIMARY_PRESSED", tone("#58c7b5", "#00594f")},
+            {"PRIMARY_HOVER", cobalt ? tone("#b2d0ff", "#215bbc") : tone("#92e6d8", "#08786a")},
+            {"PRIMARY_PRESSED", cobalt ? tone("#79a9f0", "#163f87") : tone("#58c7b5", "#00594f")},
             {"DANGER", danger}, {"WARNING", warning}, {"BODY_SIZE", scaled(13)}, {"TITLE_SIZE", scaled(24)},
             {"SECTION_SIZE", scaled(15)}, {"META_SIZE", scaled(12)},
+            {"CONTENT_SIZE", sizeFor("content_scale")}, {"CODE_SIZE", sizeFor("code_scale")},
+            {"CODE_FAMILY", fixedFamily},
             {"VERTICAL_PAD", density == "compact" ? "4" : "6"}
         };
         for (const auto &[token, value] : tokens)
             style.replace("@" + token + "@", value);
-        qApp->setStyleSheet(style);
+        if (qApp->styleSheet() != style)
+            qApp->setStyleSheet(style);
     }
     emit changed();
 }

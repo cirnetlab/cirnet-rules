@@ -100,6 +100,112 @@ fn git(path: &Path, args: &[&str]) {
     );
 }
 
+fn finish_storage_job(runtime: &mut Runtime, start: Value) -> Value {
+    let id = start["operation_id"].as_str().unwrap();
+    let until = Instant::now() + Duration::from_secs(10);
+    loop {
+        let view = runtime.call("operation.get", json!({"operation_id":id}));
+        match view["state"].as_str() {
+            Some("SUCCEEDED") => return view["result"].clone(),
+            Some("QUEUED" | "RUNNING") if Instant::now() < until => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            _ => panic!("Storage job did not succeed: {view}"),
+        }
+    }
+}
+
+#[test]
+fn storage_jobs_measure_verify_and_compact_an_isolated_store() {
+    let fixture = Fixture::new();
+    let data = fixture.0.join("storage-jobs");
+    let mut runtime = Runtime::open(&data);
+    assert_eq!(
+        runtime.call("runtime.info", json!({}))["storage_jobs"]["workers"],
+        1
+    );
+    {
+        let db = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+        db.busy_timeout(Duration::from_secs(1)).unwrap();
+        db.execute_batch(
+            "CREATE TABLE fixture_padding(payload BLOB NOT NULL);
+             INSERT INTO fixture_padding VALUES(zeroblob(2097152));
+             DELETE FROM fixture_padding;",
+        )
+        .unwrap();
+    }
+
+    let backup_job = runtime.call("storage.backup.start", json!({}));
+    assert_eq!(backup_job["kind"], "BACKUP");
+    let backup = finish_storage_job(&mut runtime, backup_job);
+    let name = backup["backup"].as_str().unwrap();
+    let backup_dir = data.join("backups");
+    let backup_size = fs::metadata(backup_dir.join(name)).unwrap().len();
+    if let Err(error) = fs::hard_link(
+        backup_dir.join(name),
+        backup_dir.join("snapshot-ffffffffffffffffffffffffffffffff.sqlite3"),
+    ) {
+        assert!(matches!(
+            error.kind(),
+            std::io::ErrorKind::PermissionDenied | std::io::ErrorKind::Unsupported
+        ));
+        eprintln!("Hard-link alias unavailable in this fixture environment: {error}");
+    }
+    let verify = runtime.call("storage.verify.start", json!({"backup":name}));
+    assert_eq!(finish_storage_job(&mut runtime, verify)["status"], "PASS");
+
+    let scan_job = runtime.call("storage.scan", json!({}));
+    let scan = finish_storage_job(&mut runtime, scan_job);
+    let physical = &scan["physical"];
+    assert_eq!(scan["partial"], false, "{scan}");
+    assert_eq!(physical["backup_bytes"], backup_size);
+    assert_eq!(scan["backup_count"], 1);
+    let sum: u64 = physical
+        .as_object()
+        .unwrap()
+        .iter()
+        .filter(|(key, _)| key.as_str() != "total_bytes")
+        .map(|(_, bytes)| bytes.as_u64().unwrap())
+        .sum();
+    assert_eq!(physical["total_bytes"], sum);
+    let page_count = scan["logical"]["page_count"].as_u64().unwrap();
+    let free_pages = scan["logical"]["free_pages"].as_u64().unwrap();
+    assert!(free_pages > 0);
+
+    let stale = runtime.call(
+        "storage.compact.start",
+        json!({
+            "expected_page_count":page_count + 1, "expected_free_pages":free_pages
+        }),
+    );
+    let until = Instant::now() + Duration::from_secs(10);
+    loop {
+        let view = runtime.call(
+            "operation.get",
+            json!({"operation_id":stale["operation_id"]}),
+        );
+        if view["state"] == "FAILED" {
+            assert_eq!(view["error"]["code"], "CONFLICT");
+            break;
+        }
+        assert!(Instant::now() < until, "{view}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    let compact = runtime.call(
+        "storage.compact.start",
+        json!({
+            "expected_page_count":page_count, "expected_free_pages":free_pages
+        }),
+    );
+    let receipt = finish_storage_job(&mut runtime, compact);
+    assert_eq!(receipt["before_page_count"], page_count);
+    assert!(receipt["after_page_count"].as_u64().unwrap() < page_count);
+    assert_eq!(receipt["after_free_pages"], 0);
+    assert_eq!(runtime.call("storage.verify", json!({}))["status"], "PASS");
+    runtime.close();
+}
+
 #[test]
 fn reduced_motion_defaults_for_existing_preferences_and_persists() {
     let fixture = Fixture::new();
@@ -107,7 +213,7 @@ fn reduced_motion_defaults_for_existing_preferences_and_persists() {
     let mut initializer = Runtime::open(&data);
     assert_eq!(
         initializer.call("storage.verify", json!({}))["schema_revision"],
-        4
+        6
     );
     initializer.close();
     {
@@ -150,7 +256,7 @@ fn reduced_motion_defaults_for_existing_preferences_and_persists() {
     assert_eq!(reopened.call("preferences.get", json!({})), updated);
     assert_eq!(
         reopened.call("storage.verify", json!({}))["schema_revision"],
-        4
+        6
     );
     reopened.close();
 }
@@ -252,7 +358,7 @@ fn preferences_upgrade_backs_up_and_preserves_operator_data() {
     assert_eq!(initial["settings"]["theme"], "dark");
     assert_eq!(
         client.call("storage.verify", json!({}))["schema_revision"],
-        4
+        6
     );
     let mut backups = fs::read_dir(data.join("backups")).unwrap();
     let previous = backups
@@ -397,6 +503,422 @@ fn closing_request_pipe_drains_accepted_replies() {
         })
         .collect();
     assert_eq!(ids, ["1", "2", "3", "4", "5", "6", "7", "8"]);
+}
+
+#[test]
+fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
+    let fixture = Fixture::new();
+    let data = fixture.0.join("lifecycle");
+    let repo = fixture.0.join("lifecycle-repo");
+    fs::create_dir(&repo).unwrap();
+    git(&repo, &["init", "--quiet"]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.name=CGACP Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "--allow-empty",
+            "--quiet",
+            "-m",
+            "Fixture",
+        ],
+    );
+    let mut client = Runtime::open(&data);
+    let checkout = client.call("repo.preview", json!({"path":repo}));
+    let binding =
+        client.call("repo.add", json!({"path":repo,"token":checkout["token"]}))["binding_id"]
+            .clone();
+    let create = json!({"key":"lifecycle-chat","title":"Lifecycle fixture","bindings":[binding]});
+    let chat = client.call("conversation.create", create.clone());
+    let cid = &chat["id"];
+    let other = client.call(
+        "conversation.create",
+        json!({"key":"other-chat","title":"Other fixture","bindings":[binding]}),
+    );
+    let first = client.call("conversation.send",
+        json!({"id":cid,"revision":chat["revision"],"key":"turn-first","content":"First retained payload"}));
+    let first_id = &first["message"]["id"];
+    let active = client.call(
+        "message.delete.preview",
+        json!({"id":cid,"message_id":first_id}),
+    );
+    let active_delete = json!({"id":cid,"message_id":first_id,"revision":active["revision"],
+        "token":active["token"],"key":"delete-first"});
+    let denied = client.request(1, "message.delete", active_delete.clone());
+    assert_eq!(denied["error"]["code"], "ACTIVE_DEPENDENCY");
+    assert_eq!(
+        denied["error"]["details"]["blockers"][0]["id"],
+        first["task"]["id"]
+    );
+    assert_eq!(
+        client.request(
+            1,
+            "message.delete.preview",
+            json!({"id":other["id"],"message_id":first_id})
+        )["error"]["code"],
+        "NOT_FOUND"
+    );
+    assert_eq!(
+        client.request(
+            1,
+            "conversation.send",
+            json!({
+                "id":cid,"revision":chat["revision"],"key":"stale-send","content":"Stale request"
+            })
+        )["error"]["code"],
+        "CONFLICT"
+    );
+
+    let send_second = json!({"id":cid,"revision":first["conversation_revision"],
+        "key":"turn-second","content":"Second payload to remove"});
+    let second = client.call("conversation.send", send_second.clone());
+    let second_id = &second["message"]["id"];
+    let forward = client.call("conversation.get", json!({"id":cid,"after":"1"}));
+    assert_eq!(forward["messages"].as_array().unwrap().len(), 1);
+    assert_eq!(forward["messages"][0]["id"], *second_id);
+    assert_eq!(forward["next_after"], "2");
+    assert_eq!(forward["has_more"], false);
+
+    for task in [&first["task"]["id"], &second["task"]["id"]] {
+        client.call("conversation.cancel", json!({"id":cid,"task_id":task}));
+    }
+    assert_eq!(
+        client.request(1, "message.delete", active_delete)["error"]["code"],
+        "STALE_PREVIEW"
+    );
+    let scope = client.call(
+        "message.delete.preview",
+        json!({"id":cid,"message_id":second_id}),
+    );
+    let delete_second = json!({"id":cid,"message_id":second_id,"revision":scope["revision"],
+        "token":scope["token"],"key":"delete-second"});
+    let receipt = client.call("message.delete", delete_second.clone());
+    assert_eq!(receipt["status"], "DELETED");
+    assert_eq!(
+        client.call("message.delete", delete_second.clone()),
+        receipt
+    );
+    assert_eq!(
+        client.request(1, "conversation.send", send_second)["error"]["code"],
+        "DELETED"
+    );
+    let remaining = client.call("conversation.get", json!({"id":cid}));
+    assert_eq!(remaining["messages"].as_array().unwrap().len(), 1);
+    assert_eq!(remaining["messages"][0]["id"], *first_id);
+    let replacement = client.call(
+        "conversation.send",
+        json!({"id":cid,"key":"turn-third","content":"Third payload"}),
+    );
+    assert_eq!(replacement["message"]["ordinal"], 3);
+    assert!(
+        replacement["message"]["id"]
+            .as_str()
+            .unwrap()
+            .parse::<i64>()
+            .unwrap()
+            > second_id.as_str().unwrap().parse::<i64>().unwrap()
+    );
+    client.call(
+        "conversation.cancel",
+        json!({"id":cid,"task_id":replacement["task"]["id"]}),
+    );
+    let current = client.call("conversation.get", json!({"id":cid}));
+    let archived = client.call(
+        "conversation.archive",
+        json!({"id":cid,"revision":current["conversation"]["revision"]}),
+    );
+    assert_eq!(archived["state"], "ARCHIVED");
+    assert_eq!(
+        client.call("conversation.list", json!({"query":"Lifecycle"}))["items"],
+        json!([])
+    );
+    client.close();
+
+    let mut client = Runtime::open(&data);
+    assert_eq!(client.call("message.delete", delete_second), receipt);
+    let archived_page = client.call(
+        "conversation.list",
+        json!({"state":"ARCHIVED","query":"Lifecycle","binding_id":binding,"limit":1}),
+    );
+    assert_eq!(archived_page["total"], 1);
+    assert_eq!(archived_page["items"][0]["id"], *cid);
+    assert_eq!(archived_page["next_before"], Value::Null);
+    let restored = client.call(
+        "conversation.unarchive",
+        json!({"id":cid,"revision":archived["revision"]}),
+    );
+    assert_eq!(restored["state"], "ACTIVE");
+    assert_eq!(restored["id"], *cid);
+    let archived = client.call(
+        "conversation.archive",
+        json!({"id":cid,"revision":restored["revision"]}),
+    );
+    let scope = client.call("conversation.delete.preview", json!({"id":cid}));
+    assert_eq!(scope["message_count"], 2);
+    assert_eq!(scope["revision"], archived["revision"]);
+    let delete_chat =
+        json!({"id":cid,"revision":scope["revision"],"token":scope["token"],"key":"delete-chat"});
+    let receipt = client.call("conversation.delete", delete_chat.clone());
+    assert_eq!(receipt["status"], "DELETED");
+    client.close();
+
+    let mut client = Runtime::open(&data);
+    assert_eq!(client.call("conversation.delete", delete_chat), receipt);
+    assert_eq!(
+        client.request(1, "conversation.get", json!({"id":cid}))["error"]["code"],
+        "NOT_FOUND"
+    );
+    assert_eq!(
+        client.request(1, "conversation.create", create)["error"]["code"],
+        "DELETED"
+    );
+    assert_eq!(
+        client.call("conversation.list", json!({"state":"ARCHIVED"}))["total"],
+        0
+    );
+    assert_eq!(
+        client.request(
+            1,
+            "conversation.send",
+            json!({"id":cid,"key":"late","content":"Late writer"})
+        )["error"]["code"],
+        "NOT_FOUND"
+    );
+    assert_eq!(
+        client.call("conversation.get", json!({"id":other["id"]}))["conversation"]["id"],
+        other["id"]
+    );
+    let next = client.call(
+        "conversation.create",
+        json!({"key":"new-chat","title":"New fixture","bindings":[binding]}),
+    );
+    assert!(
+        next["id"].as_str().unwrap().parse::<i64>().unwrap()
+            > other["id"].as_str().unwrap().parse::<i64>().unwrap()
+    );
+    client.close();
+
+    let conn = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+    let remaining: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM messages WHERE conversation_id=?1",
+            [cid.as_str().unwrap()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(remaining, 0);
+    let checks: i64 = conn
+        .query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(checks, 0);
+}
+
+#[test]
+fn conversation_deletion_retires_only_its_originating_automation() {
+    let fixture = Fixture::new();
+    let data = fixture.0.join("data");
+    let repo = fixture.0.join("repo");
+    fs::create_dir(&repo).unwrap();
+    fs::write(repo.join("sample.txt"), "fixture\n").unwrap();
+    git(&repo, &["init", "--quiet"]);
+    git(&repo, &["add", "--", "sample.txt"]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgSign=false",
+            "commit",
+            "--quiet",
+            "-m",
+            "Fixture",
+        ],
+    );
+    let mut client = Runtime::open(&data);
+    let repo_preview = client.call("repo.preview", json!({"path":repo}));
+    let binding = client.call(
+        "repo.add",
+        json!({"path":repo,"token":repo_preview["token"]}),
+    );
+    let binding_id = &binding["binding_id"];
+    let define = |key: &str| {
+        json!({
+            "key":key,"name":"Same display name","binding_id":binding_id,"prompt":"Review the fixture",
+            "trigger":{"kind":"MANUAL"},"enabled":false,"read_paths":["sample.txt"]
+        })
+    };
+    let owned = client.call("automation.create", define("linked"));
+    let unrelated = client.call("automation.create", define("unrelated"));
+    let owned_id = &owned["id"];
+    let unrelated_id = &unrelated["id"];
+    let start_run = |client: &mut Runtime, key: &str| {
+        let run = client.call(
+            "automation.run",
+            json!({"id":owned_id,"key":key,"confirm_inactive":true}),
+        );
+        let start = Instant::now();
+        loop {
+            let history = client.call("automation.runs", json!({"id":owned_id}));
+            let row = history["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["id"] == run["id"])
+                .unwrap();
+            if row["status"] == "WAITING_APPROVAL" {
+                return row.clone();
+            }
+            assert!(start.elapsed() < Duration::from_secs(5), "{row}");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    };
+    let first = start_run(&mut client, "first");
+    let chat = &first["conversation_id"];
+    client.call("automation.cancel", json!({"run_id":first["id"]}));
+    let chat_revision =
+        client.call("conversation.get", json!({"id":chat}))["conversation"]["revision"].clone();
+    let archived = client.call(
+        "conversation.archive",
+        json!({"id":chat,"revision":chat_revision}),
+    );
+    assert_eq!(archived["state"], "ARCHIVED");
+    assert!(
+        client.call("automation.list", json!({}))["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == *owned_id)
+    );
+    client.call(
+        "conversation.unarchive",
+        json!({"id":chat,"revision":archived["revision"]}),
+    );
+    let message = client.call("conversation.get", json!({"id":chat}))["messages"][0]["id"].clone();
+    let message_preview = client.call(
+        "message.delete.preview",
+        json!({"id":chat,"message_id":message}),
+    );
+    client.call(
+        "message.delete",
+        json!({"id":chat,"message_id":message,"revision":message_preview["revision"],
+        "token":message_preview["token"],"key":"message-only"}),
+    );
+    assert_eq!(
+        client.call("automation.list", json!({}))["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let sibling = start_run(&mut client, "sibling");
+    let blocked = client.call("conversation.delete.preview", json!({"id":chat}));
+    assert_eq!(blocked["automations"][0]["id"], *owned_id);
+    assert!(
+        blocked["blockers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == sibling["id"] && row["kind"] == "run")
+    );
+    assert_eq!(
+        client.request(
+            1,
+            "conversation.delete",
+            json!({"id":chat,"revision":blocked["revision"],
+        "token":blocked["token"],"key":"while-active"})
+        )["error"]["code"],
+        "ACTIVE_DEPENDENCY"
+    );
+    client.call("automation.cancel", json!({"run_id":sibling["id"]}));
+
+    let stale = client.call("conversation.delete.preview", json!({"id":chat}));
+    client.call(
+        "automation.pause",
+        json!({"id":owned_id,"revision":owned["revision"],"enabled":true}),
+    );
+    assert_eq!(
+        client.request(
+            1,
+            "conversation.delete",
+            json!({"id":chat,"revision":stale["revision"],
+        "token":stale["token"],"key":"stale-preview"})
+        )["error"]["code"],
+        "STALE_PREVIEW"
+    );
+    let ready = client.call("conversation.delete.preview", json!({"id":chat}));
+    let remove = json!({"id":chat,"revision":ready["revision"],"token":ready["token"],"key":"linked-delete"});
+    let receipt = client.call("conversation.delete", remove.clone());
+    assert_eq!(receipt["status"], "DELETED");
+    assert_eq!(
+        client.call("automation.list", json!({}))["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        client.call("automation.list", json!({}))["items"][0]["id"],
+        *unrelated_id
+    );
+    client.close();
+
+    let mut reopened = Runtime::open(&data);
+    assert_eq!(reopened.call("conversation.delete", remove), receipt);
+    assert_eq!(
+        reopened.request(1, "conversation.get", json!({"id":chat}))["error"]["code"],
+        "NOT_FOUND"
+    );
+    assert_eq!(
+        reopened.call("conversation.get", json!({"id":sibling["conversation_id"]}))["conversation"]
+            ["id"],
+        sibling["conversation_id"]
+    );
+    let history = reopened.call("automation.runs", json!({"id":owned_id}));
+    assert_eq!(history["items"].as_array().unwrap().len(), 2);
+    assert!(
+        history["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["status"] == "CANCELLED")
+    );
+    assert_eq!(
+        reopened.request(
+            1,
+            "automation.run",
+            json!({"id":owned_id,"key":"after-delete"})
+        )["ok"],
+        false
+    );
+    assert_eq!(
+        reopened.request(1, "automation.create", define("linked"))["ok"],
+        false
+    );
+    let remove_detached = json!({"id":unrelated_id,"revision":unrelated["revision"]});
+    let detached_receipt = reopened.call("automation.delete", remove_detached.clone());
+    assert_eq!(detached_receipt["status"], "DELETED");
+    assert_eq!(
+        reopened.call("automation.delete", remove_detached),
+        detached_receipt
+    );
+    assert!(
+        reopened.call("automation.list", json!({}))["items"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    reopened.close();
 }
 
 #[test]

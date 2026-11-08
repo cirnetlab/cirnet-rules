@@ -8,6 +8,9 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod lifecycle;
+mod sqlite;
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Create {
@@ -23,6 +26,7 @@ struct Send {
     id: String,
     key: String,
     content: String,
+    revision: Option<i64>,
     #[serde(default)]
     read_scope: BTreeMap<String, Vec<String>>,
 }
@@ -210,6 +214,7 @@ fn bound(conn: &Connection, conversation_id: i64) -> Result<Vec<(String, i64)>, 
 }
 
 fn existing_create(conn: &Connection, key: &str, hash: &str) -> Result<Option<Value>, AppError> {
+    sqlite::retired_key(conn, None, key)?;
     let row = conn
         .query_row(
             "SELECT id,create_digest FROM conversations WHERE create_key=?1",
@@ -235,11 +240,11 @@ fn insert_conversation(
     bindings: &[catalog::Binding],
     time: i64,
 ) -> Result<i64, AppError> {
+    let id = sqlite::next_id(conn, sqlite::Sequence::Conversation)?;
     conn.execute(
-        "INSERT INTO conversations(create_key,create_digest,title,profile,state,source,revision,created_at,updated_at)
-        VALUES(?1,?2,?3,'handoff','ACTIVE',?4,1,?5,?5)",params![key,hash,title,source,time]
+        "INSERT INTO conversations(id,create_key,create_digest,title,profile,state,source,revision,created_at,updated_at)
+        VALUES(?1,?2,?3,?4,'handoff','ACTIVE',?5,1,?6,?6)",params![id,key,hash,title,source,time]
     )?;
-    let id = conn.last_insert_rowid();
     for (index, binding) in bindings.iter().enumerate() {
         matches_binding(conn, binding)?;
         conn.execute(
@@ -258,9 +263,10 @@ pub(super) fn event(
     payload: &Value,
     time: i64,
 ) -> Result<(), AppError> {
+    let sequence = sqlite::next_id(conn, sqlite::Sequence::Event)?;
     conn.execute(
-        "INSERT INTO session_events(conversation_id,task_id,run_id,attempt,correlation,event_type,payload_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
-        params![refs.0,refs.1,refs.2,refs.3,correlation,kind,payload.to_string(),time]
+        "INSERT INTO session_events(sequence,conversation_id,task_id,run_id,attempt,correlation,event_type,payload_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+        params![sequence,refs.0,refs.1,refs.2,refs.3,correlation,kind,payload.to_string(),time]
     )?;
     Ok(())
 }
@@ -407,7 +413,11 @@ fn result_for(conn: &Connection, message_id: i64, task_id: i64) -> Result<Value,
         [message_id],
         message_row,
     )?;
-    Ok(json!({"message":message,"task":task(conn,task_id)?}))
+    let revision: i64 = conn.query_row(
+        "SELECT c.revision FROM conversations c JOIN messages m ON m.conversation_id=c.id WHERE m.id=?1",
+        [message_id], |row| row.get(0),
+    )?;
+    Ok(json!({"message":message,"task":task(conn,task_id)?,"conversation_revision":revision}))
 }
 
 fn existing_send(
@@ -416,6 +426,7 @@ fn existing_send(
     key: &str,
     hash: &str,
 ) -> Result<Option<Value>, AppError> {
+    sqlite::retired_key(conn, Some(conversation_id), key)?;
     let row = conn.query_row(
         "SELECT m.id,t.id,m.request_digest FROM messages m JOIN task_proposals t ON t.message_id=m.id WHERE m.conversation_id=?1 AND m.request_key=?2",
         params![conversation_id,key], |row| Ok((row.get::<_,i64>(0)?,row.get::<_,i64>(1)?,row.get::<_,String>(2)?)),
@@ -448,23 +459,24 @@ fn insert_turn(
     run: Option<(i64, i64)>,
 ) -> Result<(i64, i64), AppError> {
     if conn.execute(
-        "UPDATE conversations SET updated_at=?2 WHERE id=?1 AND state='ACTIVE'",
+        "UPDATE conversations SET updated_at=?2,revision=revision+1 WHERE id=?1 AND state='ACTIVE'",
         params![conversation_id, request.time],
     )? != 1
     {
         return Err(conflict("Conversation is archived"));
     }
+    let ordinal = sqlite::next_ordinal(conn, conversation_id)?;
+    let message_id = sqlite::next_id(conn, sqlite::Sequence::Message)?;
     conn.execute(
-        "INSERT INTO messages(conversation_id,request_key,request_digest,ordinal,role,content,created_at)
-        SELECT ?1,?2,?3,COALESCE(MAX(ordinal),0)+1,'USER',?4,?5 FROM messages WHERE conversation_id=?1",
-        params![conversation_id,key,hash,request.content,request.time],
+        "INSERT INTO messages(id,conversation_id,request_key,request_digest,ordinal,role,content,created_at)
+        VALUES (?1,?2,?3,?4,?5,'USER',?6,?7)",
+        params![message_id,conversation_id,key,hash,ordinal,request.content,request.time],
     )?;
-    let message_id = conn.last_insert_rowid();
+    let task_id = sqlite::next_id(conn, sqlite::Sequence::Proposal)?;
     conn.execute(
-        "INSERT INTO task_proposals(conversation_id,message_id,state,mode,risk,route_json,created_at) VALUES(?1,?2,'WAITING_APPROVAL',?3,?4,?5,?6)",
-        params![conversation_id,message_id,request.mode,request.risk,request.route.to_string(),request.time],
+        "INSERT INTO task_proposals(id,conversation_id,message_id,state,mode,risk,route_json,created_at) VALUES(?1,?2,?3,'WAITING_APPROVAL',?4,?5,?6,?7)",
+        params![task_id,conversation_id,message_id,request.mode,request.risk,request.route.to_string(),request.time],
     )?;
-    let task_id = conn.last_insert_rowid();
     event(
         conn,
         (
@@ -508,9 +520,17 @@ pub fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value,
     match method {
         "conversation.create" => create(db, parse(params)?),
         "conversation.send" => send(db, parse(params)?),
-        "conversation.rename" | "conversation.archive" => edit(db, method, parse(params)?),
+        "conversation.rename" => rename(db, parse(params)?),
+        "conversation.archive"
+        | "conversation.unarchive"
+        | "conversation.list"
+        | "conversation.delete.preview"
+        | "message.delete.preview"
+        | "conversation.delete"
+        | "message.delete" => {
+            lifecycle::dispatch(&mut sqlite::Repository(&mut db.conn), method, params)
+        }
         "conversation.cancel" => cancel(db, parse(params)?),
-        "conversation.list" => list(db, &params),
         "conversation.get" | "conversation.resume" => get(db, method, &params),
         "conversation.events" => events(db, &params),
         _ => Err(AppError::new(
@@ -599,6 +619,11 @@ fn send(db: &mut Database, request: Send) -> Result<Value, AppError> {
     if let Some(existing) = existing_send(&tx, id, &request.key, &hash)? {
         return Ok(existing);
     }
+    if let Some(revision) = request.revision
+        && conversation(&tx, id)?["revision"] != revision
+    {
+        return Err(conflict("Conversation revision is stale"));
+    }
     for binding in &bindings {
         matches_binding(&tx, binding)?;
     }
@@ -615,19 +640,15 @@ fn send(db: &mut Database, request: Send) -> Result<Value, AppError> {
     Ok(result)
 }
 
-fn edit(db: &mut Database, method: &str, request: Edit) -> Result<Value, AppError> {
+fn rename(db: &mut Database, request: Edit) -> Result<Value, AppError> {
     let id = id(&request.id)?;
     let time = now();
     let tx = db
         .conn
         .transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let title = if method == "conversation.rename" {
-        Some(text(request.title.as_deref().unwrap_or(""), 160)?)
-    } else {
-        None
-    };
+    let title = text(request.title.as_deref().unwrap_or(""), 160)?;
     let changed=tx.execute(
-        "UPDATE conversations SET title=COALESCE(?3,title),state=CASE WHEN ?3 IS NULL THEN 'ARCHIVED' ELSE state END,revision=revision+1,updated_at=?4 WHERE id=?1 AND revision=?2",
+        "UPDATE conversations SET title=?3,revision=revision+1,updated_at=?4 WHERE id=?1 AND revision=?2",
         params![id,request.revision,title,time])?;
     if changed != 1 {
         return Err(conflict("Conversation revision is stale"));
@@ -636,11 +657,7 @@ fn edit(db: &mut Database, method: &str, request: Edit) -> Result<Value, AppErro
         &tx,
         (Some(id), None, None, None),
         &request.id,
-        if title.is_some() {
-            "CONVERSATION_RENAMED"
-        } else {
-            "CONVERSATION_ARCHIVED"
-        },
+        "CONVERSATION_RENAMED",
         &json!({}),
         time,
     )?;
@@ -665,6 +682,10 @@ fn cancel(db: &mut Database, request: Cancel) -> Result<Value, AppError> {
         params![tid,time],
         |row|row.get(0),
     ).optional()?;
+    tx.execute(
+        "UPDATE conversations SET revision=revision+1,updated_at=?2 WHERE id=?1",
+        params![cid, time],
+    )?;
     event(
         &tx,
         (Some(cid), Some(tid), run, None),
@@ -678,51 +699,80 @@ fn cancel(db: &mut Database, request: Cancel) -> Result<Value, AppError> {
     Ok(result)
 }
 
-fn list(db: &Database, params: &Value) -> Result<Value, AppError> {
-    let query = params["query"].as_str().unwrap_or("").trim();
-    if query.len() > 160 {
-        return Err(AppError::new("INVALID_REQUEST", "Search is too long"));
-    }
-    let count = limit(&params["limit"])?;
-    let before = cursor(&params["before"], i64::MAX)?;
-    let sql = format!(
-        "SELECT {CONVERSATION_COLS} FROM conversations WHERE id<?1 AND instr(lower(title),lower(?2))>0 ORDER BY id DESC LIMIT ?3"
-    );
-    let mut statement = db.conn.prepare(&sql)?;
-    let items = statement
-        .query_map(params![before, query, count], conversation_row)?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(json!({"next_before":items.last().map(|row|&row["id"]),"items":items}))
-}
-
 fn get(db: &Database, method: &str, params: &Value) -> Result<Value, AppError> {
     let id = id(params["id"].as_str().unwrap_or(""))?;
-    let conversation = conversation(&db.conn, id)?;
-    let mut statement=db.conn.prepare("SELECT id,ordinal,role,content,created_at FROM messages WHERE conversation_id=?1 AND ordinal<?2 ORDER BY ordinal DESC LIMIT ?3")?;
-    let mut messages = statement
-        .query_map(
-            params![
-                id,
-                cursor(&params["before"], i64::MAX)?,
-                limit(&params["limit"])?.min(4)
-            ],
-            message_row,
-        )?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    messages.reverse();
-    let mut statement = db
-        .conn
-        .prepare("SELECT id FROM task_proposals WHERE message_id=?1")?;
-    let tasks = messages
-        .iter()
-        .rev()
-        .map(|row| {
-            let mid = super::sessions::id(row["id"].as_str().unwrap_or_default())?;
-            let task_id = statement.query_row([mid], |row| row.get(0))?;
-            task(&db.conn, task_id)
-        })
-        .collect::<Result<Vec<_>, AppError>>()?;
-    let bindings = bound(&db.conn, id)?;
+    let after = !params["after"].is_null();
+    if after && !params["before"].is_null() {
+        return Err(AppError::new(
+            "INVALID_REQUEST",
+            "Choose one message page direction",
+        ));
+    }
+    let cursor = if after {
+        cursor(&params["after"], 0)?
+    } else {
+        cursor(&params["before"], i64::MAX)?
+    };
+    let limit = limit(&params["limit"])?.min(4);
+    let predicate = if after {
+        ">?2 ORDER BY m.ordinal ASC"
+    } else {
+        "<?2 ORDER BY m.ordinal DESC"
+    };
+    let tx = db.conn.unchecked_transaction()?;
+    let conversation = conversation(&tx, id)?;
+    let mut rows = {
+        let mut statement = tx.prepare(&format!(
+            "SELECT m.id,m.ordinal,m.role,m.content,m.created_at,t.id,t.state,t.mode,t.risk,t.route_json
+            FROM messages m LEFT JOIN task_proposals t ON t.message_id=m.id
+            WHERE m.conversation_id=?1 AND m.ordinal{predicate} LIMIT ?3"
+        ))?;
+        statement
+            .query_map(params![id, cursor, limit + 1], |row| {
+                let task = row
+                    .get::<_, Option<i64>>(5)?
+                    .map(|id| -> rusqlite::Result<_> {
+                        Ok((
+                            id.to_string(),
+                            row.get::<_, String>(6)?,
+                            row.get::<_, String>(7)?,
+                            row.get::<_, String>(8)?,
+                            row.get::<_, String>(9)?,
+                        ))
+                    })
+                    .transpose()?;
+                Ok((message_row(row)?, task))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    let has_more = rows.len() as i64 > limit;
+    if has_more {
+        rows.pop();
+    }
+    if !after {
+        rows.reverse();
+    }
+    let mut messages = Vec::with_capacity(rows.len());
+    let mut tasks = Vec::with_capacity(rows.len());
+    for (message, task) in rows {
+        if let Some((task_id, state, mode, risk, route)) = task {
+            tasks.push(
+                json!({"id":task_id,"message_id":message["id"],"state":state,
+                "mode":mode,"risk":risk,"route":stored_json(route)?}),
+            );
+        }
+        messages.push(message);
+    }
+    tasks.reverse();
+    let bindings = bound(&tx, id)?;
+    let (blocker_count, blockers) = sqlite::blockers(
+        &tx,
+        lifecycle::Target {
+            conversation: id,
+            message: None,
+        },
+    )?;
+    tx.commit()?;
     if method == "conversation.resume" {
         for (binding, revision) in &bindings {
             catalog::resolve_binding(db, binding, Some(*revision))?;
@@ -732,9 +782,16 @@ fn get(db: &Database, method: &str, params: &Value) -> Result<Value, AppError> {
         .into_iter()
         .map(|(binding, revision)| json!({"binding_id":binding,"revision":revision}))
         .collect();
+    let next_after = messages
+        .last()
+        .and_then(|row| row["ordinal"].as_i64())
+        .or(after.then_some(cursor))
+        .unwrap_or(0)
+        .to_string();
     Ok(
         json!({"conversation":conversation,"next_before":messages.first().and_then(|row|row["ordinal"].as_i64()).map(|n|n.to_string()),
-        "messages":messages,"tasks":tasks,"bindings":selections}),
+        "next_after":next_after,"has_more":has_more,"messages":messages,"tasks":tasks,"bindings":selections,
+        "blockers":blockers,"blocker_count":blocker_count}),
     )
 }
 

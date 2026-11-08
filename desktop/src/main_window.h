@@ -7,6 +7,7 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QSet>
+#include <QStringList>
 #include <QVector>
 
 class QAction;
@@ -63,6 +64,7 @@ private:
     void schedulePreferencesSave();
     void savePreferences();
     void applyPreferences(const QJsonObject &settings);
+    void applyAppearance();
     QJsonObject preferenceSettings() const;
     void stopRuntimeAndClose();
     void call(const QString &method, QJsonObject params, RuntimeClient::Reply reply);
@@ -91,11 +93,17 @@ private:
 
     QWidget *makeConversations();
     QWidget *makeConversationHistory();
+    enum class TranscriptPage { Latest, Newer, Older };
     bool canLoadMoreConversations() const;
     void refreshConversations(bool append = false);
     void newConversation(const QString &preselected = {});
-    void openConversation(const QString &id);
+    void openConversation(const QString &id, TranscriptPage page = TranscriptPage::Latest);
     void editConversation(bool archive, const QJsonObject &record = {});
+    void deleteConversationData(const QString &id, const QString &messageId = {}, std::function<void(bool)> onComplete = {});
+    void forgetConversation(const QString &id, bool deleted);
+    void applyTranscriptPage(const QJsonObject &data, TranscriptPage page);
+    void clearCurrentDraft();
+    void restoreCurrentDraft();
     void updateConversationSummary();
     void updateConversationAvailability();
     void sendMessage();
@@ -111,6 +119,9 @@ private:
     void updateAutomationAvailability();
     void runAutomation(const QJsonObject &automation);
     void toggleAutomation(const QJsonObject &automation);
+    void deleteAutomation(const QJsonObject &automation);
+    void forgetAutomations(const QStringList &ids);
+    void showAutomationBlockers(const QJsonObject &automation, const QJsonObject &result, const QString &error);
     void automationHistory(const QJsonObject &automation);
 
     RuntimeClient &client_;
@@ -150,6 +161,10 @@ private:
     QCheckBox *reducedMotion_ = nullptr;
     QComboBox *densityChoice_ = nullptr;
     QSpinBox *textScale_ = nullptr;
+    QComboBox *accentChoice_ = nullptr;
+    QComboBox *uiFontChoice_ = nullptr;
+    QComboBox *contentScaleChoice_ = nullptr;
+    QComboBox *codeScaleChoice_ = nullptr;
     QComboBox *notificationChoice_ = nullptr;
     QLabel *preferencesStatus_ = nullptr;
     QPushButton *preferencesRetry_ = nullptr;
@@ -206,6 +221,8 @@ private:
     QPushButton *conversationActions_ = nullptr;
     QPushButton *cancelTask_ = nullptr;
     QPushButton *send_ = nullptr;
+    QPushButton *olderMessages_ = nullptr;
+    QPushButton *latestMessages_ = nullptr;
     QLabel *conversationTitle_ = nullptr;
     QLabel *conversationDetail_ = nullptr;
     QPlainTextEdit *transcript_ = nullptr;
@@ -213,10 +230,21 @@ private:
     QJsonObject conversation_;
     QJsonArray conversationTasks_;
     QJsonArray conversationBindings_;
+    QJsonArray conversationBlockers_;
+    QList<QJsonObject> transcriptRows_;
+    QJsonValue transcriptBefore_;
+    qint64 transcriptNewest_ = 0;
+    bool transcriptLoading_ = false;
+    bool transcriptDetached_ = false;
+    bool transcriptRefreshQueued_ = false;
     QJsonValue conversationCursor_;
     bool conversationLoading_ = false;
+    bool conversationListInFlight_ = false;
+    bool conversationRefreshQueued_ = false;
     QString currentConversation_;
     QHash<QString, QString> conversationDrafts_, conversationRetryKeys_, conversationRetryContents_;
+    QHash<QString, QString> clearedDrafts_;
+    QSet<QString> conversationDeletes_;
     QSet<QString> conversationSending_;
     bool eventRequestPending_ = false;
     quint64 conversationRequest_ = 0;
@@ -235,6 +263,7 @@ private:
     QJsonArray automations_;
     QHash<QString, QFrame *> automationCardWidgets_;
     QSet<QString> automationRunsPending_;
+    QSet<QString> automationDeletesPending_;
     QJsonValue automationCursor_;
     quint64 automationRequest_ = 0;
     int cardColumns_ = 0;

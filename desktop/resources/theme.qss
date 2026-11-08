@@ -60,6 +60,9 @@ QAbstractSpinBox QLineEdit, QComboBox QLineEdit {
 }
 QLineEdit QToolButton { padding: 0; }
 QPlainTextEdit#conversationTranscript { border-color: transparent; }
+QAbstractItemView#conversationTranscript, QPlainTextEdit#conversationTranscript,
+QPlainTextEdit#conversationComposer { font-size: @CONTENT_SIZE@px; }
+QPlainTextEdit[codeText="true"] { font-size: @CODE_SIZE@px; font-family: "@CODE_FAMILY@"; }
 QToolButton#localStatus, QToolButton#navSettings {
     background: transparent; border-color: transparent;
     color: @MUTED@; font-size: @META_SIZE@px; padding: 4px 5px;

@@ -95,6 +95,12 @@ struct Pause {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct Delete {
+    id: String,
+    revision: i64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Run {
     id: String,
     key: String,
@@ -306,7 +312,9 @@ fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
 
 fn load(conn: &Connection, id: i64) -> Result<Row, AppError> {
     conn.query_row(
-        &format!("SELECT {DEF_COLS} FROM automation_definitions WHERE id=?1"),
+        &format!(
+            "SELECT {DEF_COLS} FROM automation_definitions WHERE id=?1 AND deleted_at IS NULL"
+        ),
         [id],
         row,
     )
@@ -363,14 +371,24 @@ fn view(conn: &Connection, def: Row) -> Result<Value, AppError> {
 fn prior_create(conn: &Connection, key: &str, hash: &str) -> Result<Option<Value>, AppError> {
     let found = conn
         .query_row(
-            "SELECT id,create_digest FROM automation_definitions WHERE create_key=?1",
+            "SELECT id,create_digest,deleted_at FROM automation_definitions WHERE create_key=?1",
             [key],
-            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)),
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Option<i64>>(2)?,
+                ))
+            },
         )
         .optional()?;
     match found {
         None => Ok(None),
-        Some((id, previous)) if previous == hash => Ok(Some(view(conn, load(conn, id)?)?)),
+        Some((_, previous, Some(_))) if previous == hash => Err(AppError::new(
+            "DELETED",
+            "This request belongs to a deleted automation",
+        )),
+        Some((id, previous, None)) if previous == hash => Ok(Some(view(conn, load(conn, id)?)?)),
         Some(_) => Err(conflict(
             "Idempotency key has already been used for another automation",
         )),
@@ -441,7 +459,7 @@ fn update(db: &mut Database, input: Update) -> Result<Value, AppError> {
         .transaction_with_behavior(TransactionBehavior::Immediate)?;
     sessions::matches_binding(&tx, &binding)?;
     if tx.execute("UPDATE automation_definitions SET name=?3,binding_id=?4,binding_revision=?5,profile=?6,prompt=?7,paths_json=?8,
-        template_id=?9,template_revision=?10,mode=?11,risk=?12,enabled=?13,trigger_json=?14,next_at=?15,updated_at=?16,revision=revision+1 WHERE id=?1 AND revision=?2",
+        template_id=?9,template_revision=?10,mode=?11,risk=?12,enabled=?13,trigger_json=?14,next_at=?15,updated_at=?16,revision=revision+1 WHERE id=?1 AND revision=?2 AND deleted_at IS NULL",
         params![id,input.revision,snapshot.name,binding.id,binding.revision,snapshot.profile,snapshot.prompt,encode(&snapshot.read_paths)?,
             snapshot.template_id,snapshot.template_revision,snapshot.mode,snapshot.risk,input.definition.enabled,encode(&snapshot.trigger)?,next.filter(|_|input.definition.enabled),time])?!=1{
         return Err(conflict("Automation revision is stale"));
@@ -479,7 +497,7 @@ fn pause(db: &mut Database, input: Pause) -> Result<Value, AppError> {
     if let Some(binding) = binding.as_ref() {
         sessions::matches_binding(&tx, binding)?;
     }
-    if tx.execute("UPDATE automation_definitions SET enabled=?3,next_at=?4,updated_at=?5,revision=revision+1 WHERE id=?1 AND revision=?2",
+    if tx.execute("UPDATE automation_definitions SET enabled=?3,next_at=?4,updated_at=?5,revision=revision+1 WHERE id=?1 AND revision=?2 AND deleted_at IS NULL",
         params![id,input.revision,input.enabled,next,time])?!=1{return Err(conflict("Automation revision is stale"));}
     if !input.enabled {
         retire_pending(&tx, id, time, "DEFINITION_DISABLED")?;
@@ -501,9 +519,97 @@ fn prior_run(conn: &Connection, automation: i64, key: &str) -> Result<Option<Val
         .optional()?)
 }
 
+pub(super) const ACTIVE_RUN: &str = "(status NOT IN ('CANCELLED','BLOCKED') OR lease_token IS NOT NULL OR lease_expires_at IS NOT NULL)";
+
 fn active_run(conn: &Connection, id: i64) -> Result<bool, AppError> {
-    Ok(conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_runs WHERE automation_id=?1 AND status IN ('QUEUED','CLAIMED','WAITING_APPROVAL','RECOVERY_REQUIRED'))",
-        [id],|row|row.get(0))?)
+    Ok(conn.query_row(
+        &format!(
+            "SELECT EXISTS(SELECT 1 FROM automation_runs WHERE automation_id=?1 AND {ACTIVE_RUN})"
+        ),
+        [id],
+        |row| row.get(0),
+    )?)
+}
+
+fn blocking_runs(conn: &Connection, id: i64) -> Result<Vec<Value>, AppError> {
+    let mut statement = conn.prepare(&format!(
+        "SELECT {RUN_COLS},lease_expires_at FROM automation_runs
+         WHERE automation_id=?1 AND {ACTIVE_RUN} ORDER BY id LIMIT 16"
+    ))?;
+    Ok(statement
+        .query_map([id], |row| {
+            let mut item = run_row(row)?;
+            item["lease_expires_at"] = json!(row.get::<_, Option<i64>>(14)?);
+            Ok(item)
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+pub(super) fn retire_definition(
+    conn: &Connection,
+    id: i64,
+    revision: i64,
+    time: i64,
+) -> Result<Value, AppError> {
+    if conn.is_autocommit() {
+        return Err(AppError::new(
+            "INTEGRITY",
+            "Automation deletion requires a transaction",
+        ));
+    }
+    let next_revision = revision
+        .checked_add(1)
+        .filter(|_| revision > 0)
+        .ok_or_else(|| invalid("Automation revision is invalid"))?;
+    let (current_revision, deleted_at): (i64, Option<i64>) = conn
+        .query_row(
+            "SELECT revision,deleted_at FROM automation_definitions WHERE id=?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?
+        .ok_or_else(missing)?;
+    let receipt = json!({"id":id.to_string(),"status":"DELETED"});
+    if deleted_at.is_some() {
+        return if current_revision == next_revision {
+            Ok(receipt)
+        } else {
+            Err(conflict("Automation revision is stale"))
+        };
+    }
+    if current_revision != revision {
+        return Err(conflict("Automation revision is stale"));
+    }
+    let blockers = blocking_runs(conn, id)?;
+    if !blockers.is_empty() {
+        return Err(AppError::new(
+            "ACTIVE_DEPENDENCY",
+            "Resolve active automation runs before deleting this automation",
+        )
+        .with_details(json!({"blockers":blockers})));
+    }
+    // Keep the definition ID as the parent of terminal run history. A deleted
+    // definition cannot run again or resurrect through its original create key.
+    conn.execute(
+        "UPDATE automation_definitions SET deleted_at=?2,updated_at=?2,revision=?3,
+             enabled=0,next_at=NULL,name='',prompt='',paths_json='[]' WHERE id=?1",
+        params![id, time, next_revision],
+    )?;
+    conn.execute(
+        "UPDATE automation_runs SET snapshot_json='{}' WHERE automation_id=?1",
+        [id],
+    )?;
+    Ok(receipt)
+}
+
+fn delete(db: &mut Database, input: Delete) -> Result<Value, AppError> {
+    let id = sessions::id(&input.id)?;
+    let tx = db
+        .conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let result = retire_definition(&tx, id, input.revision, sessions::now())?;
+    tx.commit()?;
+    Ok(result)
 }
 
 fn enqueue(
@@ -536,10 +642,10 @@ fn enqueue(
 fn manual(db: &mut Database, input: Run) -> Result<Value, AppError> {
     let id = sessions::id(&input.id)?;
     sessions::request_key(&input.key)?;
+    let def = load(&db.conn, id)?;
     if let Some(found) = prior_run(&db.conn, id, &input.key)? {
         return Ok(found);
     }
-    let def = load(&db.conn, id)?;
     if !def.enabled && !input.confirm_inactive {
         return Err(AppError::new(
             "CONFIRMATION_REQUIRED",
@@ -550,17 +656,20 @@ fn manual(db: &mut Database, input: Run) -> Result<Value, AppError> {
     let tx = db
         .conn
         .transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let current = load(&tx, id)?;
     if let Some(found) = prior_run(&tx, id, &input.key)? {
         return Ok(found);
     }
-    if load(&tx, id)?.revision != def.revision {
+    if current.revision != def.revision {
         return Err(conflict("Automation changed before enqueue"));
     }
     sessions::matches_binding(&tx, &binding)?;
-    if active_run(&tx, id)? {
-        return Err(conflict(
-            "An existing run must be resolved before another one starts",
-        ));
+    let blockers = blocking_runs(&tx, id)?;
+    if !blockers.is_empty() {
+        return Err(
+            conflict("An existing run must be resolved before another one starts")
+                .with_details(json!({"blockers":blockers})),
+        );
     }
     let run = enqueue(&tx, &def, "MANUAL", Some(&input.key), None, sessions::now())?
         .ok_or_else(|| conflict("Manual run was not enqueued"))?;
@@ -597,6 +706,12 @@ fn cancel(db: &mut Database, params: &Value) -> Result<Value, AppError> {
         )?;
     }
     let time = sessions::now();
+    if let Some(conversation) = conversation {
+        tx.execute(
+            "UPDATE conversations SET revision=revision+1,updated_at=?2 WHERE id=?1",
+            params![conversation, time],
+        )?;
+    }
     // CLAIMED is metadata inspection only. The worker cannot persist a
     // proposal after this transaction revokes the claim.
     tx.execute(
@@ -624,7 +739,7 @@ fn list(db: &Database, params: &Value) -> Result<Value, AppError> {
     }
     let binding = params["binding_id"].as_str();
     let enabled = params["enabled"].as_bool();
-    let sql=format!("SELECT {DEF_COLS} FROM automation_definitions WHERE id<?1 AND instr(lower(name),lower(?2))>0
+    let sql=format!("SELECT {DEF_COLS} FROM automation_definitions WHERE deleted_at IS NULL AND id<?1 AND instr(lower(name),lower(?2))>0
         AND (?3 IS NULL OR binding_id=?3) AND (?4 IS NULL OR enabled=?4) ORDER BY id DESC LIMIT ?5");
     let mut statement = db.conn.prepare(&sql)?;
     let rows = statement
@@ -648,7 +763,13 @@ fn list(db: &Database, params: &Value) -> Result<Value, AppError> {
 
 fn runs(db: &Database, params: &Value) -> Result<Value, AppError> {
     let id = sessions::id(params["id"].as_str().unwrap_or(""))?;
-    load(&db.conn, id)?;
+    if !db.conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM automation_definitions WHERE id=?1)",
+        [id],
+        |row| row.get::<_, bool>(0),
+    )? {
+        return Err(missing());
+    }
     let mut statement=db.conn.prepare(&format!("SELECT {RUN_COLS} FROM automation_runs WHERE automation_id=?1 AND id<?2 ORDER BY id DESC LIMIT ?3"))?;
     let items = statement
         .query_map(
@@ -683,6 +804,7 @@ pub fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value,
         "automation.create" => create(db, sessions::parse(params)?),
         "automation.update" => update(db, sessions::parse(params)?),
         "automation.pause" => pause(db, sessions::parse(params)?),
+        "automation.delete" => delete(db, sessions::parse(params)?),
         "automation.run" => manual(db, sessions::parse(params)?),
         "automation.cancel" => cancel(db, &params),
         "automation.list" => list(db, &params),
@@ -703,7 +825,7 @@ pub fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value,
 
 fn schedule(db: &mut Database, time: i64) -> Result<usize, AppError> {
     if !db.conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM automation_definitions WHERE enabled=1 AND next_at<=?1)",
+        "SELECT EXISTS(SELECT 1 FROM automation_definitions WHERE deleted_at IS NULL AND enabled=1 AND next_at<=?1)",
         [time],
         |row| row.get::<_, bool>(0),
     )? {
@@ -712,7 +834,7 @@ fn schedule(db: &mut Database, time: i64) -> Result<usize, AppError> {
     let tx = db
         .conn
         .transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let mut statement=tx.prepare(&format!("SELECT {DEF_COLS} FROM automation_definitions WHERE enabled=1 AND next_at<=?1 ORDER BY next_at,id LIMIT 8"))?;
+    let mut statement=tx.prepare(&format!("SELECT {DEF_COLS} FROM automation_definitions WHERE deleted_at IS NULL AND enabled=1 AND next_at<=?1 ORDER BY next_at,id LIMIT 8"))?;
     let defs = statement
         .query_map([time], row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -976,6 +1098,232 @@ mod tests {
 
     fn manual_request(binding: &str, key: &str) -> Value {
         json!({"key":key,"name":"Fixture routine","binding_id":binding,"prompt":"Propose a review","trigger":{"kind":"MANUAL"}})
+    }
+
+    #[test]
+    fn delete_automation_blocks_active_runs_and_preserves_terminal_history_after_reopen() {
+        let (fixture, mut db, binding) = Fixture::new();
+        let mut create_request = manual_request(&binding, "delete-fixture");
+        create_request["enabled"] = json!(true);
+        create_request["trigger"] = json!({"kind":"DAILY","hour":0,"minute":0,"timezone":"UTC"});
+        let definition = dispatch(&mut db, "automation.create", create_request.clone()).unwrap();
+        let id = definition["id"].clone();
+        assert!(definition["next_at"].is_i64());
+        let run_request = json!({"id":id,"key":"before-delete"});
+        let run = dispatch(&mut db, "automation.run", run_request.clone()).unwrap();
+        let run_id = run["id"].clone();
+        let delete = json!({"id":id,"revision":definition["revision"]});
+        let active = dispatch(&mut db, "automation.delete", delete.clone()).unwrap_err();
+        assert_eq!(active.code, "ACTIVE_DEPENDENCY");
+        assert_eq!(active.wire()["details"]["blockers"][0]["id"], run_id);
+        tick(&mut db).unwrap();
+        let runs = dispatch(&mut db, "automation.runs", json!({"id":id})).unwrap();
+        let conversation_id = runs["items"][0]["conversation_id"].clone();
+        assert!(conversation_id.is_string());
+        dispatch(&mut db, "automation.cancel", json!({"run_id":run_id})).unwrap();
+        db.conn
+            .execute(
+                "UPDATE automation_runs SET lease_token='fixture-lease',lease_expires_at=?2 WHERE id=?1",
+                params![run_id.as_str().unwrap(), sessions::now() + 60],
+            )
+            .unwrap();
+        let leased = dispatch(&mut db, "automation.delete", delete.clone()).unwrap_err();
+        assert_eq!(leased.code, "ACTIVE_DEPENDENCY");
+        assert_eq!(
+            leased.wire()["details"]["blockers"][0]["status"],
+            "CANCELLED"
+        );
+        db.conn
+            .execute(
+                "UPDATE automation_runs SET lease_token=NULL,lease_expires_at=NULL WHERE id=?1",
+                [run_id.as_str().unwrap()],
+            )
+            .unwrap();
+        assert_eq!(
+            dispatch(&mut db, "automation.delete", json!({"id":id,"revision":2}))
+                .unwrap_err()
+                .code,
+            "CONFLICT"
+        );
+        let receipt = dispatch(&mut db, "automation.delete", delete.clone()).unwrap();
+        assert_eq!(receipt, json!({"id":id,"status":"DELETED"}));
+        drop(db);
+
+        let mut db = Database::open(&fixture.data).unwrap();
+        assert_eq!(
+            dispatch(&mut db, "automation.delete", delete).unwrap(),
+            receipt
+        );
+        assert_eq!(
+            dispatch(&mut db, "automation.create", create_request)
+                .unwrap_err()
+                .code,
+            "DELETED"
+        );
+        assert!(dispatch(&mut db, "automation.run", run_request).is_err());
+        assert!(
+            dispatch(
+                &mut db,
+                "automation.pause",
+                json!({"id":id,"revision":2,"enabled":true})
+            )
+            .is_err()
+        );
+        let visible = dispatch(&mut db, "automation.list", json!({})).unwrap();
+        assert_eq!(visible["items"], json!([]));
+        let history = dispatch(&mut db, "automation.runs", json!({"id":id})).unwrap();
+        assert_eq!(history["items"][0]["id"], run_id);
+        assert_eq!(history["items"][0]["status"], "CANCELLED");
+        let remaining =
+            sessions::dispatch(&mut db, "conversation.get", json!({"id":conversation_id})).unwrap();
+        assert_eq!(remaining["conversation"]["id"], conversation_id);
+        let (enabled, next_at, prompt, paths, snapshot) = db.conn.query_row(
+            "SELECT d.enabled,d.next_at,d.prompt,d.paths_json,r.snapshot_json
+             FROM automation_definitions d JOIN automation_runs r ON r.automation_id=d.id WHERE d.id=?1",
+            [id.as_str().unwrap()],
+            |row| Ok((row.get::<_, bool>(0)?, row.get::<_, Option<i64>>(1)?,
+                      row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?)),
+        ).unwrap();
+        assert!(!enabled);
+        assert!(next_at.is_none());
+        assert!(prompt.is_empty());
+        assert_eq!(paths, "[]");
+        assert_eq!(snapshot, "{}");
+        assert_eq!(schedule(&mut db, sessions::now() + 172_800).unwrap(), 0);
+    }
+
+    #[test]
+    fn archived_query_counts_the_whole_filtered_set_and_pages_stably() {
+        let (_fixture, mut db, _binding) = Fixture::new();
+        db.conn.execute_batch(
+            "WITH RECURSIVE entries(id) AS (
+                 VALUES(1) UNION ALL SELECT id+1 FROM entries WHERE id<10000
+             )
+             INSERT INTO conversations(id,create_key,create_digest,title,profile,state,source,revision,created_at,updated_at)
+             SELECT id,'fixture-'||id,'fixture',
+                 CASE WHEN id%3=0 THEN 'Matching archived fixture' ELSE 'Other fixture' END,
+                 'handoff',CASE WHEN id%2=0 THEN 'ARCHIVED' ELSE 'ACTIVE' END,
+                 'DASHBOARD',1,id,id FROM entries;",
+        ).unwrap();
+        let mut query = json!({"state":"ARCHIVED","query":"Matching archived","limit":7});
+        let first = sessions::dispatch(&mut db, "conversation.list", query.clone()).unwrap();
+        assert_eq!(first["total"], 1666);
+        assert_eq!(first["items"].as_array().unwrap().len(), 7);
+        assert_eq!(first["items"][0]["id"], "9996");
+        assert_eq!(first["next_before"], "9960");
+        query["before"] = first["next_before"].clone();
+        let next = sessions::dispatch(&mut db, "conversation.list", query).unwrap();
+        assert_eq!(next["total"], first["total"]);
+        assert_eq!(next["items"][0]["id"], "9954");
+        let active = sessions::dispatch(&mut db, "conversation.list", json!({"limit":3})).unwrap();
+        assert_eq!(active["items"].as_array().unwrap().len(), 3);
+        assert!(active["total"].is_null());
+        assert!(
+            active["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|row| row["state"] == "ACTIVE")
+        );
+    }
+
+    #[test]
+    fn terminal_latest_run_does_not_hide_an_active_blocker_and_delete_preserves_run_history() {
+        let (_fixture, mut db, binding) = Fixture::new();
+        let definition = dispatch(
+            &mut db,
+            "automation.create",
+            manual_request(&binding, "live-def"),
+        )
+        .unwrap();
+        let definition_id = &definition["id"];
+        let mut run = dispatch(
+            &mut db,
+            "automation.run",
+            json!({"id":definition_id,"key":"older","confirm_inactive":true}),
+        )
+        .unwrap();
+        tick(&mut db).unwrap();
+        run = run_view(&db.conn, sessions::id(run["id"].as_str().unwrap()).unwrap()).unwrap();
+        assert_eq!(run["status"], "WAITING_APPROVAL");
+        let run_id = &run["id"];
+        let conversation = &run["conversation_id"];
+        // Model the observed UI combination in isolation. The current enqueue
+        // policy already prevents producing these overlapping records.
+        db.conn.execute("INSERT INTO automation_runs(automation_id,definition_revision,binding_id,binding_revision,kind,
+            request_key,status,snapshot_json,created_at,updated_at)
+            SELECT automation_id,definition_revision,binding_id,binding_revision,kind,'newer','CANCELLED',
+                snapshot_json,created_at,updated_at FROM automation_runs WHERE id=?1", [run_id.as_str().unwrap()]).unwrap();
+        let history = dispatch(&mut db, "automation.runs", json!({"id":definition_id})).unwrap();
+        assert_eq!(history["items"][0]["status"], "CANCELLED");
+        let blocked = dispatch(
+            &mut db,
+            "automation.run",
+            json!({"id":definition_id,"key":"overlap","confirm_inactive":true}),
+        )
+        .unwrap_err();
+        assert_eq!(blocked.code, "CONFLICT");
+        let wire = blocked.wire();
+        let details = &wire["details"];
+        assert_eq!(details["blockers"][0]["id"], *run_id);
+        assert_eq!(details["blockers"][0]["status"], "WAITING_APPROVAL");
+        let preview = sessions::dispatch(
+            &mut db,
+            "conversation.delete.preview",
+            json!({"id":conversation}),
+        )
+        .unwrap();
+        assert_eq!(preview["run_count"], 1);
+        assert_eq!(preview["blocker_count"], 2);
+        assert_eq!(sessions::dispatch(&mut db, "conversation.delete", json!({
+            "id":conversation,"revision":preview["revision"],"token":preview["token"],"key":"delete-active"
+        })).unwrap_err().code, "ACTIVE_DEPENDENCY");
+        let cancelled = dispatch(&mut db, "automation.cancel", json!({"run_id":run_id})).unwrap();
+        assert_eq!(cancelled["status"], "CANCELLED");
+        let preview = sessions::dispatch(
+            &mut db,
+            "conversation.delete.preview",
+            json!({"id":conversation}),
+        )
+        .unwrap();
+        assert_eq!(preview["blocker_count"], 0);
+        let deletion = sessions::dispatch(&mut db, "conversation.delete", json!({
+            "id":conversation,"revision":preview["revision"],"token":preview["token"],"key":"delete-terminal"
+        })).unwrap();
+        assert_eq!(deletion["status"], "DELETED");
+        let history = dispatch(&mut db, "automation.runs", json!({"id":definition_id})).unwrap();
+        assert_eq!(history["items"].as_array().unwrap().len(), 2);
+        let retained = &history["items"][1];
+        assert_eq!(retained["id"], *run_id);
+        assert_eq!(retained["outcome"], "OPERATOR_CANCELLED");
+        assert!(retained["conversation_id"].is_null());
+        assert!(retained["task_id"].is_null());
+        let snapshot: String = db
+            .conn
+            .query_row(
+                "SELECT snapshot_json FROM automation_runs WHERE id=?1",
+                [run_id.as_str().unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(snapshot, "{}");
+        let events = dispatch(&mut db, "automation.events", json!({"run_id":run_id})).unwrap();
+        assert!(
+            events["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|event| { event["conversation_id"].is_null() && event["task_id"].is_null() })
+        );
+        let retired = dispatch(
+            &mut db,
+            "automation.run",
+            json!({"id":definition_id,"key":"after-resolution","confirm_inactive":true}),
+        )
+        .unwrap_err();
+        assert_eq!(retired.code, "NOT_FOUND");
+        let visible = dispatch(&mut db, "automation.list", json!({})).unwrap();
+        assert_eq!(visible["items"], json!([]));
     }
 
     #[test]

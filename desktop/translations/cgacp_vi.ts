@@ -15,9 +15,48 @@
     <message><source>No runs yet</source><translation>Chưa có lượt chạy</translation></message>
     <message><source>Last run: %1</source><translation>Lượt chạy gần nhất: %1</translation></message>
     <message><source>Enable</source><translation>Bật</translation></message>
+    <message><source>Delete automation…</source><translation>Xóa tự động hóa…</translation></message>
   </context>
   <context>
     <name>MainWindow</name>
+    <message><source>Advanced appearance</source><translation>Giao diện nâng cao</translation></message>
+    <message><source>Accent</source><translation>Màu nhấn</translation></message>
+    <message><source>CIRNET teal</source><translation>Xanh ngọc CIRNET</translation></message>
+    <message><source>Cobalt blue</source><translation>Xanh coban</translation></message>
+    <message><source>Interface font</source><translation>Phông chữ giao diện</translation></message>
+    <message><source>Monospace</source><translation>Chữ đơn cách</translation></message>
+    <message><source>Follow interface</source><translation>Theo giao diện</translation></message>
+    <message><source>Conversation text size</source><translation>Cỡ chữ hội thoại</translation></message>
+    <message><source>Code text size</source><translation>Cỡ chữ mã</translation></message>
+    <message><source>&amp;Accent</source><translation>&amp;Màu nhấn</translation></message>
+    <message><source>Choose a contrast-checked CGACP palette.</source><translation>Chọn bảng màu CGACP đã kiểm tra độ tương phản.</translation></message>
+    <message><source>Interface &amp;font</source><translation>&amp;Phông chữ giao diện</translation></message>
+    <message><source>Change the font used by the desktop.</source><translation>Đổi phông chữ ứng dụng sử dụng.</translation></message>
+    <message><source>&amp;Conversation text size</source><translation>Cỡ chữ &amp;hội thoại</translation></message>
+    <message><source>Scale the transcript and composer independently.</source><translation>Đổi cỡ chữ riêng cho nội dung hội thoại và ô soạn.</translation></message>
+    <message><source>Code text si&amp;ze</source><translation>Cỡ chữ &amp;mã</translation></message>
+    <message><source>Scale monospaced diagnostics and structured details.</source><translation>Đổi cỡ chữ đơn cách cho chẩn đoán và chi tiết có cấu trúc.</translation></message>
+    <message><source>Reset appearance</source><translation>Đặt lại giao diện</translation></message>
+    <message><source>theme density text size reduced motion reset layout system light dark accent font</source><translation>chủ đề mật độ cỡ chữ giảm chuyển động đặt lại bố cục hệ thống sáng tối màu nhấn phông chữ</translation></message>
+    <message><source>Configuration</source><translation>Cấu hình</translation></message>
+    <message><source>Inspect adapter</source><translation>Xem bộ điều hợp</translation></message>
+    <message><source>Inspect &amp;adapter</source><translation>Xem bộ &amp;điều hợp</translation></message>
+    <message><source>View the capability reported by the local runtime.</source><translation>Xem khả năng do bộ thực thi cục bộ báo cáo.</translation></message>
+    <message><source>The desktop requests local handoff. Approval, scope, and execution permissions come from runtime policy and task grants.</source><translation>Ứng dụng yêu cầu bàn giao cục bộ. Chính sách của bộ thực thi và quyền cấp cho tác vụ xác định phê duyệt, phạm vi và quyền thực thi.</translation></message>
+    <message><source>Native execution, provider settings, and global Agent configuration are unavailable here.</source><translation>Tại đây chưa hỗ trợ thực thi Agent trực tiếp, tùy chọn nhà cung cấp hoặc cấu hình Agent toàn cục.</translation></message>
+    <message><source>Requested: Local handoff
+Effective: %1
+Source: local runtime</source><translation>Yêu cầu: bàn giao cục bộ
+Hiệu lực: %1
+Nguồn: bộ thực thi cục bộ</translation></message>
+    <message><source>agent profile approval sandbox scope permission</source><translation>agent hồ sơ phê duyệt hộp cát phạm vi quyền</translation></message>
+    <message><source>Storage</source><translation>Lưu trữ</translation></message>
+    <message><source>disk backup verify compact measure data folder cleanup</source><translation>ổ đĩa sao lưu xác minh thu gọn đo thư mục dữ liệu dọn dẹp</translation></message>
+    <message><source>Archived chats</source><translation>Hội thoại đã lưu trữ</translation></message>
+    <message><source>conversation search unarchive restore delete</source><translation>hội thoại tìm kiếm bỏ lưu trữ khôi phục xóa</translation></message>
+    <message><source>Revert unsaved changes</source><translation>Hoàn tác thay đổi chưa lưu</translation></message>
+    <message><source>Storage worker limits are unavailable.</source><translation>Chưa lấy được giới hạn tác vụ lưu trữ.</translation></message>
+    <message><source>Storage: %1 worker(s), %2 admitted operations, %3 retained results, %4 s execution budget.</source><translation>Lưu trữ: %1 bộ xử lý, %2 thao tác được nhận, giữ %3 kết quả, ngân sách thực thi %4 giây.</translation></message>
     <message><source>Automation paused.</source><translation>Đã tạm dừng tự động hóa.</translation></message>
     <message><source>Automation enabled.</source><translation>Đã bật tự động hóa.</translation></message>
     <message><source>Search settings</source><translation>Tìm trong cài đặt</translation></message>
@@ -267,6 +306,42 @@
     <message><source>Use binding</source><translation>Dùng liên kết</translation></message>
     <message><source>Worktree</source><translation>Worktree</translation></message>
     <message><source>Worktree / branch</source><translation>Worktree / nhánh</translation></message>
+    <message><source>Active automation run</source><translation>Lượt tự động hóa đang hoạt động</translation></message>
+    <message><source>Run history</source><translation>Lịch sử chạy</translation></message>
+    <message><source>Delete conversation…</source><translation>Xóa hội thoại…</translation></message>
+    <message><source>Show newest conversations</source><translation>Hiện hội thoại mới nhất</translation></message>
+    <message><source>Load older messages</source><translation>Tải tin nhắn cũ hơn</translation></message>
+    <message><source>Latest messages</source><translation>Tin nhắn mới nhất</translation></message>
+    <message><source>Display shortened.</source><translation>Nội dung hiển thị đã rút gọn.</translation></message>
+    <message><source>Delete submitted message…</source><translation>Xóa tin nhắn đã gửi…</translation></message>
+    <message><source>Clear draft</source><translation>Xóa bản nháp</translation></message>
+    <message><source>Undo clear</source><translation>Hoàn tác xóa nháp</translation></message>
+    <message><source>Drafts are limited to 8 KiB.</source><translation>Mỗi bản nháp giới hạn 8 KiB.</translation></message>
+    <message><source>Clear another draft to start editing this conversation.</source><translation>Xóa một bản nháp khác để sửa hội thoại này.</translation></message>
+    <message><source>%1 %2 · %3</source><translation>%1 %2 · %3</translation></message>
+    <message><source>Conversation archived.</source><translation>Đã lưu trữ hội thoại.</translation></message>
+    <message><source>The undo buffer for cleared drafts is full.</source><translation>Bộ nhớ hoàn tác bản nháp đã đầy.</translation></message>
+    <message><source>The conversation cannot be deleted while another change is pending.</source><translation>Chờ thay đổi đang xử lý trước khi xóa hội thoại.</translation></message>
+    <message><source>Deletion blocked</source><translation>Thao tác xóa bị chặn</translation></message>
+    <message><source>Resolve the active tasks or runs before retrying.
+%1</source><translation>Xử lý các nhiệm vụ hoặc lượt chạy đang hoạt động rồi thử lại.
+%1</translation></message>
+    <message><source>Delete conversation</source><translation>Xóa hội thoại</translation></message>
+    <message><source>Delete submitted message</source><translation>Xóa tin nhắn đã gửi</translation></message>
+    <message><source>Conversation %1</source><translation>Hội thoại %1</translation></message>
+    <message><source>Message %1 in conversation %2</source><translation>Tin nhắn %1 trong hội thoại %2</translation></message>
+    <message><source>%1 · %2
+Delete %3 local message(s) and %4 task record(s)? Existing backups and provider copies may retain content. Repository files are kept.</source><translation>%1 · %2
+Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiện có và bản sao của nhà cung cấp có thể còn nội dung. Tệp kho mã được giữ lại.</translation></message>
+    <message><source>Automation %1 · %2</source><translation>Tự động hóa %1 · %2</translation></message>
+    <message><source>Delete %1 linked automation(s) and stop their schedules. Terminal run history is retained.</source><translation>Xóa %1 tự động hóa liên kết và dừng lịch chạy. Lịch sử các lượt chạy đã kết thúc được giữ lại.</translation></message>
+    <message><source>Delete automation</source><translation>Xóa tự động hóa</translation></message>
+    <message><source>Delete automation %1 · %2 and stop its schedule? Terminal run history is retained.</source><translation>Xóa tự động hóa %1 · %2 và dừng lịch chạy? Lịch sử các lượt chạy đã kết thúc được giữ lại.</translation></message>
+    <message><source>The runtime did not confirm the automation deletion.</source><translation>Môi trường chạy chưa xác nhận đã xóa tự động hóa.</translation></message>
+    <message><source>Automation deleted.</source><translation>Đã xóa tự động hóa.</translation></message>
+    <message><source>Delete permanently</source><translation>Xóa vĩnh viễn</translation></message>
+    <message><source>Conversation deleted.</source><translation>Đã xóa hội thoại.</translation></message>
+    <message><source>Submitted message deleted.</source><translation>Đã xóa tin nhắn đã gửi.</translation></message>
   </context>
   <context>
     <name>NotificationCenter</name>
@@ -332,5 +407,74 @@
     <message><source>No</source><translation>Không</translation></message>
     <message><source>&amp;Yes</source><translation>&amp;Có</translation></message>
     <message><source>&amp;No</source><translation>&amp;Không</translation></message>
+  </context>
+  <context>
+    <name>StoragePage</name>
+    <message><source>Storage</source><translation>Lưu trữ</translation></message>
+    <message><source>This device</source><translation>Thiết bị này</translation></message>
+    <message><source>Measure the CGACP data directory to see its current size.</source><translation>Đo thư mục dữ liệu CGACP để xem dung lượng hiện tại.</translation></message>
+    <message><source>Physical storage breakdown</source><translation>Phân bổ dung lượng vật lý</translation></message>
+    <message><source>Measure storage</source><translation>Đo dung lượng</translation></message>
+    <message><source>Copy data path</source><translation>Sao chép đường dẫn</translation></message>
+    <message><source>Open data folder</source><translation>Mở thư mục dữ liệu</translation></message>
+    <message><source>Backups and database maintenance</source><translation>Sao lưu và bảo trì cơ sở dữ liệu</translation></message>
+    <message><source>Database or backup to verify</source><translation>Cơ sở dữ liệu hoặc bản sao lưu cần xác minh</translation></message>
+    <message><source>Live database</source><translation>Cơ sở dữ liệu đang dùng</translation></message>
+    <message><source>Create backup</source><translation>Tạo bản sao lưu</translation></message>
+    <message><source>Verify selected</source><translation>Xác minh mục đã chọn</translation></message>
+    <message><source>Review compaction</source><translation>Xem trước thu gọn</translation></message>
+    <message><source>Backups may contain earlier chat content. Verification does not restore or overwrite your data.</source><translation>Bản sao lưu có thể chứa nội dung hội thoại trước đó. Xác minh giữ nguyên dữ liệu hiện tại.</translation></message>
+    <message><source>Review stored chats</source><translation>Xem hội thoại đã lưu</translation></message>
+    <message><source>Manage archived chats</source><translation>Quản lý hội thoại đã lưu trữ</translation></message>
+    <message><source>Worktree, cache, and log removal is unavailable without recorded ownership. Registered repositories are kept.</source><translation>Chỉ có thể dọn cây làm việc, bộ nhớ đệm và nhật ký khi đã ghi nhận quyền sở hữu. Kho mã đã đăng ký được giữ nguyên.</translation></message>
+    <message><source>Storage operation progress</source><translation>Tiến độ thao tác lưu trữ</translation></message>
+    <message><source>Cancel operation</source><translation>Hủy thao tác</translation></message>
+    <message><source>Retry status</source><translation>Thử lại trạng thái</translation></message>
+    <message><source>Could not open the data folder.</source><translation>Không mở được thư mục dữ liệu.</translation></message>
+    <message><source>Submitting storage operation…</source><translation>Đang gửi thao tác lưu trữ…</translation></message>
+    <message><source>The runtime disconnected. Measure storage again to check the outcome.</source><translation>Bộ thực thi đã mất kết nối. Hãy đo lại dung lượng để kiểm tra kết quả.</translation></message>
+    <message><source>Storage operation status is unavailable.</source><translation>Chưa lấy được trạng thái thao tác lưu trữ.</translation></message>
+    <message><source>Storage operation completed.</source><translation>Đã hoàn tất thao tác lưu trữ.</translation></message>
+    <message><source>Storage operation completed. Backup: %1</source><translation>Đã hoàn tất thao tác lưu trữ. Bản sao lưu: %1</translation></message>
+    <message><source>Storage operation completed. Database pages: %1 before, %2 after.</source><translation>Đã hoàn tất thao tác lưu trữ. Số trang cơ sở dữ liệu: %1 trước, %2 sau.</translation></message>
+    <message><source>Storage operation cancelled.</source><translation>Đã hủy thao tác lưu trữ.</translation></message>
+    <message><source>Storage operation failed: %1</source><translation>Thao tác lưu trữ thất bại: %1</translation></message>
+    <message><source>Waiting for the storage worker to stop…</source><translation>Đang chờ tác vụ lưu trữ dừng…</translation></message>
+    <message><source>Storage operation: %1</source><translation>Thao tác lưu trữ: %1</translation></message>
+    <message><source>%1 on disk · Database %2 · Sidecars %3 · Backups %4</source><translation>%1 trên đĩa · Cơ sở dữ liệu %2 · Tệp phụ trợ %3 · Bản sao lưu %4</translation></message>
+    <message><source>Logical message content: %1 active, %2 archived. Reusable database pages: %3.</source><translation>Nội dung tin nhắn logic: %1 đang hoạt động, %2 đã lưu trữ. Trang cơ sở dữ liệu có thể tái sử dụng: %3.</translation></message>
+    <message><source>Measured %1</source><translation>Đo lúc %1</translation></message>
+    <message><source>Partial measurement. Skipped entries: %1.</source><translation>Kết quả đo một phần. Số mục bỏ qua: %1.</translation></message>
+    <message><source>Compact local database</source><translation>Thu gọn cơ sở dữ liệu cục bộ</translation></message>
+    <message><source>The last measurement found %1 in reusable database pages. Compaction may reclaim some space and can take time.</source><translation>Lần đo gần nhất ghi nhận %1 trong các trang cơ sở dữ liệu có thể tái sử dụng. Thu gọn có thể giải phóng một phần dung lượng và cần thời gian.</translation></message>
+  </context>
+  <context>
+    <name>ArchivedPage</name>
+    <message><source>Archived chats</source><translation>Hội thoại đã lưu trữ</translation></message>
+    <message><source>Search archived chats</source><translation>Tìm hội thoại đã lưu trữ</translation></message>
+    <message><source>Repository filter</source><translation>Lọc kho mã</translation></message>
+    <message><source>Archive date filter</source><translation>Lọc ngày lưu trữ</translation></message>
+    <message><source>Chat source filter</source><translation>Lọc nguồn hội thoại</translation></message>
+    <message><source>Any source</source><translation>Mọi nguồn</translation></message>
+    <message><source>Desktop</source><translation>Ứng dụng Desktop</translation></message>
+    <message><source>Automation</source><translation>Tự động hóa</translation></message>
+    <message><source>Any date</source><translation>Mọi thời điểm</translation></message>
+    <message><source>Older than 30 days</source><translation>Cũ hơn 30 ngày</translation></message>
+    <message><source>Older than 90 days</source><translation>Cũ hơn 90 ngày</translation></message>
+    <message><source>First page</source><translation>Trang đầu</translation></message>
+    <message><source>Next page</source><translation>Trang sau</translation></message>
+    <message><source>Refresh</source><translation>Làm mới</translation></message>
+    <message><source>Unarchive</source><translation>Bỏ lưu trữ</translation></message>
+    <message><source>Review deletion</source><translation>Xem trước khi xóa</translation></message>
+    <message><source>All repositories</source><translation>Tất cả kho mã</translation></message>
+    <message><source>Loading archived chats…</source><translation>Đang tải hội thoại đã lưu trữ…</translation></message>
+    <message><source>Shorten the search to 160 UTF-8 bytes.</source><translation>Rút gọn nội dung tìm kiếm xuống tối đa 160 byte UTF-8.</translation></message>
+    <message><source>Could not load archived chats.</source><translation>Không tải được hội thoại đã lưu trữ.</translation></message>
+    <message><source>Could not load archived chats: %1</source><translation>Không tải được hội thoại đã lưu trữ: %1</translation></message>
+    <message><source>Retry</source><translation>Thử lại</translation></message>
+    <message><source>No matching archived chats.</source><translation>Không có hội thoại đã lưu trữ phù hợp.</translation></message>
+    <message><source>No archived chats on this page.</source><translation>Trang này không có hội thoại đã lưu trữ.</translation></message>
+    <message><source>%1 matching chats · %2 on this page</source><translation>%1 hội thoại phù hợp · %2 trên trang này</translation></message>
+    <message><source>%1 chats on this page</source><translation>%1 hội thoại trên trang này</translation></message>
   </context>
 </TS>

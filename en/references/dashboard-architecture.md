@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 2 -->
+<!-- revision: 4 -->
 <a id="authority"></a>
 
 # Dashboard architecture and authority
@@ -27,20 +27,41 @@ repositories. The release profile separately defines producer inputs, gate
 owners and compatibility domains in governance data.
 
 SQLite uses transactional migrations, foreign keys, WAL and a bounded busy
-timeout. Schema 4 adds presentation preferences and first writes an
-integrity-checked snapshot of an existing schema 3 store into its private
-`backups/` directory. An upgrade stops if the snapshot cannot be prepared.
+timeout. Schema 5 adds lifecycle receipts, monotonic identities and
+scoped deletion previews. Upgrades snapshot existing stores in private
+`backups/` and stop if that snapshot cannot be verified.
+Schema 6 records Automation deletion in a tombstone so a retired definition
+cannot be scheduled or recreated by replay. A full Conversation deletion
+resolves the originating run by its stored ID, checks the Automation revision
+and active runs, and retires the definition in the same transaction.
 The Qt client uses asynchronous `preferences.get` and `preferences.set`
 requests and debounces layout writes. An expected revision prevents a
 second window from silently overwriting a newer update. Preferences contain
 layout and appearance data, with no task permissions or repository paths.
-SQLite services are internal to the Rust backend. PostgreSQL
+The typed lifecycle repository and SQLite unit of work commit scoped deletion,
+idempotency receipts, and retained run metadata together. Legacy intake and
+automation paths still contain SQLite-specific code. PostgreSQL
 migration requires a repository contract covering scoped queries,
 optimistic updates, unique occurrences, claim fencing, outbox and rollback.
 The adapter and its contract suite remain pending. Use an offline export and
 verified import into a separate database, compare IDs and digests, then
 switch the runtime in a maintenance window. Preserve the old store until
 the new database and recovery path are proven.
+
+Qt verifies the sibling executable on a cancellable worker and applies stdio
+frames on the GUI thread in slices of up to eight frames or five milliseconds
+between frame boundaries. The client drains complete replies before settling
+unanswered requests on process exit. One expiry timer tracks at most 32
+outstanding requests. Transcript queries return at most four messages. The active view
+applies new pages by ordinal and bounds the displayed transcript and sidebar.
+
+Runtime ingress and egress have bounded channels. The dispatcher owns the
+interactive SQLite connection, and the scheduler owns its own connection.
+An independent storage worker uses one running lane, three active operation
+slots and a bounded history. Backup, verification, scan and compaction report
+operation state and cooperate with cancellation. SQLite locks can still delay
+writes within their busy budget. Local Git and legacy import remain synchronous
+in the runtime dispatcher. The worker never owns UI objects.
 
 The existing CLI still manages its historical task and evidence files.
 Dashboard intake does not elevate those records or confer write grants.

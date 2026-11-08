@@ -3,10 +3,12 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
-#include <QTimer>
+#include <QScopedValueRollback>
+#include <QThread>
 #include <QUuid>
 #include <utility>
 
@@ -14,6 +16,39 @@ namespace {
 constexpr qsizetype frameLimit = 256 * 1024;
 constexpr qsizetype pendingLimit = 32;
 constexpr qsizetype writeLimit = 2 * frameLimit;
+constexpr int framesPerSlice = 8;
+constexpr qint64 drainBudgetMs = 5;
+constexpr qint64 requestTimeoutMs = 15000;
+
+QString checkExecutable(const QString &path, bool requirePin, const std::atomic_bool *cancelled = nullptr)
+{
+    const QFileInfo info(path);
+    if (!info.isAbsolute() || !info.isFile() || !info.isExecutable() || info.isSymLink() ||
+        info.canonicalFilePath().isEmpty())
+        return RuntimeClient::tr("The CGACP runtime executable is missing or invalid.");
+    const QString pinPath = path + QStringLiteral(".sha256");
+    const QFileInfo pinInfo(pinPath);
+    if (!pinInfo.exists() && !pinInfo.isSymLink())
+        return requirePin ? RuntimeClient::tr("The CGACP runtime checksum is missing.") : QString{};
+    QFile pin(pinPath);
+    if (pinInfo.isSymLink() || !pinInfo.isFile() || pinInfo.size() > 128 || !pin.open(QIODevice::ReadOnly))
+        return RuntimeClient::tr("The CGACP runtime checksum is invalid.");
+    QFile executable(info.canonicalFilePath());
+    if (!executable.open(QIODevice::ReadOnly) || executable.size() > 128 * 1024 * 1024)
+        return RuntimeClient::tr("The CGACP runtime could not be verified.");
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    while (!executable.atEnd()) {
+        if (cancelled && cancelled->load(std::memory_order_relaxed))
+            return {};
+        const auto chunk = executable.read(256 * 1024);
+        if (chunk.isEmpty())
+            return RuntimeClient::tr("The CGACP runtime could not be verified.");
+        hash.addData(chunk);
+    }
+    if (hash.result().toHex() != pin.readAll().trimmed().toLower())
+        return RuntimeClient::tr("The CGACP runtime checksum does not match.");
+    return {};
+}
 }
 
 RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject *parent)
@@ -21,6 +56,8 @@ RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject 
 {
     process_.setProcessChannelMode(QProcess::SeparateChannels);
     process_.setStandardErrorFile(QProcess::nullDevice());
+    expiry_.setInterval(250);
+    connect(&expiry_, &QTimer::timeout, this, &RuntimeClient::expireRequests);
     connect(&process_, &QProcess::started, this, &RuntimeClient::ready);
     connect(&process_, &QProcess::readyReadStandardOutput, this, &RuntimeClient::receive);
     connect(&process_, &QProcess::finished, this, &RuntimeClient::processFinished);
@@ -35,10 +72,10 @@ RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject 
 RuntimeClient::~RuntimeClient()
 {
     process_.disconnect(this);
-    if (isRunning()) {
+    if (cancelValidation_)
+        cancelValidation_->store(true, std::memory_order_relaxed);
+    if (process_.state() != QProcess::NotRunning)
         process_.kill();
-        process_.waitForFinished(1000);
-    }
 }
 
 QString RuntimeClient::siblingExecutable()
@@ -52,31 +89,12 @@ QString RuntimeClient::siblingExecutable()
 
 QString RuntimeClient::validateExecutable(const QString &path, bool requirePin)
 {
-    const QFileInfo info(path);
-    if (!info.isAbsolute() || !info.isFile() || !info.isExecutable() || info.isSymLink() ||
-        info.canonicalFilePath().isEmpty())
-        return tr("The CGACP runtime executable is missing or invalid.");
-
-    const QString pinPath = path + QStringLiteral(".sha256");
-    const QFileInfo pinInfo(pinPath);
-    if (!pinInfo.exists() && !pinInfo.isSymLink())
-        return requirePin ? tr("The CGACP runtime checksum is missing.") : QString{};
-    QFile pin(pinPath);
-    if (pinInfo.isSymLink() || !pinInfo.isFile() || pinInfo.size() > 128 || !pin.open(QIODevice::ReadOnly))
-        return tr("The CGACP runtime checksum is invalid.");
-
-    QFile executable(info.canonicalFilePath());
-    if (!executable.open(QIODevice::ReadOnly) || executable.size() > 128 * 1024 * 1024)
-        return tr("The CGACP runtime could not be verified.");
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    if (!hash.addData(&executable) || hash.result().toHex() != pin.readAll().trimmed().toLower())
-        return tr("The CGACP runtime checksum does not match.");
-    return {};
+    return checkExecutable(path, requirePin);
 }
 
 bool RuntimeClient::isRunning() const
 {
-    return process_.state() != QProcess::NotRunning;
+    return validation_ || processExited_ || process_.state() != QProcess::NotRunning;
 }
 
 void RuntimeClient::start()
@@ -87,19 +105,38 @@ void RuntimeClient::start()
     closing_ = false;
     disconnected_ = false;
     buffered_.clear();
+    drainScheduled_ = false;
     const bool isAppRuntime = executable_ == siblingExecutable();
-    const auto invalid = validateExecutable(executable_, isAppRuntime);
-    if (!invalid.isEmpty()) {
-        rejectConnection(invalid);
-        return;
-    }
-    const QFileInfo info(executable_);
-    if (isAppRuntime && info.canonicalPath() != QFileInfo(QCoreApplication::applicationFilePath()).canonicalPath()) {
-        rejectConnection(tr("The CGACP runtime is outside the application directory."));
-        return;
-    }
-    process_.setWorkingDirectory(info.canonicalPath());
-    process_.start(info.canonicalFilePath(), arguments_);
+    struct Validation { QString error, program, directory; };
+    const auto outcome = std::make_shared<Validation>();
+    cancelValidation_ = std::make_shared<std::atomic_bool>(false);
+    validation_ = QThread::create([path = executable_, appPath = QCoreApplication::applicationFilePath(),
+                                   isAppRuntime, outcome, stop = cancelValidation_] {
+        outcome->error = checkExecutable(path, isAppRuntime, stop.get());
+        if (!outcome->error.isEmpty() || stop->load(std::memory_order_relaxed))
+            return;
+        const QFileInfo info(path);
+        outcome->program = info.canonicalFilePath();
+        outcome->directory = info.canonicalPath();
+        if (isAppRuntime && outcome->directory != QFileInfo(appPath).canonicalPath())
+            outcome->error = RuntimeClient::tr("The CGACP runtime is outside the application directory.");
+    });
+    connect(validation_, &QThread::finished, this, [this, outcome] {
+        validation_ = nullptr;
+        cancelValidation_.reset();
+        if (closing_) {
+            emit stopped();
+            return;
+        }
+        if (!outcome->error.isEmpty()) {
+            rejectConnection(outcome->error);
+            return;
+        }
+        process_.setWorkingDirectory(outcome->directory);
+        process_.start(outcome->program, arguments_);
+    });
+    connect(validation_, &QThread::finished, validation_, &QObject::deleteLater);
+    validation_->start();
 }
 
 void RuntimeClient::stop()
@@ -111,6 +148,12 @@ void RuntimeClient::stop()
     if (closing_)
         return;
     closing_ = true;
+    if (cancelValidation_) {
+        cancelValidation_->store(true, std::memory_order_relaxed);
+        return;
+    }
+    if (processExited_)
+        return;
     process_.closeWriteChannel();
     const auto generation = generation_;
     QTimer::singleShot(1800, this, [this, generation] {
@@ -141,70 +184,109 @@ void RuntimeClient::request(const QString &method, QJsonObject params, Reply rep
             reply({}, error);
         return;
     }
-    pending_.insert(id, std::move(reply));
+    pending_.insert(id, Pending{std::move(reply), QDeadlineTimer(requestTimeoutMs)});
+    if (!expiry_.isActive())
+        expiry_.start();
     if (process_.write(request) != request.size()) {
         rejectConnection(tr("The runtime transport failed."));
         return;
     }
-    QTimer::singleShot(15000, this, [this, id] {
-        auto entry = pending_.find(id);
-        if (entry == pending_.end())
-            return;
-        auto callback = std::move(entry.value());
-        pending_.erase(entry);
-        if (callback)
-            callback({}, tr("The runtime request timed out. Check the saved state before retrying."));
-    });
 }
 
 void RuntimeClient::receive()
 {
-    while (process_.bytesAvailable() > 0 && !disconnected_) {
-        buffered_.append(process_.read(32768));
-        while (true) {
-            const auto newline = buffered_.indexOf('\n');
-            if (newline < 0)
-                break;
-            if (newline > frameLimit) {
+    if (drainScheduled_ || draining_)
+        return;
+    const QScopedValueRollback guard(draining_, true);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    int frames = 0;
+    while (!disconnected_ && frames < framesPerSlice && elapsed.elapsed() < drainBudgetMs) {
+        auto newline = buffered_.indexOf('\n');
+        if (newline < 0 && process_.bytesAvailable() > 0) {
+            buffered_.append(process_.read(32768));
+            newline = buffered_.indexOf('\n');
+        }
+        if (newline < 0) {
+            if (buffered_.size() > frameLimit) {
                 rejectConnection(tr("The runtime response exceeds the size limit."));
                 return;
             }
-            const auto bytes = buffered_.left(newline);
-            buffered_.remove(0, newline + 1);
-            QJsonParseError parse;
-            const auto document = QJsonDocument::fromJson(bytes, &parse);
-            const auto response = document.object();
-            const auto id = response.value("id").toString();
-            const auto ok = response.value("ok");
-            const auto result = response.value("result");
-            const auto error = response.value("error");
-            if (parse.error != QJsonParseError::NoError || !document.isObject() ||
-                response.value("v").toInt() != 1 || id.isEmpty() || !ok.isBool() ||
-                (ok.toBool() ? !result.isObject() : !error.isObject())) {
-                rejectConnection(tr("The runtime sent an invalid response."));
-                return;
-            }
-            auto entry = pending_.find(id);
-            if (entry == pending_.end())
-                continue;
-            auto callback = std::move(entry.value());
-            pending_.erase(entry);
-            if (callback) {
-                QString message;
-                if (!ok.toBool()) {
-                    const auto details = error.toObject();
-                    message = details.value("message").toString().simplified().left(450);
-                    if (message.isEmpty())
-                        message = tr("The runtime rejected the operation.");
-                }
-                callback(result.toObject(), message);
-            }
+            if (process_.bytesAvailable() == 0)
+                break;
+            continue;
         }
-        if (buffered_.size() > frameLimit) {
+        ++frames;
+        if (newline > frameLimit) {
             rejectConnection(tr("The runtime response exceeds the size limit."));
             return;
         }
+        const auto bytes = buffered_.left(newline);
+        buffered_.remove(0, newline + 1);
+        QJsonParseError parse;
+        const auto document = QJsonDocument::fromJson(bytes, &parse);
+        const auto response = document.object();
+        const auto id = response.value("id").toString();
+        const auto ok = response.value("ok");
+        const auto result = response.value("result");
+        const auto error = response.value("error");
+        if (parse.error != QJsonParseError::NoError || !document.isObject() ||
+            response.value("v").toInt() != 1 || id.isEmpty() || !ok.isBool() ||
+            (ok.toBool() ? !result.isObject() : !error.isObject())) {
+            rejectConnection(tr("The runtime sent an invalid response."));
+            return;
+        }
+        auto entry = pending_.find(id);
+        if (entry == pending_.end())
+            continue;
+        auto callback = std::move(entry.value().callback);
+        pending_.erase(entry);
+        if (pending_.isEmpty())
+            expiry_.stop();
+        if (callback) {
+            QString message;
+            auto payload = result.toObject();
+            if (!ok.toBool()) {
+                const auto details = error.toObject();
+                payload = details.value("details").toObject();
+                payload.insert("code", details.value("code"));
+                message = details.value("message").toString().simplified().left(450);
+                if (message.isEmpty())
+                    message = tr("The runtime rejected the operation.");
+            }
+            callback(payload, message);
+        }
     }
+    if (!disconnected_ && (process_.bytesAvailable() > 0 || buffered_.contains('\n'))) {
+        drainScheduled_ = true;
+        const auto generation = generation_;
+        QTimer::singleShot(0, this, [this, generation] {
+            if (generation == generation_) {
+                drainScheduled_ = false;
+                receive();
+            }
+        });
+    } else if (processExited_) {
+        finishProcess();
+    }
+}
+
+void RuntimeClient::expireRequests()
+{
+    QList<Reply> expired;
+    for (auto it = pending_.begin(); it != pending_.end();) {
+        if (it.value().deadline.hasExpired()) {
+            expired.append(std::move(it.value().callback));
+            it = pending_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    if (pending_.isEmpty())
+        expiry_.stop();
+    for (auto &callback : expired)
+        if (callback)
+            callback({}, tr("The runtime request timed out. Check the saved state before retrying."));
 }
 
 void RuntimeClient::rejectConnection(const QString &reason)
@@ -214,23 +296,33 @@ void RuntimeClient::rejectConnection(const QString &reason)
     disconnected_ = true;
     buffered_.clear();
     failPending(reason);
-    if (isRunning())
+    if (process_.state() != QProcess::NotRunning)
         process_.kill();
     if (!closing_)
         emit disconnected(reason);
+    if (processExited_)
+        finishProcess();
 }
 
 void RuntimeClient::failPending(const QString &reason)
 {
     auto queued = std::exchange(pending_, {});
+    expiry_.stop();
     for (auto &reply : queued) {
-        if (reply)
-            reply({}, reason);
+        if (reply.callback)
+            reply.callback({}, reason);
     }
 }
 
 void RuntimeClient::processFinished()
 {
+    processExited_ = true;
+    receive();
+}
+
+void RuntimeClient::finishProcess()
+{
+    processExited_ = false;
     if (closing_) {
         failPending(tr("The runtime stopped."));
         emit stopped();

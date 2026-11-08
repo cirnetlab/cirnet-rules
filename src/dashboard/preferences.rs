@@ -19,6 +19,31 @@ enum Density {
     Compact,
 }
 
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Accent {
+    #[default]
+    Cirnet,
+    Cobalt,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum UiFont {
+    #[default]
+    System,
+    Monospace,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+struct Appearance {
+    accent: Accent,
+    ui_font: UiFont,
+    content_scale: u16,
+    code_scale: u16,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum NotificationLevel {
@@ -59,6 +84,8 @@ struct Settings {
     theme: Theme,
     density: Density,
     text_scale: u16,
+    #[serde(default)]
+    appearance: Appearance,
     sidebar_width: u16,
     sidebar_collapsed: bool,
     #[serde(default)]
@@ -73,6 +100,7 @@ impl Default for Settings {
             theme: Theme::Dark,
             density: Density::Comfortable,
             text_scale: 100,
+            appearance: Appearance::default(),
             sidebar_width: 260,
             sidebar_collapsed: false,
             reduced_motion: false,
@@ -85,6 +113,12 @@ impl Default for Settings {
 impl Settings {
     fn validate(&mut self) -> Result<(), AppError> {
         if !(85..=150).contains(&self.text_scale) || !(210..=360).contains(&self.sidebar_width) {
+            return Err(invalid());
+        }
+        if [self.appearance.content_scale, self.appearance.code_scale]
+            .into_iter()
+            .any(|scale| scale != 0 && !(85..=150).contains(&scale))
+        {
             return Err(invalid());
         }
         if let Some(layout) = &mut self.repository_layout {
@@ -186,5 +220,58 @@ pub fn dispatch(db: &Database, method: &str, params: Value) -> Result<Value, App
             "UNKNOWN_METHOD",
             "Unknown desktop preferences operation.",
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn appearance_defaults_are_compatible_and_checked() {
+        let mut legacy = serde_json::to_value(Settings::default()).unwrap();
+        legacy.as_object_mut().unwrap().remove("appearance");
+        let mut settings: Settings = serde_json::from_value(legacy).unwrap();
+        assert_eq!(settings.appearance.content_scale, 0);
+        assert_eq!(settings.appearance.code_scale, 0);
+        settings.appearance.content_scale = 151;
+        assert!(settings.validate().is_err());
+        settings.appearance.content_scale = 115;
+        settings.appearance.code_scale = 90;
+        assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn appearance_survives_database_reopen() {
+        let fixture = crate::test_support::temporary_directory("cgacp-appearance").unwrap();
+        let settings = Settings {
+            appearance: Appearance {
+                accent: Accent::Cobalt,
+                ui_font: UiFont::Monospace,
+                content_scale: 125,
+                code_scale: 90,
+            },
+            ..Settings::default()
+        };
+        {
+            let db = Database::open(&fixture).unwrap();
+            save(
+                &db,
+                Save {
+                    expected_revision: 0,
+                    settings,
+                },
+            )
+            .unwrap();
+        }
+        let db = Database::open(&fixture).unwrap();
+        let reply = read(&db).unwrap();
+        assert_eq!(reply["revision"], 1);
+        assert_eq!(
+            reply["settings"]["appearance"],
+            json!({"accent":"cobalt","ui_font":"monospace","content_scale":125,"code_scale":90})
+        );
+        drop(db);
+        std::fs::remove_dir_all(fixture).unwrap();
     }
 }

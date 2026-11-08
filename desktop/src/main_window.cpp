@@ -247,6 +247,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
             updateRuntimeDetails();
     });
     poll_ = new QTimer(this);
+    poll_->setObjectName("conversationEventPoll");
     poll_->setInterval(4000);
     connect(poll_, &QTimer::timeout, this, &MainWindow::refreshConversationEvents);
     poll_->start();

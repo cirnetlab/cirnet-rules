@@ -1,4 +1,5 @@
 //! SQLite storage for the local operator service.
+use crate::operations::JobControl;
 use rusqlite::{
     Connection, OpenFlags, TransactionBehavior,
     backup::{Backup, StepResult},
@@ -10,6 +11,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fmt, fs,
     path::{Component, Path, PathBuf},
+    sync::Arc,
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -32,12 +34,25 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "004_desktop_preferences.sql",
         include_str!("../../migrations/sqlite/004_desktop_preferences.sql"),
     ),
+    (
+        "005_conversation_lifecycle.sql",
+        include_str!("../../migrations/sqlite/005_conversation_lifecycle.sql"),
+    ),
+    (
+        "006_automation_retirement.sql",
+        include_str!("../../migrations/sqlite/006_automation_retirement.sql"),
+    ),
 ];
 
-#[derive(Debug)]
+#[path = "storage_jobs.rs"]
+mod jobs;
+pub(crate) use jobs::{compact, inventory, online_backup, verify_job};
+
+#[derive(Clone, Debug)]
 pub struct AppError {
     pub code: &'static str,
     pub message: String,
+    details: Option<Value>,
 }
 
 impl AppError {
@@ -45,7 +60,21 @@ impl AppError {
         Self {
             code,
             message: message.into(),
+            details: None,
         }
+    }
+
+    pub(crate) fn with_details(mut self, details: Value) -> Self {
+        self.details = Some(details);
+        self
+    }
+
+    pub(crate) fn wire(&self) -> Value {
+        let mut result = json!({"code":self.code,"message":self.message});
+        if let Some(details) = &self.details {
+            result["details"] = details.clone();
+        }
+        result
     }
 }
 
@@ -72,6 +101,10 @@ impl From<rusqlite::Error> for AppError {
                 11 | 26 => Self::new(
                     "INTEGRITY",
                     "Local storage could not be read as a valid database.",
+                ),
+                9 => Self::new(
+                    "SQLITE_INTERRUPTED",
+                    "The local database operation was interrupted.",
                 ),
                 13 => Self::new(
                     "STORAGE_FULL",
@@ -146,6 +179,7 @@ impl Database {
         }
         conn.pragma_update(None, "synchronous", "FULL")?;
         migrate(&mut conn, &data_dir, &path)?;
+        conn.busy_timeout(Duration::from_millis(200))?;
         let machine_id = conn.query_row(
             "SELECT value FROM catalog_settings WHERE key = 'machine_id'",
             [],
@@ -164,36 +198,71 @@ impl Database {
         Self::backup_from(&self.conn, &self.data_dir)
     }
 
+    pub(crate) fn data_dir(&self) -> &Path {
+        &self.data_dir
+    }
+
+    pub(crate) fn operation_nonce(&self) -> Result<Vec<u8>, AppError> {
+        Ok(self
+            .conn
+            .query_row("SELECT randomblob(8)", [], |row| row.get(0))?)
+    }
+
     fn backup_from(conn: &Connection, data_dir: &Path) -> Result<Value, AppError> {
+        Self::controlled_backup(conn, data_dir, None)
+    }
+
+    fn controlled_backup(
+        conn: &Connection,
+        data_dir: &Path,
+        control: Option<&Arc<JobControl>>,
+    ) -> Result<Value, AppError> {
         let dir = ensure_directory(&data_dir.join("backups"))?;
         let nonce: String =
             conn.query_row("SELECT lower(hex(randomblob(16)))", [], |row| row.get(0))?;
         let name = format!("snapshot-{nonce}.sqlite3");
         let path = dir.join(&name);
+        let staged = dir.join(format!(".{name}.pending"));
         fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&path)
+            .open(&staged)
             .map_err(|_| {
                 AppError::new("STORAGE_UNAVAILABLE", "Cannot reserve a local backup file.")
             })?;
         let result = (|| {
             let mut dest = Connection::open_with_flags(
-                &path,
+                &staged,
                 OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NOFOLLOW,
             )?;
             dest.busy_timeout(Duration::from_millis(250))?;
+            if let Some(control) = control {
+                let guard = Arc::clone(control);
+                dest.progress_handler(1000, Some(move || guard.check().is_err()));
+            }
             {
                 let backup = Backup::new(conn, &mut dest)?;
                 let until = Instant::now() + Duration::from_secs(10);
                 loop {
+                    if let Some(control) = control {
+                        control.check()?;
+                    }
                     if Instant::now() >= until {
                         return Err(AppError::new(
                             "STORAGE_BUSY",
                             "The online backup exceeded the retry window.",
                         ));
                     }
-                    match backup.step(128)? {
+                    let state = backup.step(128)?;
+                    if let Some(control) = control {
+                        let progress = backup.progress();
+                        control.update(
+                            "COPY_PAGES",
+                            progress.pagecount.saturating_sub(progress.remaining).max(0) as u64,
+                            Some(progress.pagecount.max(0) as u64),
+                        );
+                    }
+                    match state {
                         StepResult::Done => break,
                         StepResult::More => {}
                         StepResult::Busy | StepResult::Locked => {
@@ -208,12 +277,27 @@ impl Database {
                     }
                 }
             }
+            if let Some(control) = control {
+                control.check()?;
+                control.update("VERIFY_SNAPSHOT", 0, None);
+            }
             dest.pragma_update(None, "journal_mode", "DELETE")?;
             let integrity = verify(&dest)?;
+            dest.close().map_err(|(_, error)| error)?;
+            if let Some(control) = control {
+                control.check()?;
+            }
+            check_ancestors(&staged, false)?;
+            fs::rename(&staged, &path).map_err(|_| {
+                AppError::new(
+                    "STORAGE_UNAVAILABLE",
+                    "Cannot publish the verified local snapshot.",
+                )
+            })?;
             Ok(json!({"backup":name,"path":path,"integrity":integrity}))
         })();
-        if result.is_err() {
-            let _ = fs::remove_file(path);
+        if result.is_err() && check_ancestors(&staged, false).is_ok() {
+            let _ = fs::remove_file(staged);
         }
         result
     }
@@ -254,17 +338,7 @@ pub fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value,
             }
             let input: Verify = decode(params)?;
             if let Some(name) = input.backup {
-                let hex = name
-                    .strip_prefix("snapshot-")
-                    .and_then(|name| name.strip_suffix(".sqlite3"));
-                if !hex.is_some_and(|hex| {
-                    hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_hexdigit())
-                }) {
-                    return Err(AppError::new(
-                        "INVALID_INPUT",
-                        "Select a saved backup filename.",
-                    ));
-                }
+                validate_backup_name(&name)?;
                 let path = db.data_dir.join("backups").join(name);
                 check_ancestors(&path, false)?;
                 let saved = Connection::open_with_flags(
@@ -280,6 +354,20 @@ pub fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value,
             "UNKNOWN_METHOD",
             "Unknown storage operation.",
         )),
+    }
+}
+
+pub(crate) fn validate_backup_name(name: &str) -> Result<(), AppError> {
+    let hex = name
+        .strip_prefix("snapshot-")
+        .and_then(|name| name.strip_suffix(".sqlite3"));
+    if hex.is_some_and(|hex| hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_hexdigit())) {
+        Ok(())
+    } else {
+        Err(AppError::new(
+            "INVALID_INPUT",
+            "Select a saved backup filename.",
+        ))
     }
 }
 
