@@ -40,7 +40,7 @@ fn temporary_directory_at(base: &Path, prefix: &str, nonce: u128) -> io::Result<
 fn temporary_directories_are_private_on_unix() {
     use std::os::unix::fs::PermissionsExt;
 
-    let root = temporary_directory("cgacp-fixture-private-test").unwrap();
+    let root = temporary_directory("openrules-fixture-private-test").unwrap();
     let mode = fs::metadata(&root).unwrap().permissions().mode();
     fs::remove_dir(&root).unwrap();
     assert_eq!(mode & 0o077, 0, "fixture directory must be private");
@@ -48,7 +48,7 @@ fn temporary_directories_are_private_on_unix() {
 
 #[test]
 fn temporary_directories_are_distinct_when_clock_values_collide() {
-    let root = temporary_directory("cgacp-fixture-collision-test").unwrap();
+    let root = temporary_directory("openrules-fixture-collision-test").unwrap();
     let result = (|| -> io::Result<_> {
         let first = temporary_directory_at(&root, "fixture", 123)?;
         fs::write(first.join("sentinel"), b"preserve existing contents")?;

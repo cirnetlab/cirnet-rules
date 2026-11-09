@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CGACP task descriptor",
+  "title": "OPENRULES task descriptor",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "request", "objective", "non_goals", "primary_repo", "hints", "read_scope", "write_scope", "verification_scope", "documentation_scope", "risk", "role", "mode", "owner", "authorization", "spec", "plan", "acceptance", "commands", "docs_targets"],

@@ -1,8 +1,8 @@
-<!-- doc-id: CGACP-VERIFICATION -->
+<!-- doc-id: OPENRULES-VERIFICATION -->
 <!-- revision: 2 -->
 <a id="verification"></a>
 
-# CGACP local verification
+# OPENRULES local verification
 
 The implementation starts from governance commit
 `a83dd8b710d45a5ace1aabe9477ebd887c7f825e` and remains a local change. Windows x64 MSVC used Rust and Cargo
@@ -63,4 +63,4 @@ cover the resulting guard changes. Low-risk acceptance requires a separate
 authorization actor and fresh tool evidence. A local actor label is an
 assertion. Native Agent discovery, hosted CI and hardware checks were not run.
 
-[Operator workflow](cgacp-local.md) · [Historical verification](verification.md)
+[Operator workflow](openrules-local.md) · [Historical verification](verification.md)

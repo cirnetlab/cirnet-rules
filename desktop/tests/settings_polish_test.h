@@ -145,7 +145,7 @@ inline void verifySettingsPolish(MainWindow &window)
     QVERIFY(accent);
     QVERIFY(accent->count() >= 9);
     QVERIFY(!accent->itemIcon(accent->findData("green")).isNull());
-    if (!qEnvironmentVariableIsEmpty("CGACP_UI_CAPTURE")) {
+    if (!qEnvironmentVariableIsEmpty("OPENRULES_UI_CAPTURE")) {
         accent->showPopup();
         QTRY_VERIFY(accent->view()->isVisible());
         interaction_cases::capture(*accent->view()->window(), "settings-accent-palette");
@@ -239,7 +239,7 @@ inline void verifySettingsPolish(MainWindow &window)
         QTRY_COMPARE(QApplication::font().family(), installedFamily);
         font->setCurrentIndex(0);
     }
-    if (!qEnvironmentVariableIsEmpty("CGACP_UI_CAPTURE")) {
+    if (!qEnvironmentVariableIsEmpty("OPENRULES_UI_CAPTURE")) {
         auto *scroll = qobject_cast<QScrollArea *>(pages->currentWidget());
         QVERIFY(scroll);
         scroll->ensureWidgetVisible(language, 8, 24);
@@ -256,7 +256,7 @@ inline void verifySettingsPolish(MainWindow &window)
     QTest::keyClick(navigation, Qt::Key_Down);
     QCOMPARE(navigation->currentItem()->data(Qt::UserRole).toString(), QString("repositories"));
     QCOMPARE(pages->currentWidget()->objectName(), QString("repositoriesPage"));
-    navigation->setCurrentRow(sections.indexOf("configuration"));
+    navigation->setCurrentRow(sections.indexOf("runtime"));
     auto *adapter = window.findChild<QComboBox *>("configurationAdapter");
     auto *capability = window.findChild<QLabel *>("configurationCapability");
     QVERIFY(adapter && capability);
@@ -381,8 +381,8 @@ void verifyRuntimeSettingsData(MainWindow &window, const QString &bindingId, Req
     QTRY_VERIFY(verify->isEnabled() && status->text().contains("completed"));
     interaction_cases::capture(window, "storage-verified");
 
-    selectPage("configuration");
+    selectPage("runtime");
     auto *capability = window.findChild<QLabel *>("configurationCapability");
     QVERIFY(capability && capability->text().contains("HANDOFF ONLY"));
-    interaction_cases::capture(window, "configuration-real-runtime");
+    interaction_cases::capture(window, "agents-runtime");
 }

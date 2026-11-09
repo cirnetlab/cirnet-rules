@@ -306,7 +306,7 @@ fn verify(
         "spec_sha256":task["spec_sha256"], "policy_sha256":task["policy_sha256"],
         "plan_sha256":task["plan_sha256"], "approval_epoch":task["approval_epoch"], "task_revision":revision,
         "actor":actor, "verification_kind":if implementer {"self_check"} else {"tool_verification"},
-        "producer":"cgacp-controlled-runner", "time_unix_seconds":now(),
+        "producer":"openrules-controlled-runner", "time_unix_seconds":now(),
         "platform":format!("{}-{}",std::env::consts::OS,std::env::consts::ARCH),
         "governance_version":env!("CARGO_PKG_VERSION"), "steps":results,
         "requires_review":elevated(task,&after), "limitations":"local integrity; actor identity and sandbox enforcement are external"
@@ -394,7 +394,7 @@ fn load_proposal(root: &Path, options: &BTreeMap<String, String>) -> Result<Valu
     let name = options
         .get("proposal")
         .ok_or("Missing --proposal (governance-relative JSON)")?;
-    tasks::relative(name.strip_prefix(".cgacp/inputs/").unwrap_or(name))?;
+    tasks::relative(name.strip_prefix(".openrules/inputs/").unwrap_or(name))?;
     if !name.ends_with(".json") {
         return Err("Expected a local JSON docs proposal".into());
     }
@@ -600,7 +600,7 @@ fn replace_document(path: &Path, current_hash: &str, content: &str) -> Result<()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_nanos();
-    let temp = parent.join(format!(".cgacp-doc-{}-{nonce}.tmp", std::process::id()));
+    let temp = parent.join(format!(".openrules-doc-{}-{nonce}.tmp", std::process::id()));
     let mut output = OpenOptions::new()
         .write(true)
         .create_new(true)

@@ -29,7 +29,11 @@ fn run_dir(root: &Path, id: &str, create: bool) -> Result<PathBuf, String> {
         return Err("Invalid task ID for a managed run".into());
     }
     let mut selected = root.to_path_buf();
-    for relative in [".cgacp", ".cgacp/runs", &format!(".cgacp/runs/{id}")] {
+    for relative in [
+        ".openrules",
+        ".openrules/runs",
+        &format!(".openrules/runs/{id}"),
+    ] {
         let path = workspace::scoped_path(root, relative)?;
         if create {
             match fs::create_dir(&path) {
@@ -418,7 +422,7 @@ mod tests {
     fn cancellation_is_owned_and_expired_lease_is_retained() {
         let parent = env::temp_dir().canonicalize().unwrap();
         let root = parent.join(format!(
-            "cgacp-run-lease-{}-{}",
+            "openrules-run-lease-{}-{}",
             std::process::id(),
             now_ms().unwrap()
         ));

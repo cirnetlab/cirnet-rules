@@ -30,18 +30,18 @@ if not defined Qt6_DIR if not defined CMAKE_PREFIX_PATH (
 )
 
 echo Building the Rust runtime...
-call cargo %CARGO_TOOLCHAIN% build --release --locked --bin cgacp-runtime
+call cargo %CARGO_TOOLCHAIN% build --release --locked --bin openrules-runtime
 if errorlevel 1 goto :failed
 
 echo Building the desktop dashboard...
-cmake -S . -B target\dashboard-windows\build -G "Visual Studio 17 2022" -A x64 "-DCGACP_RUNTIME_EXECUTABLE=%CARGO_TARGET_DIR%\release\cgacp-runtime.exe" -DBUILD_TESTING=OFF -DCGACP_DEPLOY_QT=ON
+cmake -S . -B target\dashboard-windows\build -G "Visual Studio 17 2022" -A x64 "-DOPENRULES_RUNTIME_EXECUTABLE=%CARGO_TARGET_DIR%\release\openrules-runtime.exe" -DBUILD_TESTING=OFF -DOPENRULES_DEPLOY_QT=ON
 if errorlevel 1 goto :failed
-cmake --build target\dashboard-windows\build --config Release --target cgacp-stage-runtime --parallel
+cmake --build target\dashboard-windows\build --config Release --target openrules-stage-runtime --parallel
 if errorlevel 1 goto :failed
 cmake --install target\dashboard-windows\build --config Release --prefix "%CARGO_TARGET_DIR%\dashboard-windows\stage"
 if errorlevel 1 goto :failed
 
-"%CARGO_TARGET_DIR%\dashboard-windows\stage\bin\cgacp-dashboard.exe" %*
+"%CARGO_TARGET_DIR%\dashboard-windows\stage\bin\openrules-desktop.exe" %*
 set "result=%errorlevel%"
 popd
 exit /b %result%

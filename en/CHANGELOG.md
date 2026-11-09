@@ -1,0 +1,19 @@
+<!-- doc-id: OPENRULES-CHANGELOG -->
+<!-- revision: 1 -->
+<a id="unreleased"></a>
+
+# Changelog
+
+## Unreleased
+
+### Added
+
+- The native Configuration workspace manages bilingual drafts, text attachments, review, publication and rollback through the Rust runtime and SQLite.
+- Published assets can be assigned to repository bindings and included in a deterministic context preview. New conversations and automation runs pin governance metadata.
+- Read-only probes inspect the pinned OpenHands and OpenCode version endpoints. Import inspection reports the supported subset of selected upstream formats.
+
+### Changed
+
+- The desktop, runtime, resources and application-owned namespaces use OPENRULES. The release title remains `cirnet-rules-0.1.0`.
+- An existing legacy SQLite store requires preview, consent, verified backup and migration before use. The retained source is for offline recovery.
+- Private Desktop IPC uses protocol 2 and the `openrules.` method prefix. Earlier clients and runtimes require matching application binaries.

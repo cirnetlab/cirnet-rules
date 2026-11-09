@@ -1,5 +1,5 @@
-<!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 7 -->
+<!-- doc-id: OPENRULES-DESKTOP-ARCHITECTURE -->
+<!-- revision: 8 -->
 <a id="authority"></a>
 
 # Dashboard architecture and authority
@@ -91,3 +91,20 @@ Widgets and project labels. [OpenHands reference](https://github.com/OpenHands/O
 [SQLite backup API](https://www.sqlite.org/backup.html) ·
 [PostgreSQL isolation](https://www.postgresql.org/docs/current/transaction-iso.html) ·
 [Codex App Server](https://learn.chatgpt.com/docs/app-server)
+
+## Governance authoring and snapshots
+
+Qt uses the same private, versioned stdio transport as repository, conversation
+and storage views. Governance dispatch validates typed requests. The SQLite
+adapter owns optimistic revisions, immutable publication history and audit,
+asset relationships, binding assignments, and pinned conversation/run manifests.
+Schema migration 007 adds these records. Draft text and asset-relative files are
+stored together in the local authoring database. Publication and rollback advance
+a pointer transactionally. There is no cross-filesystem publication transaction.
+
+Context preview and conversation pinning share the resolver for the selected or
+default profile and exact binding IDs. It traverses a bounded graph, resolves
+active English revisions and defers skill/reference bytes. The receipt pins
+revision metadata and digests. It does not attest that an external engine loaded
+the bytes. Unsupported execution and authenticated review remain gated. Adapter
+probes use a bounded worker and test only a fixed loopback endpoint.

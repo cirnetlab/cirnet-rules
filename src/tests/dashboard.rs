@@ -18,7 +18,7 @@ struct Runtime {
 }
 impl Runtime {
     fn open(data: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_cgacp-runtime"))
+        let mut child = Command::new(env!("CARGO_BIN_EXE_openrules-runtime"))
             .arg("--stdio")
             .arg("--data-dir")
             .arg(data)
@@ -37,9 +37,14 @@ impl Runtime {
         self.request += 1;
         let id = self.request.to_string();
         let input = self.input.as_mut().unwrap();
+        let wire_method = if version == 1 {
+            method.to_owned()
+        } else {
+            format!("openrules.{method}")
+        };
         serde_json::to_writer(
             &mut *input,
-            &json!({"v":version,"id":id,"method":method,"params":params}),
+            &json!({"v":version,"id":id,"method":wire_method,"params":params}),
         )
         .unwrap();
         input.write_all(b"\n").unwrap();
@@ -55,7 +60,7 @@ impl Runtime {
         response
     }
     fn call(&mut self, method: &str, params: Value) -> Value {
-        let response = self.request(1, method, params);
+        let response = self.request(2, method, params);
         assert_eq!(response["ok"], true, "{method}: {response}");
         response["result"].clone()
     }
@@ -82,6 +87,113 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+#[test]
+fn integration_inventory_and_import_preview_cross_private_ipc() {
+    let fixture = Fixture::new();
+    let mut runtime = Runtime::open(&fixture.0.join("integration"));
+    let adapters = runtime.call("integration.list", json!({}));
+    let rows = adapters["adapters"].as_array().unwrap();
+    let opencode = rows.iter().find(|row| row["id"] == "opencode").unwrap();
+    assert_eq!(opencode["version"], "2.2.5");
+    assert_eq!(opencode["capabilities"]["probe"], "AVAILABLE");
+    assert_eq!(opencode["capabilities"]["create_session"], "BLOCKED");
+    let result = runtime.call(
+        "integration.import_preview",
+        json!({"format":"opencode-v1-agent","source":r#"{"disable":false,"permission":"allow"}"#}),
+    );
+    assert_eq!(result["metadata"], json!({"disabled":false}));
+    assert!(
+        result["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| { entry["field"] == "permission" && entry["status"] == "REJECTED" })
+    );
+    runtime.close();
+}
+
+#[test]
+fn slow_integration_probe_keeps_private_dispatch_responsive_and_bounded() {
+    use std::{io::Read, net::TcpListener, sync::mpsc, thread};
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (accepted, await_accept) = mpsc::sync_channel(1);
+    let (release, await_release) = mpsc::sync_channel(1);
+    let server = thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let mut stream = loop {
+            match listener.accept() {
+                Ok((stream, _)) => break stream,
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::WouldBlock
+                        && Instant::now() < deadline =>
+                {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => {
+                    panic!("loopback integration fixture could not accept the probe: {error}")
+                }
+            }
+        };
+        stream.set_nonblocking(false).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let mut request = Vec::new();
+        let mut byte = [0; 1];
+        while !request.ends_with(b"\r\n\r\n") {
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+            assert!(request.len() < 4096);
+        }
+        assert!(request.starts_with(b"GET /server_info HTTP/1.0\r\n"));
+        accepted.send(()).unwrap();
+        await_release.recv_timeout(Duration::from_secs(2)).unwrap();
+        let body = r#"{"version":"1.60.1"}"#;
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    });
+
+    let fixture = Fixture::new();
+    let mut runtime = Runtime::open(&fixture.0.join("slow-integration"));
+    let params = json!({"adapter":"openhands","port":port});
+    let input = runtime.input.as_mut().unwrap();
+    writeln!(
+        input,
+        "{}",
+        json!({"v":2,"id":"slow","method":"openrules.integration.probe","params":params})
+    )
+    .unwrap();
+    input.flush().unwrap();
+    await_accept.recv_timeout(Duration::from_secs(2)).unwrap();
+    let started = Instant::now();
+    assert_eq!(runtime.call("runtime.info", json!({}))["protocol"], 2);
+    assert_eq!(
+        runtime.request(2, "integration.probe", params)["error"]["code"],
+        "PROBE_BUSY"
+    );
+    eprintln!(
+        "Concurrent runtime.info and rejected probe IPC took {} us",
+        started.elapsed().as_micros()
+    );
+    release.send(()).unwrap();
+
+    let mut line = String::new();
+    assert_ne!(runtime.output.read_line(&mut line).unwrap(), 0);
+    let response: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(response["id"], "slow");
+    assert_eq!(response["result"]["contract"], "MATCHED");
+    assert_eq!(response["result"]["native_execution"], "BLOCKED");
+    server.join().unwrap();
+    runtime.close();
 }
 
 fn git(path: &Path, args: &[&str]) {
@@ -135,7 +247,7 @@ fn chat_storage_counts_only_local_message_bytes_by_conversation_state() {
     let active = "Tiếng Việt \0 🧪";
     let archived = "Đã lưu";
     {
-        let db = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+        let db = rusqlite::Connection::open(data.join("openrules.sqlite3")).unwrap();
         db.busy_timeout(Duration::from_secs(1)).unwrap();
         db.execute_batch(
             "INSERT INTO conversations
@@ -169,7 +281,7 @@ fn chat_storage_counts_only_local_message_bytes_by_conversation_state() {
     assert_eq!(usage.as_object().unwrap().len(), 3);
     assert!(usage["measured_at"].is_u64());
     assert_eq!(
-        runtime.request(1, "storage.chats", json!({"root":"."}))["error"]["code"],
+        runtime.request(2, "storage.chats", json!({"root":"."}))["error"]["code"],
         "INVALID_INPUT"
     );
     runtime.close();
@@ -185,7 +297,7 @@ fn storage_jobs_measure_verify_and_compact_an_isolated_store() {
         1
     );
     {
-        let db = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+        let db = rusqlite::Connection::open(data.join("openrules.sqlite3")).unwrap();
         db.busy_timeout(Duration::from_secs(1)).unwrap();
         db.execute_batch(
             "CREATE TABLE fixture_padding(payload BLOB NOT NULL);
@@ -273,11 +385,11 @@ fn reduced_motion_defaults_for_existing_preferences_and_persists() {
     let mut initializer = Runtime::open(&data);
     assert_eq!(
         initializer.call("storage.verify", json!({}))["schema_revision"],
-        6
+        7
     );
     initializer.close();
     {
-        let database = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+        let database = rusqlite::Connection::open(data.join("openrules.sqlite3")).unwrap();
         let previous = json!({
             "theme":"dark","density":"comfortable","text_scale":100,
             "sidebar_width":260,"sidebar_collapsed":false,"notification_level":"all"
@@ -304,7 +416,7 @@ fn reduced_motion_defaults_for_existing_preferences_and_persists() {
     settings["reduced_motion"] = json!("false");
     assert_eq!(
         client.request(
-            1,
+            2,
             "preferences.set",
             json!({"expected_revision":2,"settings":settings}),
         )["error"]["code"],
@@ -316,7 +428,7 @@ fn reduced_motion_defaults_for_existing_preferences_and_persists() {
     assert_eq!(reopened.call("preferences.get", json!({})), updated);
     assert_eq!(
         reopened.call("storage.verify", json!({}))["schema_revision"],
-        6
+        7
     );
     reopened.close();
 }
@@ -334,7 +446,7 @@ fn preferences_upgrade_backs_up_and_preserves_operator_data() {
     }
     #[cfg(not(unix))]
     fs::create_dir(&data).unwrap();
-    let database = data.join("cgacp.sqlite3");
+    let database = data.join("openrules.sqlite3");
     {
         let conn = rusqlite::Connection::open(&database).unwrap();
         conn.execute_batch(
@@ -394,7 +506,7 @@ fn preferences_upgrade_backs_up_and_preserves_operator_data() {
 
     let blocked_backup = data.join("backups");
     fs::write(&blocked_backup, "not a backup directory").unwrap();
-    let refused = Command::new(env!("CARGO_BIN_EXE_cgacp-runtime"))
+    let refused = Command::new(env!("CARGO_BIN_EXE_openrules-runtime"))
         .arg("--stdio")
         .arg("--data-dir")
         .arg(&data)
@@ -418,7 +530,7 @@ fn preferences_upgrade_backs_up_and_preserves_operator_data() {
     assert_eq!(initial["settings"]["theme"], "dark");
     assert_eq!(
         client.call("storage.verify", json!({}))["schema_revision"],
-        6
+        7
     );
     let mut backups = fs::read_dir(data.join("backups")).unwrap();
     let previous = backups
@@ -450,7 +562,7 @@ fn preferences_upgrade_backs_up_and_preserves_operator_data() {
     invalid["repository_layout"]["path"] = json!("C:/private");
     assert_eq!(
         client.request(
-            1,
+            2,
             "preferences.set",
             json!({"expected_revision":1,"settings":invalid}),
         )["error"]["code"],
@@ -458,7 +570,7 @@ fn preferences_upgrade_backs_up_and_preserves_operator_data() {
     );
     assert_eq!(
         client.request(
-            1,
+            2,
             "preferences.set",
             json!({"expected_revision":0,"settings":settings}),
         )["error"]["code"],
@@ -519,7 +631,7 @@ fn closing_request_pipe_drains_accepted_replies() {
     initializer.call("storage.verify", json!({}));
     initializer.close();
     {
-        let db = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+        let db = rusqlite::Connection::open(data.join("openrules.sqlite3")).unwrap();
         db.execute("INSERT INTO conversations VALUES(1,'fixture','digest','EOF fixture','handoff','ACTIVE','DASHBOARD',NULL,1,1,1)", []).unwrap();
         for id in 1..=4 {
             db.execute(
@@ -530,7 +642,7 @@ fn closing_request_pipe_drains_accepted_replies() {
             db.execute("INSERT INTO task_proposals VALUES(?1,1,?1,'WAITING_APPROVAL','WORK','SCOPED','{}',1)",[id]).unwrap();
         }
     }
-    let mut child = Command::new(env!("CARGO_BIN_EXE_cgacp-runtime"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_openrules-runtime"))
         .arg("--stdio")
         .arg("--data-dir")
         .arg(data)
@@ -540,12 +652,17 @@ fn closing_request_pipe_drains_accepted_replies() {
         .unwrap();
     {
         let mut stdin = child.stdin.take().unwrap();
-        writeln!(stdin, "{}", json!({"v":1,"id":"1","method":"runtime.info"})).unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            json!({"v":2,"id":"1","method":"openrules.runtime.info"})
+        )
+        .unwrap();
         for id in 2..=8 {
             writeln!(
                 stdin,
                 "{}",
-                json!({"v":1,"id":id.to_string(),"method":"conversation.get","params":{"id":"1"}})
+                json!({"v":2,"id":id.to_string(),"method":"openrules.conversation.get","params":{"id":"1"}})
             )
             .unwrap();
         }
@@ -576,7 +693,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
         &repo,
         &[
             "-c",
-            "user.name=CGACP Fixture",
+            "user.name=OPENRULES Fixture",
             "-c",
             "user.email=fixture@example.invalid",
             "-c",
@@ -609,7 +726,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
     );
     let active_delete = json!({"id":cid,"message_id":first_id,"revision":active["revision"],
         "token":active["token"],"key":"delete-first"});
-    let denied = client.request(1, "message.delete", active_delete.clone());
+    let denied = client.request(2, "message.delete", active_delete.clone());
     assert_eq!(denied["error"]["code"], "ACTIVE_DEPENDENCY");
     assert_eq!(
         denied["error"]["details"]["blockers"][0]["id"],
@@ -617,7 +734,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
     );
     assert_eq!(
         client.request(
-            1,
+            2,
             "message.delete.preview",
             json!({"id":other["id"],"message_id":first_id})
         )["error"]["code"],
@@ -625,7 +742,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
     );
     assert_eq!(
         client.request(
-            1,
+            2,
             "conversation.send",
             json!({
                 "id":cid,"revision":chat["revision"],"key":"stale-send","content":"Stale request"
@@ -648,7 +765,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
         client.call("conversation.cancel", json!({"id":cid,"task_id":task}));
     }
     assert_eq!(
-        client.request(1, "message.delete", active_delete)["error"]["code"],
+        client.request(2, "message.delete", active_delete)["error"]["code"],
         "STALE_PREVIEW"
     );
     let scope = client.call(
@@ -664,7 +781,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
         receipt
     );
     assert_eq!(
-        client.request(1, "conversation.send", send_second)["error"]["code"],
+        client.request(2, "conversation.send", send_second)["error"]["code"],
         "DELETED"
     );
     let remaining = client.call("conversation.get", json!({"id":cid}));
@@ -730,11 +847,11 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
     let mut client = Runtime::open(&data);
     assert_eq!(client.call("conversation.delete", delete_chat), receipt);
     assert_eq!(
-        client.request(1, "conversation.get", json!({"id":cid}))["error"]["code"],
+        client.request(2, "conversation.get", json!({"id":cid}))["error"]["code"],
         "NOT_FOUND"
     );
     assert_eq!(
-        client.request(1, "conversation.create", create)["error"]["code"],
+        client.request(2, "conversation.create", create)["error"]["code"],
         "DELETED"
     );
     assert_eq!(
@@ -743,7 +860,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
     );
     assert_eq!(
         client.request(
-            1,
+            2,
             "conversation.send",
             json!({"id":cid,"key":"late","content":"Late writer"})
         )["error"]["code"],
@@ -763,7 +880,7 @@ fn conversation_lifecycle_survives_restart_and_fences_stale_requests() {
     );
     client.close();
 
-    let conn = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+    let conn = rusqlite::Connection::open(data.join("openrules.sqlite3")).unwrap();
     let remaining: i64 = conn
         .query_row(
             "SELECT count(*) FROM messages WHERE conversation_id=?1",
@@ -893,7 +1010,7 @@ fn conversation_deletion_retires_only_its_originating_automation() {
     );
     assert_eq!(
         client.request(
-            1,
+            2,
             "conversation.delete",
             json!({"id":chat,"revision":blocked["revision"],
         "token":blocked["token"],"key":"while-active"})
@@ -909,7 +1026,7 @@ fn conversation_deletion_retires_only_its_originating_automation() {
     );
     assert_eq!(
         client.request(
-            1,
+            2,
             "conversation.delete",
             json!({"id":chat,"revision":stale["revision"],
         "token":stale["token"],"key":"stale-preview"})
@@ -936,7 +1053,7 @@ fn conversation_deletion_retires_only_its_originating_automation() {
     let mut reopened = Runtime::open(&data);
     assert_eq!(reopened.call("conversation.delete", remove), receipt);
     assert_eq!(
-        reopened.request(1, "conversation.get", json!({"id":chat}))["error"]["code"],
+        reopened.request(2, "conversation.get", json!({"id":chat}))["error"]["code"],
         "NOT_FOUND"
     );
     assert_eq!(
@@ -955,14 +1072,14 @@ fn conversation_deletion_retires_only_its_originating_automation() {
     );
     assert_eq!(
         reopened.request(
-            1,
+            2,
             "automation.run",
             json!({"id":owned_id,"key":"after-delete"})
         )["ok"],
         false
     );
     assert_eq!(
-        reopened.request(1, "automation.create", define("linked"))["ok"],
+        reopened.request(2, "automation.create", define("linked"))["ok"],
         false
     );
     let remove_detached = json!({"id":unrelated_id,"revision":unrelated["revision"]});
@@ -995,7 +1112,7 @@ fn private_runtime_persists_repo_conversation_and_one_shot_then_rejects_stale_bi
         &repo,
         &[
             "-c",
-            "user.name=CGACP Fixture",
+            "user.name=OPENRULES Fixture",
             "-c",
             "user.email=fixture@example.invalid",
             "-c",
@@ -1010,14 +1127,14 @@ fn private_runtime_persists_repo_conversation_and_one_shot_then_rejects_stale_bi
     let start = Instant::now();
     let mut client = Runtime::open(&data);
     let info = client.call("runtime.info", json!({}));
-    assert_eq!(info["product_generation"], "CGACP v1");
+    assert_eq!(info["product_generation"], "OPENRULES");
     assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(
         info["release_name"],
         format!("cirnet-rules-{}", env!("CARGO_PKG_VERSION"))
     );
     assert_eq!(
-        client.request(2, "runtime.info", json!({}))["error"]["code"],
+        client.request(1, "repo.add", json!({"path":file,"token":"unreviewed"}))["error"]["code"],
         "PROTOCOL_VERSION"
     );
     let preview = client.call("repo.preview", json!({"path":file}));
@@ -1050,7 +1167,7 @@ fn private_runtime_persists_repo_conversation_and_one_shot_then_rejects_stale_bi
     assert_eq!(first["task"]["state"], "WAITING_APPROVAL");
     assert_eq!(first["task"]["route"]["release_checked"], false);
     let rejected = client.request(
-        1,
+        2,
         "conversation.send",
         json!({"id":conversation_id,"key":"escape",
         "content":"Try disallowed path","read_scope":{id.as_str().unwrap():["../other.txt"]}}),
@@ -1109,7 +1226,7 @@ fn private_runtime_persists_repo_conversation_and_one_shot_then_rejects_stale_bi
     );
     assert_eq!(
         client.request(
-            1,
+            2,
             "automation.run",
             json!({"id":def_id,"key":"stale","confirm_inactive":true})
         )["ok"],
@@ -1126,7 +1243,7 @@ fn private_runtime_persists_repo_conversation_and_one_shot_then_rejects_stale_bi
     fs::create_dir(&restored).unwrap();
     fs::copy(
         snapshot["path"].as_str().unwrap(),
-        restored.join("cgacp.sqlite3"),
+        restored.join("openrules.sqlite3"),
     )
     .unwrap();
     client.close();
@@ -1139,3 +1256,6 @@ fn private_runtime_persists_repo_conversation_and_one_shot_then_rejects_stale_bi
     copy.close();
     println!("Runtime fixture elapsed_ms={}", start.elapsed().as_millis());
 }
+
+#[path = "governance_cases.rs"]
+mod governance_cases;

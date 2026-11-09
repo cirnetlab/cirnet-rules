@@ -18,6 +18,7 @@ struct Create {
     title: String,
     #[serde(default = "handoff")]
     profile: String,
+    profile_id: Option<String>,
     bindings: Vec<String>,
 }
 #[derive(Deserialize)]
@@ -99,8 +100,18 @@ pub(super) fn text(value: &str, max: usize) -> Result<&str, AppError> {
             "Text is empty, too long, or contains unsupported characters",
         ));
     }
+    if sensitive_text(value) {
+        return Err(AppError::new(
+            "SENSITIVE_INPUT",
+            "Remove credentials before submitting text",
+        ));
+    }
+    Ok(value)
+}
+
+pub(super) fn sensitive_text(value: &str) -> bool {
     let upper = value.to_ascii_uppercase();
-    if [
+    [
         "-----BEGIN PRIVATE KEY-----",
         "-----BEGIN OPENSSH PRIVATE KEY-----",
         "-----BEGIN RSA PRIVATE KEY-----",
@@ -119,13 +130,6 @@ pub(super) fn text(value: &str, max: usize) -> Result<&str, AppError> {
     ]
     .iter()
     .any(|marker| upper.contains(marker))
-    {
-        return Err(AppError::new(
-            "SENSITIVE_INPUT",
-            "Remove credentials before submitting text",
-        ));
-    }
-    Ok(value)
 }
 
 pub(super) fn digest(value: &Value) -> String {
@@ -201,9 +205,14 @@ const CONVERSATION_COLS: &str =
 
 fn conversation(conn: &Connection, id: i64) -> Result<Value, AppError> {
     let query = format!("SELECT {CONVERSATION_COLS} FROM conversations WHERE id=?1");
-    conn.query_row(&query, [id], conversation_row)
+    let mut result = conn
+        .query_row(&query, [id], conversation_row)
         .optional()?
-        .ok_or_else(|| missing("Conversation does not exist"))
+        .ok_or_else(|| missing("Conversation does not exist"))?;
+    if let Some(snapshot) = super::governance::conversation_snapshot(conn, id)? {
+        result["governance"] = snapshot;
+    }
+    Ok(result)
 }
 
 fn bound(conn: &Connection, conversation_id: i64) -> Result<Vec<(String, i64)>, AppError> {
@@ -284,6 +293,7 @@ pub(super) fn safe_path(value: &str) -> bool {
                 && !matches!(
                     lower.as_str(),
                     ".git"
+                        | ".openrules"
                         | ".cgacp"
                         | ".ssh"
                         | ".env"
@@ -512,6 +522,7 @@ pub(super) fn from_automation(
         std::slice::from_ref(binding),
         request.time,
     )?;
+    super::governance::copy_run_snapshot(conn, run.0, id)?;
     let (_, task_id) = insert_turn(conn, id, &key, &hash, request, Some(run))?;
     Ok((id, task_id))
 }
@@ -559,7 +570,16 @@ fn create(db: &mut Database, request: Create) -> Result<Value, AppError> {
             "Select one to eight distinct repository bindings",
         ));
     }
-    let hash = digest(&json!([title, request.profile, request.bindings]));
+    let hash = if let Some(profile_id) = &request.profile_id {
+        digest(&json!([
+            title,
+            request.profile,
+            request.bindings,
+            profile_id
+        ]))
+    } else {
+        digest(&json!([title, request.profile, request.bindings]))
+    };
     if let Some(result) = existing_create(&db.conn, &request.key, &hash)? {
         return Ok(result);
     }
@@ -584,6 +604,7 @@ fn create(db: &mut Database, request: Create) -> Result<Value, AppError> {
         &bindings,
         time,
     )?;
+    super::governance::pin_conversation(&tx, id, request.profile_id.as_deref(), &request.bindings)?;
     event(
         &tx,
         (Some(id), None, None, None),

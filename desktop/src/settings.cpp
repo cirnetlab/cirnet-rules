@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "governance_panel.h"
 #include "live_text.h"
 #include "build_info.h"
 #include "notification_center.h"
@@ -667,7 +668,7 @@ QWidget *MainWindow::makeAppearanceSettings()
     live::text(accentChoice_, [] { return tr("Accent"); }, &QWidget::setAccessibleName);
     accentChoice_->setIconSize({16, 16});
     accentChoice_->setItemDelegate(new AppearanceChoiceDelegate(accentChoice_));
-    live::item(accentChoice_, [] { return tr("CIRNET teal"); }, "cirnet");
+    live::item(accentChoice_, [] { return tr("Default teal"); }, "cirnet");
     live::item(accentChoice_, [] { return tr("Cobalt blue"); }, "cobalt");
     live::item(accentChoice_, [] { return tr("Green"); }, "green");
     live::item(accentChoice_, [] { return tr("Yellow"); }, "yellow");
@@ -918,8 +919,8 @@ QWidget *MainWindow::makeSettings()
         text->setProperty("codeText", true);
         text->setReadOnly(true);
         const auto state = online_ ? tr("Connected") : connecting_ ? tr("Connecting") : tr("Disconnected");
-        text->setPlainText(tr("CGACP %1\nRuntime: %2\n%3")
-                              .arg(QStringLiteral(CGACP_APP_VERSION), state, runtimeCapabilities_->text()));
+        text->setPlainText(tr("OPENRULES %1\nRuntime: %2\n%3")
+                              .arg(QStringLiteral(OPENRULES_APP_VERSION), state, runtimeCapabilities_->text()));
         body->addWidget(text);
         auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close);
         auto *copy = buttons->addButton(tr("Copy diagnostics"), QDialogButtonBox::ActionRole);
@@ -931,12 +932,7 @@ QWidget *MainWindow::makeSettings()
         dialog.resize(480, 300);
         dialog.exec();
     });
-    section([] { return tr("Agents & Runtime"); }, "runtime", [] { return tr("connection reconnect diagnostics capability"); }, scrollPanel(runtime));
 
-    auto *configuration = new QWidget;
-    configuration->setObjectName("configurationPage");
-    auto *configurationLayout = new QVBoxLayout(configuration);
-    configurationLayout->addWidget(live::text(label({}, "heading"), [] { return tr("Configuration"); }));
     auto *controlsPanel = settingsGroup();
     auto *configurationRows = new QGridLayout(controlsPanel);
     configurationRows->setColumnStretch(0, 1);
@@ -953,25 +949,25 @@ QWidget *MainWindow::makeSettings()
     auto *limits = label({}, "configurationLimits");
     limits->setTextInteractionFlags(Qt::TextSelectableByMouse);
     configurationRows->addWidget(limits, 2, 0, 1, 2);
-    configurationLayout->addWidget(controlsPanel);
-    configurationLayout->addWidget(live::text(label({}, "lead"), [] { return tr("The desktop requests local handoff. Approval, scope, and execution permissions come from runtime policy and task grants."); }));
-    configurationLayout->addWidget(live::text(label({}, "meta"), [] { return tr("Native execution, provider settings, and global Agent configuration are unavailable here."); }));
-    auto *configurationDiagnostics = live::text(new QPushButton, [] { return tr("Diagnostics"); });
-    configurationDiagnostics->setObjectName("configurationDiagnostics");
-    configurationLayout->addWidget(configurationDiagnostics, 0, Qt::AlignLeft);
-    connect(configurationDiagnostics, &QPushButton::clicked, diagnostics, &QPushButton::click);
+    runtimeLayout->insertWidget(runtimeLayout->count() - 1, controlsPanel);
     connect(agentInspect, &QComboBox::currentIndexChanged, this, [this, capabilityDetails, agentInspect] {
         const auto native = runtimeInfo_.value("native_agent").toObject();
         const auto adapter = agentInspect->currentText();
         capabilityDetails->setText(tr("Requested: Local handoff\nEffective: %1\nSource: local runtime")
             .arg(online_ ? uiStatusLabel(native.value(adapter).toString(tr("Unavailable"))) : tr("Unavailable")));
     });
-    configurationLayout->addStretch();
-    section([] { return tr("Configuration"); }, "configuration", [] { return tr("agent profile approval sandbox scope permission"); }, scrollPanel(configuration));
+    section([] { return tr("Agents & Runtime"); }, "runtime",
+            [] { return tr("connection reconnect diagnostics capability"); }, scrollPanel(runtime));
 
     const SettingsRequest request = [this](const QString &method, QJsonObject params, RuntimeClient::Reply reply) {
         call(method, std::move(params), std::move(reply));
     };
+    governance_ = new GovernancePanel(request, [this] {
+        return repositories_;
+    });
+    section([] { return tr("Configuration"); }, "configuration",
+            [] { return tr("governance library rules skills profiles references policies"); }, governance_);
+
     section([] { return tr("Storage"); }, "storage", [] { return tr("chat message usage backup verify compact data folder"); },
             scrollPanel(makeStorageSettings(client_, *this, request)));
     section([] { return tr("Archived chats"); }, "archived", [] { return tr("conversation search unarchive restore delete"); },
@@ -1009,8 +1005,8 @@ QWidget *MainWindow::makeSettings()
     about->setObjectName("aboutPage");
     auto *aboutLayout = new QVBoxLayout(about);
     aboutLayout->setContentsMargins(2, 8, 2, 8);
-    aboutLayout->addWidget(live::text(label({}, "heading"), [] { return tr("About CGACP"); }));
-    aboutLayout->addWidget(live::text(label({}, "lead"), [] { return tr("CIRNET Governance & Agent Control Plane"); }));
+    aboutLayout->addWidget(live::text(label({}, "heading"), [] { return tr("About OPENRULES"); }));
+    aboutLayout->addWidget(live::text(label({}, "lead"), [] { return tr("OPENRULES"); }));
     aboutDetails_ = label({}, "aboutDetails");
     aboutDetails_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     aboutLayout->addWidget(aboutDetails_);
@@ -1224,6 +1220,7 @@ void MainWindow::updateRuntimeDetails()
 {
     runtimeStatus_->setText(connectionStatus_);
     reconnect_->setEnabled(!online_ && !client_.isRunning());
+    governance_->setAvailable(online_);
     preferencesRetry_->setEnabled(online_);
     QStringList adapters;
     const auto native = online_ ? runtimeInfo_.value("native_agent").toObject() : QJsonObject{};
@@ -1256,8 +1253,8 @@ void MainWindow::updateRuntimeDetails()
             .arg(storageLimits.value("workers").toInt()).arg(storageLimits.value("active_limit").toInt())
             .arg(storageLimits.value("retained_limit").toInt()).arg(storageLimits.value("deadline_seconds").toInt()));
     aboutDetails_->setText(tr("%1\nApplication %2\nRelease %3\n\n%4")
-                              .arg(QStringLiteral(CGACP_PRODUCT_GENERATION), QStringLiteral(CGACP_APP_VERSION),
-                                   QStringLiteral(CGACP_RELEASE_NAME), capability));
+                              .arg(QStringLiteral(OPENRULES_PRODUCT_NAME), QStringLiteral(OPENRULES_APP_VERSION),
+                                   QStringLiteral(OPENRULES_RELEASE_NAME), capability));
 }
 
 QJsonObject MainWindow::appearanceSettings() const

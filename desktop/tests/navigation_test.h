@@ -15,7 +15,7 @@
 
 inline void captureNavigation(MainWindow &window, const QString &name)
 {
-    const auto directory = qEnvironmentVariable("CGACP_UI_CAPTURE");
+    const auto directory = qEnvironmentVariable("OPENRULES_UI_CAPTURE");
     if (!directory.isEmpty())
         QVERIFY(window.grab().save(directory + "/" + name + ".png"));
 }

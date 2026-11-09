@@ -16,7 +16,7 @@ cargo build --locked
 ~~~
 
 On Windows the binary has an exe suffix. The Cargo targets are src/main.rs
-and src/tests/cli.rs. Schemas stay under en/schemas. See the [local workflow](../references/cgacp-local.md)
+and src/tests/cli.rs. Schemas stay under en/schemas. See the [local workflow](../references/openrules-local.md)
 for task creation, execution, acceptance and the explicitly selected release mode.
 The old context, doctor, version and drift commands remain available for
 legacy audits. Use scoped health and task context for ordinary work.

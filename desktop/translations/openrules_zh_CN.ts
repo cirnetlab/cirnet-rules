@@ -204,9 +204,9 @@ Delete %3 local message(s) and %4 task record(s)? Existing backups and provider 
     <message><source>Local runtime connected</source><translation>已连接本地运行时</translation></message>
     <message><source>Expand sidebar</source><translation>展开侧边栏</translation></message>
     <message><source>Local — %1</source><translation>本地 · %1</translation></message>
-    <message><source>Close CGACP</source><translation>关闭 CGACP</translation></message>
-    <message><source>Some preferences are unsaved. Close CGACP without saving them?</source><translation>有些首选项尚未保存。直接关闭 CGACP？</translation></message>
-    <message><source>Stop the local runtime and close CGACP? Saved conversations and runs can be restored on reopen.</source><translation>停止本地运行时并关闭 CGACP？重新打开后可恢复已保存的对话和运行。</translation></message>
+    <message><source>Close OPENRULES</source><translation>关闭 OPENRULES</translation></message>
+    <message><source>Some preferences are unsaved. Close OPENRULES without saving them?</source><translation>有些首选项尚未保存。直接关闭 OPENRULES？</translation></message>
+    <message><source>Stop the local runtime and close OPENRULES? Saved conversations and runs can be restored on reopen.</source><translation>停止本地运行时并关闭 OPENRULES？重新打开后可恢复已保存的对话和运行。</translation></message>
     <message><source>Repositories</source><translation>仓库</translation></message>
     <message><source>Add repository</source><translation>添加仓库</translation></message>
     <message><source>Select folder</source><translation>选择文件夹</translation></message>
@@ -287,7 +287,7 @@ Delete %3 local message(s) and %4 task record(s)? Existing backups and provider 
     <message><source>Dark</source><translation>深色</translation></message>
     <message><source>Mode</source><translation>模式</translation></message>
     <message><source>Accent</source><translation>强调色</translation></message>
-    <message><source>CIRNET teal</source><translation>CIRNET 青绿色</translation></message>
+    <message><source>Default teal</source><translation>默认青绿色</translation></message>
     <message><source>Cobalt blue</source><translation>钴蓝色</translation></message>
     <message><source>Interface font</source><translation>界面字体</translation></message>
     <message><source>Monospace</source><translation>等宽字体</translation></message>
@@ -331,9 +331,9 @@ Delete %3 local message(s) and %4 task record(s)? Existing backups and provider 
     <message><source>Connected</source><translation>已连接</translation></message>
     <message><source>Connecting</source><translation>正在连接</translation></message>
     <message><source>Disconnected</source><translation>未连接</translation></message>
-    <message><source>CGACP %1
+    <message><source>OPENRULES %1
 Runtime: %2
-%3</source><translation>CGACP %1
+%3</source><translation>OPENRULES %1
 运行时：%2
 %3</translation></message>
     <message><source>Copy diagnostics</source><translation>复制诊断信息</translation></message>
@@ -362,8 +362,7 @@ Source: local runtime</source><translation>请求模式：本地交接
     <message><source>Clear read</source><translation>清除已读</translation></message>
     <message><source>Notification history</source><translation>通知历史</translation></message>
     <message><source>toast history warnings errors</source><translation>弹出通知 历史 警告 错误</translation></message>
-    <message><source>About CGACP</source><translation>关于 CGACP</translation></message>
-    <message><source>CIRNET Governance &amp; Agent Control Plane</source><translation>CIRNET 治理与代理控制平面</translation></message>
+    <message><source>About OPENRULES</source><translation>关于 OPENRULES</translation></message>
     <message><source>About</source><translation>关于</translation></message>
     <message><source>version release application identity</source><translation>版本 发布 应用 标识</translation></message>
     <message><source>Retry saving</source><translation>重试保存</translation></message>
@@ -394,7 +393,7 @@ Release %3
     <message><source>Custom</source><translation>自定义</translation></message>
     <message><source>Custom accent</source><translation>自定义强调色</translation></message>
     <message><source>Language</source><translation>语言</translation></message>
-    <message><source>Language changes take effect after reopening CGACP.</source><translation>重新打开 CGACP 后，语言更改将生效。</translation></message>
+    <message><source>Language changes take effect after reopening OPENRULES.</source><translation>重新打开 OPENRULES 后，语言更改将生效。</translation></message>
     <message><source>Choose %1</source><translation>选择 %1</translation></message>
     <message><source>Enter a six-digit hexadecimal color. Clear the field to use the theme color.</source><translation>输入六位十六进制颜色代码。清空此字段可使用主题颜色。</translation></message>
     <message><source>Enter a six-digit hexadecimal color.</source><translation>输入六位十六进制颜色代码。</translation></message>
@@ -430,14 +429,15 @@ Release %3
   </context>
   <context>
     <name>RuntimeClient</name>
-    <message><source>The CGACP runtime executable is missing or invalid.</source><translation>CGACP 运行时可执行文件缺失或无效。</translation></message>
-    <message><source>The CGACP runtime checksum is missing.</source><translation>缺少 CGACP 运行时校验值。</translation></message>
-    <message><source>The CGACP runtime checksum is invalid.</source><translation>CGACP 运行时校验值无效。</translation></message>
-    <message><source>The CGACP runtime could not be verified.</source><translation>无法验证 CGACP 运行时。</translation></message>
-    <message><source>The CGACP runtime checksum does not match.</source><translation>CGACP 运行时校验值不匹配。</translation></message>
+    <message><source>The runtime protocol is incompatible. Use the runtime installed with OPENRULES.</source><translation>运行时协议不兼容。请使用与 OPENRULES 一同安装的运行时。</translation></message>
+    <message><source>The OPENRULES runtime executable is missing or invalid.</source><translation>OPENRULES 运行时可执行文件缺失或无效。</translation></message>
+    <message><source>The OPENRULES runtime checksum is missing.</source><translation>缺少 OPENRULES 运行时校验值。</translation></message>
+    <message><source>The OPENRULES runtime checksum is invalid.</source><translation>OPENRULES 运行时校验值无效。</translation></message>
+    <message><source>The OPENRULES runtime could not be verified.</source><translation>无法验证 OPENRULES 运行时。</translation></message>
+    <message><source>The OPENRULES runtime checksum does not match.</source><translation>OPENRULES 运行时校验值不匹配。</translation></message>
     <message><source>The runtime could not start.</source><translation>无法启动运行时。</translation></message>
     <message><source>The runtime transport failed.</source><translation>运行时通信失败。</translation></message>
-    <message><source>The CGACP runtime is outside the application directory.</source><translation>CGACP 运行时不在应用程序目录内。</translation></message>
+    <message><source>The OPENRULES runtime is outside the application directory.</source><translation>OPENRULES 运行时不在应用程序目录内。</translation></message>
     <message><source>The runtime is disconnected.</source><translation>运行时已断开连接。</translation></message>
     <message><source>The runtime request queue is full.</source><translation>运行时请求队列已满。</translation></message>
     <message><source>The runtime request exceeds the size limit.</source><translation>运行时请求超过大小限制。</translation></message>
@@ -523,4 +523,28 @@ Release %3
     <message><source>Yes</source><translation>是</translation></message>
     <message><source>Apply</source><translation>应用</translation></message>
   </context>
+<context>
+    <name>IdentityUpgrade</name>
+    <message><source>Keep the old runtime closed after the upgrade. The old database is reserved for offline recovery. Later writes from the old runtime would diverge.</source><translation>升级后请保持旧运行时关闭。旧数据库仅供离线恢复使用。旧运行时之后写入的数据将与当前数据分离。</translation></message>
+    <message><source>Local data upgrade</source><translation>本地数据升级</translation></message>
+    <message><source>The local data check could not finish. Reopen OPENRULES to retry.</source><translation>本地数据检查未能完成。请重新打开 OPENRULES 后重试。</translation></message>
+    <message><source>The runtime could not inspect the local data.</source><translation>运行时无法检查本地数据。</translation></message>
+    <message><source>Local data is in use. Close the previous Desktop and its runtime, then retry.</source><translation>本地数据正在使用中。请关闭旧版桌面应用及其运行时，然后重试。</translation></message>
+    <message><source>The runtime sent an invalid data-upgrade response.</source><translation>运行时返回了无效的数据升级响应。</translation></message>
+    <message><source>The current and previous databases both contain local data. Choose Use current data to keep them separate, or close OPENRULES.</source><translation>当前数据库与旧数据库均包含本地数据。请选择使用当前数据以保持两者独立，或关闭 OPENRULES。</translation></message>
+    <message><source>Upgrade the previous Desktop data in place of a fresh database. Close the previous Desktop and its runtime before continuing.</source><translation>升级旧版桌面数据以继续使用。继续前请关闭旧版桌面应用及其运行时。</translation></message>
+    <message><source>Previous database
+%1
+
+OPENRULES database
+%2</source><translation>旧数据库
+%1
+
+OPENRULES 数据库
+%2</translation></message>
+    <message><source>Use current data</source><translation>使用当前数据</translation></message>
+    <message><source>Back up and upgrade</source><translation>备份并升级</translation></message>
+    <message><source>Checking local data…</source><translation>正在检查本地数据…</translation></message>
+    <message><source>Local data still requires recovery. Reopen OPENRULES to retry.</source><translation>本地数据仍需恢复。请重新打开 OPENRULES 后重试。</translation></message>
+</context>
 </TS>

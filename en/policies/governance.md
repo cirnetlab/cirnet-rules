@@ -48,7 +48,7 @@ move `PROPOSED` → `READY` → `IN_PROGRESS` → `IMPLEMENTED` → `VERIFIED` �
 `ACCEPTED` → `DOCS_SYNCED` → `CLOSED`. An unmet prerequisite yields
 `BLOCKED`. An explicit documentation waiver can close an accepted task.
 Release maintainers record publication separately. Verification binds checked
-inputs to the governance and task revision. See the [CGACP workflow](../references/cgacp-local.md).
+inputs to the governance and task revision. See the [OPENRULES workflow](../references/openrules-local.md).
 
 The initial exception list is closed. A future scoped exception requires
 rule ID, owner, rationale, expiry and approval. An agent cannot waive its own

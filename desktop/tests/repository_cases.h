@@ -83,7 +83,7 @@ inline void exerciseRowSelection(QTableView *table, const QString &bindingId)
     QTest::mouseClick(viewport, Qt::LeftButton, Qt::NoModifier, trailingSample);
     QCOMPARE(selectedBinding(table).value("binding_id").toString(), bindingId);
     QCOMPARE(table->selectionModel()->selectedIndexes().size(), header->count());
-    if (const auto captureDirectory = qEnvironmentVariable("CGACP_UI_CAPTURE"); !captureDirectory.isEmpty())
+    if (const auto captureDirectory = qEnvironmentVariable("OPENRULES_UI_CAPTURE"); !captureDirectory.isEmpty())
         QVERIFY(table->grab().save(captureDirectory + "/repositories-full-row-selection.png"));
 }
 
@@ -138,7 +138,7 @@ inline void exerciseTable(MainWindow &window, const QJsonObject &binding)
         QCOMPARE(submenu->activeAction(), folder);
         QVERIFY(qAbs(submenu->geometry().top() -
                      menu->mapToGlobal(menu->actionGeometry(submenu->menuAction()).topLeft()).y()) <= 12);
-        if (const auto capture = qEnvironmentVariable("CGACP_UI_CAPTURE"); !capture.isEmpty())
+        if (const auto capture = qEnvironmentVariable("OPENRULES_UI_CAPTURE"); !capture.isEmpty())
             QVERIFY(submenu->grab().save(capture + "/repositories-relink-submenu.png"));
         QTest::keyClick(submenu, Qt::Key_Escape);
         QTRY_VERIFY(!submenu->isVisible());
@@ -155,7 +155,7 @@ inline void exerciseTable(MainWindow &window, const QJsonObject &binding)
 #endif
     QVERIFY(copy->isEnabled());
     copy->trigger();
-    if (qEnvironmentVariableIntValue("CGACP_SKIP_NATIVE_CLIPBOARD") == 1)
+    if (qEnvironmentVariableIntValue("OPENRULES_SKIP_NATIVE_CLIPBOARD") == 1)
         qInfo("Native clipboard comparison unavailable in this sandbox. Offscreen run verifies the full path.");
     else
         QCOMPARE(QApplication::clipboard()->text(), root);

@@ -1,4 +1,4 @@
-<!-- doc-id: CGACP-DESKTOP-RELEASE -->
+<!-- doc-id: OPENRULES-DESKTOP-RELEASE -->
 <!-- revision: 1 -->
 <a id="candidate"></a>
 
@@ -6,7 +6,7 @@
 
 | Identity | Candidate |
 | --- | --- |
-| Product generation | CGACP v1 |
+| Product name | OPENRULES |
 | Application version | 0.1.0 |
 | Release title | `cirnet-rules-0.1.0` |
 | Proposed tag | `v0.1.0` |
@@ -17,6 +17,9 @@ bindings, durable conversation and scoped intake, SQLite backup and reviewed
 legacy archive, and a backend automation scheduler. Catalog registration
 does not grant execution or file writes. A relink invalidates the previous
 binding revision. The package targets Windows x64 MSVC.
+
+The candidate archive uses the product name in its filename. The release
+identifier in the manifest still uses the repository name.
 
 The archive manifest records the base source revision, fingerprint of the
 working sources, installed file digests and archive SHA-256. Keep the manifest

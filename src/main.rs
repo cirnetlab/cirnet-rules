@@ -58,7 +58,7 @@ const COMMANDS: &[&str] = &[
 fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
     if let Some(path) = explicit
         .map(PathBuf::from)
-        .or_else(|| env::var_os("CGACP_GOVERNANCE").map(PathBuf::from))
+        .or_else(|| env::var_os("OPENRULES_GOVERNANCE").map(PathBuf::from))
     {
         return path
             .canonicalize()
@@ -97,12 +97,32 @@ fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
             }
         }
     }
-    Err("CGACP governance checkout was not found in the local workspace".into())
+    Err("OPENRULES governance checkout was not found in the local workspace".into())
 }
 
 fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, String> {
     let root = governance_root(args.remove("governance"))?;
     let mut registry = policy::registry(&root)?;
+    if !matches!(
+        command,
+        "validate"
+            | "context"
+            | "check-translations"
+            | "check-versions"
+            | "check-release"
+            | "check-drift"
+            | "bootstrap"
+            | "doctor"
+    ) {
+        match std::fs::symlink_metadata(root.join(".cgacp")) {
+            Ok(_) => {
+                return Ok(json!({"status":"BLOCKED",
+                    "reason":"Existing legacy maintenance state requires reviewed migration before local task operations."}));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("Could not verify the legacy maintenance state directory".into()),
+        }
+    }
     match command {
         "workspace-discover" | "workspace-bind" | "workspace-health" | "route" | "task-context"
         | "context-prune" => return workspace::run(command, &root, &args, &registry),
@@ -151,7 +171,7 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
                 .or_else(|| root.parent().map(Path::to_path_buf))
                 .ok_or("Product workspace unavailable")?;
             prepare_release_registry(&root, &mut registry)?;
-            registry["_cgacp_release_governance"] = json!(root);
+            registry["_openrules_release_governance"] = json!(root);
             return release::check_release(&workspace, &registry);
         }
         "check-translations" if args.contains_key("paths") => {

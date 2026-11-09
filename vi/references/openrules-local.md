@@ -1,16 +1,16 @@
-<!-- doc-id: CGACP-LOCAL -->
+<!-- doc-id: OPENRULES-LOCAL -->
 <!-- revision: 2 -->
-<!-- source-sha256: 86ba78e249eddc4f1e71e6824a832f951bb65ddfa4244cbebbf44382190b1092 -->
+<!-- source-sha256: 96ff3cebc4e2759ce3058c69d36414b3a7baee9a9c7a09d5a0d4f2876ae7844c -->
 <!-- translation-status: synchronized -->
 <a id="operator-workflow"></a>
 
-# Quy trình vận hành CGACP local
+# Quy trình vận hành OPENRULES local
 
 Build một lần bằng `cargo build --locked`. Chạy binary đã kiểm chứng từ
 checkout governance hoặc workspace chứa nó. Dò thư mục cùng cấp mặc định
 dựa trên entrypoint đã được Git theo dõi và Git root thực. Với worktree
-governance khác, dùng `--governance` hoặc đặt `CGACP_GOVERNANCE` cho tiến
-trình. Liên kết worktree được lưu local dưới `.cgacp/` đã ignore. Dò
+governance khác, dùng `--governance` hoặc đặt `OPENRULES_GOVERNANCE` cho tiến
+trình. Liên kết worktree được lưu local dưới `.openrules/` đã ignore. Dò
 workspace và công việc thông thường chạy offline.
 
 Cập nhật task giải phóng khóa tệp khi thao tác kết thúc, kể cả khi một bản
@@ -21,7 +21,7 @@ phải dùng revision hiện tại.
    `workspace-bind --repo NAME --path WORKTREE --actor OPERATOR`.
 2. Viết spec và plan tiếng Anh trong thư mục task tập trung. Đồng bộ bản
    tiếng Việt trong cùng thay đổi. Cung cấp descriptor JSON theo
-   [schema task](../../en/schemas/cgacp-task.schema.json) bằng
+   [schema task](../../en/schemas/openrules-task.schema.json) bằng
    `task-create --descriptor descriptor.json`. Lưu đầu vào chỉ dùng cho
    phiên trong thư mục trạng thái local đã ignore.
    Dùng `_workspace` cho task cha liên repo. Mỗi task con có repo, phạm vi

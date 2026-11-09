@@ -219,7 +219,7 @@ impl Operations {
         let (work, requests) = mpsc::sync_channel::<Work>(MAX_ACTIVE);
         let (results, completed) = mpsc::sync_channel(MAX_ACTIVE);
         let thread = thread::Builder::new()
-            .name("cgacp-storage".into())
+            .name("openrules-storage".into())
             .spawn(move || {
                 for work in requests {
                     let outcome = work.job.run(&data, work.control);

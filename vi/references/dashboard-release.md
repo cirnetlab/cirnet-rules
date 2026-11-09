@@ -1,6 +1,6 @@
-<!-- doc-id: CGACP-DESKTOP-RELEASE -->
+<!-- doc-id: OPENRULES-DESKTOP-RELEASE -->
 <!-- revision: 1 -->
-<!-- source-sha256: 7d8c3ad163de08e1084c9aa5a9827a9d4d1bc7e88fd1ca86e1aaae47c6bf676c -->
+<!-- source-sha256: 284180faa05d53890db07e39f16fdaa4393100076532f413416469d6be50ebea -->
 <!-- translation-status: synchronized -->
 <a id="candidate"></a>
 
@@ -8,7 +8,7 @@
 
 | Định danh | Ứng viên |
 | --- | --- |
-| Thế hệ sản phẩm | CGACP v1 |
+| Tên sản phẩm | OPENRULES |
 | Phiên bản ứng dụng | 0.1.0 |
 | Tên release | `cirnet-rules-0.1.0` |
 | Tag đề xuất | `v0.1.0` |
@@ -19,6 +19,9 @@ lưu hội thoại và intake theo phạm vi, sao lưu SQLite, lưu trữ dữ l
 rà và scheduler automation ở backend. Đăng ký catalog không cấp quyền thực
 thi hay ghi file. Relink làm revision binding cũ mất hiệu lực. Gói nhắm đến
 Windows x64 MSVC.
+
+Tên tệp nén ứng viên dùng tên sản phẩm. Định danh release trong manifest
+vẫn dùng tên kho mã.
 
 Manifest archive ghi revision nguồn gốc, fingerprint cây nguồn đang dùng,
 digest từng file cài và SHA-256 archive. Giữ manifest và checksum cạnh zip.

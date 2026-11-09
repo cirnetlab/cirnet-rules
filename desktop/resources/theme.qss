@@ -20,6 +20,17 @@ QLabel#sectionTitle, QLabel#automationCardTitle { font-size: @SECTION_SIZE@px; f
 QLabel#lead, QLabel#cardBody { color: @MUTED@; }
 QLabel#meta { color: @MUTED@; font-size: @META_SIZE@px; }
 QLabel#appearanceContrastWarning { color: @WARNING@; font-size: @META_SIZE@px; }
+QLabel#governanceStatus { color: @MUTED@; }
+QLabel#governanceStatus[governanceError="true"] { color: @DANGER@; }
+QPushButton#governanceImport { padding-right: 26px; }
+QTabWidget#governanceSections::pane, QTabWidget#governanceEditorTabs::pane { border: 0; }
+QWidget#configurationPage QTabBar::tab {
+    background: transparent; color: @MUTED@; border: 1px solid transparent;
+    border-radius: 9px; margin-right: 4px; padding: @VERTICAL_PAD@px 12px;
+}
+QWidget#configurationPage QTabBar::tab:hover { background: @HOVER@; }
+QWidget#configurationPage QTabBar::tab:selected { background: @SELECTED@; color: @TEXT@; }
+QWidget#configurationPage QTabBar::tab:focus { border-color: @ACCENT@; }
 QFrame#card { background: @SURFACE@; border: 1px solid @BORDER@; border-radius: 14px; }
 QFrame#toast { background: @SURFACE@; border: 1px solid @BORDER@; border-radius: 14px; }
 QFrame#toast[severity="error"] { border-color: @DANGER@; }

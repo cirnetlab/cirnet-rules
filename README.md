@@ -1,10 +1,15 @@
-# CIRNET Governance & Agent Control Plane
+# OPENRULES
 
 [English](en/README.md) · [Tiếng Việt](vi/README.md)
 
 Local Rust tooling for scoped task routing, execution, verification and governance.
 
 [Dashboard operator guide](en/references/dashboard.md) · [Hướng dẫn Dashboard](vi/references/dashboard.md)
+
+Open **Settings → Configuration** to author and review governance from Desktop.
+[Mở thư viện governance](vi/references/governance-workspace.md) · [Governance workspace](en/references/governance-workspace.md)
+
+[Unreleased changes](en/CHANGELOG.md) · [Thay đổi chưa phát hành](vi/CHANGELOG.md)
 
 `cirnet-rules` quản lý quy trình làm việc và bằng chứng cho các repo CIRNET.
 Repo sản phẩm vẫn sở hữu source code, contract và artifact của mình; Remote
@@ -60,6 +65,6 @@ ranh giới HTTP do `cirnet-remote` sở hữu. Agent chỉ đọc hoặc sửa 
 file đã nằm trong phạm vi được cấp; thay đổi contract cần được xử lý theo
 đúng repo sở hữu và phạm vi task.
 
-Xem [quy trình local](en/references/cgacp-local.md),
+Xem [quy trình local](en/references/openrules-local.md),
 [routing](en/routing/README.md), [công cụ](en/tools/README.md),
 [Dashboard](vi/references/dashboard.md) và [registry](governance.yaml).

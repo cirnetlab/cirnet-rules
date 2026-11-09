@@ -6,7 +6,7 @@ struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
         let root = std::env::temp_dir().join(format!(
-            "cgacp-task-test-{}-{}",
+            "openrules-task-test-{}-{}",
             std::process::id(),
             NEXT_STAGE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));

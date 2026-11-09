@@ -1,4 +1,4 @@
-<!-- doc-id: CGACP-INTERACTION-STATE -->
+<!-- doc-id: OPENRULES-INTERACTION-STATE -->
 <!-- revision: 2 -->
 <a id="interaction-state"></a>
 

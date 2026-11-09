@@ -491,7 +491,7 @@ public:
         if (size.isEmpty())
             return {};
         const auto ink = iconColor(mode);
-        const auto key = QStringLiteral("cgacp-vector-%1-%2-%3-%4")
+        const auto key = QStringLiteral("openrules-vector-%1-%2-%3-%4")
                              .arg(static_cast<int>(symbol_)).arg(ink.rgba())
                              .arg(size.width()).arg(size.height());
         QPixmap result;
@@ -730,10 +730,10 @@ double appearanceColorContrast(const QColor &first, const QColor &second)
 
 void applyTheme(QApplication &app)
 {
-    Q_INIT_RESOURCE(cgacp_ui);
+    Q_INIT_RESOURCE(openrules_ui);
     systemFont = app.font();
     systemPalette = app.palette();
-    app.setWindowIcon(QIcon(QStringLiteral(":/cgacp/favicon.png")));
+    app.setWindowIcon(QIcon(QStringLiteral(":/openrules/favicon.png")));
     dashboardStyle = new DashboardStyle;
     app.setStyle(dashboardStyle);
     new InteractionState(app);
@@ -840,7 +840,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
         QApplication::setFont(font);
 
     static const auto templateStyle = [] {
-        QFile file(":/cgacp/theme.qss");
+        QFile file(":/openrules/theme.qss");
         return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString{};
     }();
     if (!templateStyle.isEmpty()) {

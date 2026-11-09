@@ -434,7 +434,7 @@ fn normalized_remote(value: &str, expected: &str) -> bool {
 }
 
 fn checkout(root: &Path, name: &str, registry: &Value) -> GateResult<PathBuf> {
-    let repo = if let Some(governance) = registry["_cgacp_release_governance"].as_str() {
+    let repo = if let Some(governance) = registry["_openrules_release_governance"].as_str() {
         crate::workspace::resolve(Path::new(governance), Some(root), name, registry)
             .map(|binding| binding.path)
             .map_err(blocked)?

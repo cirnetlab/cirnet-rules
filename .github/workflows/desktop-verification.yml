@@ -1,4 +1,4 @@
-name: CGACP desktop verification
+name: OPENRULES desktop verification
 
 on:
   workflow_dispatch:
@@ -24,10 +24,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $build = Join-Path $env:RUNNER_TEMP "cgacp-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          $runtime = (Resolve-Path 'target/release/cgacp-runtime.exe').Path
+          $build = Join-Path $env:RUNNER_TEMP "openrules-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $runtime = (Resolve-Path 'target/release/openrules-runtime.exe').Path
           if (!$env:Qt6_DIR -and !$env:CMAKE_PREFIX_PATH) { throw 'Configure the approved Qt 6 kit on the runner.' }
-          cmake -S . -B $build -G 'Visual Studio 17 2022' -A x64 "-DCGACP_RUNTIME_EXECUTABLE=$runtime" -DCGACP_DEPLOY_QT=ON
+          cmake -S . -B $build -G 'Visual Studio 17 2022' -A x64 "-DOPENRULES_RUNTIME_EXECUTABLE=$runtime" -DOPENRULES_DEPLOY_QT=ON
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --build $build --config Release --parallel 4
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

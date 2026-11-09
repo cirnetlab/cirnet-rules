@@ -1,5 +1,5 @@
 use serde_json::Value;
-mod cgacp;
+mod openrules;
 #[path = "../test_support.rs"]
 mod test_support;
 use std::{path::Path, process::Command};

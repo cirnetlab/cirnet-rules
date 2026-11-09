@@ -10,6 +10,7 @@
 #include "table_visual_test.h"
 #include "interaction_cases.h"
 #include "shared_polish_test.h"
+#include "governance_cases.h"
 
 #include <QAbstractItemModel>
 #include <QAction>
@@ -66,9 +67,9 @@ QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
                           const QJsonArray &methods, const QString &mode)
 {
     if (method == "runtime.info")
-        return {{"product_generation", QStringLiteral(CGACP_PRODUCT_GENERATION)},
-                {"version", QStringLiteral(CGACP_APP_VERSION)},
-                {"release_name", QStringLiteral(CGACP_RELEASE_NAME)},
+        return {{"product_generation", QStringLiteral(OPENRULES_PRODUCT_NAME)},
+                {"version", QStringLiteral(OPENRULES_APP_VERSION)},
+                {"release_name", QStringLiteral(OPENRULES_RELEASE_NAME)},
                 {"native_agent", QJsonObject{{"codex", "HANDOFF_ONLY"}}},
                 {"execution_enforcement", QJsonObject{{"ISOLATED_EXECUTION", "BLOCKED"}}}};
     if (method == "preferences.get") {
@@ -184,7 +185,11 @@ int runFixture(const QString &mode)
     bool holdAutomationList = false;
     while (std::fgets(line, sizeof line, stdin)) {
         const auto request = QJsonDocument::fromJson(QByteArray(line)).object();
-        const auto method = request.value("method").toString();
+        const auto wireMethod = request.value("method").toString();
+        if (request.value("v").toInt() != OPENRULES_IPC_PROTOCOL ||
+            !wireMethod.startsWith(QStringLiteral("openrules.")))
+            return 2;
+        const auto method = wireMethod.sliced(10);
         if (method == "test.invalid") {
             std::fputs("{malformed}\n", stdout);
             std::fflush(stdout);
@@ -200,7 +205,7 @@ int runFixture(const QString &mode)
         if (method == "test.holdAutomationList")
             holdAutomationList = true;
         methods.append(method);
-        QJsonObject responseObject{{"v", 1}, {"id", request.value("id")}};
+        QJsonObject responseObject{{"v", OPENRULES_IPC_PROTOCOL}, {"id", request.value("id")}};
         if (mode == "save-error" && method == "preferences.set" && firstPreferenceWrite) {
             firstPreferenceWrite = false;
             responseObject.insert("ok", false);
@@ -305,7 +310,7 @@ void chooseTheme(MainWindow &window, const QString &name)
 
 bool captureWidget(QWidget &widget, const QString &name)
 {
-    const auto directory = qEnvironmentVariable("CGACP_UI_CAPTURE");
+    const auto directory = qEnvironmentVariable("OPENRULES_UI_CAPTURE");
     if (directory.isEmpty())
         return true;
     QTest::qWait(60);
@@ -333,6 +338,16 @@ void withDashboardFixture(const std::function<void(MainWindow &)> &test,
 class DesktopTest final : public QObject {
     Q_OBJECT
 private slots:
+    void nativeGovernanceAuthoring()
+    {
+        governance_cases::authorSkill(
+            [](MainWindow &window, const QString &name) { interaction_cases::capture(window, name); },
+            [](MainWindow &window) {
+                QTest::mouseClick(window.findChild<QToolButton *>("navSettings"), Qt::LeftButton);
+                settingsSection(window, "configuration");
+            });
+    }
+
     void scrollbarsRevealOnThumbHoverAndWheel() { shared_polish::scrollbarsRevealOnThumbHoverAndWheel(); }
     void appearancePixelsAndPaletteApplyToOpenWidgets() { shared_polish::appearancePixelsAndPaletteApplyToOpenWidgets(); }
     void wheelScrollsWithoutChangingEditors() { shared_polish::wheelScrollsWithoutChangingEditors(); }
@@ -716,18 +731,19 @@ private slots:
         client.start();
         auto *mark = window.findChild<QLabel *>("brandMark");
         auto *brand = window.findChild<QLabel *>("brand");
-        auto *subtitle = window.findChild<QLabel *>("brandSubtitle");
         auto *split = window.findChild<QSplitter *>("shellSplitter");
         auto *sidebar = window.findChild<QWidget *>("sidebar");
         auto *toggle = window.findChild<QToolButton *>("toggleSidebar");
         auto *automations = window.findChild<QPushButton *>("navAutomations");
-        QVERIFY(mark && brand && subtitle && split && sidebar && toggle && automations);
+        QVERIFY(mark && brand && split && sidebar && toggle && automations);
+        QCOMPARE(window.windowTitle(), QStringLiteral("OPENRULES"));
+        QCOMPARE(brand->text(), QStringLiteral("OPENRULES"));
+        QVERIFY(!window.findChild<QLabel *>("brandSubtitle"));
         QVERIFY(!mark->pixmap().isNull());
         const auto y = [sidebar](QWidget *widget) { return widget->mapTo(sidebar, widget->rect().center()).y(); };
         QVERIFY(qAbs(y(mark) - y(brand)) <= 2);
-        QVERIFY(qAbs(y(brand) - y(subtitle)) <= 2);
         QVERIFY(mark->geometry().right() < brand->geometry().left());
-        QVERIFY(brand->geometry().right() < subtitle->geometry().left());
+        QVERIFY(brand->geometry().right() < toggle->geometry().left());
         QVERIFY(!window.findChild<QWidget *>("feedback"));
         QVERIFY(!window.findChild<QWidget *>("navRepositories"));
         auto *footer = window.findChild<QWidget *>("sidebarFooter");
@@ -740,7 +756,7 @@ private slots:
         qInfo() << "Populated fixture ready ms" << startup.elapsed() << "requests through readiness" << initialMethods.size() - 1;
         const auto ratio = window.devicePixelRatioF();
         bool hasExpectedDpr = false;
-        const auto expectedDpr = qEnvironmentVariable("CGACP_EXPECT_DPR").toDouble(&hasExpectedDpr);
+        const auto expectedDpr = qEnvironmentVariable("OPENRULES_EXPECT_DPR").toDouble(&hasExpectedDpr);
         if (hasExpectedDpr)
             QVERIFY(qAbs(ratio - expectedDpr) < 0.01);
         qInfo() << "Qt platform" << QGuiApplication::platformName() << "devicePixelRatio" << ratio;
@@ -837,6 +853,7 @@ private slots:
         QVERIFY(!checkbox->isChecked());
 
         settingsSection(window, "about");
+        QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().startsWith("OPENRULES\n"));
         QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("HANDOFF ONLY"));
         QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("ISOLATED EXECUTION · BLOCKED"));
         QVERIFY(captureWidget(window, "settings-about"));
@@ -1166,9 +1183,9 @@ private slots:
 
     void realRuntimePersistsRepositoryAndIntake()
     {
-        const auto runtime = qEnvironmentVariable("CGACP_TEST_RUNTIME");
+        const auto runtime = qEnvironmentVariable("OPENRULES_TEST_RUNTIME");
         if (runtime.isEmpty())
-            QSKIP("Set CGACP_RUNTIME_EXECUTABLE at CMake configure time to run the Rust runtime test.");
+            QSKIP("Set OPENRULES_RUNTIME_EXECUTABLE at CMake configure time to run the Rust runtime test.");
         const auto git = QStandardPaths::findExecutable("git");
         QVERIFY(!git.isEmpty());
         QTemporaryDir fixture;
@@ -1182,7 +1199,7 @@ private slots:
         file.close();
         QVERIFY(runGit(git, directory, {"init", "--quiet"}));
         QVERIFY(runGit(git, directory, {"add", "--", QFileInfo(source).fileName()}));
-        QVERIFY(runGit(git, directory, {"-c", "user.name=CGACP Fixture", "-c", "user.email=fixture@example.invalid",
+        QVERIFY(runGit(git, directory, {"-c", "user.name=OPENRULES Fixture", "-c", "user.email=fixture@example.invalid",
                                        "-c", "commit.gpgsign=false", "-c", "core.hooksPath=.git/nonexistent",
                                        "commit", "--quiet", "-m", "Fixture"}));
         RuntimeClient client(runtime, {"--stdio", "--data-dir", fixture.filePath("database")});
@@ -1194,7 +1211,7 @@ private slots:
         client.start();
         QTRY_COMPARE(connected.size(), 1);
         const auto info = invoke(client, "runtime.info");
-        QCOMPARE(info.value("product_generation").toString(), QStringLiteral(CGACP_PRODUCT_GENERATION));
+        QCOMPARE(info.value("product_generation").toString(), QStringLiteral(OPENRULES_PRODUCT_NAME));
         const auto preview = invoke(client, "repo.preview", {{"path", source}});
         QCOMPARE(preview.value("file_hint").toString(), QFileInfo(source).fileName());
         QVERIFY(preview.value("root").toString().contains(QStringLiteral("Mạch nguồn fixture")));
@@ -1440,7 +1457,7 @@ private slots:
     void vietnameseCatalogLoads()
     {
         QTranslator translator;
-        const auto file = qEnvironmentVariable("CGACP_TEST_QM");
+        const auto file = qEnvironmentVariable("OPENRULES_TEST_QM");
         QVERIFY(!file.isEmpty());
         QVERIFY(translator.load(file));
         QCOMPARE(translator.translate("MainWindow", "Automations"), QStringLiteral("Tự động hóa"));
@@ -1454,14 +1471,14 @@ private slots:
         const QSignalSpy ready(&client, &RuntimeClient::ready);
         client.start();
         QTRY_COMPARE(ready.size(), 1);
-        QCOMPARE(invoke(client, "runtime.info").value("version").toString(), QStringLiteral(CGACP_APP_VERSION));
+        QCOMPARE(invoke(client, "runtime.info").value("version").toString(), QStringLiteral(OPENRULES_APP_VERSION));
         const auto settings = invoke(client, "preferences.get").value("settings").toObject();
         QCOMPARE(settings.value("appearance").toObject().value("language").toString(), QStringLiteral("zh_CN"));
 
         QTranslator translator;
-        const auto file = qEnvironmentVariable("CGACP_TEST_ZH_QM",
-                                               QFileInfo(qEnvironmentVariable("CGACP_TEST_QM")).dir()
-                                                   .filePath("cgacp_zh_CN.qm"));
+        const auto file = qEnvironmentVariable("OPENRULES_TEST_ZH_QM",
+                                               QFileInfo(qEnvironmentVariable("OPENRULES_TEST_QM")).dir()
+                                                   .filePath("openrules_zh_CN.qm"));
         QVERIFY(translator.load(file));
         QCOMPARE(translator.translate("MainWindow", "Language"), QStringLiteral("语言"));
         QCOMPARE(translator.translate("StoragePage", "Storage"), QStringLiteral("存储"));
@@ -1485,7 +1502,7 @@ private slots:
     void vietnameseNativeLayout()
     {
         QTranslator translator;
-        QVERIFY(translator.load(qEnvironmentVariable("CGACP_TEST_QM")));
+        QVERIFY(translator.load(qEnvironmentVariable("OPENRULES_TEST_QM")));
         struct RestoreLanguage {
             QTranslator &translator;
             ~RestoreLanguage() { QCoreApplication::removeTranslator(&translator); }
@@ -1575,7 +1592,7 @@ int main(int argc, char **argv)
         return runFixture(argc == 3 ? QString::fromLatin1(argv[2]) : QString{});
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
-    auto fontPath = qEnvironmentVariable("CGACP_TEST_FONT");
+    auto fontPath = qEnvironmentVariable("OPENRULES_TEST_FONT");
 #ifdef Q_OS_WIN
     if (fontPath.isEmpty() && QGuiApplication::platformName() == "offscreen") {
         const auto windows = qEnvironmentVariable("WINDIR");

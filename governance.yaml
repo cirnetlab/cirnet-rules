@@ -168,7 +168,7 @@
     "cirnet-rules": {
       "classification": "supporting",
       "profile": "governance",
-      "ownership": "local CGACP registry, routing, authority and verification",
+      "ownership": "local OPENRULES registry, routing, authority and verification",
       "depends_on": []
     }
   },

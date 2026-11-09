@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "governance_panel.h"
 #include "live_text.h"
 #include "full_row_table.h"
 
@@ -534,6 +535,7 @@ void MainWindow::fetchRepositoryPage()
             return;
         }
         repositories_ = std::exchange(repoIncoming_, {});
+        governance_->repositoryCatalogChanged();
         repoCursor_ = next;
         repoComplete_ = !hasCursor(next);
         repoLoading_ = false;

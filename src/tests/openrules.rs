@@ -14,7 +14,7 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let workspace = crate::test_support::temporary_directory("cgacp-e2e").unwrap();
+        let workspace = crate::test_support::temporary_directory("openrules-e2e").unwrap();
         let governance = workspace.join("cirnet-rules");
         let product = workspace.join("Interface feature worktree");
         fs::create_dir_all(&governance).unwrap();
@@ -58,7 +58,7 @@ impl Fixture {
             &governance,
             &[
                 "-c",
-                "user.name=CGACP fixture",
+                "user.name=OPENRULES fixture",
                 "-c",
                 "user.email=fixture@example.invalid",
                 "-c",
@@ -95,7 +95,7 @@ impl Fixture {
             &product,
             &[
                 "-c",
-                "user.name=CGACP fixture",
+                "user.name=OPENRULES fixture",
                 "-c",
                 "user.email=fixture@example.invalid",
                 "-c",
@@ -135,7 +135,7 @@ impl Fixture {
     fn cli(&self, args: &[&str], code: i32) -> Value {
         let output = Command::new(env!("CARGO_BIN_EXE_cirnet-governance"))
             .current_dir(&self.product)
-            .env_remove("CGACP_GOVERNANCE")
+            .env_remove("OPENRULES_GOVERNANCE")
             .args(args)
             .output()
             .unwrap();
@@ -160,6 +160,25 @@ impl Drop for Fixture {
 
 fn sha(data: &[u8]) -> String {
     format!("{:x}", Sha256::digest(data))
+}
+
+#[test]
+fn legacy_maintenance_state_does_not_get_shadowed_by_a_new_store() {
+    let fixture = Fixture::new();
+    let original = b"{\"legacy\":true}\n";
+    Fixture::put(&fixture.governance, ".cgacp/tasks/legacy.json", original);
+    let blocked = fixture.cli(&["task-show", "--task", "legacy"], 2);
+    assert!(
+        blocked["reason"]
+            .as_str()
+            .unwrap()
+            .contains("reviewed migration")
+    );
+    assert!(!fixture.governance.join(".openrules").exists());
+    assert_eq!(
+        fs::read(fixture.governance.join(".cgacp/tasks/legacy.json")).unwrap(),
+        original,
+    );
 }
 
 #[test]
@@ -376,7 +395,7 @@ fn a_ui_task_routes_verifies_and_resumes_two_docs_destinations() {
             worktree,
             &[
                 "-c",
-                "user.name=CGACP fixture",
+                "user.name=OPENRULES fixture",
                 "-c",
                 "user.email=fixture@example.invalid",
                 "-c",
@@ -554,10 +573,10 @@ fn a_ui_task_routes_verifies_and_resumes_two_docs_destinations() {
         0,
     );
     assert_eq!(closed["state"], "CLOSED");
-    assert!(!f.product.join(".cgacp").exists());
+    assert!(!f.product.join(".openrules").exists());
     assert!(!f.product.join("en/plans").exists());
     println!(
-        "CGACP UI cold {} warm {}",
+        "OPENRULES UI cold {} warm {}",
         first["metrics"], second["metrics"]
     );
 }

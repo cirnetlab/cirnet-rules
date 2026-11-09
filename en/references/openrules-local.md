@@ -1,15 +1,15 @@
-<!-- doc-id: CGACP-LOCAL -->
+<!-- doc-id: OPENRULES-LOCAL -->
 <!-- revision: 2 -->
 <a id="operator-workflow"></a>
 
-# CGACP local operator workflow
+# OPENRULES local operator workflow
 
 Build once with `cargo build --locked`. Run the verified binary from the
 governance checkout or its workspace. The default sibling discovery uses
 tracked governance entry files and the actual Git root. For an alternative
 governance worktree, pass its path with `--governance` or set
-`CGACP_GOVERNANCE` for the process. A worktree binding is local and stored
-under ignored `.cgacp/`. Discovery and ordinary work are offline.
+`OPENRULES_GOVERNANCE` for the process. A worktree binding is local and stored
+under ignored `.openrules/`. Discovery and ordinary work are offline.
 
 Task updates release their file lock when the operation ends, even if a
 duplicated file handle is still open. Concurrent updates remain exclusive and
@@ -19,7 +19,7 @@ must use the current revision.
    using `workspace-bind --repo NAME --path WORKTREE --actor OPERATOR`.
 2. Write the English spec and plan in their central task directories. Keep
    their Vietnamese counterparts in the same change. Supply a local JSON
-   descriptor conforming to the [task schema](../schemas/cgacp-task.schema.json)
+   descriptor conforming to the [task schema](../schemas/openrules-task.schema.json)
    with `task-create --descriptor descriptor.json`. Keep operator input in
    the ignored local state directory when it is session-specific.
    Use `_workspace` for a cross-repo parent and give each child a separate

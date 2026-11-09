@@ -1,6 +1,6 @@
 <!-- doc-id: TOOLS -->
 <!-- revision: 2 -->
-<!-- source-sha256: 6915c32b23a6e2f9e8a4f9617c9b9b63eca45bc6811dcb74c6701f2b90739ee5 -->
+<!-- source-sha256: 8a4b48db525c732e2b52875c83dae8eb4c4061d33f15ccb8f4534cf51ba38f3d -->
 <!-- translation-status: synchronized -->
 
 <a id="commands"></a>
@@ -19,7 +19,7 @@ cargo build --locked
 ~~~
 
 Trên Windows binary có đuôi exe. Cargo target là src/main.rs và
-src/tests/cli.rs. Schema ở en/schemas. Xem [quy trình local](../references/cgacp-local.md)
+src/tests/cli.rs. Schema ở en/schemas. Xem [quy trình local](../references/openrules-local.md)
 để tạo, thực thi, nghiệm thu task và chọn chế độ release tường minh.
 Các lệnh context, doctor, version và drift cũ vẫn dùng cho audit lịch sử.
 Luồng thường dùng scoped health và task context.

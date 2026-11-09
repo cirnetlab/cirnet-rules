@@ -1,6 +1,6 @@
-<!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 7 -->
-<!-- source-sha256: b778b1f82ace6ca4878c707ea675fc6bb1c7d02167f2ec7fbdc1740586fe72df -->
+<!-- doc-id: OPENRULES-DESKTOP-ARCHITECTURE -->
+<!-- revision: 8 -->
+<!-- source-sha256: 82067975cff6b8ada3825bec631842ccea563649d29af3ce9125ebbdcef3ceb7 -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 
@@ -89,3 +89,21 @@ và nhãn của dự án. [Tham chiếu OpenHands](https://github.com/OpenHands/
 [API sao lưu SQLite](https://www.sqlite.org/backup.html) ·
 [Cô lập giao dịch PostgreSQL](https://www.postgresql.org/docs/current/transaction-iso.html) ·
 [Codex App Server](https://learn.chatgpt.com/docs/app-server)
+
+## Soạn thảo governance và snapshot
+
+Qt dùng chung transport stdio riêng có phiên bản với trang repository,
+hội thoại và lưu trữ. Bộ dispatch governance kiểm tra request có kiểu.
+Adapter SQLite quản lý revision lạc quan, lịch sử công bố bất biến và audit,
+quan hệ tài nguyên, gán binding, manifest ghim cho hội thoại và lượt chạy.
+Migration 007 bổ sung các bản ghi này. Nháp và tệp tương đối của tài nguyên
+được lưu cùng nhau trong database soạn thảo cục bộ. Công bố và khôi phục
+chuyển con trỏ trong giao dịch. Chưa có giao dịch công bố qua hệ thống tệp.
+
+Xem trước context và ghim hội thoại dùng chung resolver cho hồ sơ đã chọn
+hoặc mặc định và các binding ID cụ thể. Resolver duyệt đồ thị có giới hạn,
+chọn revision tiếng Anh đang hoạt động và hoãn tải nội dung kỹ năng hoặc
+tham chiếu. Biên nhận ghim metadata revision và digest. Biên nhận chưa chứng
+minh engine ngoài đã nạp nội dung. Thực thi chưa hỗ trợ và duyệt có xác thực
+vẫn giữ gate. Probe adapter dùng worker có giới hạn và chỉ kiểm tra endpoint
+loopback cố định.

@@ -1,6 +1,6 @@
-<!-- doc-id: CGACP-INTERACTION-STATE -->
+<!-- doc-id: OPENRULES-INTERACTION-STATE -->
 <!-- revision: 2 -->
-<!-- source-sha256: 7a2f276e44b20aed3551553f065d0f426fbbecc87dd3cb0a9ab4bf5dd95e1ae4 -->
+<!-- source-sha256: 2e64f355ad3312aff86f167d6c4e821740eb71f946b23f599a5d2c5a16a2474f -->
 <!-- translation-status: synchronized -->
 <a id="interaction-state"></a>
 

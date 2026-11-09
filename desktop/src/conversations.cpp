@@ -653,7 +653,11 @@ void MainWindow::newConversation(const QString &preselected)
     title->selectAll();
     title->setMaxLength(120);
     fields->addRow(tr("Title"), title);
-    fields->addRow(tr("Agent profile"), label(tr("Local handoff · native Agent execution unavailable"), "meta"));
+    auto *profile = new QComboBox;
+    profile->setObjectName("newConversationProfile");
+    profile->addItem(tr("Runtime default"));
+    fields->addRow(tr("Governance profile"), profile);
+    fields->addRow(tr("Execution"), label(tr("Local handoff · native Agent execution unavailable"), "meta"));
     layout->addLayout(fields);
     auto *picker = new RepositoryPicker(true, preselected);
     layout->addWidget(picker, 1);
@@ -667,9 +671,10 @@ void MainWindow::newConversation(const QString &preselected)
     cancel->setText(tr("Cancel"));
     layout->addWidget(buttons);
 
-    const auto enable = [ok, cancel, picker, title, dialog] {
+    const auto enable = [ok, cancel, picker, title, profile, dialog] {
         const bool saving = dialog->property("saving").toBool();
         cancel->setEnabled(!saving);
+        profile->setEnabled(!saving && profile->count() > 1);
         picker->manageButton()->setEnabled(!saving);
         ok->setEnabled(!saving && !picker->selection().isEmpty()
                        && !title->text().trimmed().isEmpty());
@@ -701,7 +706,7 @@ void MainWindow::newConversation(const QString &preselected)
             load();
         }
     });
-    connect(buttons, &QDialogButtonBox::accepted, dialog, [this, guard, title, picker, status, enable] {
+    connect(buttons, &QDialogButtonBox::accepted, dialog, [this, guard, title, picker, status, enable, profile] {
         if (!guard || guard->property("saving").toBool())
             return;
         if (!online_) {
@@ -709,8 +714,10 @@ void MainWindow::newConversation(const QString &preselected)
             status->show();
             return;
         }
-        const QJsonObject payload{{"title", title->text().trimmed()}, {"bindings", picker->selection()},
-                                  {"profile", "handoff"}};
+        QJsonObject payload{{"title", title->text().trimmed()}, {"bindings", picker->selection()},
+                            {"profile", "handoff"}};
+        if (!profile->currentData().toString().isEmpty())
+            payload.insert("profile_id", profile->currentData().toString());
         if (guard->property("submittedPayload").toJsonObject() != payload) {
             guard->setProperty("submittedPayload", payload);
             guard->setProperty("submissionKey", requestKey());
@@ -747,6 +754,28 @@ void MainWindow::newConversation(const QString &preselected)
     reactivate(dialog);
     title->setFocus();
     load();
+    call("governance.profile.list", {{"limit", 100}}, [this, guard, profile, enable](const auto &result, const auto &error) {
+        if (!guard || guard->property("finished").toBool())
+            return;
+        if (!error.isEmpty()) {
+            profile->setToolTip(tr("Published profiles could not be loaded. The runtime resolves its default."));
+            return;
+        }
+        const auto defaultId = result.value("default_profile_id").toString();
+        for (const auto &value : result.value("items").toArray()) {
+            const auto item = value.toObject();
+            const auto id = item.value("id").toString();
+            if (id.isEmpty())
+                continue;
+            const auto title = item.value("title").toString();
+            profile->addItem(title, id);
+            if (id == defaultId)
+                profile->setItemText(0, tr("Runtime default · %1").arg(title));
+        }
+        if (result.value("next_after").isString())
+            profile->setToolTip(tr("Showing the first 100 published profiles. Set another default in Configuration."));
+        enable();
+    });
 }
 
 void MainWindow::navigateConversation(const QString &id)
@@ -945,9 +974,11 @@ void MainWindow::conversationTaskDetails()
     auto *layout = new QVBoxLayout(&dialog);
     auto *description = label(tr("Persisted local intake, repository bindings and routing state."), "lead");
     layout->addWidget(description);
-    auto *details = new QPlainTextEdit(QString::fromUtf8(QJsonDocument(
-        QJsonObject{{"bindings", conversationBindings_}, {"tasks", conversationTasks_}, {"blockers", conversationBlockers_}})
-        .toJson(QJsonDocument::Indented)));
+    QJsonObject record{{"bindings", conversationBindings_}, {"tasks", conversationTasks_},
+                       {"blockers", conversationBlockers_}};
+    if (conversation_.value("governance").isObject())
+        record.insert("governance", conversation_.value("governance"));
+    auto *details = new QPlainTextEdit(QString::fromUtf8(QJsonDocument(record).toJson(QJsonDocument::Indented)));
     details->setProperty("codeText", true);
     details->setAccessibleName(tr("Task and route details"));
     details->setReadOnly(true);

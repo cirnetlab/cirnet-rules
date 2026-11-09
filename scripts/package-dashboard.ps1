@@ -11,8 +11,8 @@ $output = (Resolve-Path -LiteralPath $OutputDirectory).Path
 if ($output -eq $stage -or $output.StartsWith($stage + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) {
     throw 'The output directory must be outside the installed tree.'
 }
-$runtime = Join-Path $stage 'bin/cgacp-runtime.exe'
-$dashboard = Join-Path $stage 'bin/cgacp-dashboard.exe'
+$runtime = Join-Path $stage 'bin/openrules-runtime.exe'
+$dashboard = Join-Path $stage 'bin/openrules-desktop.exe'
 if (!(Test-Path -LiteralPath $dashboard -PathType Leaf) -or !(Test-Path -LiteralPath $runtime -PathType Leaf)) {
     throw 'Install the Release dashboard and runtime before packaging.'
 }
@@ -20,7 +20,7 @@ $identity = & $runtime --version | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'Could not verify runtime identity.' }
 $versionFile = (Get-Content -LiteralPath (Join-Path $sourceRoot 'VERSION') -Raw).Trim()
 $version = [string]$identity.version
-if ($identity.product_generation -ne 'CGACP v1' -or $version -ne $versionFile -or
+if ($identity.product_generation -ne 'OPENRULES' -or $version -ne $versionFile -or
     $version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -or
     $identity.release_name -ne "cirnet-rules-$version") {
     throw 'Runtime, source version and release name disagree.'
@@ -35,7 +35,7 @@ if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[a-f0-9]{40,64}$') { throw 'Could 
 $stageRows = [System.Collections.Generic.List[object]]::new()
 foreach ($entry in Get-ChildItem -LiteralPath $stage -Force -Recurse | Sort-Object FullName) {
     $rel = [IO.Path]::GetRelativePath($stage,$entry.FullName).Replace('\','/')
-    if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $rel -match '(^|/)(\.git|\.cgacp|secrets)(/|$)|\.sqlite3($|-)|^\.env') {
+    if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $rel -match '(^|/)(\.git|\.openrules|\.cgacp|secrets)(/|$)|\.sqlite3($|-)|^\.env') {
         throw "Unexpected data or link in staging tree: $rel"
     }
     if (!$entry.PSIsContainer) {
@@ -56,7 +56,7 @@ foreach ($rel in (git -c core.quotepath=false --no-optional-locks -C $sourceRoot
 }
 $sourceFingerprint = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
     [Text.Encoding]::UTF8.GetBytes(($sourceLines -join [char]10)))).ToLowerInvariant()
-$name = "$($identity.release_name)-windows-x64-candidate"
+$name = "openrules-$version-windows-x64-candidate"
 $archive = Join-Path $output "$name.zip"
 $manifest = Join-Path $output "$name.manifest.json"
 $checksum = Join-Path $output "$name.sha256"

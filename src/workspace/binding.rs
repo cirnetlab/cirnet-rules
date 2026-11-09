@@ -395,7 +395,7 @@ fn fingerprint(git: &GitIdentity, anchor: &str) -> Result<String, String> {
 fn record_path(workspace: &Path, repo: &str) -> Result<String, String> {
     let workspace = workspace.to_str().ok_or("Non-UTF-8 local workspace path")?;
     let namespace = crate::docs::sha256(workspace.as_bytes());
-    Ok(format!(".cgacp/bindings/{namespace}/{repo}.json"))
+    Ok(format!(".openrules/bindings/{namespace}/{repo}.json"))
 }
 
 pub(super) fn valid_hash(value: &str) -> bool {
@@ -452,7 +452,7 @@ pub(super) fn write_local<T: Serialize>(path: &Path, value: &T) -> Result<(), St
         .duration_since(UNIX_EPOCH)
         .map_err(|_| "Invalid local clock")?
         .as_nanos();
-    let temporary = parent.join(format!(".cgacp-{}-{suffix}.tmp", std::process::id()));
+    let temporary = parent.join(format!(".openrules-{}-{suffix}.tmp", std::process::id()));
     let data = serde_json::to_vec(value).map_err(|_| "Cannot encode local metadata")?;
     if data.len() > 128 * 1024 {
         return Err("Local metadata exceeds its write limit".into());

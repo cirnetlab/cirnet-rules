@@ -3,7 +3,7 @@
   "configurePresets": [
     {
       "name": "desktop",
-      "displayName": "CGACP desktop",
+      "displayName": "OPENRULES desktop",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/desktop",
       "cacheVariables": {

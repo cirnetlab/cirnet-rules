@@ -1,5 +1,5 @@
 <RCC>
-  <qresource prefix="/cgacp">
+  <qresource prefix="/openrules">
     <file>theme.qss</file>
     <file alias="favicon.png">../../assets/favicon.png</file>
   </qresource>

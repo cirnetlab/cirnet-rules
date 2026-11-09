@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-const DATABASE_FILE: &str = "cgacp.sqlite3";
+const DATABASE_FILE: &str = "openrules.sqlite3";
 const MIGRATIONS: &[(&str, &str)] = &[
     (
         "001_catalog.sql",
@@ -42,8 +42,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "006_automation_retirement.sql",
         include_str!("../../migrations/sqlite/006_automation_retirement.sql"),
     ),
+    (
+        "007_governance.sql",
+        include_str!("../../migrations/sqlite/007_governance.sql"),
+    ),
 ];
 
+#[path = "identity.rs"]
+pub mod identity;
 #[path = "storage_jobs.rs"]
 mod jobs;
 pub(crate) use jobs::{chat_usage, compact, inventory, online_backup, verify_job};
@@ -321,7 +327,7 @@ pub fn default_data_dir() -> Result<PathBuf, AppError> {
                 "The OS local application data directory is unavailable.",
             )
         })?
-        .join("CIRNETLAB/CGACP"))
+        .join("CIRNETLAB/OPENRULES"))
 }
 
 pub fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value, AppError> {

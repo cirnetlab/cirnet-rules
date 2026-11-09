@@ -25,6 +25,7 @@ pub(super) fn safe_relative(path: &str) -> bool {
             !matches!(part, "" | "." | "..")
                 && !part.ends_with([' ', '.'])
                 && !part.eq_ignore_ascii_case(".git")
+                && !part.eq_ignore_ascii_case(".openrules")
                 && !part.eq_ignore_ascii_case(".cgacp")
         })
 }

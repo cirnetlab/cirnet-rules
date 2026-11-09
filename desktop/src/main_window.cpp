@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "governance_panel.h"
 #include "build_info.h"
 #include "live_text.h"
 #include "notification_center.h"
@@ -42,7 +43,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
                        bool readyOnConstruction, const QString &startupError, bool followSavedLanguage)
     : QMainWindow(parent), client_(client), followSavedLanguage_(followSavedLanguage)
 {
-    setWindowTitle(QStringLiteral(CGACP_PRODUCT_GENERATION));
+    setWindowTitle(QStringLiteral(OPENRULES_PRODUCT_NAME));
     setMinimumSize(620, 360);
     const QSize preferred(1366, 768);
     const auto *screen = QGuiApplication::primaryScreen();
@@ -77,19 +78,16 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
     auto *mark = new QLabel;
     mark->setAlignment(Qt::AlignCenter);
     mark->setObjectName("brandMark");
-    mark->setAccessibleName(QStringLiteral("CIRNETLAB"));
+    mark->setAccessibleName(QStringLiteral("OPENRULES"));
     mark->setFixedSize(26, 26);
     mark->setPixmap(QApplication::windowIcon().pixmap(mark->size(), devicePixelRatioF()));
-    brand_ = new QLabel(QStringLiteral("CGACP"));
+    brand_ = new QLabel(QStringLiteral("OPENRULES"));
     brand_->setObjectName("brand");
-    brandSubtitle_ = new QLabel(QStringLiteral("CIRNETLAB"));
-    brandSubtitle_->setObjectName("brandSubtitle");
     sidebarToggle_ = iconButton("toggleSidebar", tr("Collapse sidebar"));
     sidebarToggle_->setIconSize(QSize(22, 22));
     sidebarToggle_->setMinimumSize(36, 36);
     identityLayout_->addWidget(mark, 0, Qt::AlignCenter);
-    identityLayout_->addWidget(brand_, 0, Qt::AlignVCenter);
-    identityLayout_->addWidget(brandSubtitle_, 1, Qt::AlignVCenter);
+    identityLayout_->addWidget(brand_, 1, Qt::AlignVCenter);
     identityLayout_->addWidget(sidebarToggle_, 0, Qt::AlignCenter);
     rail->addLayout(identityLayout_);
     rail->addSpacing(8);
@@ -234,7 +232,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
         setConnection(false, tr("Connecting to local runtime…"));
         call("runtime.info", {}, [this](const QJsonObject &info, const QString &error) {
             connecting_ = false;
-            if (!error.isEmpty() || info.value("version").toString() != QStringLiteral(CGACP_APP_VERSION)) {
+            if (!error.isEmpty() || info.value("version").toString() != QStringLiteral(OPENRULES_APP_VERSION)) {
                 const auto reason = error.isEmpty() ? tr("Dashboard and runtime versions differ.") : error;
                 setConnection(false, reason);
                 showStatus(reason, true);
@@ -311,13 +309,12 @@ void MainWindow::updateSidebarLayout()
 {
     const bool settingsOpen = pages_->currentWidget() == settingsPage_;
     const bool compact = sidebarCollapsed_ || settingsOpen;
-    const int brandWidth = 26 + brand_->sizeHint().width() + brandSubtitle_->sizeHint().width() +
+    const int brandWidth = 26 + brand_->sizeHint().width() +
                            sidebarToggle_->sizeHint().width() + 45;
     const int minimum = qBound(210, brandWidth, 360);
     sidebar_->setMinimumWidth(0);
     sidebar_->setMaximumWidth(compact ? 60 : 360);
     brand_->setVisible(!compact);
-    brandSubtitle_->setVisible(!compact);
     sidebarToggle_->setVisible(!settingsOpen);
     sidebarToggle_->setEnabled(!settingsOpen);
     historyPage_->setVisible(!compact);
@@ -401,7 +398,7 @@ void MainWindow::showError(const QString &text)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (shutdownPending_ || closeAfterSave_) {
+    if (shutdownPending_ || closeAfterSave_ || (governance_ && !governance_->confirmClose())) {
         event->ignore();
         return;
     }
@@ -411,9 +408,9 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
     const bool discard = preferencesDirty_ && (!online_ || preferencesRetryRequired_ || !preferencesLoaded_);
     const auto answer = QMessageBox::question(
-        this, tr("Close CGACP"),
-        discard ? tr("Some preferences are unsaved. Close CGACP without saving them?") :
-                  tr("Stop the local runtime and close CGACP? Saved conversations and runs can be restored on reopen."),
+        this, tr("Close OPENRULES"),
+        discard ? tr("Some preferences are unsaved. Close OPENRULES without saving them?") :
+                  tr("Stop the local runtime and close OPENRULES? Saved conversations and runs can be restored on reopen."),
         QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
     if (answer == QMessageBox::Cancel) {
         event->ignore();

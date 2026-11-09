@@ -26,7 +26,7 @@ impl Fixture {
     fn new() -> Self {
         let parent = std::env::temp_dir();
         let path = parent.join(format!(
-            "cgacp-workspace-{}-{}",
+            "openrules-workspace-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -41,7 +41,7 @@ impl Drop for Fixture {
             .0
             .file_name()
             .and_then(|name| name.to_str())
-            .is_some_and(|name| name.starts_with("cgacp-workspace-"))
+            .is_some_and(|name| name.starts_with("openrules-workspace-"))
         {
             let _ = fs::remove_dir_all(&self.0);
         }
@@ -294,13 +294,13 @@ fn api_and_release_packets_record_only_explicit_inputs() {
     let blocked = context(&gov, None, &reg, &task, Some("under-budget")).unwrap();
     assert_eq!(blocked["status"], "BLOCKED");
     assert_eq!(blocked["metrics"]["emitted_bytes"], 0);
-    assert!(!gov.join(".cgacp/cache").exists());
+    assert!(!gov.join(".openrules/cache").exists());
 }
 
 #[test]
 fn pruning_expired_cache_does_not_touch_other_files() {
     let f = Fixture::new();
-    let cache = binding::local_directory(&f.0, ".cgacp/cache").unwrap();
+    let cache = binding::local_directory(&f.0, ".openrules/cache").unwrap();
     let key = "a".repeat(64);
     let expired = cache.join(format!("{key}.json"));
     binding::write_local(

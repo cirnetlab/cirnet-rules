@@ -1,3 +1,4 @@
+#include "build_info.h"
 #include "runtime_client.h"
 
 #include <QCoreApplication>
@@ -25,28 +26,28 @@ QString checkExecutable(const QString &path, bool requirePin, const std::atomic_
     const QFileInfo info(path);
     if (!info.isAbsolute() || !info.isFile() || !info.isExecutable() || info.isSymLink() ||
         info.canonicalFilePath().isEmpty())
-        return RuntimeClient::tr("The CGACP runtime executable is missing or invalid.");
+        return RuntimeClient::tr("The OPENRULES runtime executable is missing or invalid.");
     const QString pinPath = path + QStringLiteral(".sha256");
     const QFileInfo pinInfo(pinPath);
     if (!pinInfo.exists() && !pinInfo.isSymLink())
-        return requirePin ? RuntimeClient::tr("The CGACP runtime checksum is missing.") : QString{};
+        return requirePin ? RuntimeClient::tr("The OPENRULES runtime checksum is missing.") : QString{};
     QFile pin(pinPath);
     if (pinInfo.isSymLink() || !pinInfo.isFile() || pinInfo.size() > 128 || !pin.open(QIODevice::ReadOnly))
-        return RuntimeClient::tr("The CGACP runtime checksum is invalid.");
+        return RuntimeClient::tr("The OPENRULES runtime checksum is invalid.");
     QFile executable(info.canonicalFilePath());
     if (!executable.open(QIODevice::ReadOnly) || executable.size() > 128 * 1024 * 1024)
-        return RuntimeClient::tr("The CGACP runtime could not be verified.");
+        return RuntimeClient::tr("The OPENRULES runtime could not be verified.");
     QCryptographicHash hash(QCryptographicHash::Sha256);
     while (!executable.atEnd()) {
         if (cancelled && cancelled->load(std::memory_order_relaxed))
             return {};
         const auto chunk = executable.read(256 * 1024);
         if (chunk.isEmpty())
-            return RuntimeClient::tr("The CGACP runtime could not be verified.");
+            return RuntimeClient::tr("The OPENRULES runtime could not be verified.");
         hash.addData(chunk);
     }
     if (hash.result().toHex() != pin.readAll().trimmed().toLower())
-        return RuntimeClient::tr("The CGACP runtime checksum does not match.");
+        return RuntimeClient::tr("The OPENRULES runtime checksum does not match.");
     return {};
 }
 }
@@ -81,9 +82,9 @@ RuntimeClient::~RuntimeClient()
 QString RuntimeClient::siblingExecutable()
 {
 #ifdef Q_OS_WIN
-    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("cgacp-runtime.exe"));
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("openrules-runtime.exe"));
 #else
-    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("cgacp-runtime"));
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("openrules-runtime"));
 #endif
 }
 
@@ -119,7 +120,7 @@ void RuntimeClient::start()
         outcome->program = info.canonicalFilePath();
         outcome->directory = info.canonicalPath();
         if (isAppRuntime && outcome->directory != QFileInfo(appPath).canonicalPath())
-            outcome->error = RuntimeClient::tr("The CGACP runtime is outside the application directory.");
+            outcome->error = RuntimeClient::tr("The OPENRULES runtime is outside the application directory.");
     });
     connect(validation_, &QThread::finished, this, [this, outcome] {
         validation_ = nullptr;
@@ -170,7 +171,7 @@ void RuntimeClient::request(const QString &method, QJsonObject params, Reply rep
 {
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const auto request = QJsonDocument(QJsonObject{
-        {"v", 1}, {"id", id}, {"method", method}, {"params", std::move(params)}
+        {"v", OPENRULES_IPC_PROTOCOL}, {"id", id}, {"method", QStringLiteral("openrules.") + method}, {"params", std::move(params)}
     }).toJson(QJsonDocument::Compact) + '\n';
     QString error;
     if (process_.state() != QProcess::Running || closing_ || disconnected_)
@@ -230,8 +231,13 @@ void RuntimeClient::receive()
         const auto ok = response.value("ok");
         const auto result = response.value("result");
         const auto error = response.value("error");
+        if (parse.error == QJsonParseError::NoError && document.isObject() &&
+            response.value("v").isDouble() && response.value("v").toInt() != OPENRULES_IPC_PROTOCOL) {
+            rejectConnection(tr("The runtime protocol is incompatible. Use the runtime installed with OPENRULES."));
+            return;
+        }
         if (parse.error != QJsonParseError::NoError || !document.isObject() ||
-            response.value("v").toInt() != 1 || id.isEmpty() || !ok.isBool() ||
+            response.value("v").toInt() != OPENRULES_IPC_PROTOCOL || id.isEmpty() || !ok.isBool() ||
             (ok.toBool() ? !result.isObject() : !error.isObject())) {
             rejectConnection(tr("The runtime sent an invalid response."));
             return;

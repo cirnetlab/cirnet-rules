@@ -1,5 +1,5 @@
 [package]
-name = "cirnet-governance"
+name = "openrules"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
@@ -11,8 +11,8 @@ name = "cirnet-governance"
 path = "src/main.rs"
 
 [[bin]]
-name = "cgacp-runtime"
-path = "src/bin/cgacp-runtime.rs"
+name = "openrules-runtime"
+path = "src/bin/openrules-runtime.rs"
 
 [[test]]
 name = "cli"

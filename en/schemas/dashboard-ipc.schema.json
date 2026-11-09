@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CGACP local stdio protocol",
+  "title": "OPENRULES local stdio protocol",
   "$defs": {
     "recordId": {"type": "string", "pattern": "^[1-9][0-9]{0,18}$"},
     "pageCursor": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,18})$"},
@@ -14,6 +14,56 @@
         "code": {"type": "string"},
         "message": {"type": "string"},
         "details": {"type": "object"}
+      }
+    },
+    "governanceAssetId": {"type": "string", "pattern": "^asset-[0-9a-f]{32}$"},
+    "governanceRevision": {"type": "integer", "minimum": 1},
+    "governanceKind": {"enum": ["rule", "skill", "profile", "reference", "policy", "command", "hook"]},
+    "governanceFormat": {"enum": ["markdown", "json", "yaml"]},
+    "governanceExpected": {
+      "type": "object", "required": ["id", "expected_revision"],
+      "properties": {
+        "id": {"$ref": "#/$defs/governanceAssetId"},
+        "expected_revision": {"$ref": "#/$defs/governanceRevision"}
+      }
+    },
+    "governanceMutation": {
+      "allOf": [{"$ref": "#/$defs/governanceExpected"}],
+      "required": ["mutation_key"],
+      "properties": {"mutation_key": {"$ref": "#/$defs/mutationKey"}}
+    },
+    "governanceFiles": {
+      "type": "array", "maxItems": 100, "items": {
+        "type": "object", "required": ["path", "content"], "additionalProperties": false,
+        "properties": {"path": {"type": "string", "maxLength": 240}, "content": {"type": "string"}}
+      }
+    },
+    "governanceDependencies": {
+      "type": "array", "maxItems": 32, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/governanceAssetId"}
+    },
+    "governanceBundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["bundle_version", "kind", "slug", "title", "revision", "digest", "document"],
+      "properties": {
+        "bundle_version": {"const": 1},
+        "kind": {"$ref": "#/$defs/governanceKind"},
+        "slug": {"type": "string", "maxLength": 64},
+        "title": {"type": "string", "maxLength": 160},
+        "revision": {"$ref": "#/$defs/governanceRevision"},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_name": {"type": ["string", "null"], "maxLength": 160},
+        "document": {
+          "type": "object", "additionalProperties": false,
+          "required": ["en", "vi", "format", "description", "files", "dependencies"],
+          "properties": {
+            "en": {"type": "string"}, "vi": {"type": "string"},
+            "format": {"$ref": "#/$defs/governanceFormat"},
+            "description": {"type": "string", "maxLength": 600},
+            "files": {"$ref": "#/$defs/governanceFiles"},
+            "dependencies": {"$ref": "#/$defs/governanceDependencies"}
+          }
+        }
       }
     },
     "storageOperation": {
@@ -135,11 +185,204 @@
       ],
       "allOf": [
         {
-          "if": {"properties": {"method": {"const": "preferences.get"}}},
+          "if": {"properties": {"method": {"const": "openrules.governance.asset.list"}}},
+          "then": {"properties": {"params": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "kind": {"$ref": "#/$defs/governanceKind"},
+              "search": {"type": "string", "maxLength": 120},
+              "include_archived": {"type": "boolean"},
+              "after": {"oneOf": [{"$ref": "#/$defs/governanceAssetId"}, {"type": "null"}]},
+              "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.profile.list"}}},
+          "then": {"properties": {"params": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "after": {"oneOf": [{"$ref": "#/$defs/governanceAssetId"}, {"type": "null"}]},
+              "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.assignment.list"}}},
+          "then": {"properties": {"params": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "binding_id": {"type": "string", "pattern": "^binding-[0-9a-f]{32}$"},
+              "after": {"oneOf": [{"$ref": "#/$defs/governanceAssetId"}, {"type": "null"}]},
+              "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.effective.preview"}}},
+          "then": {"properties": {"params": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "binding_id": {"type": "string", "pattern": "^binding-[0-9a-f]{32}$"},
+              "profile_id": {"$ref": "#/$defs/governanceAssetId"},
+              "mode": {"enum": ["WORK", "VERIFY", "ACCEPT", "RELEASE", "AUDIT"]},
+              "budget_bytes": {"type": "integer", "minimum": 1, "maximum": 220000}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["openrules.governance.revision.history", "openrules.governance.change.history"]}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "additionalProperties": false, "required": ["id"],
+            "properties": {
+              "id": {"$ref": "#/$defs/governanceAssetId"},
+              "before": {"$ref": "#/$defs/governanceRevision"},
+              "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.revision.get"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "additionalProperties": false, "required": ["id", "revision"],
+            "properties": {
+              "id": {"$ref": "#/$defs/governanceAssetId"},
+              "revision": {"$ref": "#/$defs/governanceRevision"}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["openrules.governance.asset.get", "openrules.governance.asset.export"]}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "required": ["id"], "additionalProperties": false,
+            "properties": {"id": {"$ref": "#/$defs/governanceAssetId"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.asset.create"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "required": ["kind", "slug", "title", "mutation_key"], "additionalProperties": false,
+            "properties": {
+              "kind": {"$ref": "#/$defs/governanceKind"},
+              "slug": {"type": "string", "maxLength": 64},
+              "title": {"type": "string", "maxLength": 160},
+              "format": {"$ref": "#/$defs/governanceFormat"},
+              "source_name": {"type": ["string", "null"], "maxLength": 160},
+              "mutation_key": {"$ref": "#/$defs/mutationKey"}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["openrules.governance.asset.rename", "openrules.governance.asset.duplicate"]}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
+            "required": ["slug", "title"],
+            "properties": {"slug": {"type": "string", "maxLength": 64}, "title": {"type": "string", "maxLength": 160}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.draft.save"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
+            "required": ["en", "vi", "format"],
+            "properties": {
+              "title": {"type": "string", "maxLength": 160},
+              "description": {"type": "string", "maxLength": 600},
+              "en": {"type": "string"}, "vi": {"type": "string"},
+              "format": {"$ref": "#/$defs/governanceFormat"},
+              "files": {"$ref": "#/$defs/governanceFiles"},
+              "dependencies": {"$ref": "#/$defs/governanceDependencies"}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["openrules.governance.draft.discard", "openrules.governance.change.review", "openrules.governance.asset.archive", "openrules.governance.asset.restore", "openrules.governance.asset.delete"]}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["openrules.governance.revision.validate", "openrules.governance.revision.compare"]}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceExpected"}], "unevaluatedProperties": false
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.change.publish"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
+            "required": ["review_token"], "properties": {"review_token": {"type": "string", "pattern": "^review-[0-9a-f]{32}$"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.change.rollback"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
+            "required": ["target_revision"], "properties": {"target_revision": {"$ref": "#/$defs/governanceRevision"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.assignment.update"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
+            "required": ["binding_id", "enabled"],
+            "properties": {"binding_id": {"type": "string", "pattern": "^binding-[0-9a-f]{32}$"}, "enabled": {"type": "boolean"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.profile.default"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
+            "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.asset.import.preview"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "additionalProperties": false, "required": ["bundle"],
+            "properties": {"bundle": {"$ref": "#/$defs/governanceBundle"}}
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.governance.asset.import.apply"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "additionalProperties": false, "required": ["bundle", "fingerprint", "mutation_key"],
+            "properties": {
+              "bundle": {"$ref": "#/$defs/governanceBundle"}, "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "mutation_key": {"$ref": "#/$defs/mutationKey"}, "slug": {"type": "string", "maxLength": 64}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.integration.list"}}},
           "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
         },
         {
-          "if": {"properties": {"method": {"const": "preferences.set"}}},
+          "if": {"properties": {"method": {"const": "openrules.integration.probe"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "additionalProperties": false, "required": ["adapter", "port"],
+            "properties": {
+              "adapter": {"enum": ["openhands", "opencode"]},
+              "port": {"type": "integer", "minimum": 1, "maximum": 65535}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.integration.import_preview"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "additionalProperties": false, "required": ["format", "source"],
+            "properties": {
+              "format": {"enum": ["openhands-skill", "opencode-v1-agent", "opencode-v2-agent"]},
+              "source": {"type": "string", "maxLength": 131072}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.preferences.get"}}},
+          "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "openrules.preferences.set"}}},
           "then": {
             "required": ["params"],
             "properties": {
@@ -156,7 +399,7 @@
           }
         },
         {
-          "if": {"properties": {"method": {"enum": ["conversation.delete.preview", "message.delete.preview", "conversation.delete", "message.delete", "conversation.unarchive"]}}},
+          "if": {"properties": {"method": {"enum": ["openrules.conversation.delete.preview", "openrules.message.delete.preview", "openrules.conversation.delete", "openrules.message.delete", "openrules.conversation.unarchive"]}}},
           "then": {
             "required": ["params"],
             "properties": {
@@ -174,19 +417,19 @@
           }
         },
         {
-          "if": {"properties": {"method": {"enum": ["message.delete.preview", "message.delete"]}}},
+          "if": {"properties": {"method": {"enum": ["openrules.message.delete.preview", "openrules.message.delete"]}}},
           "then": {"properties": {"params": {"required": ["message_id"]}}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["conversation.delete", "message.delete"]}}},
+          "if": {"properties": {"method": {"enum": ["openrules.conversation.delete", "openrules.message.delete"]}}},
           "then": {"properties": {"params": {"required": ["revision", "token", "key"]}}}
         },
         {
-          "if": {"properties": {"method": {"const": "conversation.unarchive"}}},
+          "if": {"properties": {"method": {"const": "openrules.conversation.unarchive"}}},
           "then": {"properties": {"params": {"required": ["revision"]}}}
         },
         {
-          "if": {"properties": {"method": {"const": "conversation.get"}}},
+          "if": {"properties": {"method": {"const": "openrules.conversation.get"}}},
           "then": {"properties": {"params": {
             "type": "object",
             "required": ["id"],
@@ -200,7 +443,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "automation.delete"}}},
+          "if": {"properties": {"method": {"const": "openrules.automation.delete"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "required": ["id", "revision"], "additionalProperties": false,
             "properties": {
@@ -210,25 +453,25 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["operation.get", "operation.cancel"]}}},
+          "if": {"properties": {"method": {"enum": ["openrules.operation.get", "openrules.operation.cancel"]}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "required": ["operation_id"], "additionalProperties": false,
             "properties": {"operation_id": {"$ref": "#/$defs/operationId"}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["storage.chats", "storage.scan", "storage.backup", "storage.backup.start"]}}},
+          "if": {"properties": {"method": {"enum": ["openrules.storage.chats", "openrules.storage.scan", "openrules.storage.backup", "openrules.storage.backup.start"]}}},
           "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["storage.verify", "storage.verify.start"]}}},
+          "if": {"properties": {"method": {"enum": ["openrules.storage.verify", "openrules.storage.verify.start"]}}},
           "then": {"properties": {"params": {
             "type": "object", "additionalProperties": false,
             "properties": {"backup": {"oneOf": [{"$ref": "#/$defs/backupName"}, {"type": "null"}]}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "storage.compact.start"}}},
+          "if": {"properties": {"method": {"const": "openrules.storage.compact.start"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false,
             "required": ["expected_page_count", "expected_free_pages"],
@@ -241,7 +484,7 @@
       ],
       "properties": {
         "v": {
-          "const": 1
+          "const": 2
         },
         "id": {
           "type": "string",
@@ -249,7 +492,7 @@
         },
         "method": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_.-]{1,96}$"
+          "pattern": "^openrules\\.[A-Za-z0-9_.-]{1,86}$"
         },
         "params": {
           "type": "object"
@@ -269,7 +512,7 @@
       "then": {"properties": {"result": {"$ref": "#/$defs/storageOperation"}}},
       "properties": {
         "v": {
-          "const": 1
+          "const": 2
         },
         "id": {
           "type": "string"
@@ -291,7 +534,7 @@
       ],
       "properties": {
         "v": {
-          "const": 1
+          "const": 2
         },
         "id": {
           "type": "string"

@@ -28,7 +28,7 @@
     <message><source>Custom</source><translation>Tùy chỉnh</translation></message>
     <message><source>Custom accent</source><translation>Màu nhấn tùy chỉnh</translation></message>
     <message><source>Language</source><translation>Ngôn ngữ</translation></message>
-    <message><source>Language changes take effect after reopening CGACP.</source><translation>Thay đổi ngôn ngữ có hiệu lực sau khi mở lại CGACP.</translation></message>
+    <message><source>Language changes take effect after reopening OPENRULES.</source><translation>Thay đổi ngôn ngữ có hiệu lực sau khi mở lại OPENRULES.</translation></message>
     <message><source>Choose %1</source><translation>Chọn %1</translation></message>
     <message><source>Enter a six-digit hexadecimal color. Clear the field to use the theme color.</source><translation>Nhập mã màu hệ mười sáu gồm sáu chữ số. Xóa nội dung để dùng màu của chủ đề.</translation></message>
     <message><source>Enter a six-digit hexadecimal color.</source><translation>Nhập mã màu hệ mười sáu gồm sáu chữ số.</translation></message>
@@ -39,7 +39,7 @@
     <message><source>Low contrast between background and text may make some content difficult to read.</source><translation>Độ tương phản thấp giữa nền và chữ có thể khiến một số nội dung khó đọc.</translation></message>
     <message><source>Advanced appearance</source><translation>Giao diện nâng cao</translation></message>
     <message><source>Accent</source><translation>Màu nhấn</translation></message>
-    <message><source>CIRNET teal</source><translation>Xanh ngọc CIRNET</translation></message>
+    <message><source>Default teal</source><translation>Xanh ngọc mặc định</translation></message>
     <message><source>Cobalt blue</source><translation>Xanh coban</translation></message>
     <message><source>Interface font</source><translation>Phông chữ giao diện</translation></message>
     <message><source>Monospace</source><translation>Chữ đơn cách</translation></message>
@@ -47,7 +47,7 @@
     <message><source>Conversation text size</source><translation>Cỡ chữ hội thoại</translation></message>
     <message><source>Code text size</source><translation>Cỡ chữ mã</translation></message>
     <message><source>&amp;Accent</source><translation>&amp;Màu nhấn</translation></message>
-    <message><source>Choose a contrast-checked CGACP palette.</source><translation>Chọn bảng màu CGACP đã kiểm tra độ tương phản.</translation></message>
+    <message><source>Choose a contrast-checked OPENRULES palette.</source><translation>Chọn bảng màu OPENRULES đã kiểm tra độ tương phản.</translation></message>
     <message><source>Interface &amp;font</source><translation>&amp;Phông chữ giao diện</translation></message>
     <message><source>Change the font used by the desktop.</source><translation>Đổi phông chữ ứng dụng sử dụng.</translation></message>
     <message><source>&amp;Conversation text size</source><translation>Cỡ chữ &amp;hội thoại</translation></message>
@@ -120,15 +120,14 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Connected</source><translation>Đã kết nối</translation></message>
     <message><source>Connecting</source><translation>Đang kết nối</translation></message>
     <message><source>Disconnected</source><translation>Đã ngắt kết nối</translation></message>
-    <message><source>CGACP %1&#10;Runtime: %2&#10;%3</source><translation>CGACP %1&#10;Runtime: %2&#10;%3</translation></message>
+    <message><source>OPENRULES %1&#10;Runtime: %2&#10;%3</source><translation>OPENRULES %1&#10;Runtime: %2&#10;%3</translation></message>
     <message><source>Copy diagnostics</source><translation>Sao chép chẩn đoán</translation></message>
     <message><source>Toast level</source><translation>Mức thông báo nhanh</translation></message>
     <message><source>All toasts</source><translation>Tất cả thông báo nhanh</translation></message>
     <message><source>Warnings and errors</source><translation>Cảnh báo và lỗi</translation></message>
     <message><source>Clear read</source><translation>Xóa mục đã đọc</translation></message>
     <message><source>Notification history</source><translation>Lịch sử thông báo</translation></message>
-    <message><source>About CGACP</source><translation>Giới thiệu CGACP</translation></message>
-    <message><source>CIRNET Governance &amp; Agent Control Plane</source><translation>CIRNET Governance &amp; Agent Control Plane</translation></message>
+    <message><source>About OPENRULES</source><translation>Giới thiệu OPENRULES</translation></message>
     <message><source>About</source><translation>Giới thiệu</translation></message>
     <message><source>Retry saving</source><translation>Thử lưu lại</translation></message>
     <message><source>Native execution capability: %1</source><translation>Khả năng thực thi gốc: %1</translation></message>
@@ -204,8 +203,8 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Connecting to local runtime…</source><translation>Đang kết nối runtime cục bộ…</translation></message>
     <message><source>Expand sidebar</source><translation>Mở rộng thanh bên</translation></message>
     <message><source>Local — %1</source><translation>Cục bộ — %1</translation></message>
-    <message><source>Close CGACP</source><translation>Đóng CGACP</translation></message>
-    <message><source>Some preferences are unsaved. Close CGACP without saving them?</source><translation>Một số tùy chọn chưa được lưu. Đóng CGACP mà không lưu các thay đổi này?</translation></message>
+    <message><source>Close OPENRULES</source><translation>Đóng OPENRULES</translation></message>
+    <message><source>Some preferences are unsaved. Close OPENRULES without saving them?</source><translation>Một số tùy chọn chưa được lưu. Đóng OPENRULES mà không lưu các thay đổi này?</translation></message>
     <message><source>Conversation</source><translation>Cuộc trò chuyện</translation></message>
     <message><source>Conversation history</source><translation>Lịch sử trò chuyện</translation></message>
     <message><source>Conversation transcript</source><translation>Nội dung trò chuyện</translation></message>
@@ -317,7 +316,7 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Send</source><translation>Gửi</translation></message>
     <message><source>Show archived</source><translation>Hiện mục đã lưu trữ</translation></message>
     <message><source>State</source><translation>Trạng thái</translation></message>
-    <message><source>Stop the local runtime and close CGACP? Saved conversations and runs can be restored on reopen.</source><translation>Dừng runtime cục bộ và đóng CGACP? Các cuộc trò chuyện và lượt chạy đã lưu sẽ tải lại khi mở ứng dụng.</translation></message>
+    <message><source>Stop the local runtime and close OPENRULES? Saved conversations and runs can be restored on reopen.</source><translation>Dừng runtime cục bộ và đóng OPENRULES? Các cuộc trò chuyện và lượt chạy đã lưu sẽ tải lại khi mở ứng dụng.</translation></message>
     <message><source>Task and route details</source><translation>Chi tiết nhiệm vụ và định tuyến</translation></message>
     <message><source>Task details</source><translation>Chi tiết nhiệm vụ</translation></message>
     <message><source>The runtime did not return a verified worktree.</source><translation>Runtime chưa trả về worktree đã xác minh.</translation></message>
@@ -366,7 +365,35 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <message><source>Conversation deleted.</source><translation>Đã xóa hội thoại.</translation></message>
     <message><source>Submitted message deleted.</source><translation>Đã xóa tin nhắn đã gửi.</translation></message>
     <message><source>Changes the language of the open Dashboard.</source><translation>Đổi ngôn ngữ ngay trên Dashboard đang mở.</translation></message>
-  </context>
+      <message>
+      <source>governance library rules skills profiles references policies</source>
+      <translation>governance thư viện quy tắc kỹ năng hồ sơ tham chiếu chính sách</translation>
+    </message>
+    <message>
+      <source>Governance profile</source>
+      <translation>Hồ sơ governance</translation>
+    </message>
+    <message>
+      <source>Execution</source>
+      <translation>Thực thi</translation>
+    </message>
+    <message>
+      <source>Runtime default</source>
+      <translation>Mặc định runtime</translation>
+    </message>
+    <message>
+      <source>Runtime default · %1</source>
+      <translation>Mặc định runtime · %1</translation>
+    </message>
+    <message>
+      <source>Published profiles could not be loaded. The runtime resolves its default.</source>
+      <translation>Không tải được hồ sơ đã công bố. Runtime sẽ chọn hồ sơ mặc định.</translation>
+    </message>
+    <message>
+      <source>Showing the first 100 published profiles. Set another default in Configuration.</source>
+      <translation>Đang hiển thị 100 hồ sơ công bố đầu tiên. Chọn mặc định khác trong Cấu hình.</translation>
+    </message>
+</context>
   <context>
     <name>NotificationCenter</name>
     <message><source>Dismiss notification</source><translation>Đóng thông báo</translation></message>
@@ -392,12 +419,13 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
   </context>
   <context>
     <name>RuntimeClient</name>
-    <message><source>The CGACP runtime checksum does not match.</source><translation>Mã kiểm tra runtime CGACP không khớp.</translation></message>
-    <message><source>The CGACP runtime checksum is invalid.</source><translation>Mã kiểm tra runtime CGACP không hợp lệ.</translation></message>
-    <message><source>The CGACP runtime checksum is missing.</source><translation>Thiếu mã kiểm tra runtime CGACP.</translation></message>
-    <message><source>The CGACP runtime could not be verified.</source><translation>Chưa xác minh được runtime CGACP.</translation></message>
-    <message><source>The CGACP runtime executable is missing or invalid.</source><translation>Tệp thực thi runtime CGACP bị thiếu hoặc không hợp lệ.</translation></message>
-    <message><source>The CGACP runtime is outside the application directory.</source><translation>Runtime CGACP nằm ngoài thư mục ứng dụng.</translation></message>
+    <message><source>The runtime protocol is incompatible. Use the runtime installed with OPENRULES.</source><translation>Giao thức runtime không tương thích. Hãy dùng runtime được cài cùng OPENRULES.</translation></message>
+    <message><source>The OPENRULES runtime checksum does not match.</source><translation>Mã kiểm tra runtime OPENRULES không khớp.</translation></message>
+    <message><source>The OPENRULES runtime checksum is invalid.</source><translation>Mã kiểm tra runtime OPENRULES không hợp lệ.</translation></message>
+    <message><source>The OPENRULES runtime checksum is missing.</source><translation>Thiếu mã kiểm tra runtime OPENRULES.</translation></message>
+    <message><source>The OPENRULES runtime could not be verified.</source><translation>Chưa xác minh được runtime OPENRULES.</translation></message>
+    <message><source>The OPENRULES runtime executable is missing or invalid.</source><translation>Tệp thực thi runtime OPENRULES bị thiếu hoặc không hợp lệ.</translation></message>
+    <message><source>The OPENRULES runtime is outside the application directory.</source><translation>Runtime OPENRULES nằm ngoài thư mục ứng dụng.</translation></message>
     <message><source>The runtime could not start.</source><translation>Runtime chưa khởi động được.</translation></message>
     <message><source>The runtime is disconnected.</source><translation>Runtime đã ngắt kết nối.</translation></message>
     <message><source>The runtime rejected the operation.</source><translation>Runtime đã từ chối thao tác.</translation></message>
@@ -524,4 +552,677 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <message><source>%1 matching chats · %2 on this page</source><translation>%1 hội thoại phù hợp · %2 trên trang này</translation></message>
     <message><source>%1 chats on this page</source><translation>%1 hội thoại trên trang này</translation></message>
   </context>
+<context>
+    <name>IdentityUpgrade</name>
+    <message><source>Keep the old runtime closed after the upgrade. The old database is reserved for offline recovery. Later writes from the old runtime would diverge.</source><translation>Sau khi nâng cấp, hãy giữ runtime cũ ở trạng thái đóng. Cơ sở dữ liệu cũ dành cho khôi phục offline. Mọi thay đổi do runtime cũ ghi về sau sẽ không đồng bộ.</translation></message>
+    <message><source>Local data upgrade</source><translation>Nâng cấp dữ liệu cục bộ</translation></message>
+    <message><source>The local data check could not finish. Reopen OPENRULES to retry.</source><translation>Không thể hoàn tất kiểm tra dữ liệu cục bộ. Mở lại OPENRULES để thử lại.</translation></message>
+    <message><source>The runtime could not inspect the local data.</source><translation>Runtime không thể kiểm tra dữ liệu cục bộ.</translation></message>
+    <message><source>Local data is in use. Close the previous Desktop and its runtime, then retry.</source><translation>Dữ liệu cục bộ đang được sử dụng. Đóng ứng dụng Desktop cũ và runtime của nó rồi thử lại.</translation></message>
+    <message><source>The runtime sent an invalid data-upgrade response.</source><translation>Runtime gửi phản hồi nâng cấp dữ liệu không hợp lệ.</translation></message>
+    <message><source>The current and previous databases both contain local data. Choose Use current data to keep them separate, or close OPENRULES.</source><translation>Cơ sở dữ liệu hiện tại và trước đây đều chứa dữ liệu cục bộ. Chọn Dùng dữ liệu hiện tại để giữ riêng hai bộ dữ liệu hoặc đóng OPENRULES.</translation></message>
+    <message><source>Upgrade the previous Desktop data in place of a fresh database. Close the previous Desktop and its runtime before continuing.</source><translation>Nâng cấp dữ liệu Desktop cũ để tiếp tục sử dụng. Hãy đóng Desktop cũ và runtime của nó trước khi tiếp tục.</translation></message>
+    <message><source>Previous database
+%1
+
+OPENRULES database
+%2</source><translation>Cơ sở dữ liệu cũ
+%1
+
+Cơ sở dữ liệu OPENRULES
+%2</translation></message>
+    <message><source>Use current data</source><translation>Dùng dữ liệu hiện tại</translation></message>
+    <message><source>Back up and upgrade</source><translation>Sao lưu và nâng cấp</translation></message>
+    <message><source>Checking local data…</source><translation>Đang kiểm tra dữ liệu cục bộ…</translation></message>
+    <message><source>Local data still requires recovery. Reopen OPENRULES to retry.</source><translation>Dữ liệu cục bộ vẫn cần khôi phục. Mở lại OPENRULES để thử lại.</translation></message>
+</context>
+  <context>
+    <name>GovernancePanel</name>
+    <message>
+      <source> copy</source>
+      <translation> bản sao</translation>
+    </message>
+    <message>
+      <source>%1 · %2 · r%3 · Translation: %4</source>
+      <translation>%1 · %2 · r%3 · Bản dịch: %4</translation>
+    </message>
+    <message>
+      <source>%1 · r%2 · %3 · %4 · %5 bytes</source>
+      <translation>%1 · r%2 · %3 · %4 · %5 byte</translation>
+    </message>
+    <message>
+      <source>Activate the reviewed revision for future context previews? Existing history will be preserved.</source>
+      <translation>Kích hoạt revision đã duyệt cho các lần xem context tiếp theo? Lịch sử sẽ được giữ.</translation>
+    </message>
+    <message>
+      <source>Activate the selected snapshot as a new revision? The revision history will be retained.</source>
+      <translation>Kích hoạt snapshot đã chọn thành revision mới? Lịch sử revision sẽ được giữ.</translation>
+    </message>
+    <message>
+      <source>Adapter</source>
+      <translation>Bộ tích hợp</translation>
+    </message>
+    <message>
+      <source>Add file</source>
+      <translation>Thêm tệp</translation>
+    </message>
+    <message>
+      <source>Add resource file</source>
+      <translation>Thêm tệp tài nguyên</translation>
+    </message>
+    <message>
+      <source>All types</source>
+      <translation>Mọi loại</translation>
+    </message>
+    <message>
+      <source>Apply</source>
+      <translation>Áp dụng</translation>
+    </message>
+    <message>
+      <source>Apply reviewed revision</source>
+      <translation>Áp dụng revision đã duyệt</translation>
+    </message>
+    <message>
+      <source>Apply the selected change to this saved asset?</source>
+      <translation>Áp dụng thay đổi đã chọn cho tài nguyên đã lưu?</translation>
+    </message>
+    <message>
+      <source>Apply this choice to new chats? Existing conversations keep their pinned revisions.</source>
+      <translation>Dùng lựa chọn này cho hội thoại mới? Hội thoại hiện tại giữ revision đã ghim.</translation>
+    </message>
+    <message>
+      <source>Archive asset</source>
+      <translation>Lưu trữ tài nguyên</translation>
+    </message>
+    <message>
+      <source>Archived</source>
+      <translation>Đã lưu trữ</translation>
+    </message>
+    <message>
+      <source>Asset</source>
+      <translation>Tài nguyên</translation>
+    </message>
+    <message>
+      <source>Asset ID copied.</source>
+      <translation>Đã sao chép ID tài nguyên.</translation>
+    </message>
+    <message>
+      <source>Asset actions</source>
+      <translation>Thao tác tài nguyên</translation>
+    </message>
+    <message>
+      <source>Asset identity</source>
+      <translation>Định danh tài nguyên</translation>
+    </message>
+    <message>
+      <source>Asset updated.</source>
+      <translation>Đã cập nhật tài nguyên.</translation>
+    </message>
+    <message>
+      <source>Asset-relative file path</source>
+      <translation>Đường dẫn tương đối trong tài nguyên</translation>
+    </message>
+    <message>
+      <source>Assign selected</source>
+      <translation>Gán tài nguyên đã chọn</translation>
+    </message>
+    <message>
+      <source>Assignments</source>
+      <translation>Gán phạm vi</translation>
+    </message>
+    <message>
+      <source>Attach text</source>
+      <translation>Đính kèm văn bản</translation>
+    </message>
+    <message>
+      <source>Bundle imported as a draft.</source>
+      <translation>Đã nhập gói dưới dạng bản nháp.</translation>
+    </message>
+    <message>
+      <source>Change asset state</source>
+      <translation>Đổi trạng thái tài nguyên</translation>
+    </message>
+    <message>
+      <source>Change the default profile</source>
+      <translation>Đổi hồ sơ mặc định</translation>
+    </message>
+    <message>
+      <source>Choose a readable regular file without a symbolic link.</source>
+      <translation>Chọn một tệp thông thường có thể đọc và không phải liên kết tượng trưng.</translation>
+    </message>
+    <message>
+      <source>Choose a valid OPENRULES JSON bundle.</source>
+      <translation>Chọn một gói JSON OPENRULES hợp lệ.</translation>
+    </message>
+    <message>
+      <source>Choose repository binding</source>
+      <translation>Chọn binding repository</translation>
+    </message>
+    <message>
+      <source>Clear default profile</source>
+      <translation>Bỏ hồ sơ mặc định</translation>
+    </message>
+    <message>
+      <source>Commands</source>
+      <translation>Lệnh</translation>
+    </message>
+    <message>
+      <source>Configuration / Governance</source>
+      <translation>Cấu hình / Governance</translation>
+    </message>
+    <message>
+      <source>Configuration dialect</source>
+      <translation>Định dạng cấu hình</translation>
+    </message>
+    <message>
+      <source>Connect the local runtime to preview context.</source>
+      <translation>Kết nối runtime cục bộ để xem trước context.</translation>
+    </message>
+    <message>
+      <source>Continue without saving changes to this draft?</source>
+      <translation>Tiếp tục mà chưa lưu thay đổi của bản nháp?</translation>
+    </message>
+    <message>
+      <source>Copy asset ID</source>
+      <translation>Sao chép ID tài nguyên</translation>
+    </message>
+    <message>
+      <source>Could not save the published export.</source>
+      <translation>Không lưu được bản xuất đã công bố.</translation>
+    </message>
+    <message>
+      <source>Default profile updated for new chats.</source>
+      <translation>Đã cập nhật hồ sơ mặc định cho hội thoại mới.</translation>
+    </message>
+    <message>
+      <source>Delete asset</source>
+      <translation>Xóa tài nguyên</translation>
+    </message>
+    <message>
+      <source>Dependency IDs, separated by commas</source>
+      <translation>ID phụ thuộc, phân cách bằng dấu phẩy</translation>
+    </message>
+    <message>
+      <source>Description</source>
+      <translation>Mô tả</translation>
+    </message>
+    <message>
+      <source>Diff</source>
+      <translation>Khác biệt</translation>
+    </message>
+    <message>
+      <source>Discard saved draft</source>
+      <translation>Bỏ bản nháp đã lưu</translation>
+    </message>
+    <message>
+      <source>Draft</source>
+      <translation>Bản nháp</translation>
+    </message>
+    <message>
+      <source>Draft created.</source>
+      <translation>Đã tạo bản nháp.</translation>
+    </message>
+    <message>
+      <source>Draft has unsaved changes.</source>
+      <translation>Bản nháp có thay đổi chưa lưu.</translation>
+    </message>
+    <message>
+      <source>Draft saved. The published revision is unchanged.</source>
+      <translation>Đã lưu nháp. Revision đã công bố được giữ nguyên.</translation>
+    </message>
+    <message>
+      <source>Duplicate</source>
+      <translation>Tạo bản sao</translation>
+    </message>
+    <message>
+      <source>Duplicate asset</source>
+      <translation>Sao bản tài nguyên</translation>
+    </message>
+    <message>
+      <source>EN · Canonical</source>
+      <translation>EN · Bản chuẩn</translation>
+    </message>
+    <message>
+      <source>Edit file</source>
+      <translation>Sửa tệp</translation>
+    </message>
+    <message>
+      <source>Edit resource file</source>
+      <translation>Sửa tệp tài nguyên</translation>
+    </message>
+    <message>
+      <source>Effective context</source>
+      <translation>Context hiệu lực</translation>
+    </message>
+    <message>
+      <source>Enforced restrictions remain unchanged:</source>
+      <translation>Các giới hạn đang được thực thi:</translation>
+    </message>
+    <message>
+      <source>English context · %1 of %2 bytes · %3 bytes deferred</source>
+      <translation>Context tiếng Anh · %1 trên %2 byte · hoãn nạp %3 byte</translation>
+    </message>
+    <message>
+      <source>Enter a local server port from 1 to 65535.</source>
+      <translation>Nhập cổng máy chủ cục bộ từ 1 đến 65535.</translation>
+    </message>
+    <message>
+      <source>Excluded</source>
+      <translation>Bị loại</translation>
+    </message>
+    <message>
+      <source>Export published revision</source>
+      <translation>Xuất revision đã công bố</translation>
+    </message>
+    <message>
+      <source>Files</source>
+      <translation>Tệp</translation>
+    </message>
+    <message>
+      <source>Find and replace</source>
+      <translation>Tìm và thay thế</translation>
+    </message>
+    <message>
+      <source>Find next</source>
+      <translation>Tìm tiếp</translation>
+    </message>
+    <message>
+      <source>Find text</source>
+      <translation>Nội dung cần tìm</translation>
+    </message>
+    <message>
+      <source>Full diff exceeds the transport budget. Summary:
+%1</source>
+      <translation>Bản khác biệt đầy đủ vượt giới hạn truyền. Tóm tắt:
+%1</translation>
+    </message>
+    <message>
+      <source>Governance library</source>
+      <translation>Thư viện governance</translation>
+    </message>
+    <message>
+      <source>Governance runtime disconnected. Unsaved text is still in the editor.</source>
+      <translation>Runtime governance đã ngắt kết nối. Văn bản chưa lưu vẫn có trong editor.</translation>
+    </message>
+    <message>
+      <source>History</source>
+      <translation>Lịch sử</translation>
+    </message>
+    <message>
+      <source>Hooks</source>
+      <translation>Hook</translation>
+    </message>
+    <message>
+      <source>ID: %1
+Source: %2
+Consumers: %3
+Bindings: %4</source>
+      <translation>ID: %1
+Nguồn: %2
+Bên sử dụng: %3
+Binding: %4</translation>
+    </message>
+    <message>
+      <source>Import UTF-8 text</source>
+      <translation>Nhập văn bản UTF-8</translation>
+    </message>
+    <message>
+      <source>Import a local draft</source>
+      <translation>Nhập bản nháp cục bộ</translation>
+    </message>
+    <message>
+      <source>Import file</source>
+      <translation>Nhập tệp</translation>
+    </message>
+    <message>
+      <source>Import published bundle</source>
+      <translation>Nhập gói đã công bố</translation>
+    </message>
+    <message>
+      <source>Include archived</source>
+      <translation>Gồm mục đã lưu trữ</translation>
+    </message>
+    <message>
+      <source>Included and deferred</source>
+      <translation>Được chọn và hoãn nạp</translation>
+    </message>
+    <message>
+      <source>Inspect identity and consumers</source>
+      <translation>Xem định danh và bên sử dụng</translation>
+    </message>
+    <message>
+      <source>Inspect import</source>
+      <translation>Kiểm tra dữ liệu nhập</translation>
+    </message>
+    <message>
+      <source>Inspect pinned adapter capabilities and test an explicitly selected loopback server. Reachability does not prove authentication or execution.</source>
+      <translation>Xem khả năng của adapter đã pin và kiểm tra máy chủ loopback do bạn chọn. Kết nối được chưa xác nhận xác thực hoặc thực thi.</translation>
+    </message>
+    <message>
+      <source>Integrations</source>
+      <translation>Tích hợp</translation>
+    </message>
+    <message>
+      <source>JSON (*.json)</source>
+      <translation>JSON (*.json)</translation>
+    </message>
+    <message>
+      <source>Library</source>
+      <translation>Thư viện</translation>
+    </message>
+    <message>
+      <source>Local authoring</source>
+      <translation>Soạn thảo cục bộ</translation>
+    </message>
+    <message>
+      <source>Local server port</source>
+      <translation>Cổng máy chủ cục bộ</translation>
+    </message>
+    <message>
+      <source>Metadata and files</source>
+      <translation>Metadata và tệp</translation>
+    </message>
+    <message>
+      <source>New asset</source>
+      <translation>Tạo tài nguyên</translation>
+    </message>
+    <message>
+      <source>New governance asset</source>
+      <translation>Tạo tài nguyên governance</translation>
+    </message>
+    <message>
+      <source>New slug if the original already exists</source>
+      <translation>Slug mới nếu slug gốc đã tồn tại</translation>
+    </message>
+    <message>
+      <source>Next page</source>
+      <translation>Trang tiếp</translation>
+    </message>
+    <message>
+      <source>No content changes.</source>
+      <translation>Nội dung giữ nguyên.</translation>
+    </message>
+    <message>
+      <source>No governance assets match the current filters.</source>
+      <translation>Không có tài nguyên governance phù hợp bộ lọc.</translation>
+    </message>
+    <message>
+      <source>No published assets are assigned to this binding.</source>
+      <translation>Binding này chưa được gán tài nguyên đã công bố.</translation>
+    </message>
+    <message>
+      <source>Older revisions</source>
+      <translation>Revision cũ hơn</translation>
+    </message>
+    <message>
+      <source>OpenCode import</source>
+      <translation>Nhập OpenCode</translation>
+    </message>
+    <message>
+      <source>Policies</source>
+      <translation>Chính sách</translation>
+    </message>
+    <message>
+      <source>Preview</source>
+      <translation>Xem trước</translation>
+    </message>
+    <message>
+      <source>Preview context</source>
+      <translation>Xem trước context</translation>
+    </message>
+    <message>
+      <source>Probe loopback</source>
+      <translation>Kiểm tra loopback</translation>
+    </message>
+    <message>
+      <source>Profiles</source>
+      <translation>Hồ sơ</translation>
+    </message>
+    <message>
+      <source>Published</source>
+      <translation>Đã công bố</translation>
+    </message>
+    <message>
+      <source>Published export saved.</source>
+      <translation>Đã lưu bản xuất từ revision công bố.</translation>
+    </message>
+    <message>
+      <source>Published revision history</source>
+      <translation>Lịch sử revision đã công bố</translation>
+    </message>
+    <message>
+      <source>Reading the selected file…</source>
+      <translation>Đang đọc tệp đã chọn…</translation>
+    </message>
+    <message>
+      <source>References</source>
+      <translation>Tham chiếu</translation>
+    </message>
+    <message>
+      <source>Reload</source>
+      <translation>Tải lại</translation>
+    </message>
+    <message>
+      <source>Reload saved revision</source>
+      <translation>Tải lại revision đã lưu</translation>
+    </message>
+    <message>
+      <source>Remove</source>
+      <translation>Gỡ</translation>
+    </message>
+    <message>
+      <source>Remove archived asset</source>
+      <translation>Gỡ tài nguyên đã lưu trữ</translation>
+    </message>
+    <message>
+      <source>Remove assignment</source>
+      <translation>Gỡ gán phạm vi</translation>
+    </message>
+    <message>
+      <source>Remove this archived asset from the library? Published revisions remain in the audit record. Dependencies prevent removal.</source>
+      <translation>Gỡ tài nguyên đã lưu trữ khỏi thư viện? Hồ sơ kiểm toán giữ các revision đã công bố. Tài nguyên còn phụ thuộc sẽ không thể gỡ.</translation>
+    </message>
+    <message>
+      <source>Rename</source>
+      <translation>Đổi tên</translation>
+    </message>
+    <message>
+      <source>Rename asset</source>
+      <translation>Đổi tên tài nguyên</translation>
+    </message>
+    <message>
+      <source>Replace selection</source>
+      <translation>Thay vùng đã chọn</translation>
+    </message>
+    <message>
+      <source>Replacement</source>
+      <translation>Nội dung thay thế</translation>
+    </message>
+    <message>
+      <source>Repository assignment updated.</source>
+      <translation>Đã cập nhật việc gán vào repository.</translation>
+    </message>
+    <message>
+      <source>Repository binding</source>
+      <translation>Binding repository</translation>
+    </message>
+    <message>
+      <source>Restore asset</source>
+      <translation>Khôi phục tài nguyên</translation>
+    </message>
+    <message>
+      <source>Review</source>
+      <translation>Duyệt</translation>
+    </message>
+    <message>
+      <source>Review bundle import</source>
+      <translation>Rà soát gói nhập</translation>
+    </message>
+    <message>
+      <source>Review origin, file paths, and dependencies. Import creates a draft.</source>
+      <translation>Rà soát nguồn gốc, đường dẫn tệp và phụ thuộc. Nhập gói sẽ tạo bản nháp.</translation>
+    </message>
+    <message>
+      <source>Review published export</source>
+      <translation>Rà soát bản xuất đã công bố</translation>
+    </message>
+    <message>
+      <source>Review ready. Apply explicitly to activate this revision.</source>
+      <translation>Đã chuẩn bị biên nhận duyệt. Chọn Áp dụng để kích hoạt revision này.</translation>
+    </message>
+    <message>
+      <source>Review the published content before exporting it.</source>
+      <translation>Rà soát nội dung đã công bố trước khi xuất.</translation>
+    </message>
+    <message>
+      <source>Reviewed revision published.</source>
+      <translation>Đã công bố revision đã duyệt.</translation>
+    </message>
+    <message>
+      <source>Revision</source>
+      <translation>Revision</translation>
+    </message>
+    <message>
+      <source>Roll back published governance</source>
+      <translation>Khôi phục governance đã công bố</translation>
+    </message>
+    <message>
+      <source>Roll back selected revision</source>
+      <translation>Khôi phục revision đã chọn</translation>
+    </message>
+    <message>
+      <source>Rollback published as a new revision.</source>
+      <translation>Đã công bố bản khôi phục thành revision mới.</translation>
+    </message>
+    <message>
+      <source>Rules</source>
+      <translation>Quy tắc</translation>
+    </message>
+    <message>
+      <source>Save draft</source>
+      <translation>Lưu nháp</translation>
+    </message>
+    <message>
+      <source>Save published export</source>
+      <translation>Lưu bản xuất đã công bố</translation>
+    </message>
+    <message>
+      <source>Search governance</source>
+      <translation>Tìm tài nguyên governance</translation>
+    </message>
+    <message>
+      <source>Select a published asset in Library, then choose a repository binding here. A binding does not grant access.</source>
+      <translation>Chọn tài nguyên đã công bố trong Thư viện rồi chọn binding repository tại đây. Binding không cấp quyền truy cập.</translation>
+    </message>
+    <message>
+      <source>Select an asset or create a draft.</source>
+      <translation>Chọn tài nguyên hoặc tạo bản nháp.</translation>
+    </message>
+    <message>
+      <source>Showing the first 100 assignments.</source>
+      <translation>Đang hiển thị 100 mục gán đầu tiên.</translation>
+    </message>
+    <message>
+      <source>Simulate the published context for a binding and an optional selected profile. This preview does not execute an agent or extend permissions.</source>
+      <translation>Mô phỏng context đã công bố cho một binding và hồ sơ tùy chọn. Xem trước không chạy agent hoặc mở rộng quyền.</translation>
+    </message>
+    <message>
+      <source>Skills</source>
+      <translation>Kỹ năng</translation>
+    </message>
+    <message>
+      <source>Slug</source>
+      <translation>Slug</translation>
+    </message>
+    <message>
+      <source>Source: %1. Imported text becomes a local draft. It is never executed.</source>
+      <translation>Nguồn: %1. Văn bản nhập sẽ trở thành bản nháp cục bộ. Quá trình nhập không thực thi nội dung.</translation>
+    </message>
+    <message>
+      <source>Stable slug</source>
+      <translation>Slug ổn định</translation>
+    </message>
+    <message>
+      <source>Task mode</source>
+      <translation>Chế độ task</translation>
+    </message>
+    <message>
+      <source>Text resources (*.md *.yaml *.yml *.json *.txt);;All files (*)</source>
+      <translation>Tài nguyên văn bản (*.md *.yaml *.yml *.json *.txt);;Mọi tệp (*)</translation>
+    </message>
+    <message>
+      <source>The selected file could not be read within the import size limit.</source>
+      <translation>Không đọc được tệp đã chọn trong giới hạn dung lượng nhập.</translation>
+    </message>
+    <message>
+      <source>The selected file is not UTF-8 text.</source>
+      <translation>Tệp đã chọn không phải văn bản UTF-8.</translation>
+    </message>
+    <message>
+      <source>Title</source>
+      <translation>Tiêu đề</translation>
+    </message>
+    <message>
+      <source>Translation: %1</source>
+      <translation>Bản dịch: %1</translation>
+    </message>
+    <message>
+      <source>Type</source>
+      <translation>Loại</translation>
+    </message>
+    <message>
+      <source>Unsaved governance draft</source>
+      <translation>Bản nháp governance chưa lưu</translation>
+    </message>
+    <message>
+      <source>Unverified</source>
+      <translation>Chưa kiểm chứng</translation>
+    </message>
+    <message>
+      <source>Use for new chats</source>
+      <translation>Dùng cho hội thoại mới</translation>
+    </message>
+    <message>
+      <source>Used by:
+%1</source>
+      <translation>Bên sử dụng:
+%1</translation>
+    </message>
+    <message>
+      <source>VI · Translation</source>
+      <translation>VI · Bản dịch</translation>
+    </message>
+    <message>
+      <source>Validate</source>
+      <translation>Kiểm tra</translation>
+    </message>
+    <message>
+      <source>Validation failed.</source>
+      <translation>Kiểm tra không đạt.</translation>
+    </message>
+    <message>
+      <source>Validation passed.</source>
+      <translation>Kiểm tra đạt.</translation>
+    </message>
+    <message>
+      <source>View diff</source>
+      <translation>Xem khác biệt</translation>
+    </message>
+    <message>
+      <source>Wait for the governance operation to finish before closing.</source>
+      <translation>Chờ thao tác governance hoàn tất trước khi đóng.</translation>
+    </message>
+      <message>
+      <source>Back to assets</source>
+      <translation>Về danh mục</translation>
+    </message>
+    <message>
+      <source>Preview language</source>
+      <translation>Ngôn ngữ xem trước</translation>
+    </message>
+    <message><source>Current</source><translation>Hiện hành</translation></message>
+    <message><source>Stale</source><translation>Cần cập nhật</translation></message>
+    <message><source>Missing</source><translation>Còn thiếu</translation></message>
+    <message><source>Imported</source><translation>Đã nhập</translation></message>
+</context>
 </TS>

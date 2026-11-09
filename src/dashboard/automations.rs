@@ -627,6 +627,25 @@ fn enqueue(
         return Ok(None);
     }
     let id = conn.last_insert_rowid();
+    match super::governance::pin_run(conn, id, &def.binding, &def.mode) {
+        Ok(()) => {}
+        Err(issue) if issue.code == "DEPENDENCY_LIMIT" => {
+            conn.execute(
+                "UPDATE automation_runs SET status='BLOCKED',outcome='GOVERNANCE_CONTEXT_LIMIT' WHERE id=?",
+                [id],
+            )?;
+            sessions::event(
+                conn,
+                (None, None, Some(id), None),
+                &format!("run-{id}"),
+                "RUN_OUTCOME",
+                &json!({"status":"BLOCKED","outcome":"GOVERNANCE_CONTEXT_LIMIT","reason":issue.code}),
+                time,
+            )?;
+            return Ok(Some(id));
+        }
+        Err(issue) => return Err(issue),
+    }
     let correlation = format!("run-{id}");
     sessions::event(
         conn,
@@ -1039,7 +1058,7 @@ mod tests {
     }
     impl Fixture {
         fn new() -> (Self, Database, String) {
-            let root = crate::test_support::temporary_directory("cgacp-session").unwrap();
+            let root = crate::test_support::temporary_directory("openrules-session").unwrap();
             let checkout = root.join("đồ án bất kỳ");
             std::fs::create_dir(&checkout).unwrap();
             fn git(repo: &std::path::Path, args: &[&str]) {
@@ -1061,7 +1080,7 @@ mod tests {
                 &checkout,
                 &[
                     "-c",
-                    "user.name=CGACP fixture",
+                    "user.name=OPENRULES fixture",
                     "-c",
                     "user.email=fixture@example.invalid",
                     "-c",
@@ -1098,6 +1117,70 @@ mod tests {
 
     fn manual_request(binding: &str, key: &str) -> Value {
         json!({"key":key,"name":"Fixture routine","binding_id":binding,"prompt":"Propose a review","trigger":{"kind":"MANUAL"}})
+    }
+
+    #[test]
+    fn over_budget_governance_blocks_only_its_scheduled_occurrence() {
+        let (_fixture, mut db, binding) = Fixture::new();
+        let (other, _other_db, _) = Fixture::new();
+        let checkout = other.root.join("đồ án bất kỳ");
+        let preview = catalog::dispatch(&mut db, "repo.preview", json!({"path":checkout})).unwrap();
+        let registered = catalog::dispatch(
+            &mut db,
+            "repo.add",
+            json!({"path":checkout,"token":preview["token"]}),
+        )
+        .unwrap();
+        let other_binding = registered["binding_id"].as_str().unwrap();
+
+        let make_schedule = |db: &mut Database, binding: &str, key| {
+            let mut request = manual_request(binding, key);
+            request["enabled"] = json!(true);
+            request["trigger"] = json!({"kind":"DAILY","hour":0,"minute":0,"timezone":"UTC"});
+            dispatch(db, "automation.create", request).unwrap()
+        };
+        let crowded = make_schedule(&mut db, &binding, "crowded");
+        let normal = make_schedule(&mut db, other_binding, "normal");
+        let time = sessions::now();
+        let tx = db.conn.transaction().unwrap();
+        for index in 0..101 {
+            let id = format!("asset-{index:032x}");
+            tx.execute(
+                "INSERT INTO governance_assets(id,kind,slug,title,revision,created_at,updated_at) VALUES(?1,'rule',?1,'Fixture',1,?2,?2)",
+                params![id,time],
+            ).unwrap();
+            tx.execute(
+                "INSERT INTO governance_revisions(asset_id,revision,digest,document_json,title,slug,canonical_bytes,event,created_at)
+                 VALUES(?1,1,'unused','{}','Fixture',?1,0,'PUBLISHED',?2)",
+                params![id,time],
+            ).unwrap();
+            tx.execute(
+                "UPDATE governance_assets SET active_revision=1 WHERE id=?1",
+                [&id],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO governance_assignments VALUES(?1,?2,?3)",
+                params![binding, id, time],
+            )
+            .unwrap();
+        }
+        tx.execute("UPDATE automation_definitions SET next_at=?1", [time - 1])
+            .unwrap();
+        tx.commit().unwrap();
+
+        assert_eq!(schedule(&mut db, time).unwrap(), 2);
+        let blocked = dispatch(&mut db, "automation.runs", json!({"id":crowded["id"]})).unwrap();
+        assert_eq!(blocked["items"][0]["status"], "BLOCKED");
+        assert_eq!(blocked["items"][0]["outcome"], "GOVERNANCE_CONTEXT_LIMIT");
+        let queued = dispatch(&mut db, "automation.runs", json!({"id":normal["id"]})).unwrap();
+        assert_eq!(queued["items"][0]["status"], "QUEUED");
+        let eligible = claim(&mut db, time).unwrap().unwrap();
+        assert_eq!(eligible.id.to_string(), queued["items"][0]["id"]);
+        finish(&mut db, eligible, time).unwrap();
+        let progressed = dispatch(&mut db, "automation.runs", json!({"id":normal["id"]})).unwrap();
+        assert_eq!(progressed["items"][0]["status"], "WAITING_APPROVAL");
+        assert_eq!(schedule(&mut db, time).unwrap(), 0);
     }
 
     #[test]

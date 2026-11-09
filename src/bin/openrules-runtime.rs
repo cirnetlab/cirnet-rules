@@ -11,7 +11,7 @@ mod test_support;
 
 use application_identity::{GENERATION, VERSION, release_name};
 use dashboard::{
-    automations, catalog, preferences, sessions,
+    automations, catalog, integrations, preferences, sessions,
     storage::{self, AppError, Database},
 };
 use operations::Operations;
@@ -27,7 +27,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const PROTOCOL: u8 = 1;
+const PROTOCOL: u8 = 2;
 const MAX_FRAME: usize = 256 * 1024;
 const TICK: Duration = Duration::from_secs(1);
 
@@ -67,6 +67,8 @@ fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value, App
         Some("legacy") => dashboard::legacy::dispatch(db, method, params),
         Some("conversation" | "events" | "message") => sessions::dispatch(db, method, params),
         Some("automation") => automations::dispatch(db, method, params),
+        Some("governance") => dashboard::governance::dispatch(db, method, params),
+        Some("integration") => integrations::dispatch(method, params),
         _ => Err(AppError::new(
             "METHOD_NOT_FOUND",
             "Unknown local runtime operation",
@@ -96,7 +98,7 @@ struct Trace {
 
 impl Trace {
     fn new() -> Self {
-        let enabled = env::var_os("CGACP_TRACE_IPC").is_some_and(|value| value == "1");
+        let enabled = env::var_os("OPENRULES_TRACE_IPC").is_some_and(|value| value == "1");
         let lines = if enabled {
             let (sender, receiver) = mpsc::sync_channel::<String>(64);
             thread::spawn(move || {
@@ -129,7 +131,7 @@ impl Trace {
         {
             self.remaining -= 1;
             let _ = lines.try_send(format!(
-                "cgacp-ipc id={id} method={method} queued_us={} dispatch_us={} storage_pending={pending}",
+                "openrules-ipc id={id} method={method} queued_us={} dispatch_us={} storage_pending={pending}",
                 queued.as_micros(), execution.as_micros(),
             ));
         }
@@ -139,6 +141,7 @@ impl Trace {
 fn reply(
     db: &mut Database,
     operations: &mut Operations,
+    probes: &mut integrations::ProbeQueue,
     trace: &mut Trace,
     bytes: &[u8],
     enqueued: Instant,
@@ -170,11 +173,20 @@ fn reply(
             "Expected a method and object parameters",
         );
     }
-    let legacy = matches!(request.method.as_str(), "storage.backup" | "storage.verify");
     let Request {
         id, method, params, ..
     } = request;
-    let outcome = match method.as_str() {
+    let Some(method) = method.strip_prefix("openrules.") else {
+        return error(
+            &id,
+            "METHOD_NOT_FOUND",
+            "Expected an OPENRULES runtime method",
+        );
+    };
+    let legacy = matches!(method, "storage.backup" | "storage.verify");
+    let deferred = legacy || method == "integration.probe";
+    let outcome = match method {
+        "integration.probe" => probes.submit(&id, params).map(|()| Value::Null),
         "storage.chats"
         | "storage.scan"
         | "storage.backup"
@@ -182,21 +194,21 @@ fn reply(
         | "storage.backup.start"
         | "storage.verify.start"
         | "storage.compact.start" => {
-            operations.start(&method, params, legacy.then_some(id.as_str()))
+            operations.start(method, params, legacy.then_some(id.as_str()))
         }
         "operation.get" | "operation.cancel" => {
             operations.inspect(params, method == "operation.cancel")
         }
-        _ => dispatch(db, &method, params),
+        _ => dispatch(db, method, params),
     };
     trace.request(
         &id,
-        &method,
+        method,
         started.duration_since(enqueued),
         started.elapsed(),
         operations.pending(),
     );
-    if legacy && outcome.is_ok() {
+    if deferred && outcome.is_ok() {
         None
     } else {
         Some(envelope(&id, outcome))
@@ -236,6 +248,7 @@ fn frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
 fn stdio(db: &mut Database) -> io::Result<()> {
     let nonce = db.operation_nonce().map_err(io::Error::other)?;
     let mut operations = Operations::new(db.data_dir().to_owned(), &nonce)?;
+    let mut probes = integrations::ProbeQueue::new()?;
     let scheduler = LocalScheduler::start(db.data_dir().to_owned())?;
     let mut trace = Trace::new();
     let (sender, requests) = mpsc::sync_channel(16);
@@ -278,14 +291,24 @@ fn stdio(db: &mut Database) -> io::Result<()> {
         for (id, outcome) in operations.reap() {
             send(&responses, envelope(&id, outcome))?;
         }
-        let interval = if operations.busy() {
+        if let Some((id, outcome)) = probes.reap() {
+            send(&responses, envelope(&id, outcome))?;
+        }
+        let interval = if operations.busy() || probes.busy() {
             Duration::from_millis(5)
         } else {
             TICK
         };
         match requests.recv_timeout(interval) {
             Ok(Ok((enqueued, bytes))) => {
-                if let Some(response) = reply(db, &mut operations, &mut trace, &bytes, enqueued) {
+                if let Some(response) = reply(
+                    db,
+                    &mut operations,
+                    &mut probes,
+                    &mut trace,
+                    &bytes,
+                    enqueued,
+                ) {
                     send(&responses, response)?;
                 }
             }
@@ -294,11 +317,14 @@ fn stdio(db: &mut Database) -> io::Result<()> {
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 // A one-shot stdio caller may close stdin before reading its legacy response.
                 let until = Instant::now() + Duration::from_secs(2);
-                while operations.has_deferred() && Instant::now() < until {
+                while (operations.has_deferred() || probes.busy()) && Instant::now() < until {
                     for (id, outcome) in operations.reap() {
                         send(&responses, envelope(&id, outcome))?;
                     }
-                    if operations.has_deferred() {
+                    if let Some((id, outcome)) = probes.reap() {
+                        send(&responses, envelope(&id, outcome))?;
+                    }
+                    if operations.has_deferred() || probes.busy() {
                         thread::sleep(Duration::from_millis(5));
                     }
                 }
@@ -315,6 +341,7 @@ fn stdio(db: &mut Database) -> io::Result<()> {
                     )?;
                 }
                 drop(operations);
+                drop(probes);
                 drop(scheduler);
                 drop(responses);
                 return delivery.recv_timeout(Duration::from_secs(2)).map_err(
@@ -356,7 +383,7 @@ impl LocalScheduler {
     fn start(data_dir: PathBuf) -> io::Result<Self> {
         let (stop, stopped) = mpsc::channel();
         let worker = thread::Builder::new()
-            .name("cgacp-scheduler".into())
+            .name("openrules-scheduler".into())
             .spawn(move || {
                 let mut db = match Database::open(&data_dir) {
                     Ok(db) => db,
@@ -412,22 +439,36 @@ fn run() -> Result<(), String> {
         );
         return Ok(());
     }
-    if mode != "--stdio" && mode != "--scheduler" {
-        return Err("Expected --stdio or --scheduler".into());
-    }
-    let path = match args.next() {
+    let (path, use_default) = match args.next() {
         Some(flag) if flag == "--data-dir" => {
             let path = PathBuf::from(args.next().ok_or("--data-dir requires a path")?);
             if !path.is_absolute() || args.len() != 0 {
                 return Err("Expected one absolute --data-dir path".into());
             }
-            path
+            (path, false)
         }
-        None => storage::default_data_dir().map_err(|error| error.to_string())?,
+        None => (
+            storage::default_data_dir().map_err(|error| error.to_string())?,
+            true,
+        ),
         _ => return Err("Unknown runtime argument".into()),
     };
-    let mut db =
-        Database::open(&path).map_err(|error| format!("{}: {}", error.code, error.message))?;
+    let locations = storage::identity::Locations::new(path, use_default);
+    let identity = match mode.to_str() {
+        Some("--identity-preview") => Some(locations.preview()),
+        Some("--identity-migrate") => Some(locations.migrate()),
+        Some("--identity-use-current") => Some(locations.use_current()),
+        Some("--stdio" | "--scheduler") => None,
+        _ => return Err("Expected --stdio or --scheduler".into()),
+    };
+    if let Some(result) = identity {
+        println!(
+            "{}",
+            result.unwrap_or_else(|error| json!({"status":"ERROR","error":error.wire()}))
+        );
+        return Ok(());
+    }
+    let mut db = locations.open().map_err(|error| error.to_string())?;
     if mode == "--stdio" {
         return stdio(&mut db).map_err(|error| error.to_string());
     }

@@ -86,7 +86,7 @@ pub fn registry(root: &Path) -> Result<Value, String> {
         .validate(&registry)
         .map_err(|error| format!("Governance schema violation at {}", error.instance_path))?;
     let control_schema: Value =
-        serde_json::from_str(include_str!("../en/schemas/cgacp-policy.schema.json"))
+        serde_json::from_str(include_str!("../en/schemas/openrules-policy.schema.json"))
             .map_err(|_| "Invalid control plane schema")?;
     jsonschema::validator_for(&control_schema)
         .map_err(|_| "Cannot compile the control plane schema")?

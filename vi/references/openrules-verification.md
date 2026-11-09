@@ -1,10 +1,10 @@
-<!-- doc-id: CGACP-VERIFICATION -->
+<!-- doc-id: OPENRULES-VERIFICATION -->
 <!-- revision: 2 -->
-<!-- source-sha256: 12c284b6936f44825aa1ae185335b418ce5ac6d87afedbb27f6564b524adbede -->
+<!-- source-sha256: 22a38fd5fa2155000daabf61ad42c930fd2ed5c109e993e09f7ee2d6db84c617 -->
 <!-- translation-status: synchronized -->
 <a id="verification"></a>
 
-# Kiểm chứng CGACP trên máy local
+# Kiểm chứng OPENRULES trên máy local
 
 Triển khai bắt đầu từ commit governance `a83dd8b710d45a5ace1aabe9477ebd887c7f825e` và đang ở trạng thái thay
 đổi local. Windows x64 MSVC dùng Rust và Cargo 1.99.1 qua alias stable có
@@ -65,4 +65,4 @@ tách khỏi người thực hiện và bằng chứng công cụ còn hiệu l�
 thao tác local là khai báo. Khám phá Agent native, CI hosted và thử phần
 cứng chưa được chạy.
 
-[Quy trình vận hành](cgacp-local.md) · [Kiểm chứng lịch sử](verification.md)
+[Quy trình vận hành](openrules-local.md) · [Kiểm chứng lịch sử](verification.md)

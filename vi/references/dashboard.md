@@ -1,12 +1,12 @@
-<!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 12 -->
-<!-- source-sha256: 625f40e9e4ea47c4499b9fa59811910119bca5e2c718b2e17e25d33bf478cccf -->
+<!-- doc-id: OPENRULES-DESKTOP-OPERATOR -->
+<!-- revision: 13 -->
+<!-- source-sha256: 596c357e31183c94446c77a74ef537a34b9c142425a3a248e87b3f548bdb8a08 -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
-# Dashboard CGACP
+# Dashboard OPENRULES
 
-Thế hệ sản phẩm là CGACP v1. Phiên bản ứng dụng lấy từ Cargo.
+Phiên bản ứng dụng lấy từ Cargo.
 Tên release ứng viên local là `cirnet-rules-0.1.0`. Rà soát release tách
 riêng khỏi thao tác repository, hội thoại và automation hằng ngày.
 
@@ -22,10 +22,10 @@ Linux, CMake cần tìm được trình biên dịch C++ và các gói phát tri
 Widgets và LinguistTools.
 
 Dùng Rust toolchain đã pin và bộ Qt 6 Widgets cho trình biên dịch C++ local.
-Build `cgacp-runtime` bằng Cargo, rồi cấu hình CMake với
-`CGACP_RUNTIME_EXECUTABLE` trỏ đến binary vừa build. Build
-`cgacp-dashboard` và chạy CTest. Khi chuẩn bị gói Windows, cài vào thư mục
-staging riêng và bật `CGACP_DEPLOY_QT`. Mở Dashboard đã cài từ thư mục bin.
+Build `openrules-runtime` bằng Cargo, rồi cấu hình CMake với
+`OPENRULES_RUNTIME_EXECUTABLE` trỏ đến binary vừa build. Build
+`openrules-desktop` và chạy CTest. Khi chuẩn bị gói Windows, cài vào thư mục
+staging riêng và bật `OPENRULES_DEPLOY_QT`. Mở Dashboard đã cài từ thư mục bin.
 Dùng `--data-dir` với thư mục tuyệt đối riêng để kiểm thử dùng một lần.
 
 ## Quy trình vận hành
@@ -74,14 +74,14 @@ mở lại ứng dụng. Automation hỗ
 trợ chạy thủ công và lịch hằng ngày theo múi giờ IANA. Xem trước lịch trước
 khi bật và xác nhận lượt chạy một lần khi automation đang tắt. Runtime Rust
 quản lý lịch. Để giữ lịch khi đóng Dashboard, chạy
-`cgacp-runtime --scheduler` trong terminal riêng với cùng thư mục dữ liệu.
+`openrules-runtime --scheduler` trong terminal riêng với cùng thư mục dữ liệu.
 Trạng thái lịch được lưu khi runtime dừng. Các lượt hằng ngày bị lỡ được gộp.
 Definition bị tạm dừng hoặc stale phải được kiểm tra trước khi tạo đề xuất mới.
 
 ## Lưu trữ và vận hành
 
 Rust sở hữu SQLite trong thư mục dữ liệu ứng dụng local hoặc thư mục do
-người vận hành chỉ định. Trước khi nâng kho hiện có lên schema 6, runtime
+người vận hành chỉ định. Trước khi nâng kho hiện có lên schema 7, runtime
 tạo snapshot đã kiểm tra toàn vẹn. Runtime cũ cần bản sao tương thích đã
 rà trong thư mục riêng. Tổng quan Lưu trữ tự tải khi runtime kết nối.
 Trang báo số hội thoại và số byte UTF-8 logic của hội thoại đang dùng và
@@ -129,4 +129,14 @@ ghi SHA-256 artifact và nguồn build. Ứng viên giữ `RELEASE_BLOCKED` khi
 còn gate Agent native, cô lập, review xác thực, cài Windows sạch và
 điều kiện phân phối.
 
-[Kiến trúc và giới hạn](dashboard-architecture.md) · [Trạng thái tương tác](desktop-interaction.md) · [Ứng viên phát hành](dashboard-release.md) · [Quy trình task](cgacp-local.md)
+[Kiến trúc và giới hạn](dashboard-architecture.md) · [Trạng thái tương tác](desktop-interaction.md) · [Ứng viên phát hành](dashboard-release.md) · [Quy trình task](openrules-local.md)
+
+[Định danh và nâng cấp dữ liệu](openrules-identity.md)
+
+## Governance
+
+Dùng [Cấu hình / Governance](governance-workspace.md) để quản lý bản nháp,
+tệp, kiểm tra, công bố và khôi phục ngay trong ứng dụng. Khi tạo hội thoại,
+chọn hồ sơ governance đã công bố hoặc dùng hồ sơ mặc định. Chi tiết task
+hiển thị manifest các revision đã lưu. Dòng thực thi vẫn báo bàn giao cục bộ.
+Xem [nhật ký thay đổi chưa phát hành](../CHANGELOG.md).

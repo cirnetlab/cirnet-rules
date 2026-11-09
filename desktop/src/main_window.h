@@ -35,6 +35,7 @@ class QVBoxLayout;
 class NotificationCenter;
 class ThemeManager;
 class AppearanceColorField;
+class GovernancePanel;
 
 #include "theme.h"
 
@@ -146,7 +147,6 @@ private:
     QFrame *sidebar_ = nullptr;
     QVBoxLayout *sidebarRail_ = nullptr;
     QLabel *brand_ = nullptr;
-    QLabel *brandSubtitle_ = nullptr;
     QHBoxLayout *identityLayout_ = nullptr;
     QHBoxLayout *localLayout_ = nullptr;
     QToolButton *sidebarToggle_ = nullptr;
@@ -191,6 +191,7 @@ private:
     QPushButton *reconnect_ = nullptr;
     QStackedWidget *pages_ = nullptr;
     QWidget *settingsPage_ = nullptr;
+    GovernancePanel *governance_ = nullptr;
     QWidget *previousPage_ = nullptr;
     QListWidget *settingsNavigation_ = nullptr;
     QLineEdit *settingsSearch_ = nullptr;
