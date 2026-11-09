@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QEnterEvent>
+#include <QFontDatabase>
 #include <QLabel>
 #include <QMenu>
 #include <QPlainTextEdit>
@@ -13,6 +14,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QTest>
+#include <QTextDocument>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -90,6 +92,17 @@ inline void appearancePixelsAndPaletteApplyToOpenWidgets()
     QCOMPARE(QApplication::palette().color(QPalette::Window), QColor("#203040"));
     QCOMPARE(QApplication::palette().color(QPalette::WindowText), QColor("#E0E6F2"));
     QCOMPARE(QApplication::palette().color(QPalette::Highlight), QColor("#A367DD"));
+    for (const auto &family : QFontDatabase::families()) {
+        if (family.startsWith(u'@') || family == code->font().family()
+            || !QFontDatabase::isSmoothlyScalable(family))
+            continue;
+        theme.apply("dark", "comfortable", 100, {{"font_family", family}});
+        QCOMPARE(workspace->font().family(), family);
+        QCOMPARE(menu.font().family(), family);
+        QCOMPARE(conversation->document()->defaultFont().family(), family);
+        QCOMPARE(code->document()->defaultFont().family(), family);
+        break;
+    }
     theme.apply("dark", "comfortable", 100);
 }
 

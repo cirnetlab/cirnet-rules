@@ -1,4 +1,5 @@
 #include "settings_panels.h"
+#include "live_text.h"
 #include "theme.h"
 #include "main_window.h"
 
@@ -40,9 +41,9 @@ QLabel *textLabel(const QString &value, const char *role = "meta")
     return label;
 }
 
-QPushButton *button(const QString &text, const char *name, QBoxLayout &layout)
+QPushButton *button(live::Phrase text, const char *name, QBoxLayout &layout)
 {
-    auto *control = new QPushButton(text);
+    auto *control = live::text(new QPushButton, std::move(text));
     control->setObjectName(QLatin1StringView(name));
     layout.addWidget(control);
     return control;
@@ -131,18 +132,21 @@ public:
         : request_(std::move(request))
     {
         setObjectName("storagePage");
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(2, 8, 2, 8);
         layout->setSpacing(16);
-        layout->addWidget(textLabel(tr("Storage"), "heading"));
-        layout->addWidget(textLabel(tr("See how much local message text is stored in your conversations."), "lead"));
+        layout->addWidget(live::text(textLabel({}, "heading"), [] { return tr("Storage"); }));
+        layout->addWidget(live::text(textLabel({}, "lead"), [] {
+            return tr("See how much local message text is stored in your conversations.");
+        }));
         auto *device = storageCard(*layout);
         auto *headline = new QHBoxLayout;
-        headline->addWidget(textLabel(tr("This device"), "sectionTitle"), 1);
-        refresh_ = button(tr("Refresh"), "refreshChatStorage", *headline);
+        headline->addWidget(live::text(textLabel({}, "sectionTitle"), [] { return tr("This device"); }), 1);
+        refresh_ = button([] { return tr("Refresh"); }, "refreshChatStorage", *headline);
         refresh_->setProperty("actionRole", "secondary");
         refresh_->setIcon(uiIcon(UiIcon::Refresh));
-        refresh_->setAccessibleName(tr("Refresh chat storage"));
+        live::text(refresh_, [] { return tr("Refresh chat storage"); }, &QWidget::setAccessibleName);
         device->addLayout(headline);
         accounting_ = textLabel({}, "sectionTitle");
         accounting_->setObjectName("storageAccounting");
@@ -150,17 +154,17 @@ public:
         accounting_->hide();
         device->addWidget(accounting_);
         bar_ = new StorageBar;
-        bar_->setAccessibleName(tr("Chat storage breakdown"));
+        live::text(bar_, [] { return tr("Chat storage breakdown"); }, &QWidget::setAccessibleName);
         bar_->hide();
         device->addWidget(bar_);
         auto *legend = new QHBoxLayout;
         legend->setSpacing(20);
-        auto addLegend = [legend](const QString &heading, const char *name, bool archived) {
+        const auto addLegend = [legend](live::Phrase heading, const char *name, bool archived) {
             auto *column = new QVBoxLayout;
             auto *labelRow = new QHBoxLayout;
             labelRow->setSpacing(8);
             labelRow->addWidget(new StorageDot(archived), 0, Qt::AlignVCenter);
-            labelRow->addWidget(textLabel(heading, "sectionTitle"), 1);
+            labelRow->addWidget(live::text(textLabel({}, "sectionTitle"), std::move(heading)), 1);
             column->addLayout(labelRow);
             auto *description = textLabel({});
             description->setObjectName(QLatin1StringView(name));
@@ -168,67 +172,93 @@ public:
             legend->addLayout(column, 1);
             return description;
         };
-        activeUsage_ = addLegend(tr("Active chats"), "storageActiveUsage", false);
-        archivedUsage_ = addLegend(tr("Archived chats"), "storageArchivedUsage", true);
+        activeUsage_ = addLegend([] { return tr("Active chats"); }, "storageActiveUsage", false);
+        archivedUsage_ = addLegend([] { return tr("Archived chats"); }, "storageArchivedUsage", true);
         device->addLayout(legend);
-        usageStatus_ = textLabel(tr("Waiting for the local runtime…"));
+        usageStatus_ = textLabel({});
+        live::message(usageStatus_, [] { return tr("Waiting for the local runtime…"); });
         usageStatus_->setObjectName("storageUsageStatus");
         device->addWidget(usageStatus_);
 
-        auto *maintenance = storageCard(*layout);
-        auto *toggle = button(tr("Database maintenance"), "storageMaintenanceToggle", *maintenance);
+        auto *toggle = button([] { return tr("Database maintenance"); }, "storageMaintenanceToggle", *layout);
         toggle->setIcon(uiIcon(UiIcon::Sliders));
         toggle->setCheckable(true);
-        toggle->setProperty("navigation", true);
+        toggle->setProperty("actionRole", "secondary");
         auto *maintenanceBody = new QWidget;
-        auto *backupGroup = new QVBoxLayout(maintenanceBody);
-        backupGroup->setContentsMargins(0, 2, 0, 0);
-        backupGroup->setSpacing(8);
-        backupGroup->addWidget(textLabel(tr("Database maintenance is separate from chat storage. Backups may contain earlier chat content.")));
+        auto *groups = new QVBoxLayout(maintenanceBody);
+        groups->setContentsMargins(0, 0, 0, 0);
+        groups->setSpacing(12);
+        auto *database = storageCard(*groups);
+        database->parentWidget()->setObjectName("storageDatabaseActions");
+        auto *databaseHeader = new QBoxLayout(QBoxLayout::LeftToRight);
+        databaseHeader->addWidget(live::text(textLabel({}, "sectionTitle"), [] { return tr("Local database"); }), 1);
+        inspect_ = button([] { return tr("Check database"); }, "inspectStorageDatabase", *databaseHeader);
+        inspect_->setIcon(uiIcon(UiIcon::Storage));
+        inspect_->setProperty("actionRole", "secondary");
+        database->addLayout(databaseHeader);
+        database->addWidget(live::text(textLabel({}), [] { return tr("Check the database to reveal its location and reusable space."); }));
         path_ = textLabel({});
         path_->setObjectName("storageDataRoot");
         path_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-        backupGroup->addWidget(path_);
-        auto *inspectRow = new QHBoxLayout;
-        inspect_ = button(tr("Check database"), "inspectStorageDatabase", *inspectRow);
-        inspectRow->addStretch();
-        backupGroup->addLayout(inspectRow);
-        auto *pathRow = new QHBoxLayout;
-        copy_ = button(tr("Copy data path"), "copyStorageRoot", *pathRow);
-        open_ = button(tr("Open data folder"), "openStorageRoot", *pathRow);
-        pathRow->addStretch();
-        backupGroup->addLayout(pathRow);
+        database->addWidget(path_);
+        auto *pathRow = new QBoxLayout(QBoxLayout::LeftToRight);
+        copy_ = button([] { return tr("Copy data path"); }, "copyStorageRoot", *pathRow);
+        open_ = button([] { return tr("Open data folder"); }, "openStorageRoot", *pathRow);
+        open_->setIcon(uiIcon(UiIcon::Folder));
+        compact_ = button([] { return tr("Review compaction"); }, "compactStorage", *pathRow);
+        for (auto *action : {copy_, open_, compact_})
+            action->setProperty("actionRole", "secondary");
+        database->addLayout(pathRow);
+
+        auto *backupGroup = storageCard(*groups);
+        backupGroup->parentWidget()->setObjectName("storageBackupActions");
+        auto *backupHeader = new QBoxLayout(QBoxLayout::LeftToRight);
+        backupHeader->addWidget(live::text(textLabel({}, "sectionTitle"), [] { return tr("Backups and verification"); }), 1);
+        backup_ = button([] { return tr("Create backup"); }, "createStorageBackup", *backupHeader);
+        backup_->setIcon(uiIcon(UiIcon::Add));
+        backup_->setProperty("primary", true);
+        backupGroup->addLayout(backupHeader);
+        backupGroup->addWidget(live::text(textLabel({}), [] { return tr("Verification does not restore or overwrite your data."); }));
+        auto *backupRow = new QBoxLayout(QBoxLayout::LeftToRight);
         backups_ = new QComboBox;
         backups_->setObjectName("storageBackups");
-        backups_->setAccessibleName(tr("Database or backup to verify"));
+        live::text(backups_, [] { return tr("Database or backup to verify"); }, &QWidget::setAccessibleName);
+        backups_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
         backups_->addItem(tr("Live database"));
-        backupGroup->addWidget(backups_);
-        auto *backupRow = new QHBoxLayout;
-        backup_ = button(tr("Create backup"), "createStorageBackup", *backupRow);
-        verify_ = button(tr("Verify selected"), "verifyStorageBackup", *backupRow);
-        backupRow->addStretch();
+        backupRow->addWidget(backups_, 1);
+        verify_ = button([] { return tr("Verify selected"); }, "verifyStorageBackup", *backupRow);
+        verify_->setIcon(uiIcon(UiIcon::Success));
+        verify_->setProperty("actionRole", "secondary");
         backupGroup->addLayout(backupRow);
-        backupRow = new QHBoxLayout;
-        compact_ = button(tr("Review compaction"), "compactStorage", *backupRow);
-        backupRow->addStretch();
-        backupGroup->addLayout(backupRow);
-        backupGroup->addWidget(textLabel(tr("Verification does not restore or overwrite your data.")));
-        auto *operationRow = new QHBoxLayout;
-        progress_ = new QProgressBar;
-        progress_->setObjectName("storageProgress");
-        progress_->setAccessibleName(tr("Storage operation progress"));
-        progress_->hide();
-        operationRow->addWidget(progress_, 1);
-        cancel_ = button(tr("Cancel operation"), "cancelStorageOperation", *operationRow);
-        retry_ = button(tr("Retry status"), "retryStorageOperation", *operationRow);
-        backupGroup->addLayout(operationRow);
-        status_ = textLabel({});
-        status_->setObjectName("storageOperationStatus");
-        backupGroup->addWidget(status_);
-        maintenance->addWidget(maintenanceBody);
+
+        layout->addWidget(maintenanceBody);
         maintenanceBody->hide();
         connect(toggle, &QPushButton::toggled, maintenanceBody, &QWidget::setVisible);
+        auto *feedback = storageCard(*layout);
+        feedback_ = feedback->parentWidget();
+        feedback->addWidget(live::text(textLabel({}, "sectionTitle"), [] { return tr("Operation status"); }));
+        status_ = textLabel({});
+        status_->setObjectName("storageOperationStatus");
+        feedback->addWidget(status_);
+        progress_ = new QProgressBar;
+        progress_->setObjectName("storageProgress");
+        live::text(progress_, [] { return tr("Storage operation progress"); }, &QWidget::setAccessibleName);
+        feedback->addWidget(progress_);
+        auto *operationRow = new QHBoxLayout;
+        operationRow->addStretch();
+        cancel_ = button([] { return tr("Cancel operation"); }, "cancelStorageOperation", *operationRow);
+        retry_ = button([] { return tr("Retry status"); }, "retryStorageOperation", *operationRow);
+        cancel_->setProperty("actionRole", "secondary");
+        retry_->setProperty("actionRole", "secondary");
+        feedback->addLayout(operationRow);
+        actionRows_ = {databaseHeader, pathRow, backupHeader, backupRow};
         layout->addStretch();
+        connect(&live::language(), &live::Language::changed, this, [this] {
+            backups_->setItemText(0, tr("Live database"));
+            if (!lastUsage_.isEmpty())
+                renderUsage(lastUsage_);
+            arrangeActions();
+        });
 
         poll_.setSingleShot(true);
         poll_.setInterval(250);
@@ -237,9 +267,9 @@ public:
             ++generation_;
             ready_ = false;
             poll_.stop();
-            if (pending_ || !operation_.isEmpty())
-                status_->setText(tr("The runtime disconnected before the operation finished."));
-            usageStatus_->setText(tr("Connect to the local runtime to refresh chat storage."));
+            if (!usageOperation_ && (pending_ || !operation_.isEmpty()))
+                live::message(status_, [] { return tr("The runtime disconnected before the operation finished."); });
+            live::message(usageStatus_, [] { return tr("Connect to the local runtime to refresh chat storage."); });
             operation_.clear();
             usageOperation_ = false;
             pending_ = false;
@@ -269,7 +299,8 @@ public:
         connect(open_, &QPushButton::clicked, this, [this] {
             if (QDir::isAbsolutePath(path_->text()) &&
                 !QDesktopServices::openUrl(QUrl::fromLocalFile(path_->text())))
-                status_->setText(tr("Could not open the data folder."));
+                live::message(status_, [] { return tr("Could not open the data folder."); });
+            syncActions();
         });
         syncActions();
     }
@@ -281,6 +312,12 @@ public:
     }
 
 protected:
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWidget::resizeEvent(event);
+        arrangeActions();
+    }
+
     void showEvent(QShowEvent *event) override
     {
         QWidget::showEvent(event);
@@ -297,6 +334,16 @@ protected:
     }
 
 private:
+    void arrangeActions()
+    {
+        for (auto *row : actionRows_) {
+            int required = qMax(0, row->count() - 1) * row->spacing();
+            for (int index = 0; index < row->count(); ++index)
+                required += row->itemAt(index)->sizeHint().width();
+            row->setDirection(required + 52 > width() ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+        }
+    }
+
     void call(const QString &method, QJsonObject params)
     {
         pending_ = true;
@@ -313,9 +360,9 @@ private:
             return;
         usageOperation_ = method == "storage.chats";
         if (usageOperation_) {
-            usageStatus_->setText(tr("Measuring chat storage…"));
+            live::message(usageStatus_, [] { return tr("Measuring chat storage…"); });
         } else {
-            status_->setText(tr("Submitting storage operation…"));
+            live::message(status_, [] { return tr("Submitting storage operation…"); });
             progress_->setRange(0, 0);
         }
         statusFailed_ = false;
@@ -339,7 +386,9 @@ private:
         const auto id = reply.value("operation_id").toString();
         if (!error.isEmpty() || id.isEmpty() || (!operation_.isEmpty() && id != operation_)) {
             if (usageOperation_) {
-                usageStatus_->setText(error.isEmpty() ? tr("Chat storage measurement is unavailable.") : error);
+                live::message(usageStatus_, [error] {
+                    return error.isEmpty() ? tr("Chat storage measurement is unavailable.") : error;
+                });
                 operation_.clear();
                 usageOperation_ = false;
                 syncActions();
@@ -347,7 +396,9 @@ private:
             }
             cancellationQueued_ |= std::exchange(cancellationInFlight_, false);
             statusFailed_ = true;
-            status_->setText(error.isEmpty() ? tr("Storage operation status is unavailable.") : error);
+            live::message(status_, [error] {
+                return error.isEmpty() ? tr("Storage operation status is unavailable.") : error;
+            });
             syncActions();
             return;
         }
@@ -367,22 +418,32 @@ private:
             const auto result = reply.value("result").toObject();
             if (usageOperation_) {
                 renderUsage(result);
+                live::message(usageStatus_, [this] {
+                    const auto count = lastUsage_.value("active").toObject().value("conversations").toInteger()
+                        + lastUsage_.value("archived").toObject().value("conversations").toInteger();
+                    return count > 0 ? tr("Updated %1").arg(dateText(lastUsage_.value("measured_at").toInteger()))
+                                     : tr("No local conversations yet.");
+                });
             } else {
                 renderMaintenance(kind, result);
             }
             operation_.clear();
         } else if (state == "FAILED" || state == "CANCELLED") {
             const auto issue = reply.value("error").toObject();
-            auto *notice = usageOperation_ ? usageStatus_ : status_;
-            notice->setText(state == "CANCELLED" ? tr("Storage operation cancelled.")
-                                                 : tr("Storage operation failed: %1").arg(issue.value("message").toString()));
+            live::message(usageOperation_ ? usageStatus_ : status_,
+                       [state, issue] {
+                return state == "CANCELLED" ? tr("Storage operation cancelled.")
+                    : tr("Storage operation failed: %1").arg(issue.value("message").toString());
+            });
             operation_.clear();
         } else if (state == "CANCEL_REQUESTED") {
             cancellationQueued_ = false;
-            status_->setText(tr("Waiting for the storage worker to stop…"));
+            live::message(status_, [] { return tr("Waiting for the storage worker to stop…"); });
         } else {
             if (!usageOperation_)
-                status_->setText(tr("Storage operation: %1").arg(uiStatusLabel(phase.isEmpty() ? state : phase)));
+                live::message(status_, [phase, state] {
+                    return tr("Storage operation: %1").arg(uiStatusLabel(phase.isEmpty() ? state : phase));
+                });
             if (cancellationQueued_) {
                 poll(true);
                 return;
@@ -399,6 +460,7 @@ private:
 
     void renderUsage(const QJsonObject &usage)
     {
+        lastUsage_ = usage;
         const auto active = usage.value("active").toObject();
         const auto archived = usage.value("archived").toObject();
         const auto activeBytes = active.value("message_bytes").toInteger();
@@ -416,9 +478,6 @@ private:
         bar_->show();
         activeUsage_->setText(caption(activeBytes, activeCount));
         archivedUsage_->setText(caption(archivedBytes, archivedCount));
-        usageStatus_->setText(activeCount + archivedCount > 0
-            ? tr("Updated %1").arg(dateText(usage.value("measured_at").toInteger()))
-            : tr("No local conversations yet."));
     }
 
     void renderScan(const QJsonObject &snapshot)
@@ -450,13 +509,15 @@ private:
             if (backups_->findData(backup) < 0)
                 backups_->addItem(backup, backup);
             backups_->setCurrentIndex(backups_->findData(backup));
-            status_->setText(tr("Storage operation completed. Backup: %1").arg(backup));
+            live::message(status_, [backup] { return tr("Storage operation completed. Backup: %1").arg(backup); });
         } else if (kind == "COMPACT") {
             freePages_ = 0;
-            status_->setText(tr("Storage operation completed. Database pages: %1 before, %2 after.")
-                .arg(result.value("before_page_count").toInteger()).arg(result.value("after_page_count").toInteger()));
+            live::message(status_, [result] {
+                return tr("Storage operation completed. Database pages: %1 before, %2 after.")
+                    .arg(result.value("before_page_count").toInteger()).arg(result.value("after_page_count").toInteger());
+            });
         } else {
-            status_->setText(tr("Storage operation completed."));
+            live::message(status_, [] { return tr("Storage operation completed."); });
         }
     }
 
@@ -484,15 +545,21 @@ private:
             control->setEnabled(idle);
         compact_->setEnabled(idle && freePages_ > 0);
         const auto hasPath = QDir::isAbsolutePath(path_->text());
+        path_->setVisible(hasPath);
         copy_->setEnabled(hasPath);
         open_->setEnabled(hasPath);
-        progress_->setVisible(!usageOperation_ && (!operation_.isEmpty() || pending_));
-        cancel_->setEnabled(!usageOperation_ && !operation_.isEmpty() && !cancellationQueued_ &&
+        const bool maintenanceBusy = !usageOperation_ && (!operation_.isEmpty() || pending_);
+        progress_->setVisible(maintenanceBusy && !statusFailed_);
+        cancel_->setVisible(maintenanceBusy && !statusFailed_);
+        cancel_->setEnabled(!operation_.isEmpty() && !cancellationQueued_ &&
                             !cancellationInFlight_ && !cancelling_ && !statusFailed_);
         retry_->setVisible(!operation_.isEmpty() && statusFailed_);
+        feedback_->setVisible(maintenanceBusy || !status_->text().isEmpty());
     }
 
     SettingsRequest request_;
+    QJsonObject lastUsage_;
+    QList<QBoxLayout *> actionRows_;
     QTimer poll_;
     quint64 generation_ = 0;
     QString operation_;
@@ -505,6 +572,7 @@ private:
     qint64 pageSize_ = 0, pageCount_ = 0, freePages_ = 0;
     QLabel *accounting_ = nullptr, *activeUsage_ = nullptr, *archivedUsage_ = nullptr, *usageStatus_ = nullptr;
     QLabel *path_ = nullptr, *status_ = nullptr;
+    QWidget *feedback_ = nullptr;
     StorageBar *bar_ = nullptr;
     QProgressBar *progress_ = nullptr;
     QComboBox *backups_ = nullptr;
@@ -527,7 +595,7 @@ public:
         scroll_ = new QScrollArea;
         scroll_->setWidgetResizable(true);
         scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        scroll_->setAccessibleName(tr("Archived chats"));
+        live::text(scroll_, [] { return tr("Archived chats"); }, &QWidget::setAccessibleName);
         layout->addWidget(scroll_);
         auto *host = new QWidget;
         auto *centering = new QHBoxLayout(host);
@@ -539,43 +607,43 @@ public:
         bodyLayout->setContentsMargins(6, 8, 14, 12);
         bodyLayout->setSpacing(16);
         scroll_->setWidget(host);
-        bodyLayout->addWidget(textLabel(tr("Archived chats"), "heading"));
-        bodyLayout->addWidget(textLabel(tr("Restore a chat to the sidebar or review it for permanent deletion."), "lead"));
+        bodyLayout->addWidget(live::text(textLabel({}, "heading"), [] { return tr("Archived chats"); }));
+        bodyLayout->addWidget(live::text(textLabel({}, "lead"), [] { return tr("Restore a chat to the sidebar or review it for permanent deletion."); }));
 
         search_ = new QLineEdit;
         search_->setObjectName("archivedChatSearch");
         search_->setProperty("searchField", true);
         search_->setClearButtonEnabled(true);
         search_->setMaxLength(120);
-        search_->setPlaceholderText(tr("Search archived chats"));
-        search_->setAccessibleName(tr("Search archived chats"));
+        live::placeholder(search_, [] { return tr("Search archived chats"); });
+        live::text(search_, [] { return tr("Search archived chats"); }, &QWidget::setAccessibleName);
         search_->setMinimumWidth(0);
         filters_ = new QGridLayout;
         filters_->setSpacing(8);
         bodyLayout->addLayout(filters_);
         repository_ = new QComboBox;
         repository_->setObjectName("archivedRepositoryFilter");
-        repository_->setAccessibleName(tr("Repository filter"));
+        live::text(repository_, [] { return tr("Repository filter"); }, &QWidget::setAccessibleName);
         repository_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
         repository_->setMinimumContentsLength(10);
         date_ = new QComboBox;
         date_->setObjectName("archivedDateFilter");
-        date_->setAccessibleName(tr("Archive date filter"));
-        date_->addItem(tr("Any date"), 0);
-        date_->addItem(tr("Older than 30 days"), 30);
-        date_->addItem(tr("Older than 90 days"), 90);
+        live::text(date_, [] { return tr("Archive date filter"); }, &QWidget::setAccessibleName);
+        live::item(date_, [] { return tr("Any date"); }, 0);
+        live::item(date_, [] { return tr("Older than 30 days"); }, 30);
+        live::item(date_, [] { return tr("Older than 90 days"); }, 90);
         source_ = new QComboBox;
         source_->setObjectName("archivedSourceFilter");
-        source_->setAccessibleName(tr("Chat source filter"));
-        source_->addItem(tr("Any source"));
-        source_->addItem(tr("Desktop"), "DASHBOARD");
-        source_->addItem(tr("Automation"), "AUTOMATION");
+        live::text(source_, [] { return tr("Chat source filter"); }, &QWidget::setAccessibleName);
+        live::item(source_, [] { return tr("Any source"); });
+        live::item(source_, [] { return tr("Desktop"); }, "DASHBOARD");
+        live::item(source_, [] { return tr("Automation"); }, "AUTOMATION");
         arrangeFilters();
 
         auto *scopeRow = new QHBoxLayout;
         scope_ = textLabel(tr("All repositories"), "sectionTitle");
         scopeRow->addWidget(scope_, 1);
-        reload_ = button(tr("Refresh"), "archivedRefresh", *scopeRow);
+        reload_ = button([] { return tr("Refresh"); }, "archivedRefresh", *scopeRow);
         reload_->setProperty("actionRole", "secondary");
         reload_->setIcon(uiIcon(UiIcon::Refresh));
         bodyLayout->addLayout(scopeRow);
@@ -589,13 +657,20 @@ public:
         cardsLayout_->setSpacing(8);
         bodyLayout->addWidget(cards_);
         auto *paging = new QHBoxLayout;
-        first_ = button(tr("First page"), "archivedFirstPage", *paging);
+        first_ = button([] { return tr("First page"); }, "archivedFirstPage", *paging);
         first_->setProperty("actionRole", "secondary");
-        next_ = button(tr("Next page"), "archivedNextPage", *paging);
+        next_ = button([] { return tr("Next page"); }, "archivedNextPage", *paging);
         next_->setProperty("actionRole", "secondary");
         paging->addStretch();
         bodyLayout->addLayout(paging);
         bodyLayout->addStretch();
+        connect(&live::language(), &live::Language::changed, this, [this] {
+            if (repository_->count())
+                repository_->setItemText(0, tr("All repositories"));
+            scope_->setText(repository_->count() ? repository_->currentText() : tr("All repositories"));
+            reload_->setText(reload_->property("retry").toBool() ? tr("Retry") : tr("Refresh"));
+            arrangeFilters();
+        });
 
         debounce_.setSingleShot(true);
         debounce_.setInterval(220);
@@ -712,22 +787,22 @@ private:
         auto *description = new QVBoxLayout;
         description->setSpacing(4);
         description->addWidget(textLabel(title, "sectionTitle"));
-        const auto timestamp = dateText(chat.value("updated_at").toInteger());
-        if (!timestamp.isEmpty())
-            description->addWidget(textLabel(timestamp));
+        const auto timestamp = chat.value("updated_at").toInteger();
+        if (timestamp > 0)
+            description->addWidget(live::text(textLabel({}), [timestamp] { return dateText(timestamp); }));
         row->addLayout(description, 1);
         auto *erase = new QToolButton;
         erase->setObjectName("deleteArchivedChat");
         erase->setProperty("actionRole", "danger");
         erase->setIcon(uiIcon(UiIcon::Trash));
         erase->setIconSize({16, 16});
-        erase->setToolTip(tr("Review deletion"));
-        erase->setAccessibleName(tr("Delete %1").arg(title));
+        live::text(erase, [] { return tr("Review deletion"); }, &QWidget::setToolTip);
+        live::text(erase, [title] { return tr("Delete %1").arg(title); }, &QWidget::setAccessibleName);
         erase->setFocusPolicy(Qt::StrongFocus);
         row->addWidget(erase);
-        auto *restore = button(tr("Unarchive"), "unarchiveChat", *row);
+        auto *restore = button([] { return tr("Unarchive"); }, "unarchiveChat", *row);
         restore->setProperty("actionRole", "secondary");
-        restore->setAccessibleName(tr("Unarchive %1").arg(title));
+        live::text(restore, [title] { return tr("Unarchive %1").arg(title); }, &QWidget::setAccessibleName);
         cardsLayout_->addWidget(card);
         connect(erase, &QToolButton::clicked, this, [this, id] { eraseChat(id); });
         connect(restore, &QPushButton::clicked, this, [this, chat] { unarchive(chat); });
@@ -751,7 +826,7 @@ private:
         cutoff_ = days ? QDateTime::currentSecsSinceEpoch() - qint64(days) * 86400 : 0;
         queryReady_ = false;
         if (debounce) {
-            state_->setText(tr("Loading archived chats…"));
+            live::message(state_, [] { return tr("Loading archived chats…"); });
             debounce_.start();
             syncActions();
         } else {
@@ -768,13 +843,13 @@ private:
         const auto query = search_->text().trimmed();
         if (query.toUtf8().size() > 160) {
             clearCards();
-            state_->setText(tr("Shorten the search to 160 UTF-8 bytes."));
+            live::message(state_, [] { return tr("Shorten the search to 160 UTF-8 bytes."); });
             syncActions();
             return;
         }
         loading_ = true;
         queryReady_ = false;
-        state_->setText(tr("Loading archived chats…"));
+        live::message(state_, [] { return tr("Loading archived chats…"); });
         syncActions();
         QJsonObject params{{"state", "ARCHIVED"}, {"limit", 30}, {"query", query}};
         if (hasCursor(before_))
@@ -795,8 +870,11 @@ private:
             }
             if (!error.isEmpty() || !result.value("items").isArray()) {
                 clearCards();
-                state_->setText(error.isEmpty() ? tr("Could not load archived chats.")
-                                                : tr("Could not load archived chats: %1").arg(error));
+                live::message(state_, [error] {
+                    return error.isEmpty() ? tr("Could not load archived chats.")
+                                           : tr("Could not load archived chats: %1").arg(error);
+                });
+                reload_->setProperty("retry", true);
                 reload_->setText(tr("Retry"));
                 syncActions();
                 return;
@@ -808,11 +886,13 @@ private:
                 addCard(value.toObject());
             scroll_->verticalScrollBar()->setValue(0);
             const auto total = result.value("total").toInteger(-1);
-            if (items.isEmpty())
-                state_->setText(total == 0 ? tr("No matching archived chats.") : tr("No archived chats on this page."));
-            else
-                state_->setText(total >= 0 ? tr("%1 matching chats · %2 on this page").arg(total).arg(items.size())
-                                          : tr("%1 chats on this page").arg(items.size()));
+            live::message(state_, [total, count = items.size()] {
+                if (!count)
+                    return total == 0 ? tr("No matching archived chats.") : tr("No archived chats on this page.");
+                return total >= 0 ? tr("%1 matching chats · %2 on this page").arg(total).arg(count)
+                                  : tr("%1 chats on this page").arg(count);
+            });
+            reload_->setProperty("retry", false);
             reload_->setText(tr("Refresh"));
             queryReady_ = true;
             syncActions();
@@ -858,7 +938,7 @@ private:
                 search_->setFocus(Qt::OtherFocusReason);
             resetQuery(false);
         } else {
-            state_->setText(error);
+            live::message(state_, [error] { return error; });
             syncActions();
         }
     }

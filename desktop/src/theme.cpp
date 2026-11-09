@@ -830,7 +830,9 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     const auto fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     QFont font = appearance.value("ui_font") == QStringLiteral("monospace") ? fixedFont : systemFont;
     const auto family = appearance.value("font_family").toString();
-    if (!family.isEmpty() && QFontDatabase::hasFamily(family) && QFontDatabase::isSmoothlyScalable(family))
+    const bool customFont = !family.isEmpty() && QFontDatabase::hasFamily(family)
+        && QFontDatabase::isSmoothlyScalable(family);
+    if (customFont)
         font.setFamily(family);
     const int interfacePx = qBound(10, appearance.value("interface_px").toInt(qRound(13 * textScale / 100.0)), 26);
     font.setPixelSize(interfacePx);
@@ -849,9 +851,11 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
             const auto fallback = scale == 0 ? interfacePx : qRound(13 * scale / 100.0);
             return QString::number(qBound(10, appearance.value(QLatin1StringView(pixelKey)).toInt(fallback), 26));
         };
-        auto fixedFamily = fixedFont.family();
-        fixedFamily.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
-        fixedFamily.replace(QStringLiteral("\""), QStringLiteral("\\\""));
+        const auto cssFamily = [](QString name) {
+            name.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
+            name.replace(QStringLiteral("\""), QStringLiteral("\\\""));
+            return name;
+        };
         const QList<QPair<QString, QString>> tokens{
             {"CANVAS", canvas.name()}, {"RAIL", rail.name()}, {"SURFACE", surface.name()}, {"BASE", base.name()},
             {"ALTERNATE_ROW", alternateRow.name()}, {"BORDER", border.name()}, {"CONTROL", control.name()},
@@ -863,7 +867,8 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
             {"DANGER", danger.name()}, {"WARNING", warning.name()}, {"TITLE_SIZE", scaled(24)},
             {"SECTION_SIZE", scaled(15)}, {"META_SIZE", scaled(12)},
             {"CONTENT_SIZE", sizeFor("conversation_px", "content_scale")}, {"CODE_SIZE", sizeFor("code_px", "code_scale")},
-            {"CODE_FAMILY", fixedFamily},
+            {"UI_FAMILY", cssFamily(font.family())},
+            {"CODE_FAMILY", cssFamily(customFont ? font.family() : fixedFont.family())},
             {"VERTICAL_PAD", QString::number(padding)}
         };
         for (const auto &[token, value] : tokens)

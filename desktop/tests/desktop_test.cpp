@@ -593,6 +593,73 @@ private slots:
     void mouseAndKeyboardFocus() { interaction_cases::mouseAndKeyboardFocus(); }
     void compoundArrows() { interaction_cases::compoundArrows(); }
     void settingsLayoutAndKeyboard() { withDashboardFixture(verifySettingsPolish); }
+    void languageUpdatesOpenDashboard()
+    {
+        withDashboardFixture([](MainWindow &window) {
+            settingsSection(window, "appearance");
+            auto *choice = window.findChild<QComboBox *>("languageChoice");
+            auto *search = window.findChild<QLineEdit *>("settingsSearch");
+            auto *navigation = window.findChild<QListWidget *>("settingsNavigation");
+            auto *draft = window.findChild<QPlainTextEdit *>("conversationComposer");
+            QVERIFY(choice && search && navigation && draft);
+            const QSignalBlocker draftSignals(draft);
+            draft->setPlainText("A draft that must survive changing languages");
+            choice->setCurrentIndex(choice->findData("vi"));
+            QTRY_COMPARE(search->placeholderText(), QStringLiteral("Tìm trong cài đặt"));
+            QTRY_COMPARE(navigation->currentItem()->text(), QStringLiteral("Giao diện"));
+            choice->setCurrentIndex(choice->findData("zh_CN"));
+            QTRY_COMPARE(search->placeholderText(), QStringLiteral("搜索设置"));
+            settingsSection(window, "storage");
+            QCOMPARE(window.findChild<QPushButton *>("refreshChatStorage")->text(), QStringLiteral("刷新"));
+            QVERIFY(captureWidget(window, "storage-live-chinese"));
+            settingsSection(window, "appearance");
+            choice->setCurrentIndex(choice->findData("en"));
+            QTRY_COMPARE(search->placeholderText(), QStringLiteral("Search settings"));
+            QCOMPARE(draft->toPlainText(), QStringLiteral("A draft that must survive changing languages"));
+        });
+    }
+
+    void storageMaintenanceGroupsActions()
+    {
+        withDashboardFixture([](MainWindow &window) {
+            settingsSection(window, "storage");
+            auto *maintenance = window.findChild<QPushButton *>("storageMaintenanceToggle");
+            auto *backup = window.findChild<QPushButton *>("createStorageBackup");
+            auto *cancel = window.findChild<QPushButton *>("cancelStorageOperation");
+            QVERIFY(maintenance && backup && cancel);
+            QVERIFY(!backup->isVisible());
+            maintenance->click();
+            QVERIFY(backup->isVisible());
+            QVERIFY(backup->property("primary").toBool());
+            QVERIFY(window.findChild<QWidget *>("storageDatabaseActions"));
+            QVERIFY(window.findChild<QWidget *>("storageBackupActions"));
+            QVERIFY(!cancel->isVisible());
+            QVERIFY(captureWidget(window, "storage-maintenance"));
+            window.resize(760, 680);
+            QTRY_VERIFY(backup->mapTo(&window, QPoint(backup->width(), 0)).x() <= window.width());
+        });
+    }
+
+    void modeFocusIsSolidOnCustomBackground()
+    {
+        withDashboardFixture([](MainWindow &window) {
+            settingsSection(window, "appearance");
+            auto *background = window.findChild<QLineEdit *>("appearanceBackground");
+            auto *dark = window.findChild<QRadioButton *>("themeDark");
+            QVERIFY(background && dark);
+            background->setText("#203040");
+            QTest::keyClick(background, Qt::Key_Return);
+            QTRY_COMPARE(window.palette().color(QPalette::Window), QColor("#203040"));
+            dark->setProperty("keyboardFocusVisible", true);
+            const auto sample = dark->grab();
+            const auto pixels = sample.toImage();
+            const auto ratio = sample.devicePixelRatio();
+            const auto y = qRound(1.5 * ratio);
+            for (int x = 18; x < dark->width() - 18; ++x)
+                QCOMPARE(pixels.pixelColor(qRound(x * ratio), y), dark->palette().color(QPalette::Link));
+            QVERIFY(captureWidget(window, "appearance-solid-focus"));
+        });
+    }
     void exclusiveNavigation() { withDashboardFixture(verifyExclusiveNavigation); }
     void newChatCancelKeepsRoute()
     {

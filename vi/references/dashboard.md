@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 11 -->
-<!-- source-sha256: f862d9a7f32de1ee283082722000fe888c722f2779d488389acd6a0c09f4a6bf -->
+<!-- revision: 12 -->
+<!-- source-sha256: 625f40e9e4ea47c4499b9fa59811910119bca5e2c718b2e17e25d33bf478cccf -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -37,9 +37,12 @@ tượng danh mục hoặc ô tìm kiếm bên trái. Mục Giao diện có bả
 độ, các màu nhấn định sẵn và màu nhấn tùy chọn. Nhập mã hex cho màu nền và
 màu chữ hoặc bấm vòng tròn để mở bảng chọn màu. Xóa mã để dùng màu của chủ đề.
 Có thể chọn phông hệ thống, phông đơn cách hoặc một họ phông đã cài đặt.
+Họ phông đã cài áp dụng ngay cho các điều khiển, hội thoại và chẩn đoán
+đang mở. Thẻ chế độ dùng viền nét liền khi nhận focus bàn phím.
 Mở Nâng cao để chỉnh cỡ chữ giao diện, hội thoại, mã và khoảng đệm dọc bằng
 pixel, đồng thời chọn ngôn ngữ và Giảm chuyển động. Tiếng Anh là mặc định.
-Tiếng Việt và tiếng Trung giản thể áp dụng khi mở lại Dashboard.
+Có thể chuyển giữa tiếng Anh, tiếng Việt và tiếng Trung giản thể ngay
+trên Dashboard đang mở. Lựa chọn được lưu qua API tùy chọn của runtime.
 Khôi phục mặc định xuất hiện khi giao diện khác cấu hình mặc định. Nút
 Quay lại hoặc Escape đưa về trang trước. Thanh cuộn hiện khi rê chuột lên
 thanh hoặc trong chốc lát sau khi lăn. Con lăn trên trường giá trị cuộn vùng
@@ -82,10 +85,11 @@ người vận hành chỉ định. Trước khi nâng kho hiện có lên schem
 tạo snapshot đã kiểm tra toàn vẹn. Runtime cũ cần bản sao tương thích đã
 rà trong thư mục riêng. Tổng quan Lưu trữ tự tải khi runtime kết nối.
 Trang báo số hội thoại và số byte UTF-8 logic của hội thoại đang dùng và
-đã lưu trữ. Dùng Làm mới để cập nhật số liệu. Bảo trì cơ sở dữ liệu có
-các thao tác riêng để sao lưu, kiểm tra toàn vẹn và thu gọn. Thu gọn yêu cầu
-kiểm tra cơ sở dữ liệu mới và xác nhận số trang đã quan sát. Thao tác nền
-báo tiến độ và hỗ trợ hủy. Khi diễn tập khôi phục, đóng
+đã lưu trữ. Dùng Làm mới để cập nhật số liệu. Mở Bảo trì cơ sở dữ liệu
+để xem riêng nhóm cơ sở dữ liệu và nhóm sao lưu. Đường dẫn hiện sau khi
+kiểm tra. Nhóm sao lưu đặt mục cần xác minh cạnh nút xác minh. Thu gọn
+yêu cầu số đo mới và xác nhận số trang đã quan sát. Khu vực tác vụ hiện
+tiến độ, thao tác hủy và kết quả. Khi diễn tập khôi phục, đóng
 runtime, phục hồi bản sao đã rà vào thư mục riêng mới và kiểm tra tại đó
 trước khi đổi đường dẫn. Giữ thư mục gốc và các file WAL. Bản sao lưu là
 dữ liệu nhạy cảm local.

@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "live_text.h"
 #include "compact_text_edit.h"
 #include "repository_picker.h"
 
@@ -188,23 +189,24 @@ QWidget *MainWindow::makeConversationHistory()
     auto *layout = new QVBoxLayout(history);
     layout->setContentsMargins(0, 8, 0, 0);
     layout->setSpacing(6);
-    layout->addWidget(label(tr("Conversations"), "sectionTitle"));
+    layout->addWidget(live::text(label({}, "sectionTitle"), [] { return tr("Conversations"); }));
     conversationSearch_ = new QLineEdit;
     conversationSearch_->setObjectName("conversationSearch");
     conversationSearch_->setProperty("searchField", true);
-    conversationSearch_->setPlaceholderText(tr("Search conversations"));
-    conversationSearch_->setAccessibleName(tr("Search conversations"));
+    live::placeholder(conversationSearch_, [] { return tr("Search conversations"); });
+    live::text(conversationSearch_, [] { return tr("Search conversations"); }, &QWidget::setAccessibleName);
     conversationSearch_->setClearButtonEnabled(true);
     conversationList_ = new QListWidget;
     conversationList_->setObjectName("conversationList");
-    conversationList_->setAccessibleName(tr("Conversation history"));
+    live::text(conversationList_, [] { return tr("Conversation history"); }, &QWidget::setAccessibleName);
     conversationList_->setWordWrap(false);
     conversationList_->setUniformItemSizes(true);
     conversationList_->setSelectionMode(QAbstractItemView::NoSelection);
     conversationList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     conversationList_->setTextElideMode(Qt::ElideRight);
     conversationList_->setContextMenuPolicy(Qt::CustomContextMenu);
-    auto *state = label(tr("Connect to load saved chats."), "meta");
+    auto *state = label({}, "meta");
+    live::message(state, [] { return tr("Connect to load saved chats."); });
     state->setObjectName("conversationHistoryState");
     layout->addWidget(conversationSearch_);
     layout->addWidget(state);
@@ -299,12 +301,12 @@ QWidget *MainWindow::makeConversations()
     auto *header = new QHBoxLayout;
     conversationTitle_ = label(tr("Chat"), "heading");
     header->addWidget(conversationTitle_, 1);
-    conversationActions_ = new QPushButton(tr("Actions"));
+    conversationActions_ = live::text(new QPushButton, [] { return tr("Actions"); });
     conversationActions_->setObjectName("conversationActions");
     auto *menu = new QMenu(conversationActions_);
-    auto *rename = menu->addAction(tr("Rename"));
-    auto *archive = menu->addAction(tr("Archive"));
-    auto *remove = menu->addAction(tr("Delete conversation…"));
+    auto *rename = live::text(menu->addAction(QString{}), [] { return tr("Rename"); });
+    auto *archive = live::text(menu->addAction(QString{}), [] { return tr("Archive"); });
+    auto *remove = live::text(menu->addAction(QString{}), [] { return tr("Delete conversation…"); });
     remove->setObjectName("deleteConversation");
     connect(rename, &QAction::triggered, this, [this] { editConversation(false); });
     connect(archive, &QAction::triggered, this, [this] { editConversation(true); });
@@ -313,10 +315,26 @@ QWidget *MainWindow::makeConversations()
     header->addWidget(conversationActions_);
     layout->addLayout(header);
     conversationDetail_ = label(tr("Select a saved conversation or start a new chat."), "conversationDetail");
+    connect(&live::language(), &live::Language::changed, page, [this] {
+        if (conversation_.isEmpty()) {
+            conversationTitle_->setText(tr("Chat"));
+            conversationDetail_->setText(tr("Select a saved conversation or start a new chat."));
+        }
+        if (transcriptRows_.isEmpty())
+            return;
+        auto *scroll = transcript_->verticalScrollBar();
+        const int oldPosition = scroll->value();
+        const bool atEnd = oldPosition == scroll->maximum();
+        QStringList messages;
+        for (const auto &row : transcriptRows_)
+            messages.append(displayedMessage(row, tr("You"), tr("Display shortened.")));
+        transcript_->setPlainText(messages.join(QStringLiteral("\n\n")));
+        scroll->setValue(atEnd ? scroll->maximum() : oldPosition);
+    });
     layout->addWidget(conversationDetail_);
 
     auto *actions = new QHBoxLayout;
-    auto *start = new QPushButton(tr("New Chat"));
+    auto *start = live::text(new QPushButton, [] { return tr("New Chat"); });
     start->setObjectName("emptyNewChat");
     start->setProperty("primary", true);
     connect(start, &QPushButton::clicked, this, [this] {
@@ -324,18 +342,18 @@ QWidget *MainWindow::makeConversations()
             newChatAction_->trigger();
     });
     actions->addWidget(start);
-    auto *taskDetails = new QPushButton(tr("Task details"));
+    auto *taskDetails = live::text(new QPushButton, [] { return tr("Task details"); });
     taskDetails->setObjectName("conversationTaskDetails");
-    cancelTask_ = new QPushButton(tr("Cancel pending task"));
+    cancelTask_ = live::text(new QPushButton, [] { return tr("Cancel pending task"); });
     actions->addWidget(taskDetails);
     actions->addWidget(cancelTask_);
-    olderMessages_ = new QPushButton(tr("Load older messages"));
+    olderMessages_ = live::text(new QPushButton, [] { return tr("Load older messages"); });
     olderMessages_->setObjectName("loadOlderMessages");
     actions->addWidget(olderMessages_);
     connect(olderMessages_, &QPushButton::clicked, this, [this] {
         openConversation(currentConversation_, TranscriptPage::Older);
     });
-    latestMessages_ = new QPushButton(tr("Latest messages"));
+    latestMessages_ = live::text(new QPushButton, [] { return tr("Latest messages"); });
     latestMessages_->setObjectName("loadLatestMessages");
     actions->addWidget(latestMessages_);
     connect(latestMessages_, &QPushButton::clicked, this, [this] {
@@ -347,8 +365,8 @@ QWidget *MainWindow::makeConversations()
     transcript_ = new QPlainTextEdit;
     transcript_->setObjectName("conversationTranscript");
     transcript_->setReadOnly(true);
-    transcript_->setAccessibleName(tr("Conversation transcript"));
-    transcript_->setPlaceholderText(tr("Saved messages and task outcomes appear here."));
+    live::text(transcript_, [] { return tr("Conversation transcript"); }, &QWidget::setAccessibleName);
+    live::placeholder(transcript_, [] { return tr("Saved messages and task outcomes appear here."); });
     transcript_->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(transcript_, &QWidget::customContextMenuRequested, this, [this](const QPoint &position) {
         auto *menu = transcript_->createStandardContextMenu(position);
@@ -367,7 +385,7 @@ QWidget *MainWindow::makeConversations()
         if (online_ && !messageId.isEmpty()) {
             const auto id = currentConversation_;
             menu->addSeparator();
-            auto *remove = menu->addAction(tr("Delete submitted message…"));
+            auto *remove = live::text(menu->addAction(QString{}), [] { return tr("Delete submitted message…"); });
             remove->setObjectName("deleteSubmittedMessage");
             connect(remove, &QAction::triggered, this, [this, id, messageId] {
                 deleteConversationData(id, messageId);
@@ -378,20 +396,20 @@ QWidget *MainWindow::makeConversations()
     layout->addWidget(transcript_, 1);
     composer_ = new CompactTextEdit(5);
     composer_->setObjectName("conversationComposer");
-    composer_->setAccessibleName(tr("Message"));
-    composer_->setPlaceholderText(tr("Describe a scoped task…"));
+    live::text(composer_, [] { return tr("Message"); }, &QWidget::setAccessibleName);
+    live::placeholder(composer_, [] { return tr("Describe a scoped task…"); });
     layout->addWidget(composer_);
     auto *commands = new QHBoxLayout;
-    commands->addWidget(label(tr("Local handoff · Ctrl+Enter to send"), "meta"), 1);
-    auto *clear = new QPushButton(tr("Clear draft"));
+    commands->addWidget(live::text(label({}, "meta"), [] { return tr("Local handoff · Ctrl+Enter to send"); }), 1);
+    auto *clear = live::text(new QPushButton, [] { return tr("Clear draft"); });
     clear->setObjectName("clearDraft");
-    auto *restore = new QPushButton(tr("Undo clear"));
+    auto *restore = live::text(new QPushButton, [] { return tr("Undo clear"); });
     restore->setObjectName("restoreDraft");
     commands->addWidget(clear);
     commands->addWidget(restore);
     connect(clear, &QPushButton::clicked, this, &MainWindow::clearCurrentDraft);
     connect(restore, &QPushButton::clicked, this, &MainWindow::restoreCurrentDraft);
-    send_ = new QPushButton(tr("Send"));
+    send_ = live::text(new QPushButton, [] { return tr("Send"); });
     send_->setObjectName("sendMessage");
     send_->setProperty("primary", true);
     commands->addWidget(send_);
@@ -506,7 +524,7 @@ void MainWindow::refreshConversations(bool append)
     conversationListInFlight_ = true;
     auto *state = conversationList_->parentWidget()->findChild<QLabel *>("conversationHistoryState");
     if (conversationList_->count() == 0) {
-        state->setText(tr("Loading conversations…"));
+        live::message(state, [] { return tr("Loading conversations…"); });
         state->show();
     }
     call("conversation.list", params, [this, request, append, query, state](const QJsonObject &data, const QString &error) {
@@ -519,7 +537,7 @@ void MainWindow::refreshConversations(bool append)
         }
         if (!error.isEmpty()) {
             conversationLoading_ = false;
-            state->setText(tr("Conversation history could not load."));
+            live::message(state, [] { return tr("Conversation history could not load."); });
             state->show();
             showStatus(error, true);
             return;
@@ -604,8 +622,8 @@ void MainWindow::refreshConversations(bool append)
         } else if (excess) {
             conversationCursor_ = conversationList_->item(conversationList_->count() - 1)->data(IdRole).toString();
         }
-        state->setText(conversationSearch_->text().trimmed().isEmpty() ? tr("No conversations yet.")
-                                                                      : tr("No matching conversations."));
+        const bool filtered = !conversationSearch_->text().trimmed().isEmpty();
+        live::message(state, [filtered] { return filtered ? tr("No matching conversations.") : tr("No conversations yet."); });
         state->setVisible(conversationList_->count() == 0);
         conversationLoading_ = false;
     });

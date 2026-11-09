@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "live_text.h"
 #include "compact_text_edit.h"
 #include "full_row_table.h"
 #include "notification_center.h"
@@ -145,10 +146,10 @@ public:
         title_ = textLabel({}, "automationCardTitle");
         title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         header->addWidget(title_, 1);
-        run_ = new QPushButton(tr("Run now"));
+        run_ = live::text(new QPushButton, [] { return tr("Run now"); });
         run_->setObjectName("automationRun");
         header->addWidget(run_);
-        auto *more = new QPushButton(tr("Actions"));
+        auto *more = live::text(new QPushButton, [] { return tr("Actions"); });
         more->setObjectName("automationActions");
         header->addWidget(more);
         layout->addLayout(header);
@@ -162,13 +163,13 @@ public:
         state_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         layout->addWidget(state_);
         auto *menu = new QMenu(more);
-        edit_ = menu->addAction(tr("Edit definition"));
+        edit_ = live::text(menu->addAction(QString{}), [] { return tr("Edit definition"); });
         edit_->setObjectName("editAutomationDefinition");
         toggle_ = menu->addAction(tr("Pause"));
-        auto *history = menu->addAction(tr("Run history"));
+        auto *history = live::text(menu->addAction(QString{}), [] { return tr("Run history"); });
         history->setObjectName("showAutomationHistory");
         menu->addSeparator();
-        remove_ = menu->addAction(tr("Delete automation…"));
+        remove_ = live::text(menu->addAction(QString{}), [] { return tr("Delete automation…"); });
         remove_->setObjectName("deleteAutomationDefinition");
         more->setMenu(menu);
         connect(run_, &QPushButton::clicked, this, [this, action = std::move(runAction)] { action(record_); });
@@ -176,6 +177,7 @@ public:
         connect(toggle_, &QAction::triggered, this, [this, action = std::move(toggleAction)] { action(record_); });
         connect(history, &QAction::triggered, this, [this, action = std::move(historyAction)] { action(record_); });
         connect(remove_, &QAction::triggered, this, [this, action = std::move(deleteAction)] { action(record_); });
+        connect(&live::language(), &live::Language::changed, this, &AutomationCard::updateText);
     }
 
     void update(const QJsonObject &item, const QString &repository, bool online, bool pending)
@@ -188,6 +190,13 @@ public:
             return;
         record_ = item;
         repository_ = repository;
+        updateText();
+    }
+
+private:
+    void updateText()
+    {
+        const auto &item = record_;
         const auto name = item.value("name").toString();
         title_->setText(name);
         title_->setToolTip(name.toHtmlEscaped());
@@ -201,7 +210,7 @@ public:
             time = tr("Daily %1 · %2").arg(slot.toString("HH:mm"), trigger.value("timezone").toString());
         }
         const auto next = when(item.value("next_at"));
-        QStringList tags{repository, time};
+        QStringList tags{repository_, time};
         if (!next.isEmpty())
             tags.append(tr("Next %1").arg(next));
         tags.removeAll(QString());
@@ -243,14 +252,14 @@ QWidget *MainWindow::makeAutomations()
     panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     auto *top = new QHBoxLayout;
-    top->addWidget(textLabel(tr("Automations"), "heading"), 1);
-    auto *add = new QPushButton(tr("Add Automation"));
+    top->addWidget(live::text(textLabel({}, "heading"), [] { return tr("Automations"); }), 1);
+    auto *add = live::text(new QPushButton, [] { return tr("Add Automation"); });
     add->setObjectName("addAutomation");
     add->setProperty("primary", true);
-    add->setAccessibleName(tr("Add Automation"));
+    live::text(add, [] { return tr("Add Automation"); }, &QWidget::setAccessibleName);
     top->addWidget(add);
     layout->addLayout(top);
-    layout->addWidget(textLabel(tr("Manage local schedules and inspect run history."), "lead"));
+    layout->addWidget(live::text(textLabel({}, "lead"), [] { return tr("Manage local schedules and inspect run history."); }));
 
     auto *filterBar = new QWidget;
     filterBar->setObjectName("automationFilters");
@@ -260,18 +269,18 @@ QWidget *MainWindow::makeAutomations()
     automationSearch_ = new QLineEdit;
     automationSearch_->setObjectName("automationSearch");
     automationSearch_->setProperty("searchField", true);
-    automationSearch_->setPlaceholderText(tr("Search automations…"));
-    automationSearch_->setAccessibleName(tr("Search automations"));
+    live::placeholder(automationSearch_, [] { return tr("Search automations…"); });
+    live::text(automationSearch_, [] { return tr("Search automations"); }, &QWidget::setAccessibleName);
     automationSearch_->setClearButtonEnabled(true);
     automationFilter_ = new QComboBox;
-    automationFilter_->setAccessibleName(tr("Filter automation status"));
-    automationFilter_->addItem(tr("All statuses"), QString());
-    automationFilter_->addItem(tr("Active"), QStringLiteral("active"));
-    automationFilter_->addItem(tr("Inactive"), QStringLiteral("inactive"));
+    live::text(automationFilter_, [] { return tr("Filter automation status"); }, &QWidget::setAccessibleName);
+    live::item(automationFilter_, [] { return tr("All statuses"); }, QString());
+    live::item(automationFilter_, [] { return tr("Active"); }, QStringLiteral("active"));
+    live::item(automationFilter_, [] { return tr("Inactive"); }, QStringLiteral("inactive"));
     automationRepoFilter_ = new QPushButton(tr("All repositories"));
     automationRepoFilter_->setObjectName("automationRepoFilter");
-    automationRepoFilter_->setAccessibleName(tr("Filter automation repository"));
-    auto *refresh = new QPushButton(tr("Refresh"));
+    live::text(automationRepoFilter_, [] { return tr("Filter automation repository"); }, &QWidget::setAccessibleName);
+    auto *refresh = live::text(new QPushButton, [] { return tr("Refresh"); });
     refresh->setObjectName("refreshAutomations");
     refresh->setProperty("actionRole", "secondary");
     refresh->setIcon(uiIcon(UiIcon::Refresh));
@@ -280,7 +289,8 @@ QWidget *MainWindow::makeAutomations()
     filter->addWidget(automationRepoFilter_, 1, 1);
     filter->addWidget(refresh, 1, 2);
     layout->addWidget(filterBar);
-    automationState_ = textLabel(tr("Connect to load automations."), "meta");
+    automationState_ = textLabel({}, "meta");
+    live::message(automationState_, [] { return tr("Connect to load automations."); });
     automationState_->setObjectName("automationState");
     layout->addWidget(automationState_);
 
@@ -314,7 +324,7 @@ QWidget *MainWindow::makeAutomations()
     automationCards_->addStretch();
     automationScroll_->setWidget(contents);
     layout->addWidget(automationScroll_, 1);
-    automationMore_ = new QPushButton(tr("Load more"));
+    automationMore_ = live::text(new QPushButton, [] { return tr("Load more"); });
     automationMore_->hide();
     layout->addWidget(automationMore_, 0, Qt::AlignRight);
 
@@ -332,6 +342,10 @@ QWidget *MainWindow::makeAutomations()
     connect(automationMore_, &QPushButton::clicked, this, [this] { refreshAutomations(true); });
     connect(refresh, &QPushButton::clicked, this, [this] { refreshAutomations(); });
     connect(add, &QPushButton::clicked, this, [this] { editAutomation(); });
+    connect(&live::language(), &live::Language::changed, page, [this] {
+        updateAutomationRepositoryFilter();
+        renderAutomationCards();
+    });
     return page;
 }
 
@@ -347,7 +361,7 @@ void MainWindow::updateAutomationAvailability()
     automationSearch_->setEnabled(online_);
     automationMore_->setEnabled(online_);
     if (!online_) {
-        automationState_->setText(tr("Connect to load automations."));
+        live::message(automationState_, [] { return tr("Connect to load automations."); });
         automationState_->show();
     }
     renderAutomationCards();
@@ -368,7 +382,7 @@ void MainWindow::refreshAutomations(bool append)
     const auto request = ++automationRequest_;
     automationMore_->setEnabled(false);
     if (automations_.isEmpty()) {
-        automationState_->setText(tr("Loading automations…"));
+        live::message(automationState_, [] { return tr("Loading automations…"); });
         automationState_->show();
     }
     call("automation.list", params, [this, request, append](const QJsonObject &result, const QString &error) {
@@ -376,7 +390,7 @@ void MainWindow::refreshAutomations(bool append)
             return;
         automationMore_->setEnabled(true);
         if (!error.isEmpty()) {
-            automationState_->setText(tr("Automations could not load."));
+            live::message(automationState_, [] { return tr("Automations could not load."); });
             automationState_->show();
             showStatus(error, true);
             return;
@@ -389,8 +403,10 @@ void MainWindow::refreshAutomations(bool append)
         automationMore_->setVisible(morePages(automationCursor_));
         const bool filtered = !automationSearch_->text().trimmed().isEmpty()
             || !automationFilter_->currentData().toString().isEmpty() || !automationBindingFilter_.isEmpty();
-        automationState_->setText(filtered ? tr("No automations match these filters.")
-                                           : tr("No automations yet. Add a local automation to get started."));
+        live::message(automationState_, [filtered] {
+            return filtered ? tr("No automations match these filters.")
+                            : tr("No automations yet. Add a local automation to get started.");
+        });
         automationState_->setVisible(automations_.isEmpty());
         renderAutomationCards();
     });
@@ -510,6 +526,12 @@ void MainWindow::chooseAutomationFilter()
     if (choice == QDialog::Rejected)
         return;
     automationBindingFilter_ = choice == 2 ? QString() : picker->selection().first().toString();
+    updateAutomationRepositoryFilter();
+    refreshAutomations();
+}
+
+void MainWindow::updateAutomationRepositoryFilter()
+{
     auto name = tr("All repositories");
     for (const auto &value : repositories_) {
         const auto record = value.toObject();
@@ -520,7 +542,6 @@ void MainWindow::chooseAutomationFilter()
     }
     automationRepoFilter_->setText(automationRepoFilter_->fontMetrics().elidedText(name, Qt::ElideRight, 126));
     automationRepoFilter_->setToolTip(name.toHtmlEscaped());
-    refreshAutomations();
 }
 
 void MainWindow::editAutomation(const QJsonObject &existing)

@@ -403,6 +403,7 @@ Release %3
     <message><source>Apply</source><translation>应用</translation></message>
     <message><source>Unavailable: %1</source><translation>不可用：%1</translation></message>
     <message><source>Low contrast between background and text may make some content difficult to read.</source><translation>背景与文字的对比度较低，部分内容可能难以阅读。</translation></message>
+    <message><source>Changes the language of the open Dashboard.</source><translation>立即更改当前仪表板的语言。</translation></message>
   </context>
   <context>
     <name>NotificationCenter</name>
@@ -493,6 +494,10 @@ Release %3
     <message><source>Storage operation completed.</source><translation>存储操作已完成。</translation></message>
     <message><source>Compact local database</source><translation>压缩本地数据库</translation></message>
     <message><source>The last measurement found %1 in reusable database pages. Compaction may reclaim some space and can take time.</source><translation>上次统计发现可复用的数据库页占 %1。压缩可能释放部分空间，并需要一段时间。</translation></message>
+    <message><source>Local database</source><translation>本地数据库</translation></message>
+    <message><source>Check the database to reveal its location and reusable space.</source><translation>检查数据库以查看其位置和可回收空间。</translation></message>
+    <message><source>Backups and verification</source><translation>备份与验证</translation></message>
+    <message><source>Operation status</source><translation>操作状态</translation></message>
   </context>
   <context>
     <name>QDialogButtonBox</name>

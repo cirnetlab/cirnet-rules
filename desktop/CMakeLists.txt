@@ -10,6 +10,7 @@ add_library(cgacp-widgets STATIC
     src/main_window.cpp src/main_window.h
     src/settings.cpp src/settings_panels.cpp src/settings_panels.h
     src/theme.cpp src/theme.h
+    src/live_text.cpp src/live_text.h
     src/notification_center.cpp src/notification_center.h
     src/repositories.cpp src/conversations.cpp src/automations.cpp
     src/repository_picker.h src/compact_text_edit.h src/full_row_table.h
@@ -64,6 +65,8 @@ if(BUILD_TESTING)
     add_executable(cgacp-qt-tests tests/desktop_test.cpp tests/repository_cases.h)
     target_link_libraries(cgacp-qt-tests PRIVATE cgacp-widgets Qt6::Test)
     add_dependencies(cgacp-qt-tests cgacp-dashboard)
+    qt_add_resources(cgacp-qt-tests "test_i18n" PREFIX "/i18n" BASE "${CMAKE_CURRENT_BINARY_DIR}"
+        FILES "${CMAKE_CURRENT_BINARY_DIR}/cgacp_vi.qm" "${CMAKE_CURRENT_BINARY_DIR}/cgacp_zh_CN.qm")
     add_test(NAME cgacp.desktop COMMAND cgacp-qt-tests)
     set_tests_properties(cgacp.desktop PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CGACP_TEST_QM=${CMAKE_CURRENT_BINARY_DIR}/cgacp_vi.qm;CGACP_TEST_ZH_QM=${CMAKE_CURRENT_BINARY_DIR}/cgacp_zh_CN.qm"

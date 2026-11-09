@@ -1,26 +1,13 @@
 #include "build_info.h"
+#include "live_text.h"
 #include "main_window.h"
 #include "runtime_client.h"
 
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
-#include <QLocale>
 #include <QTimer>
-#include <QTranslator>
 #include <memory>
-
-namespace {
-QString supportedLanguage(QString locale)
-{
-    locale = locale.trimmed().toLower().replace(u'-', u'_');
-    if (locale == "vi" || locale == "vi_vn")
-        return QStringLiteral("vi");
-    if (locale == "zh" || locale == "zh_cn")
-        return QStringLiteral("zh_CN");
-    return QStringLiteral("en");
-}
-}
 
 int main(int argc, char **argv)
 {
@@ -43,7 +30,6 @@ int main(int argc, char **argv)
     if (parser.isSet(dataDir))
         arguments << QStringLiteral("--data-dir") << parser.value(dataDir);
     RuntimeClient runtime(RuntimeClient::siblingExecutable(), arguments);
-    QTranslator translator;
     std::unique_ptr<MainWindow> window;
     QObject bootstrap;
     QTimer languageDeadline;
@@ -54,12 +40,8 @@ int main(int argc, char **argv)
             return;
         languageDeadline.stop();
         QObject::disconnect(&runtime, nullptr, &bootstrap, nullptr);
-        const auto locale = supportedLanguage(requested);
-        if (locale != "en" && translator.load(QStringLiteral(":/i18n/cgacp_%1.qm").arg(locale))) {
-            QLocale::setDefault(QLocale(locale));
-            app.installTranslator(&translator);
-        }
-        window = std::make_unique<MainWindow>(runtime, nullptr, ready, startupError);
+        live::language().set(requested);
+        window = std::make_unique<MainWindow>(runtime, nullptr, ready, startupError, !parser.isSet(language));
         window->show();
     };
     if (parser.isSet(language)) {

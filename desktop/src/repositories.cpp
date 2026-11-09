@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "live_text.h"
 #include "full_row_table.h"
 
 #include <QAction>
@@ -184,17 +185,17 @@ QWidget *MainWindow::makeRepositories()
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(10);
-    layout->addWidget(plainLabel(tr("Repositories"), "heading"));
+    layout->addWidget(live::text(plainLabel({}, "heading"), [] { return tr("Repositories"); }));
 
     auto *tools = new QHBoxLayout;
     auto *add = new QToolButton;
     add->setObjectName("addRepository");
-    add->setText(tr("Add repository"));
+    live::text(add, [] { return tr("Add repository"); });
     add->setPopupMode(QToolButton::InstantPopup);
     auto *pickMenu = new QMenu(add);
-    auto *folder = pickMenu->addAction(tr("Select folder"));
+    auto *folder = live::text(pickMenu->addAction(QString{}), [] { return tr("Select folder"); });
     folder->setObjectName("selectRepositoryFolder");
-    auto *file = pickMenu->addAction(tr("Open from file"));
+    auto *file = live::text(pickMenu->addAction(QString{}), [] { return tr("Open from file"); });
     file->setObjectName("selectRepositoryFile");
     add->setMenu(pickMenu);
     auto *refresh = new QPushButton;
@@ -203,10 +204,10 @@ QWidget *MainWindow::makeRepositories()
     const auto refreshIcon = refresh->style()->standardIcon(QStyle::SP_BrowserReload);
     refresh->setIcon(refreshIcon);
     if (refreshIcon.isNull())
-        refresh->setText(tr("Refresh"));
-    refresh->setToolTip(tr("Refresh"));
-    refresh->setAccessibleName(tr("Refresh"));
-    repoArchived_ = new QCheckBox(tr("Show archived"));
+        live::text(refresh, [] { return tr("Refresh"); });
+    live::text(refresh, [] { return tr("Refresh"); }, &QWidget::setToolTip);
+    live::text(refresh, [] { return tr("Refresh"); }, &QWidget::setAccessibleName);
+    repoArchived_ = live::text(new QCheckBox, [] { return tr("Show archived"); });
     repoArchived_->setObjectName("repoShowArchived");
     tools->addWidget(add);
     tools->addWidget(refresh);
@@ -218,33 +219,35 @@ QWidget *MainWindow::makeRepositories()
     repoSearch_ = new QLineEdit;
     repoSearch_->setObjectName("repoSearch");
     repoSearch_->setProperty("searchField", true);
-    repoSearch_->setPlaceholderText(tr("Search name, path or branch"));
-    repoSearch_->setAccessibleName(tr("Search repositories"));
+    live::placeholder(repoSearch_, [] { return tr("Search name, path or branch"); });
+    live::text(repoSearch_, [] { return tr("Search repositories"); }, &QWidget::setAccessibleName);
     repoSearch_->setClearButtonEnabled(true);
     repoStateFilter_ = new QComboBox;
     repoStateFilter_->setObjectName("repoStateFilter");
-    repoStateFilter_->setAccessibleName(tr("Filter repository status"));
-    repoStateFilter_->addItem(tr("All statuses"), "all");
-    repoStateFilter_->addItem(tr("Active bindings"), "active");
-    repoStateFilter_->addItem(tr("Missing"), "missing");
-    repoStateFilter_->addItem(tr("Inaccessible"), "inaccessible");
-    repoStateFilter_->addItem(tr("Needs relink"), "rebind");
-    repoStateFilter_->addItem(tr("Archived"), "archived");
+    live::text(repoStateFilter_, [] { return tr("Filter repository status"); }, &QWidget::setAccessibleName);
+    live::item(repoStateFilter_, [] { return tr("All statuses"); }, "all");
+    live::item(repoStateFilter_, [] { return tr("Active bindings"); }, "active");
+    live::item(repoStateFilter_, [] { return tr("Missing"); }, "missing");
+    live::item(repoStateFilter_, [] { return tr("Inaccessible"); }, "inaccessible");
+    live::item(repoStateFilter_, [] { return tr("Needs relink"); }, "rebind");
+    live::item(repoStateFilter_, [] { return tr("Archived"); }, "archived");
     filters->addWidget(repoSearch_, 1);
     filters->addWidget(repoStateFilter_);
     layout->addLayout(filters);
 
     repositoryTable_ = new FullRowTable;
     repositoryTable_->setObjectName("repositoriesTable");
-    repositoryTable_->setAccessibleName(tr("Repository bindings"));
+    live::text(repositoryTable_, [] { return tr("Repository bindings"); }, &QWidget::setAccessibleName);
     repositoryTable_->setWordWrap(false);
     repositoryTable_->setTextElideMode(Qt::ElideMiddle);
     repositoryTable_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     repositoryTable_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     repositoryTable_->verticalHeader()->setVisible(false);
     repositoryModel_ = new QStandardItemModel(0, columnCount, repositoryTable_);
-    repositoryModel_->setHorizontalHeaderLabels({
-        tr("Repository"), tr("Local path"), tr("Worktree / branch"), tr("Health"), tr("Last used")
+    live::bind(repositoryModel_, [this] {
+        repositoryModel_->setHorizontalHeaderLabels({
+            tr("Repository"), tr("Local path"), tr("Worktree / branch"), tr("Health"), tr("Last used")
+        });
     });
     repositoryProxy_ = new RepositoryFilter(repositoryTable_);
     repositoryProxy_->setSourceModel(repositoryModel_);
@@ -263,35 +266,35 @@ QWidget *MainWindow::makeRepositories()
     layout->addWidget(repositoryTable_, 1);
 
     auto *actions = new QHBoxLayout;
-    repoSelect_ = new QPushButton(tr("Use binding"));
+    repoSelect_ = live::text(new QPushButton, [] { return tr("Use binding"); });
     repoSelect_->setObjectName("repoUseBinding");
     auto *moreActions = new QToolButton;
     moreActions->setObjectName("repoActions");
-    moreActions->setText(tr("Actions"));
+    live::text(moreActions, [] { return tr("Actions"); });
     moreActions->setPopupMode(QToolButton::InstantPopup);
     auto *actionMenu = new QMenu(moreActions);
-    auto *relink = actionMenu->addMenu(tr("Relink"));
+    auto *relink = live::text(actionMenu->addMenu(QString{}), [] { return tr("Relink"); }, &QMenu::setTitle);
     repoRelink_ = relink->menuAction();
-    auto *relinkFolder = relink->addAction(tr("Select folder"));
+    auto *relinkFolder = live::text(relink->addAction(QString{}), [] { return tr("Select folder"); });
     relinkFolder->setObjectName("repoRelinkFolder");
-    auto *relinkFile = relink->addAction(tr("Open from file"));
+    auto *relinkFile = live::text(relink->addAction(QString{}), [] { return tr("Open from file"); });
     relinkFile->setObjectName("repoRelinkFile");
-    repoRename_ = actionMenu->addAction(tr("Rename"));
+    repoRename_ = live::text(actionMenu->addAction(QString{}), [] { return tr("Rename"); });
     repoRename_->setObjectName("repoRename");
-    repoArchive_ = actionMenu->addAction(tr("Archive"));
+    repoArchive_ = live::text(actionMenu->addAction(QString{}), [] { return tr("Archive"); });
     repoArchive_->setObjectName("repoArchive");
     actionMenu->addSeparator();
-    repoCheck_ = actionMenu->addAction(tr("Check health"));
+    repoCheck_ = live::text(actionMenu->addAction(QString{}), [] { return tr("Check health"); });
     repoCheck_->setObjectName("repoCheckHealth");
-    repoCopy_ = actionMenu->addAction(tr("Copy path"));
+    repoCopy_ = live::text(actionMenu->addAction(QString{}), [] { return tr("Copy path"); });
     repoCopy_->setObjectName("repoCopyPath");
-    repoOpen_ = actionMenu->addAction(tr("Open folder"));
+    repoOpen_ = live::text(actionMenu->addAction(QString{}), [] { return tr("Open folder"); });
     repoOpen_->setObjectName("repoOpenFolder");
     actionMenu->addSeparator();
-    auto *resetColumns = actionMenu->addAction(tr("Reset columns"));
+    auto *resetColumns = live::text(actionMenu->addAction(QString{}), [] { return tr("Reset columns"); });
     resetColumns->setObjectName("repoResetColumns");
     moreActions->setMenu(actionMenu);
-    repoMore_ = new QPushButton(tr("Load more"));
+    repoMore_ = live::text(new QPushButton, [] { return tr("Load more"); });
     repoMore_->setObjectName("repoLoadMore");
     actions->addWidget(repoSelect_);
     actions->addWidget(moreActions);
@@ -300,7 +303,8 @@ QWidget *MainWindow::makeRepositories()
     repoMore_->hide();
     layout->addLayout(actions);
 
-    repoSummary_ = plainLabel(tr("Repository catalog is unavailable."), "repoSummary");
+    repoSummary_ = plainLabel({}, "repoSummary");
+    live::message(repoSummary_, [] { return tr("Repository catalog is unavailable."); });
     repoSummary_->setProperty("tone", "muted");
     repoSummary_->setWordWrap(true);
     layout->addWidget(repoSummary_);
@@ -308,7 +312,7 @@ QWidget *MainWindow::makeRepositories()
     repoDetails_->setWordWrap(true);
     repoDetails_->hide();
     layout->addWidget(repoDetails_);
-    auto *limit = plainLabel(tr("Repository registration makes a binding available. Task scope and write approval are separate."), "meta");
+    auto *limit = live::text(plainLabel({}, "meta"), [] { return tr("Repository registration makes a binding available. Task scope and write approval are separate."); });
     limit->setWordWrap(true);
     layout->addWidget(limit);
 
@@ -494,7 +498,7 @@ void MainWindow::ensureRepositoryCatalog(std::function<void(bool)> done)
 void MainWindow::fetchRepositoryPage()
 {
     repoMore_->setEnabled(false);
-    repoSummary_->setText(tr("Loading repository bindings…"));
+    live::message(repoSummary_, [] { return tr("Loading repository bindings…"); });
     QJsonObject args{{"include_archived", true}, {"limit", pageSize}};
     if (hasCursor(repoIncomingCursor_))
         args.insert("after", repoIncomingCursor_);
@@ -508,7 +512,7 @@ void MainWindow::fetchRepositoryPage()
         if (!valid) {
             repoLoading_ = false;
             repoMore_->setEnabled(true);
-            repoSummary_->setText(tr("The repository catalog could not be refreshed. Previously loaded rows are retained."));
+            live::message(repoSummary_, [] { return tr("The repository catalog could not be refreshed. Previously loaded rows are retained."); });
             showStatus(error.isEmpty() ? tr("The runtime returned an invalid catalog page.") : error, true);
             auto waiters = std::exchange(repoWaiters_, {});
             QTimer::singleShot(0, this, [waiters = std::move(waiters)] {
@@ -631,8 +635,10 @@ void MainWindow::applyRepositoryFilter()
     restoreRepositoryScroll();
     repoMore_->setVisible(!repoComplete_ && hasCursor(repoCursor_));
     if (!repoLoading_ && (repoComplete_ || !repositories_.isEmpty())) {
-        const auto shown = tr("%1 shown · %2 loaded").arg(repositoryProxy_->rowCount()).arg(repositories_.size());
-        repoSummary_->setText(repoComplete_ ? shown : tr("%1 · Search covers loaded rows.").arg(shown));
+        live::message(repoSummary_, [visible = repositoryProxy_->rowCount(), loaded = repositories_.size(), complete = repoComplete_] {
+            const auto shown = tr("%1 shown · %2 loaded").arg(visible).arg(loaded);
+            return complete ? shown : tr("%1 · Search covers loaded rows.").arg(shown);
+        });
     }
     updateRepositoryActions();
 }

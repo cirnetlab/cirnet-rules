@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "live_text.h"
 #include "build_info.h"
 #include "notification_center.h"
 #include "settings_panels.h"
@@ -158,9 +159,13 @@ protected:
         auto border = colors.color(QPalette::WindowText);
         border.setAlpha(55);
         const auto surface = colors.color(underMouse() || isDown() ? QPalette::Button : QPalette::Base);
+        const bool keyboardFocus = property("keyboardFocusVisible").toBool();
+        const int outline = keyboardFocus ? 3 : isChecked() ? 2 : 1;
         painter.setBrush(surface);
-        painter.setPen(QPen(isChecked() ? colors.color(QPalette::Highlight) : border, isChecked() ? 2 : 1));
-        painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 12, 12);
+        painter.setPen(QPen(keyboardFocus ? colors.color(QPalette::Link)
+                                          : isChecked() ? colors.color(QPalette::Highlight) : border, outline));
+        const auto inset = outline / 2.0;
+        painter.drawRoundedRect(QRectF(rect()).adjusted(inset, inset, -inset, -inset), 12, 12);
 
         const QRectF preview(8, 8, width() - 16, 42);
         QPainterPath clip;
@@ -184,11 +189,6 @@ protected:
         painter.setPen(colors.color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::WindowText));
         painter.drawText(QRect(6, 54, width() - 12, height() - 58),
                          Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap, text());
-        if (property("keyboardFocusVisible").toBool()) {
-            painter.setPen(QPen(colors.color(QPalette::WindowText), 1, Qt::DotLine));
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(QRectF(rect()).adjusted(4, 4, -4, -4), 6, 6);
-        }
     }
 
 private:
@@ -379,9 +379,9 @@ private:
 
 class AppearanceColorField final : public QFrame {
 public:
-    AppearanceColorField(const QString &valueName, const QString &title, QPalette::ColorRole role,
+    AppearanceColorField(const QString &valueName, live::Phrase title, QPalette::ColorRole role,
                          bool clearable, std::function<void()> change)
-        : title_(title), role_(role), clearable_(clearable), change_(std::move(change))
+        : title_(std::move(title)), role_(role), clearable_(clearable), change_(std::move(change))
     {
         setObjectName("appearanceSwatch");
         auto *row = new QHBoxLayout(this);
@@ -392,15 +392,18 @@ public:
         dot_->setFixedSize(26, 26);
         dot_->setIconSize({16, 16});
         dot_->setStyleSheet(QStringLiteral("QToolButton { padding: 0; }"));
-        dot_->setAccessibleName(MainWindow::tr("Choose %1").arg(title));
-        dot_->setToolTip(dot_->accessibleName());
         row->addWidget(dot_);
         value_ = new QLineEdit;
         value_->setObjectName(valueName);
-        value_->setAccessibleName(title);
-        value_->setToolTip(clearable
-            ? MainWindow::tr("Enter a six-digit hexadecimal color. Clear the field to use the theme color.")
-            : MainWindow::tr("Enter a six-digit hexadecimal color."));
+        live::bind(this, [this] {
+            const auto title = title_();
+            dot_->setAccessibleName(MainWindow::tr("Choose %1").arg(title));
+            dot_->setToolTip(dot_->accessibleName());
+            value_->setAccessibleName(title);
+            value_->setToolTip(clearable_
+                ? MainWindow::tr("Enter a six-digit hexadecimal color. Clear the field to use the theme color.")
+                : MainWindow::tr("Enter a six-digit hexadecimal color."));
+        });
         value_->setMaxLength(7);
         value_->setValidator(new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^#?[A-Fa-f0-9]{0,6}$")), value_));
         value_->setStyleSheet(QStringLiteral(
@@ -489,7 +492,7 @@ private:
         auto *layout = new QVBoxLayout(picker);
         layout->setContentsMargins(12, 10, 12, 10);
         layout->setSpacing(8);
-        layout->addWidget(label(title_, "sectionTitle"));
+        layout->addWidget(label(title_(), "sectionTitle"));
         const auto seed = effectiveColor();
         auto *preview = label(seed.name().toUpper(), "meta");
         auto update = [preview](ColorRamp *plane, ColorRamp *hue, PickerColor color) {
@@ -551,7 +554,7 @@ private:
         plane->setFocus();
     }
 
-    QString title_;
+    live::Phrase title_;
     QPalette::ColorRole role_;
     bool clearable_;
     std::function<void()> change_;
@@ -568,7 +571,7 @@ QFrame *settingsGroup()
     return group;
 }
 
-void addSettingRow(QGridLayout &rows, int row, const QString &name, const QString &description, QWidget *control)
+void addSettingRow(QGridLayout &rows, int row, live::Phrase name, live::Phrase description, QWidget *control)
 {
     if (row > 0) {
         auto *line = new QFrame;
@@ -578,12 +581,12 @@ void addSettingRow(QGridLayout &rows, int row, const QString &name, const QStrin
     }
     auto *copy = new QVBoxLayout;
     copy->setSpacing(2);
-    auto *heading = label(name, "sectionTitle");
+    auto *heading = live::text(label({}, "sectionTitle"), std::move(name));
     if (control->focusPolicy() != Qt::NoFocus)
         heading->setBuddy(control);
     copy->addWidget(heading);
-    if (!description.isEmpty())
-        copy->addWidget(label(description, "meta"));
+    if (description)
+        copy->addWidget(live::text(label({}, "meta"), std::move(description)));
     rows.addLayout(copy, row * 2, 0);
     rows.addWidget(control, row * 2, 1, Qt::AlignRight | Qt::AlignVCenter);
 }
@@ -605,15 +608,15 @@ QWidget *MainWindow::makeAppearanceSettings()
     layout->setSpacing(14);
 
     auto *header = new QHBoxLayout;
-    header->addWidget(label(tr("Appearance"), "heading"), 1);
-    appearanceReset_ = new QPushButton(tr("Reset default"));
+    header->addWidget(live::text(label({}, "heading"), [] { return tr("Appearance"); }), 1);
+    appearanceReset_ = live::text(new QPushButton, [] { return tr("Reset default"); });
     appearanceReset_->setObjectName("resetAppearanceDefault");
     appearanceReset_->setProperty("actionRole", "secondary");
     appearanceReset_->hide();
     header->addWidget(appearanceReset_);
     layout->addLayout(header);
     layout->addSpacing(10);
-    layout->addWidget(label(tr("Visual style"), "sectionTitle"));
+    layout->addWidget(live::text(label({}, "sectionTitle"), [] { return tr("Visual style"); }));
 
     auto *modePanel = settingsGroup();
     auto *mode = new QFormLayout(modePanel);
@@ -627,16 +630,21 @@ QWidget *MainWindow::makeAppearanceSettings()
     previews->setSpacing(8);
     previews->addStretch();
     themeChoice_ = new QButtonGroup(appearance);
-    const auto addMode = [this, previews](const QString &title, const QString &key, const QString &name) {
-        auto *tile = new ThemeTile(title, key, name);
+    const auto addMode = [this, previews](live::Phrase title, const QString &key, const QString &name) {
+        auto *tile = new ThemeTile({}, key, name);
+        live::bind(tile, [tile, title = std::move(title)] {
+            const auto label = title();
+            tile->setText(label);
+            tile->setAccessibleName(label);
+        });
         themeChoice_->addButton(tile);
         previews->addWidget(tile);
     };
-    addMode(tr("System"), "system", "themeSystem");
-    addMode(tr("Light"), "light", "themeLight");
-    addMode(tr("Dark"), "dark", "themeDark");
+    addMode([] { return tr("System"); }, "system", "themeSystem");
+    addMode([] { return tr("Light"); }, "light", "themeLight");
+    addMode([] { return tr("Dark"); }, "dark", "themeDark");
     selectTheme(*themeChoice_, defaultAppearance.value("theme").toString());
-    mode->addRow(label(tr("Mode"), "sectionTitle"), tiles);
+    mode->addRow(live::text(label({}, "sectionTitle"), [] { return tr("Mode"); }), tiles);
     layout->addWidget(modePanel);
 
     const auto makeCard = [](QVBoxLayout &destination) {
@@ -656,19 +664,19 @@ QWidget *MainWindow::makeAppearanceSettings()
     };
     accentChoice_ = new QComboBox;
     accentChoice_->setObjectName("accentChoice");
-    accentChoice_->setAccessibleName(tr("Accent"));
+    live::text(accentChoice_, [] { return tr("Accent"); }, &QWidget::setAccessibleName);
     accentChoice_->setIconSize({16, 16});
     accentChoice_->setItemDelegate(new AppearanceChoiceDelegate(accentChoice_));
-    accentChoice_->addItem(tr("CIRNET teal"), "cirnet");
-    accentChoice_->addItem(tr("Cobalt blue"), "cobalt");
-    accentChoice_->addItem(tr("Green"), "green");
-    accentChoice_->addItem(tr("Yellow"), "yellow");
-    accentChoice_->addItem(tr("Pink"), "pink");
-    accentChoice_->addItem(tr("Orange"), "orange");
-    accentChoice_->addItem(tr("Purple"), "purple");
-    accentChoice_->addItem(tr("White"), "white");
-    accentChoice_->addItem(tr("Custom"), "custom");
-    accentColor_ = new AppearanceColorField("appearanceAccentColor", tr("Custom accent"),
+    live::item(accentChoice_, [] { return tr("CIRNET teal"); }, "cirnet");
+    live::item(accentChoice_, [] { return tr("Cobalt blue"); }, "cobalt");
+    live::item(accentChoice_, [] { return tr("Green"); }, "green");
+    live::item(accentChoice_, [] { return tr("Yellow"); }, "yellow");
+    live::item(accentChoice_, [] { return tr("Pink"); }, "pink");
+    live::item(accentChoice_, [] { return tr("Orange"); }, "orange");
+    live::item(accentChoice_, [] { return tr("Purple"); }, "purple");
+    live::item(accentChoice_, [] { return tr("White"); }, "white");
+    live::item(accentChoice_, [] { return tr("Custom"); }, "custom");
+    accentColor_ = new AppearanceColorField("appearanceAccentColor", [] { return tr("Custom accent"); },
                                             QPalette::Highlight, false, colorChange);
     accentColor_->hide();
     auto *accentRow = new QWidget;
@@ -685,12 +693,12 @@ QWidget *MainWindow::makeAppearanceSettings()
             accentColor_->load(QApplication::palette().color(QPalette::Highlight).name());
         accentColor_->setVisible(custom);
     });
-    backgroundColor_ = new AppearanceColorField("appearanceBackground", tr("Background"),
+    backgroundColor_ = new AppearanceColorField("appearanceBackground", [] { return tr("Background"); },
                                                 QPalette::Window, true, colorChange);
-    foregroundColor_ = new AppearanceColorField("appearanceForeground", tr("Foreground"),
+    foregroundColor_ = new AppearanceColorField("appearanceForeground", [] { return tr("Foreground"); },
                                                 QPalette::WindowText, true, colorChange);
-    auto *contrast = label(tr("Low contrast between background and text may make some content difficult to read."),
-                           "meta");
+    auto *contrast = live::text(label({},
+                           "meta"), [] { return tr("Low contrast between background and text may make some content difficult to read."); });
     contrast->setObjectName("appearanceContrastWarning");
     const auto refreshColors = [this, contrast] {
         const auto palette = QApplication::palette();
@@ -713,9 +721,9 @@ QWidget *MainWindow::makeAppearanceSettings()
     connect(theme_, &ThemeManager::changed, appearance, refreshColors);
     uiFontChoice_ = new QComboBox;
     uiFontChoice_->setObjectName("uiFontChoice");
-    uiFontChoice_->setAccessibleName(tr("Interface font"));
-    uiFontChoice_->addItem(tr("System"), "system");
-    uiFontChoice_->addItem(tr("Monospace"), "monospace");
+    live::text(uiFontChoice_, [] { return tr("Interface font"); }, &QWidget::setAccessibleName);
+    live::item(uiFontChoice_, [] { return tr("System"); }, "system");
+    live::item(uiFontChoice_, [] { return tr("Monospace"); }, "monospace");
     uiFontChoice_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     uiFontChoice_->setMinimumContentsLength(12);
     uiFontChoice_->setMaxVisibleItems(12);
@@ -728,17 +736,17 @@ QWidget *MainWindow::makeAppearanceSettings()
         uiFontChoice_->setItemData(uiFontChoice_->count() - 1, family, installedFontRole);
         uiFontChoice_->setItemData(uiFontChoice_->count() - 1, family, Qt::ToolTipRole);
     }
-    addSettingRow(*visual, 0, tr("&Accent"), {}, accentRow);
-    addSettingRow(*visual, 1, tr("Background"), {}, backgroundColor_);
-    addSettingRow(*visual, 2, tr("Foreground"), {}, foregroundColor_);
-    addSettingRow(*visual, 3, tr("Interface &font"), {}, uiFontChoice_);
+    addSettingRow(*visual, 0, [] { return tr("&Accent"); }, {}, accentRow);
+    addSettingRow(*visual, 1, [] { return tr("Background"); }, {}, backgroundColor_);
+    addSettingRow(*visual, 2, [] { return tr("Foreground"); }, {}, foregroundColor_);
+    addSettingRow(*visual, 3, [] { return tr("Interface &font"); }, {}, uiFontChoice_);
     visual->addWidget(contrast, 7, 0, 1, 2);
     refreshColors();
 
     appearanceAdvancedToggle_ = new QToolButton;
     appearanceAdvancedToggle_->setObjectName("appearanceAdvancedToggle");
-    appearanceAdvancedToggle_->setText(tr("Advanced"));
-    appearanceAdvancedToggle_->setAccessibleDescription(tr("Show or hide advanced appearance settings."));
+    live::text(appearanceAdvancedToggle_, [] { return tr("Advanced"); });
+    live::text(appearanceAdvancedToggle_, [] { return tr("Show or hide advanced appearance settings."); }, &QWidget::setAccessibleDescription);
     appearanceAdvancedToggle_->setCheckable(true);
     appearanceAdvancedToggle_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     appearanceAdvancedToggle_->setArrowType(Qt::RightArrow);
@@ -751,40 +759,40 @@ QWidget *MainWindow::makeAppearanceSettings()
     advancedLayout->setContentsMargins(0, 0, 0, 0);
     advancedLayout->setSpacing(14);
     auto *typography = makeCard(*advancedLayout);
-    const auto pixelControl = [](const char *name, const QString &title, int minimum, int maximum, int value) {
+    const auto pixelControl = [](const char *name, live::Phrase title, int minimum, int maximum, int value) {
         auto *control = new QSpinBox;
         control->setObjectName(QLatin1StringView(name));
-        control->setAccessibleName(title);
+        live::text(control, std::move(title), &QWidget::setAccessibleName);
         control->setRange(minimum, maximum);
         control->setValue(value);
         control->setSuffix(QStringLiteral(" px"));
         return control;
     };
-    textScale_ = pixelControl("textScale", tr("Interface text size"), 10, 26, baseTextPixels);
-    contentScaleChoice_ = pixelControl("contentScaleChoice", tr("Conversation text size"), 10, 26, baseTextPixels);
-    codeScaleChoice_ = pixelControl("codeScaleChoice", tr("Code text size"), 10, 26, baseTextPixels);
-    addSettingRow(*typography, 0, tr("&Interface text size"),
-                  tr("Scale text throughout the desktop."), textScale_);
-    addSettingRow(*typography, 1, tr("&Conversation text size"),
-                  tr("Scale the transcript and composer independently."), contentScaleChoice_);
-    addSettingRow(*typography, 2, tr("Code text si&ze"),
-                  tr("Scale monospaced diagnostics and structured details."), codeScaleChoice_);
+    textScale_ = pixelControl("textScale", [] { return tr("Interface text size"); }, 10, 26, baseTextPixels);
+    contentScaleChoice_ = pixelControl("contentScaleChoice", [] { return tr("Conversation text size"); }, 10, 26, baseTextPixels);
+    codeScaleChoice_ = pixelControl("codeScaleChoice", [] { return tr("Code text size"); }, 10, 26, baseTextPixels);
+    addSettingRow(*typography, 0, [] { return tr("&Interface text size"); },
+                  [] { return tr("Scale text throughout the desktop."); }, textScale_);
+    addSettingRow(*typography, 1, [] { return tr("&Conversation text size"); },
+                  [] { return tr("Scale the transcript and composer independently."); }, contentScaleChoice_);
+    addSettingRow(*typography, 2, [] { return tr("Code text si&ze"); },
+                  [] { return tr("Scale monospaced diagnostics and structured details."); }, codeScaleChoice_);
 
     auto *interaction = makeCard(*advancedLayout);
-    densityChoice_ = pixelControl("densityChoice", tr("Density"), 2, 14, baseDensityPixels);
+    densityChoice_ = pixelControl("densityChoice", [] { return tr("Density"); }, 2, 14, baseDensityPixels);
     languageChoice_ = new QComboBox;
     languageChoice_->setObjectName("languageChoice");
-    languageChoice_->setAccessibleName(tr("Language"));
+    live::text(languageChoice_, [] { return tr("Language"); }, &QWidget::setAccessibleName);
     languageChoice_->addItem(QStringLiteral("English"), "en");
     languageChoice_->addItem(QStringLiteral("Tiếng Việt"), "vi");
     languageChoice_->addItem(QStringLiteral("简体中文"), "zh_CN");
     reducedMotion_ = new QCheckBox;
     reducedMotion_->setObjectName("reducedMotion");
-    reducedMotion_->setAccessibleName(tr("Reduced motion"));
-    addSettingRow(*interaction, 0, tr("&Density"), tr("Adjust the spacing between controls."), densityChoice_);
-    addSettingRow(*interaction, 1, tr("Language"), tr("Language changes take effect after reopening CGACP."), languageChoice_);
-    addSettingRow(*interaction, 2, tr("&Reduced motion"),
-                  tr("Skip motion effects while keeping visual feedback."), reducedMotion_);
+    live::text(reducedMotion_, [] { return tr("Reduced motion"); }, &QWidget::setAccessibleName);
+    addSettingRow(*interaction, 0, [] { return tr("&Density"); }, [] { return tr("Adjust the spacing between controls."); }, densityChoice_);
+    addSettingRow(*interaction, 1, [] { return tr("Language"); }, [] { return tr("Changes the language of the open Dashboard."); }, languageChoice_);
+    addSettingRow(*interaction, 2, [] { return tr("&Reduced motion"); },
+                  [] { return tr("Skip motion effects while keeping visual feedback."); }, reducedMotion_);
     advanced->hide();
     layout->addWidget(advanced);
     connect(appearanceAdvancedToggle_, &QToolButton::toggled, advanced, [this, advanced](bool expanded) {
@@ -794,6 +802,8 @@ QWidget *MainWindow::makeAppearanceSettings()
 
     connect(appearanceReset_, &QPushButton::clicked, this, [this] {
         applyAppearanceControls(defaultAppearance);
+        followSavedLanguage_ = true;
+        live::language().set(languageChoice_->currentData().toString());
         applyAppearance();
         schedulePreferencesSave();
     });
@@ -815,29 +825,29 @@ QWidget *MainWindow::makeSettings()
     auto *categories = new QVBoxLayout(sidebar);
     categories->setContentsMargins(12, 18, 12, 12);
     categories->setSpacing(12);
-    categories->addWidget(label(tr("Settings"), "heading"));
+    categories->addWidget(live::text(label({}, "heading"), [] { return tr("Settings"); }));
     settingsSearch_ = new QLineEdit;
     settingsSearch_->setObjectName("settingsSearch");
     settingsSearch_->setProperty("searchField", true);
-    settingsSearch_->setPlaceholderText(tr("Search settings"));
-    settingsSearch_->setAccessibleName(tr("Search settings"));
+    live::placeholder(settingsSearch_, [] { return tr("Search settings"); });
+    live::text(settingsSearch_, [] { return tr("Search settings"); }, &QWidget::setAccessibleName);
     settingsSearch_->setClearButtonEnabled(true);
     categories->addWidget(settingsSearch_);
     settingsNavigation_ = new QListWidget;
     settingsNavigation_->setObjectName("settingsNavigation");
-    settingsNavigation_->setAccessibleName(tr("Settings section"));
+    live::text(settingsNavigation_, [] { return tr("Settings section"); }, &QWidget::setAccessibleName);
     settingsNavigation_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     settingsNavigation_->setTextElideMode(Qt::ElideRight);
     categories->addWidget(settingsNavigation_, 1);
-    auto *noResults = label(tr("No matching settings."), "meta");
+    auto *noResults = live::text(label({}, "meta"), [] { return tr("No matching settings."); });
     noResults->hide();
     categories->addWidget(noResults);
-    auto *back = new QPushButton(tr("Back"));
+    auto *back = live::text(new QPushButton, [] { return tr("Back"); });
     back->setObjectName("settingsBack");
     back->setIcon(uiIcon(UiIcon::Back));
     back->setProperty("actionRole", "secondary");
-    back->setAccessibleName(tr("Back to workspace"));
-    back->setToolTip(tr("Back to workspace"));
+    live::text(back, [] { return tr("Back to workspace"); }, &QWidget::setAccessibleName);
+    live::text(back, [] { return tr("Back to workspace"); }, &QWidget::setToolTip);
     connect(back, &QPushButton::clicked, this, &MainWindow::closeSettings);
     categories->addWidget(back);
     shell->addWidget(sidebar);
@@ -853,43 +863,47 @@ QWidget *MainWindow::makeSettings()
     layout->addWidget(settingsPages_, 1);
     shell->addWidget(content, 1);
     settingsNavigation_->setIconSize(QSize(17, 17));
-    const auto section = [this](const QString &title, const QString &key, const QString &keywords, QWidget *panel) {
+    const auto section = [this](live::Phrase title, const QString &key, live::Phrase keywords, QWidget *panel) {
         static const QHash<QString, UiIcon> icons{
             {"appearance", UiIcon::Appearance}, {"repositories", UiIcon::Folder},
             {"runtime", UiIcon::Runtime}, {"configuration", UiIcon::Sliders},
             {"storage", UiIcon::Storage}, {"archived", UiIcon::Archive},
             {"notifications", UiIcon::Bell}, {"about", UiIcon::Info}
         };
-        auto *item = new QListWidgetItem(uiIcon(icons.value(key, UiIcon::Settings)), title, settingsNavigation_);
+        auto *item = new QListWidgetItem(uiIcon(icons.value(key, UiIcon::Settings)), {}, settingsNavigation_);
         item->setData(Qt::UserRole, key);
-        item->setData(Qt::UserRole + 1, title + ' ' + keywords);
-        item->setToolTip(title);
+        live::bind(settingsNavigation_, [item, title = std::move(title), keywords = std::move(keywords)] {
+            const auto label = title();
+            item->setText(label);
+            item->setData(Qt::UserRole + 1, label + ' ' + keywords());
+            item->setToolTip(label);
+        });
         settingsPages_->addWidget(panel);
     };
 
-    const QStringList appearanceSearchTerms{
+    const auto appearanceSearchTerms = [] { return QStringList{
         tr("Theme mode"), tr("Density"), tr("Text size"), tr("Interface text size"),
         tr("Conversation text size"), tr("Code text size"), tr("Reduced motion"),
         tr("System"), tr("Light"), tr("Dark"), tr("Accent"), tr("Interface font"),
         tr("Advanced"), tr("Background"), tr("Foreground"), tr("Reset default"), tr("Language"),
-    };
-    section(tr("Appearance"), "appearance", appearanceSearchTerms.join(u' '), makeAppearanceSettings());
-    section(tr("Repositories"), "repositories", tr("binding folder path worktree relink archive"), repositoriesPage_);
+    }.join(u' '); };
+    section([] { return tr("Appearance"); }, "appearance", appearanceSearchTerms, makeAppearanceSettings());
+    section([] { return tr("Repositories"); }, "repositories", [] { return tr("binding folder path worktree relink archive"); }, repositoriesPage_);
 
     auto *runtime = new QWidget;
     auto *runtimeLayout = new QVBoxLayout(runtime);
     runtimeLayout->setContentsMargins(2, 8, 2, 8);
-    runtimeLayout->addWidget(label(tr("Agents & Runtime"), "heading"));
+    runtimeLayout->addWidget(live::text(label({}, "heading"), [] { return tr("Agents & Runtime"); }));
     runtimeStatus_ = label({}, "runtimeState");
     runtimeCapabilities_ = label({}, "runtimeCapabilities");
     runtimeLayout->addWidget(runtimeStatus_);
     runtimeLayout->addWidget(runtimeCapabilities_);
     auto *runtimeActions = new QHBoxLayout;
-    reconnect_ = new QPushButton(tr("Reconnect"));
+    reconnect_ = live::text(new QPushButton, [] { return tr("Reconnect"); });
     reconnect_->setObjectName("reconnectRuntime");
     runtimeActions->addWidget(reconnect_);
     connect(reconnect_, &QPushButton::clicked, this, &MainWindow::reconnectRuntime);
-    auto *diagnostics = new QPushButton(tr("Diagnostics"));
+    auto *diagnostics = live::text(new QPushButton, [] { return tr("Diagnostics"); });
     diagnostics->setObjectName("runtimeDiagnostics");
     runtimeActions->addWidget(diagnostics);
     runtimeActions->addStretch();
@@ -917,22 +931,22 @@ QWidget *MainWindow::makeSettings()
         dialog.resize(480, 300);
         dialog.exec();
     });
-    section(tr("Agents & Runtime"), "runtime", tr("connection reconnect diagnostics capability"), scrollPanel(runtime));
+    section([] { return tr("Agents & Runtime"); }, "runtime", [] { return tr("connection reconnect diagnostics capability"); }, scrollPanel(runtime));
 
     auto *configuration = new QWidget;
     configuration->setObjectName("configurationPage");
     auto *configurationLayout = new QVBoxLayout(configuration);
-    configurationLayout->addWidget(label(tr("Configuration"), "heading"));
+    configurationLayout->addWidget(live::text(label({}, "heading"), [] { return tr("Configuration"); }));
     auto *controlsPanel = settingsGroup();
     auto *configurationRows = new QGridLayout(controlsPanel);
     configurationRows->setColumnStretch(0, 1);
     auto *agentInspect = new QComboBox;
     agentInspect->setObjectName("configurationAdapter");
-    agentInspect->setAccessibleName(tr("Inspect adapter"));
+    live::text(agentInspect, [] { return tr("Inspect adapter"); }, &QWidget::setAccessibleName);
     agentInspect->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     agentInspect->setMinimumContentsLength(14);
-    addSettingRow(*configurationRows, 0, tr("Inspect &adapter"),
-                  tr("View the capability reported by the local runtime."), agentInspect);
+    addSettingRow(*configurationRows, 0, [] { return tr("Inspect &adapter"); },
+                  [] { return tr("View the capability reported by the local runtime."); }, agentInspect);
     auto *capabilityDetails = label({}, "configurationCapability");
     capabilityDetails->setTextInteractionFlags(Qt::TextSelectableByMouse);
     configurationRows->addWidget(capabilityDetails, 1, 0, 1, 2);
@@ -940,9 +954,9 @@ QWidget *MainWindow::makeSettings()
     limits->setTextInteractionFlags(Qt::TextSelectableByMouse);
     configurationRows->addWidget(limits, 2, 0, 1, 2);
     configurationLayout->addWidget(controlsPanel);
-    configurationLayout->addWidget(label(tr("The desktop requests local handoff. Approval, scope, and execution permissions come from runtime policy and task grants."), "lead"));
-    configurationLayout->addWidget(label(tr("Native execution, provider settings, and global Agent configuration are unavailable here."), "meta"));
-    auto *configurationDiagnostics = new QPushButton(tr("Diagnostics"));
+    configurationLayout->addWidget(live::text(label({}, "lead"), [] { return tr("The desktop requests local handoff. Approval, scope, and execution permissions come from runtime policy and task grants."); }));
+    configurationLayout->addWidget(live::text(label({}, "meta"), [] { return tr("Native execution, provider settings, and global Agent configuration are unavailable here."); }));
+    auto *configurationDiagnostics = live::text(new QPushButton, [] { return tr("Diagnostics"); });
     configurationDiagnostics->setObjectName("configurationDiagnostics");
     configurationLayout->addWidget(configurationDiagnostics, 0, Qt::AlignLeft);
     connect(configurationDiagnostics, &QPushButton::clicked, diagnostics, &QPushButton::click);
@@ -953,14 +967,14 @@ QWidget *MainWindow::makeSettings()
             .arg(online_ ? uiStatusLabel(native.value(adapter).toString(tr("Unavailable"))) : tr("Unavailable")));
     });
     configurationLayout->addStretch();
-    section(tr("Configuration"), "configuration", tr("agent profile approval sandbox scope permission"), scrollPanel(configuration));
+    section([] { return tr("Configuration"); }, "configuration", [] { return tr("agent profile approval sandbox scope permission"); }, scrollPanel(configuration));
 
     const SettingsRequest request = [this](const QString &method, QJsonObject params, RuntimeClient::Reply reply) {
         call(method, std::move(params), std::move(reply));
     };
-    section(tr("Storage"), "storage", tr("chat message usage backup verify compact data folder"),
+    section([] { return tr("Storage"); }, "storage", [] { return tr("chat message usage backup verify compact data folder"); },
             scrollPanel(makeStorageSettings(client_, *this, request)));
-    section(tr("Archived chats"), "archived", tr("conversation search unarchive restore delete"),
+    section([] { return tr("Archived chats"); }, "archived", [] { return tr("conversation search unarchive restore delete"); },
             makeArchivedChats(request, [this] { return repositories_; }, [this] { refreshConversations(); },
             [this](const QString &id, std::function<void(bool)> complete) {
                 deleteConversationData(id, {}, std::move(complete));
@@ -969,49 +983,49 @@ QWidget *MainWindow::makeSettings()
     auto *notices = new QWidget;
     auto *noticesLayout = new QVBoxLayout(notices);
     noticesLayout->setContentsMargins(2, 8, 2, 8);
-    noticesLayout->addWidget(label(tr("Notifications"), "heading"));
+    noticesLayout->addWidget(live::text(label({}, "heading"), [] { return tr("Notifications"); }));
     auto *noticeControls = new QHBoxLayout;
     notificationChoice_ = new QComboBox;
     notificationChoice_->setObjectName("notificationLevel");
-    notificationChoice_->setAccessibleName(tr("Toast level"));
-    notificationChoice_->addItem(tr("All toasts"), "all");
-    notificationChoice_->addItem(tr("Warnings and errors"), "important");
+    live::text(notificationChoice_, [] { return tr("Toast level"); }, &QWidget::setAccessibleName);
+    live::item(notificationChoice_, [] { return tr("All toasts"); }, "all");
+    live::item(notificationChoice_, [] { return tr("Warnings and errors"); }, "important");
     noticeControls->addWidget(notificationChoice_);
-    auto *clear = new QPushButton(tr("Clear read"));
+    auto *clear = live::text(new QPushButton, [] { return tr("Clear read"); });
     clear->setObjectName("clearNotifications");
     noticeControls->addWidget(clear);
     noticeControls->addStretch();
     noticesLayout->addLayout(noticeControls);
     auto *history = new QListWidget;
     history->setObjectName("notificationHistory");
-    history->setAccessibleName(tr("Notification history"));
+    live::text(history, [] { return tr("Notification history"); }, &QWidget::setAccessibleName);
     history->setWordWrap(true);
     noticesLayout->addWidget(history, 1);
     notifications_->attachHistory(*history);
     connect(clear, &QPushButton::clicked, notifications_, &NotificationCenter::clearRead);
-    section(tr("Notifications"), "notifications", tr("toast history warnings errors"), notices);
+    section([] { return tr("Notifications"); }, "notifications", [] { return tr("toast history warnings errors"); }, notices);
 
     auto *about = new QWidget;
     about->setObjectName("aboutPage");
     auto *aboutLayout = new QVBoxLayout(about);
     aboutLayout->setContentsMargins(2, 8, 2, 8);
-    aboutLayout->addWidget(label(tr("About CGACP"), "heading"));
-    aboutLayout->addWidget(label(tr("CIRNET Governance & Agent Control Plane"), "lead"));
+    aboutLayout->addWidget(live::text(label({}, "heading"), [] { return tr("About CGACP"); }));
+    aboutLayout->addWidget(live::text(label({}, "lead"), [] { return tr("CIRNET Governance & Agent Control Plane"); }));
     aboutDetails_ = label({}, "aboutDetails");
     aboutDetails_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     aboutLayout->addWidget(aboutDetails_);
     aboutLayout->addStretch();
-    section(tr("About"), "about", tr("version release application identity"), scrollPanel(about));
+    section([] { return tr("About"); }, "about", [] { return tr("version release application identity"); }, scrollPanel(about));
 
     auto *saveRow = new QHBoxLayout;
     preferencesStatus_ = label({}, "preferencesStatus");
     preferencesStatus_->hide();
     saveRow->addWidget(preferencesStatus_, 1);
-    preferencesRetry_ = new QPushButton(tr("Retry saving"));
+    preferencesRetry_ = live::text(new QPushButton, [] { return tr("Retry saving"); });
     preferencesRetry_->setObjectName("preferencesRetry");
     preferencesRetry_->hide();
     saveRow->addWidget(preferencesRetry_);
-    auto *preferencesRevert = new QPushButton(tr("Revert unsaved changes"));
+    auto *preferencesRevert = live::text(new QPushButton, [] { return tr("Revert unsaved changes"); });
     preferencesRevert->setObjectName("preferencesRevert");
     preferencesRevert->hide();
     saveRow->addWidget(preferencesRevert);
@@ -1052,7 +1066,8 @@ QWidget *MainWindow::makeSettings()
     };
     fitCategories();
     connect(theme_, &ThemeManager::changed, sidebar, fitCategories);
-    connect(settingsSearch_, &QLineEdit::textChanged, this, [this, noResults](const QString &text) {
+    connect(&live::language(), &live::Language::changed, sidebar, fitCategories);
+    const auto filterCategories = [this, noResults](const QString &text) {
         bool matched = false;
         for (int row = 0; row < settingsNavigation_->count(); ++row) {
             auto *item = settingsNavigation_->item(row);
@@ -1061,6 +1076,10 @@ QWidget *MainWindow::makeSettings()
             matched |= visible;
         }
         noResults->setVisible(!matched);
+    };
+    connect(settingsSearch_, &QLineEdit::textChanged, this, filterCategories);
+    connect(&live::language(), &live::Language::changed, page, [this, filterCategories] {
+        filterCategories(settingsSearch_->text());
     });
     connect(settingsSearch_, &QLineEdit::returnPressed, this, [this] {
         auto *match = settingsNavigation_->currentItem();
@@ -1138,8 +1157,13 @@ QWidget *MainWindow::makeSettings()
     });
     for (auto *control : {textScale_, contentScaleChoice_, codeScaleChoice_, densityChoice_})
         connect(control, &QSpinBox::valueChanged, this, queuePreview);
-    for (auto *control : {accentChoice_, uiFontChoice_, languageChoice_})
+    for (auto *control : {accentChoice_, uiFontChoice_})
         connect(control, &QComboBox::currentIndexChanged, this, queuePreview);
+    connect(languageChoice_, &QComboBox::currentIndexChanged, this, [this, visualChange] {
+        followSavedLanguage_ = true;
+        live::language().set(languageChoice_->currentData().toString());
+        visualChange();
+    });
     connect(notificationChoice_, &QComboBox::currentIndexChanged, this, visualChange);
     connect(reducedMotion_, &QCheckBox::toggled, this, visualChange);
     return page;
@@ -1323,6 +1347,8 @@ void MainWindow::applyPreferences(const QJsonObject &settings)
 {
     applyingPreferences_ = true;
     applyAppearanceControls(settings);
+    if (followSavedLanguage_)
+        live::language().set(languageChoice_->currentData().toString());
     const QSignalBlocker notificationSignals(notificationChoice_);
     selectData(notificationChoice_, settings.value("notification_level").toString("all"));
     sidebarWidth_ = qBound(210, settings.value("sidebar_width").toInt(260), 360);

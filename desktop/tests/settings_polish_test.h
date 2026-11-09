@@ -359,9 +359,11 @@ void verifyRuntimeSettingsData(MainWindow &window, const QString &bindingId, Req
     auto *maintenance = window.findChild<QPushButton *>("storageMaintenanceToggle");
     auto *status = window.findChild<QLabel *>("storageOperationStatus");
     auto *backup = window.findChild<QPushButton *>("createStorageBackup");
+    auto *inspect = window.findChild<QPushButton *>("inspectStorageDatabase");
+    auto *path = window.findChild<QLabel *>("storageDataRoot");
     auto *verify = window.findChild<QPushButton *>("verifyStorageBackup");
     auto *backupSelector = window.findChild<QComboBox *>("storageBackups");
-    QVERIFY(refreshStorage && maintenance && status && backup && verify && backupSelector);
+    QVERIFY(refreshStorage && maintenance && status && backup && verify && backupSelector && inspect && path);
     QTRY_VERIFY(refreshStorage->isEnabled());
     QVERIFY(accounting->text().contains("message text"));
     QVERIFY(!backup->isVisible());
@@ -370,11 +372,14 @@ void verifyRuntimeSettingsData(MainWindow &window, const QString &bindingId, Req
     QTRY_VERIFY(refreshStorage->isEnabled());
     maintenance->click();
     QVERIFY(backup->isVisible());
+    inspect->click();
+    QTRY_VERIFY(inspect->isEnabled() && path->isVisible() && !path->text().isEmpty());
     backup->click();
     QTRY_VERIFY(backup->isEnabled() && status->text().contains("completed"));
     QVERIFY(!backupSelector->currentData().toString().isEmpty());
     verify->click();
     QTRY_VERIFY(verify->isEnabled() && status->text().contains("completed"));
+    interaction_cases::capture(window, "storage-verified");
 
     selectPage("configuration");
     auto *capability = window.findChild<QLabel *>("configurationCapability");

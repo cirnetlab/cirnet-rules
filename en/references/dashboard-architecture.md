@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 6 -->
+<!-- revision: 7 -->
 <a id="authority"></a>
 
 # Dashboard architecture and authority
@@ -41,9 +41,10 @@ layout and appearance data, with no task permissions or repository paths.
 The runtime validates optional RGB colors, pixel dimensions, font family,
 and language in the existing preference row. The client derives pixels
 from the legacy scale only when a pixel value is absent. It applies one
-application font before styling widgets and menus. Startup reads the
-saved language on the verified runtime connection. English is the fallback
-when the locale is unavailable within the bounded startup wait.
+application font for widgets and menus. The stylesheet applies the selected
+family to existing widgets and text documents. Startup reads the saved language
+on the verified runtime connection. Changes replace the active translation
+and update text on the existing widgets, preserving application and runtime state.
 The typed lifecycle repository and SQLite unit of work commit scoped deletion,
 idempotency receipts, and retained run metadata together. Legacy intake and
 automation paths still contain SQLite-specific code. PostgreSQL

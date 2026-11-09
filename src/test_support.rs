@@ -16,7 +16,14 @@ pub(crate) fn temporary_directory(prefix: &str) -> io::Result<PathBuf> {
 fn temporary_directory_at(base: &Path, prefix: &str, nonce: u128) -> io::Result<PathBuf> {
     for attempt in 0..1024 {
         let path = base.join(format!("{prefix}-{}-{nonce}-{attempt}", std::process::id()));
-        match fs::create_dir(&path) {
+        #[cfg(unix)]
+        let result = {
+            use std::os::unix::fs::DirBuilderExt;
+            fs::DirBuilder::new().mode(0o700).create(&path)
+        };
+        #[cfg(not(unix))]
+        let result = fs::create_dir(&path);
+        match result {
             Ok(()) => return Ok(path),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
@@ -26,6 +33,17 @@ fn temporary_directory_at(base: &Path, prefix: &str, nonce: u128) -> io::Result<
         io::ErrorKind::AlreadyExists,
         "Unable to allocate an unused fixture directory",
     ))
+}
+
+#[cfg(unix)]
+#[test]
+fn temporary_directories_are_private_on_unix() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = temporary_directory("cgacp-fixture-private-test").unwrap();
+    let mode = fs::metadata(&root).unwrap().permissions().mode();
+    fs::remove_dir(&root).unwrap();
+    assert_eq!(mode & 0o077, 0, "fixture directory must be private");
 }
 
 #[test]

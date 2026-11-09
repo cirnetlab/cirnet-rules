@@ -1,5 +1,6 @@
 #include "main_window.h"
 #include "build_info.h"
+#include "live_text.h"
 #include "notification_center.h"
 
 #include <QAction>
@@ -38,8 +39,8 @@ QToolButton *iconButton(const QString &name, const QString &label)
 }
 
 MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
-                       bool readyOnConstruction, const QString &startupError)
-    : QMainWindow(parent), client_(client)
+                       bool readyOnConstruction, const QString &startupError, bool followSavedLanguage)
+    : QMainWindow(parent), client_(client), followSavedLanguage_(followSavedLanguage)
 {
     setWindowTitle(QStringLiteral(CGACP_PRODUCT_GENERATION));
     setMinimumSize(620, 360);
@@ -92,22 +93,22 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
     identityLayout_->addWidget(sidebarToggle_, 0, Qt::AlignCenter);
     rail->addLayout(identityLayout_);
     rail->addSpacing(8);
-    newChatAction_ = new QAction(tr("New Chat"), this);
+    newChatAction_ = live::text(new QAction(this), [] { return tr("New Chat"); });
     newChatAction_->setShortcut(QKeySequence::New);
     addAction(newChatAction_);
     chatButton_ = new QPushButton;
     chatButton_->setObjectName("navNewChat");
     chatButton_->setProperty("navigation", true);
-    chatButton_->setAccessibleName(newChatAction_->text());
-    chatButton_->setToolTip(newChatAction_->text());
+    live::text(chatButton_, [] { return tr("New Chat"); }, &QWidget::setAccessibleName);
+    live::text(chatButton_, [] { return tr("New Chat"); }, &QWidget::setToolTip);
     chatButton_->setIconSize(QSize(20, 20));
     rail->addWidget(chatButton_);
     automationsButton_ = new QPushButton;
     automationsButton_->setObjectName("navAutomations");
     automationsButton_->setProperty("navigation", true);
     automationsButton_->setCheckable(true);
-    automationsButton_->setAccessibleName(tr("Automations"));
-    automationsButton_->setToolTip(tr("Automations"));
+    live::text(automationsButton_, [] { return tr("Automations"); }, &QWidget::setAccessibleName);
+    live::text(automationsButton_, [] { return tr("Automations"); }, &QWidget::setToolTip);
     automationsButton_->setIconSize(QSize(20, 20));
     rail->addWidget(automationsButton_);
 
@@ -146,6 +147,8 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
         QToolTip::showText(localStatus_->mapToGlobal(QPoint{}), localStatus_->toolTip(), localStatus_);
     });
     settingsButton_ = iconButton("navSettings", tr("Settings"));
+    live::text(settingsButton_, [] { return tr("Settings"); }, &QWidget::setAccessibleName);
+    live::text(settingsButton_, [] { return tr("Settings"); }, &QWidget::setToolTip);
     settingsButton_->setCheckable(true);
     settingsButton_->setIconSize(QSize(16, 16));
     settingsButton_->setMinimumSize(30, 30);
@@ -165,6 +168,19 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
     showPage(automationsPage_);
     connecting_ = startupError.isEmpty();
     setConnection(false, connecting_ ? tr("Connecting to local runtime…") : startupError);
+    connect(&live::language(), &live::Language::changed, this, [this] {
+        if (online_)
+            connectionStatus_ = tr("Local runtime connected");
+        else if (connecting_)
+            connectionStatus_ = tr("Connecting to local runtime…");
+        updateSidebarLayout();
+        updateRuntimeDetails();
+        updateConversationAvailability();
+        if (!repositories_.isEmpty())
+            renderRepositoryRows();
+        if (!conversation_.isEmpty())
+            updateConversationSummary();
+    });
     savedPreferences_ = preferenceSettings();
     connect(splitter_, &QSplitter::splitterMoved, this, [this] {
         if (!sidebarCollapsed_ && pages_->currentWidget() != settingsPage_) {

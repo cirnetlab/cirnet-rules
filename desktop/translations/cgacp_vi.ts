@@ -365,6 +365,7 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <message><source>Delete permanently</source><translation>Xóa vĩnh viễn</translation></message>
     <message><source>Conversation deleted.</source><translation>Đã xóa hội thoại.</translation></message>
     <message><source>Submitted message deleted.</source><translation>Đã xóa tin nhắn đã gửi.</translation></message>
+    <message><source>Changes the language of the open Dashboard.</source><translation>Đổi ngôn ngữ ngay trên Dashboard đang mở.</translation></message>
   </context>
   <context>
     <name>NotificationCenter</name>
@@ -486,6 +487,10 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <message><source>Partial measurement. Skipped entries: %1.</source><translation>Kết quả đo một phần. Số mục bỏ qua: %1.</translation></message>
     <message><source>Compact local database</source><translation>Thu gọn cơ sở dữ liệu cục bộ</translation></message>
     <message><source>The last measurement found %1 in reusable database pages. Compaction may reclaim some space and can take time.</source><translation>Lần đo gần nhất ghi nhận %1 trong các trang cơ sở dữ liệu có thể tái sử dụng. Thu gọn có thể giải phóng một phần dung lượng và cần thời gian.</translation></message>
+    <message><source>Local database</source><translation>Cơ sở dữ liệu cục bộ</translation></message>
+    <message><source>Check the database to reveal its location and reusable space.</source><translation>Kiểm tra cơ sở dữ liệu để xem vị trí và dung lượng có thể tái sử dụng.</translation></message>
+    <message><source>Backups and verification</source><translation>Sao lưu và xác minh</translation></message>
+    <message><source>Operation status</source><translation>Trạng thái thao tác</translation></message>
   </context>
   <context>
     <name>ArchivedPage</name>

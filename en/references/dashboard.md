@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 11 -->
+<!-- revision: 12 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -36,9 +36,12 @@ category icons or search on the left. Appearance includes mode previews,
 accent presets and a custom accent. Edit background and foreground as hex
 colors or open a picker from the color circle. Clear a color to use the
 theme value. Choose a system font, monospace or an installed font family.
+An installed family applies immediately to open controls, conversation text,
+and diagnostics. Mode previews show keyboard focus with a solid outline.
 Open Advanced for pixel-based interface, conversation and code text sizes,
 vertical padding, language and Reduced motion. English is the default.
-Vietnamese and Simplified Chinese apply when the Dashboard is reopened.
+Switch among English, Vietnamese and Simplified Chinese in the open Dashboard.
+The setting persists through the runtime preference API.
 Reset default appears when appearance differs from its defaults.
 Back or Escape returns to the previous page. Scrollbars appear over the bar
 or briefly after wheel input. The wheel scrolls the surrounding view over
@@ -82,10 +85,11 @@ the runtime creates an integrity-checked pre-upgrade snapshot. An earlier
 runtime requires a reviewed compatible snapshot in a separate directory.
 The Storage summary loads automatically when the runtime connects. It reports
 the logical UTF-8 bytes and counts of active and archived conversations.
-Refresh requests an updated summary. Database maintenance separately exposes
-backup, integrity verification and compaction. Compaction requires a current
-database check and confirmation of the observed page counts. Operations
-report progress and support cancellation.
+Refresh requests an updated summary. Expand Database maintenance for separate
+database and backup groups. The database group exposes the storage path after
+inspection. The backup group pairs a verification target with the Verify
+action. Compaction requires a current database check and confirmation of the
+observed page counts. An operation panel shows progress, cancellation and results.
 To rehearse restore,
 close the runtime, restore a reviewed backup into a fresh private data
 directory and verify it there before switching the operator path. Preserve the

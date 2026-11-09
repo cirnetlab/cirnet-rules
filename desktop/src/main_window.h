@@ -42,7 +42,8 @@ class MainWindow final : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(RuntimeClient &client, QWidget *parent = nullptr,
-                        bool readyOnConstruction = false, const QString &startupError = {});
+                        bool readyOnConstruction = false, const QString &startupError = {},
+                        bool followSavedLanguage = false);
 
 signals:
     void localRuntimeReady();
@@ -124,6 +125,7 @@ private:
     void renderAutomationCards();
     void editAutomation(const QJsonObject &existing = {});
     void chooseAutomationFilter();
+    void updateAutomationRepositoryFilter();
     void updateAutomationAvailability();
     void runAutomation(const QJsonObject &automation);
     void toggleAutomation(const QJsonObject &automation);
@@ -176,6 +178,7 @@ private:
     QSpinBox *contentScaleChoice_ = nullptr;
     QSpinBox *codeScaleChoice_ = nullptr;
     QComboBox *languageChoice_ = nullptr;
+    bool followSavedLanguage_ = false;
     AppearanceColorField *backgroundColor_ = nullptr;
     AppearanceColorField *foregroundColor_ = nullptr;
     AppearanceColorField *accentColor_ = nullptr;

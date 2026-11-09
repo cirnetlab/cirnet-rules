@@ -1,8 +1,10 @@
+QWidget { font-family: "@UI_FAMILY@"; }
 QMainWindow, QWidget#content, QStackedWidget#pages { background: @CANVAS@; }
 QFrame#sidebar { background: @RAIL@; }
 QFrame#sidebarFooter { border-top: 1px solid @BORDER@; }
 QFrame#settingsSidebar { background: @RAIL@; border-right: 1px solid @BORDER@; }
-QFrame#settingsGroup, QFrame#settingsCard, QFrame[role="settingsCard"] {
+QFrame#settingsGroup, QFrame#settingsCard, QFrame#storageDatabaseActions,
+QFrame#storageBackupActions, QFrame[role="settingsCard"] {
     background: @SURFACE@; border: 1px solid @BORDER@; border-radius: 16px;
 }
 QFrame#settingsSeparator { border: 0; background: @BORDER@; }
@@ -40,6 +42,16 @@ QPushButton[actionRole="secondary"], QToolButton[actionRole="secondary"] {
 QPushButton[actionRole="secondary"]:hover, QToolButton[actionRole="secondary"]:hover { background: @HOVER@; }
 QPushButton[actionRole="secondary"]:pressed, QToolButton[actionRole="secondary"]:pressed { background: @SELECTED@; }
 QPushButton[actionRole="secondary"]:disabled, QToolButton[actionRole="secondary"]:disabled { background: transparent; }
+QWidget#storagePage QPushButton[actionRole="secondary"]:disabled {
+    background: @BASE@; border-color: @BORDER@; color: @MUTED@;
+}
+QPushButton#storageMaintenanceToggle { text-align: left; padding-left: 14px; }
+QPushButton#storageMaintenanceToggle:checked { background: @SELECTED@; }
+QWidget#storagePage QProgressBar {
+    background: @BASE@; border: 1px solid @BORDER@; border-radius: 7px;
+    min-height: 13px; text-align: center; color: @TEXT@;
+}
+QWidget#storagePage QProgressBar::chunk { background: @PRIMARY@; border-radius: 6px; }
 QPushButton[actionRole="danger"], QToolButton[actionRole="danger"] { color: @DANGER@; }
 QPushButton[primary="true"] { color: @ON_ACCENT@; background: @PRIMARY@; font-weight: 650; }
 QPushButton[primary="true"]:hover { color: @ON_ACCENT@; background: @PRIMARY_HOVER@; }

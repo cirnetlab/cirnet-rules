@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 6 -->
-<!-- source-sha256: 7db95bed241a4c4a05a37e0a6773f5d2b293d985c81ebb806c0d2c76670d3e3b -->
+<!-- revision: 7 -->
+<!-- source-sha256: b778b1f82ace6ca4878c707ea675fc6bb1c7d02167f2ec7fbdc1740586fe72df -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 
@@ -40,10 +40,11 @@ trước khi ghi. Revision dự kiến ngăn cửa sổ thứ hai âm thầm ghi
 nhật mới hơn. Tùy chọn chỉ chứa dữ liệu bố cục và giao diện, tách khỏi quyền
 task và đường dẫn repository. Runtime kiểm tra màu RGB, kích thước pixel,
 họ phông và ngôn ngữ tùy chọn trong bản ghi hiện có. Client chỉ quy đổi
-tỉ lệ cũ khi thiếu giá trị pixel, rồi dùng cùng một phông ứng dụng cho
-widget và menu. Khi khởi động, client đọc ngôn ngữ đã lưu qua kết nối runtime
-đã xác minh. Client dùng tiếng Anh nếu hết thời gian chờ mà chưa lấy được
-ngôn ngữ. Repository vòng đời có kiểu dữ liệu và unit
+tỉ lệ cũ khi thiếu giá trị pixel. Bảng kiểu áp dụng họ phông đã chọn cho
+widget, menu và tài liệu văn bản đang mở. Khi khởi động, client đọc ngôn ngữ
+đã lưu qua kết nối runtime đã xác minh. Khi đổi ngôn ngữ, client thay bản
+dịch và cập nhật văn bản trên các widget hiện có, giữ trạng thái ứng dụng
+và runtime. Repository vòng đời có kiểu dữ liệu và unit
 of work SQLite commit cùng nhau phạm vi xóa, biên nhận idempotency và
 metadata lượt chạy cần giữ. Intake và tự động hóa cũ còn phụ thuộc SQLite.
 Chuyển sang PostgreSQL cần hợp đồng
