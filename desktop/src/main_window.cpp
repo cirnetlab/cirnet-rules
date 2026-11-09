@@ -43,7 +43,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
                        bool readyOnConstruction, const QString &startupError, bool followSavedLanguage)
     : QMainWindow(parent), client_(client), followSavedLanguage_(followSavedLanguage)
 {
-    setWindowTitle(QStringLiteral(OPENRULES_PRODUCT_NAME));
+    setWindowTitle(QStringLiteral(CIRNETRULES_PRODUCT_NAME));
     setMinimumSize(620, 360);
     const QSize preferred(1366, 768);
     const auto *screen = QGuiApplication::primaryScreen();
@@ -78,10 +78,10 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
     auto *mark = new QLabel;
     mark->setAlignment(Qt::AlignCenter);
     mark->setObjectName("brandMark");
-    mark->setAccessibleName(QStringLiteral("OPENRULES"));
+    mark->setAccessibleName(QStringLiteral(CIRNETRULES_PRODUCT_NAME));
     mark->setFixedSize(26, 26);
     mark->setPixmap(QApplication::windowIcon().pixmap(mark->size(), devicePixelRatioF()));
-    brand_ = new QLabel(QStringLiteral("OPENRULES"));
+    brand_ = new QLabel(QStringLiteral(CIRNETRULES_PRODUCT_NAME));
     brand_->setObjectName("brand");
     sidebarToggle_ = iconButton("toggleSidebar", tr("Collapse sidebar"));
     sidebarToggle_->setIconSize(QSize(22, 22));
@@ -227,34 +227,23 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
             closeSettings();
     });
 
-    const auto beginHandshake = [this] {
-        connecting_ = true;
-        setConnection(false, tr("Connecting to local runtime…"));
-        call("runtime.info", {}, [this](const QJsonObject &info, const QString &error) {
-            connecting_ = false;
-            if (!error.isEmpty() || info.value("version").toString() != QStringLiteral(OPENRULES_APP_VERSION)) {
-                const auto reason = error.isEmpty() ? tr("Dashboard and runtime versions differ.") : error;
-                setConnection(false, reason);
-                showStatus(reason, true);
-                client_.stop();
-                return;
-            }
-            runtimeInfo_ = info;
-            setConnection(true, tr("Local runtime connected"));
-            emit localRuntimeReady();
-            loadPreferences();
-            refreshRepositories();
-            refreshConversations();
-            refreshAutomations();
-            if (!currentConversation_.isEmpty())
-                openConversation(currentConversation_);
-        });
+    const auto runtimeReady = [this] {
+        connecting_ = false;
+        runtimeInfo_ = client_.runtimeInfo();
+        setConnection(true, tr("Local runtime connected"));
+        emit localRuntimeReady();
+        loadPreferences();
+        refreshRepositories();
+        refreshConversations();
+        refreshAutomations();
+        if (!currentConversation_.isEmpty())
+            openConversation(currentConversation_);
     };
-    connect(&client_, &RuntimeClient::ready, this, beginHandshake);
+    connect(&client_, &RuntimeClient::ready, this, runtimeReady);
     if (readyOnConstruction) {
-        QTimer::singleShot(0, this, [this, beginHandshake] {
+        QTimer::singleShot(0, this, [this, runtimeReady] {
             if (connecting_ && !shutdownPending_)
-                beginHandshake();
+                runtimeReady();
         });
     }
     if (!startupError.isEmpty())
@@ -408,9 +397,9 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
     const bool discard = preferencesDirty_ && (!online_ || preferencesRetryRequired_ || !preferencesLoaded_);
     const auto answer = QMessageBox::question(
-        this, tr("Close OPENRULES"),
-        discard ? tr("Some preferences are unsaved. Close OPENRULES without saving them?") :
-                  tr("Stop the local runtime and close OPENRULES? Saved conversations and runs can be restored on reopen."),
+        this, tr("Close %1").arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME)),
+        discard ? tr("Some preferences are unsaved. Close %1 without saving them?").arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME)) :
+                  tr("Stop the local runtime and close %1? Saved conversations and runs can be restored on reopen.").arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME)),
         QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
     if (answer == QMessageBox::Cancel) {
         event->ignore();

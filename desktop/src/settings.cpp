@@ -919,8 +919,9 @@ QWidget *MainWindow::makeSettings()
         text->setProperty("codeText", true);
         text->setReadOnly(true);
         const auto state = online_ ? tr("Connected") : connecting_ ? tr("Connecting") : tr("Disconnected");
-        text->setPlainText(tr("OPENRULES %1\nRuntime: %2\n%3")
-                              .arg(QStringLiteral(OPENRULES_APP_VERSION), state, runtimeCapabilities_->text()));
+        text->setPlainText(tr("%1 %2\nRuntime: %3\n%4")
+                              .arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME), QStringLiteral(CIRNETRULES_APP_VERSION),
+                                   state, runtimeCapabilities_->text()));
         body->addWidget(text);
         auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close);
         auto *copy = buttons->addButton(tr("Copy diagnostics"), QDialogButtonBox::ActionRole);
@@ -1005,8 +1006,8 @@ QWidget *MainWindow::makeSettings()
     about->setObjectName("aboutPage");
     auto *aboutLayout = new QVBoxLayout(about);
     aboutLayout->setContentsMargins(2, 8, 2, 8);
-    aboutLayout->addWidget(live::text(label({}, "heading"), [] { return tr("About OPENRULES"); }));
-    aboutLayout->addWidget(live::text(label({}, "lead"), [] { return tr("OPENRULES"); }));
+    aboutLayout->addWidget(live::text(label({}, "heading"), [] { return tr("About %1").arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME)); }));
+    aboutLayout->addWidget(live::text(label({}, "lead"), [] { return QStringLiteral(CIRNETRULES_PRODUCT_NAME); }));
     aboutDetails_ = label({}, "aboutDetails");
     aboutDetails_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     aboutLayout->addWidget(aboutDetails_);
@@ -1253,8 +1254,8 @@ void MainWindow::updateRuntimeDetails()
             .arg(storageLimits.value("workers").toInt()).arg(storageLimits.value("active_limit").toInt())
             .arg(storageLimits.value("retained_limit").toInt()).arg(storageLimits.value("deadline_seconds").toInt()));
     aboutDetails_->setText(tr("%1\nApplication %2\nRelease %3\n\n%4")
-                              .arg(QStringLiteral(OPENRULES_PRODUCT_NAME), QStringLiteral(OPENRULES_APP_VERSION),
-                                   QStringLiteral(OPENRULES_RELEASE_NAME), capability));
+                              .arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME), QStringLiteral(CIRNETRULES_APP_VERSION),
+                                   QStringLiteral(CIRNETRULES_RELEASE_NAME), capability));
 }
 
 QJsonObject MainWindow::appearanceSettings() const

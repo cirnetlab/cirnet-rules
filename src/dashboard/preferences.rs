@@ -363,7 +363,8 @@ mod tests {
     #[test]
     fn personalized_appearance_round_trips_with_legacy_fields() {
         let fixture =
-            crate::test_support::temporary_directory("openrules-personalized-appearance").unwrap();
+            crate::test_support::temporary_directory("cirnetrules-personalized-appearance")
+                .unwrap();
         let mut settings = serde_json::to_value(Settings::default()).unwrap();
         settings["appearance"] = json!({
             "accent": "custom",
@@ -401,7 +402,7 @@ mod tests {
     fn personalized_appearance_bounds_agree_with_the_wire_schema() {
         let schema = preferences_schema();
         let fixture =
-            crate::test_support::temporary_directory("openrules-invalid-appearance").unwrap();
+            crate::test_support::temporary_directory("cirnetrules-invalid-appearance").unwrap();
         let db = Database::open(&fixture).unwrap();
         let baseline = serde_json::to_value(Settings::default()).unwrap();
         assert!(schema.is_valid(&baseline));
@@ -440,7 +441,7 @@ mod tests {
 
     #[test]
     fn appearance_survives_database_reopen() {
-        let fixture = crate::test_support::temporary_directory("openrules-appearance").unwrap();
+        let fixture = crate::test_support::temporary_directory("cirnetrules-appearance").unwrap();
         let settings = Settings {
             appearance: Appearance {
                 accent: Accent::Cobalt,

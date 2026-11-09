@@ -30,9 +30,9 @@ fn run_dir(root: &Path, id: &str, create: bool) -> Result<PathBuf, String> {
     }
     let mut selected = root.to_path_buf();
     for relative in [
-        ".openrules",
-        ".openrules/runs",
-        &format!(".openrules/runs/{id}"),
+        ".cirnetrules",
+        ".cirnetrules/runs",
+        &format!(".cirnetrules/runs/{id}"),
     ] {
         let path = workspace::scoped_path(root, relative)?;
         if create {
@@ -422,7 +422,7 @@ mod tests {
     fn cancellation_is_owned_and_expired_lease_is_retained() {
         let parent = env::temp_dir().canonicalize().unwrap();
         let root = parent.join(format!(
-            "openrules-run-lease-{}-{}",
+            "cirnetrules-run-lease-{}-{}",
             std::process::id(),
             now_ms().unwrap()
         ));

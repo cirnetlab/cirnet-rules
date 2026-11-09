@@ -12,8 +12,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const SCHEMA: &str = include_str!("../en/schemas/openrules-task.schema.json");
-const STORE: &str = ".openrules/tasks";
+const SCHEMA: &str = include_str!("../en/schemas/cirnetrules-task.schema.json");
+const STORE: &str = ".cirnetrules/tasks";
 const RECORD_LIMIT: usize = 4 * 1024 * 1024;
 const TASK_LIMIT: usize = 1024;
 const CLAIM_SCAN_BYTES: u64 = 16 * 1024 * 1024;
@@ -108,7 +108,7 @@ fn plain_relative(path: &str) -> Result<(), String> {
 pub fn relative(path: &str) -> Result<(), String> {
     plain_relative(path)?;
     if path.split('/').any(|part| {
-        [".openrules", ".cgacp"]
+        [".cirnetrules", ".openrules", ".cgacp"]
             .iter()
             .any(|name| part.eq_ignore_ascii_case(name))
     }) {

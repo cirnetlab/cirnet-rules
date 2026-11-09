@@ -22,6 +22,7 @@ public:
     static QString siblingExecutable();
     static QString validateExecutable(const QString &path, bool requirePin = false);
     bool isRunning() const;
+    QJsonObject runtimeInfo() const { return runtimeInfo_; }
     void start();
     void stop();
     void request(const QString &method, QJsonObject params, Reply reply);
@@ -46,6 +47,7 @@ private:
     QString executable_;
     QStringList arguments_;
     QProcess process_;
+    QJsonObject runtimeInfo_;
     QByteArray buffered_;
     QHash<QString, Pending> pending_;
     QTimer expiry_;

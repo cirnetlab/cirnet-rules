@@ -1,4 +1,4 @@
-<!-- doc-id: OPENRULES-DESKTOP-ARCHITECTURE -->
+<!-- doc-id: CIRNETRULES-DESKTOP-ARCHITECTURE -->
 <!-- revision: 8 -->
 <a id="authority"></a>
 

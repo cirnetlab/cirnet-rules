@@ -16,7 +16,9 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-const DATABASE_FILE: &str = "openrules.sqlite3";
+use crate::application_identity::{
+    DATABASE_FILENAME as DATABASE_FILE, ORGANIZATION, PRODUCT_SYMBOL,
+};
 const MIGRATIONS: &[(&str, &str)] = &[
     (
         "001_catalog.sql",
@@ -327,7 +329,8 @@ pub fn default_data_dir() -> Result<PathBuf, AppError> {
                 "The OS local application data directory is unavailable.",
             )
         })?
-        .join("CIRNETLAB/OPENRULES"))
+        .join(ORGANIZATION)
+        .join(PRODUCT_SYMBOL))
 }
 
 pub fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value, AppError> {

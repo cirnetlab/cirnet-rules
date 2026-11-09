@@ -1,0 +1,7 @@
+{
+  "product_id": "cirnetrules",
+  "display_name": "CIRNET RULES",
+  "organization": "CIRNETLAB",
+  "repository": "cirnet-rules",
+  "ipc_protocol": 3
+}

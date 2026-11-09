@@ -200,7 +200,7 @@ impl ProbeQueue {
         let (commands, probes) = mpsc::sync_channel::<Probe>(1);
         let (results, completed) = mpsc::sync_channel(1);
         let worker = thread::Builder::new()
-            .name("openrules-integration-probe".into())
+            .name("cirnetrules-integration-probe".into())
             .spawn(move || {
                 for probe in probes {
                     if results.send(probe.run()).is_err() {

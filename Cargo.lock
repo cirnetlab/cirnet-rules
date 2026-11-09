@@ -121,7 +121,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "openrules"
+name = "cirnetrules"
 version = "0.1.0"
 dependencies = [
  "base64",

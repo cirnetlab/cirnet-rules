@@ -1,7 +1,23 @@
 #pragma once
 
-#define OPENRULES_APP_VERSION "@PROJECT_VERSION@"
-#define OPENRULES_RELEASE_NAME "cirnet-rules-" OPENRULES_APP_VERSION
-#define OPENRULES_PRODUCT_NAME "OPENRULES"
+#define CIRNETRULES_APP_VERSION "@PROJECT_VERSION@"
+#define CIRNETRULES_RELEASE_NAME "@identity_repository@-" CIRNETRULES_APP_VERSION
+#define CIRNETRULES_PRODUCT_NAME "@identity_display_name@"
+#define CIRNETRULES_PRODUCT_ID "@identity_product_id@"
+#define CIRNETRULES_ORGANIZATION "@identity_organization@"
+#define CIRNETRULES_PRODUCT_SYMBOL "@identity_symbol@"
+#define CIRNETRULES_RUNTIME_BASENAME "@runtime_target@"
+#define CIRNETRULES_API_NAMESPACE CIRNETRULES_PRODUCT_ID "."
+#define CIRNETRULES_RESOURCE_ROOT ":/" CIRNETRULES_PRODUCT_ID
+#define CIRNETRULES_RESOURCE_BUNDLE @identity_product_id@_ui
+#define CIRNETRULES_IPC_PROTOCOL @identity_ipc_protocol@
 
-#define OPENRULES_IPC_PROTOCOL 2
+#include <QJsonObject>
+
+inline bool compatibleRuntime(const QJsonObject &info)
+{
+    return info.value("product_id") == QStringLiteral(CIRNETRULES_PRODUCT_ID)
+        && info.value("product_generation") == QStringLiteral(CIRNETRULES_PRODUCT_SYMBOL)
+        && info.value("protocol") == CIRNETRULES_IPC_PROTOCOL
+        && info.value("version") == QStringLiteral(CIRNETRULES_APP_VERSION);
+}

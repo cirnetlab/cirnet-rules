@@ -26,28 +26,28 @@ QString checkExecutable(const QString &path, bool requirePin, const std::atomic_
     const QFileInfo info(path);
     if (!info.isAbsolute() || !info.isFile() || !info.isExecutable() || info.isSymLink() ||
         info.canonicalFilePath().isEmpty())
-        return RuntimeClient::tr("The OPENRULES runtime executable is missing or invalid.");
+        return RuntimeClient::tr("The local runtime executable is missing or invalid.");
     const QString pinPath = path + QStringLiteral(".sha256");
     const QFileInfo pinInfo(pinPath);
     if (!pinInfo.exists() && !pinInfo.isSymLink())
-        return requirePin ? RuntimeClient::tr("The OPENRULES runtime checksum is missing.") : QString{};
+        return requirePin ? RuntimeClient::tr("The local runtime checksum is missing.") : QString{};
     QFile pin(pinPath);
     if (pinInfo.isSymLink() || !pinInfo.isFile() || pinInfo.size() > 128 || !pin.open(QIODevice::ReadOnly))
-        return RuntimeClient::tr("The OPENRULES runtime checksum is invalid.");
+        return RuntimeClient::tr("The local runtime checksum is invalid.");
     QFile executable(info.canonicalFilePath());
     if (!executable.open(QIODevice::ReadOnly) || executable.size() > 128 * 1024 * 1024)
-        return RuntimeClient::tr("The OPENRULES runtime could not be verified.");
+        return RuntimeClient::tr("The local runtime could not be verified.");
     QCryptographicHash hash(QCryptographicHash::Sha256);
     while (!executable.atEnd()) {
         if (cancelled && cancelled->load(std::memory_order_relaxed))
             return {};
         const auto chunk = executable.read(256 * 1024);
         if (chunk.isEmpty())
-            return RuntimeClient::tr("The OPENRULES runtime could not be verified.");
+            return RuntimeClient::tr("The local runtime could not be verified.");
         hash.addData(chunk);
     }
     if (hash.result().toHex() != pin.readAll().trimmed().toLower())
-        return RuntimeClient::tr("The OPENRULES runtime checksum does not match.");
+        return RuntimeClient::tr("The local runtime checksum does not match.");
     return {};
 }
 }
@@ -59,7 +59,18 @@ RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject 
     process_.setStandardErrorFile(QProcess::nullDevice());
     expiry_.setInterval(250);
     connect(&expiry_, &QTimer::timeout, this, &RuntimeClient::expireRequests);
-    connect(&process_, &QProcess::started, this, &RuntimeClient::ready);
+    connect(&process_, &QProcess::started, this, [this] {
+        request("runtime.info", {}, [this](const auto &info, const auto &error) {
+            if (closing_ || disconnected_)
+                return;
+            if (!error.isEmpty() || !compatibleRuntime(info)) {
+                rejectConnection(error.isEmpty() ? tr("Dashboard and runtime identities differ.") : error);
+                return;
+            }
+            runtimeInfo_ = info;
+            emit ready();
+        });
+    });
     connect(&process_, &QProcess::readyReadStandardOutput, this, &RuntimeClient::receive);
     connect(&process_, &QProcess::finished, this, &RuntimeClient::processFinished);
     connect(&process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
@@ -82,9 +93,9 @@ RuntimeClient::~RuntimeClient()
 QString RuntimeClient::siblingExecutable()
 {
 #ifdef Q_OS_WIN
-    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("openrules-runtime.exe"));
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral(CIRNETRULES_RUNTIME_BASENAME ".exe"));
 #else
-    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("openrules-runtime"));
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral(CIRNETRULES_RUNTIME_BASENAME));
 #endif
 }
 
@@ -106,6 +117,7 @@ void RuntimeClient::start()
     closing_ = false;
     disconnected_ = false;
     buffered_.clear();
+    runtimeInfo_ = {};
     drainScheduled_ = false;
     const bool isAppRuntime = executable_ == siblingExecutable();
     struct Validation { QString error, program, directory; };
@@ -120,7 +132,7 @@ void RuntimeClient::start()
         outcome->program = info.canonicalFilePath();
         outcome->directory = info.canonicalPath();
         if (isAppRuntime && outcome->directory != QFileInfo(appPath).canonicalPath())
-            outcome->error = RuntimeClient::tr("The OPENRULES runtime is outside the application directory.");
+            outcome->error = RuntimeClient::tr("The local runtime is outside the application directory.");
     });
     connect(validation_, &QThread::finished, this, [this, outcome] {
         validation_ = nullptr;
@@ -171,11 +183,13 @@ void RuntimeClient::request(const QString &method, QJsonObject params, Reply rep
 {
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const auto request = QJsonDocument(QJsonObject{
-        {"v", OPENRULES_IPC_PROTOCOL}, {"id", id}, {"method", QStringLiteral("openrules.") + method}, {"params", std::move(params)}
+        {"v", CIRNETRULES_IPC_PROTOCOL}, {"id", id}, {"method", QStringLiteral(CIRNETRULES_API_NAMESPACE) + method}, {"params", std::move(params)}
     }).toJson(QJsonDocument::Compact) + '\n';
     QString error;
     if (process_.state() != QProcess::Running || closing_ || disconnected_)
         error = tr("The runtime is disconnected.");
+    else if (runtimeInfo_.isEmpty() && method != "runtime.info")
+        error = tr("Wait for runtime identity verification before sending operations.");
     else if (pending_.size() >= pendingLimit || process_.bytesToWrite() > writeLimit)
         error = tr("The runtime request queue is full.");
     else if (request.size() > frameLimit)
@@ -232,12 +246,12 @@ void RuntimeClient::receive()
         const auto result = response.value("result");
         const auto error = response.value("error");
         if (parse.error == QJsonParseError::NoError && document.isObject() &&
-            response.value("v").isDouble() && response.value("v").toInt() != OPENRULES_IPC_PROTOCOL) {
-            rejectConnection(tr("The runtime protocol is incompatible. Use the runtime installed with OPENRULES."));
+            response.value("v").isDouble() && response.value("v").toInt() != CIRNETRULES_IPC_PROTOCOL) {
+            rejectConnection(tr("The runtime protocol is incompatible. Use the runtime installed with %1.").arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME)));
             return;
         }
         if (parse.error != QJsonParseError::NoError || !document.isObject() ||
-            response.value("v").toInt() != OPENRULES_IPC_PROTOCOL || id.isEmpty() || !ok.isBool() ||
+            response.value("v").toInt() != CIRNETRULES_IPC_PROTOCOL || id.isEmpty() || !ok.isBool() ||
             (ok.toBool() ? !result.isObject() : !error.isObject())) {
             rejectConnection(tr("The runtime sent an invalid response."));
             return;

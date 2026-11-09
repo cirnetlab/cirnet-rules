@@ -1,4 +1,4 @@
-<!-- doc-id: OPENRULES-DESKTOP-RELEASE -->
+<!-- doc-id: CIRNETRULES-DESKTOP-RELEASE -->
 <!-- revision: 1 -->
 <a id="candidate"></a>
 
@@ -6,7 +6,8 @@
 
 | Identity | Candidate |
 | --- | --- |
-| Product name | OPENRULES |
+| Display name | CIRNET RULES |
+| Product ID | `cirnetrules` |
 | Application version | 0.1.0 |
 | Release title | `cirnet-rules-0.1.0` |
 | Proposed tag | `v0.1.0` |

@@ -293,6 +293,7 @@ pub(super) fn safe_path(value: &str) -> bool {
                 && !matches!(
                     lower.as_str(),
                     ".git"
+                        | ".cirnetrules"
                         | ".openrules"
                         | ".cgacp"
                         | ".ssh"

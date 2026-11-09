@@ -13,6 +13,10 @@ if errorlevel 1 (
     goto :failed
 )
 
+set "PRODUCT_ID="
+for /f "delims=" %%I in ('cmake -P scripts/application_identity.cmake') do set "PRODUCT_ID=%%I"
+if not defined PRODUCT_ID goto :failed
+
 rem Prefer a matching installed stable toolchain when rustup has no version alias.
 set "CARGO_TOOLCHAIN="
 for /f "tokens=2" %%V in ('rustc +stable --version 2^>nul') do if "%%V"=="1.99.1" set "CARGO_TOOLCHAIN=+stable"
@@ -30,18 +34,18 @@ if not defined Qt6_DIR if not defined CMAKE_PREFIX_PATH (
 )
 
 echo Building the Rust runtime...
-call cargo %CARGO_TOOLCHAIN% build --release --locked --bin openrules-runtime
+call cargo %CARGO_TOOLCHAIN% build --release --locked --bin %PRODUCT_ID%-runtime
 if errorlevel 1 goto :failed
 
 echo Building the desktop dashboard...
-cmake -S . -B target\dashboard-windows\build -G "Visual Studio 17 2022" -A x64 "-DOPENRULES_RUNTIME_EXECUTABLE=%CARGO_TARGET_DIR%\release\openrules-runtime.exe" -DBUILD_TESTING=OFF -DOPENRULES_DEPLOY_QT=ON
+cmake -S . -B target\dashboard-windows\%PRODUCT_ID%\build -G "Visual Studio 17 2022" -A x64 "-DCIRNETRULES_RUNTIME_EXECUTABLE=%CARGO_TARGET_DIR%\release\%PRODUCT_ID%-runtime.exe" -DBUILD_TESTING=OFF -DCIRNETRULES_DEPLOY_QT=ON
 if errorlevel 1 goto :failed
-cmake --build target\dashboard-windows\build --config Release --target openrules-stage-runtime --parallel
+cmake --build target\dashboard-windows\%PRODUCT_ID%\build --config Release --target %PRODUCT_ID%-stage-runtime --parallel
 if errorlevel 1 goto :failed
-cmake --install target\dashboard-windows\build --config Release --prefix "%CARGO_TARGET_DIR%\dashboard-windows\stage"
+cmake --install target\dashboard-windows\%PRODUCT_ID%\build --config Release --prefix "%CARGO_TARGET_DIR%\dashboard-windows\%PRODUCT_ID%\stage"
 if errorlevel 1 goto :failed
 
-"%CARGO_TARGET_DIR%\dashboard-windows\stage\bin\openrules-desktop.exe" %*
+"%CARGO_TARGET_DIR%\dashboard-windows\%PRODUCT_ID%\stage\bin\%PRODUCT_ID%-desktop.exe" %*
 set "result=%errorlevel%"
 popd
 exit /b %result%

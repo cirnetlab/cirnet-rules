@@ -3,7 +3,7 @@
   "configurePresets": [
     {
       "name": "desktop",
-      "displayName": "OPENRULES desktop",
+      "displayName": "CIRNETRULES desktop",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/desktop",
       "cacheVariables": {

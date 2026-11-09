@@ -140,7 +140,7 @@ fn governance_rejects_traversal_stale_writes_dependency_removal_and_unreviewed_p
         "files":[{"path":"references/../.git/config","content":"ignored"}]
     });
     assert_eq!(
-        runtime.request(2, &method("draft.save"), invalid)["error"]["code"],
+        runtime.request(3, &method("draft.save"), invalid)["error"]["code"],
         "INVALID_PATH"
     );
     let draft = save(
@@ -157,14 +157,14 @@ fn governance_rejects_traversal_stale_writes_dependency_removal_and_unreviewed_p
         "en":"# Wrong","vi":"# Sai","format":"markdown"
     });
     assert_eq!(
-        runtime.request(2, &method("draft.save"), stale)["error"]["code"],
+        runtime.request(3, &method("draft.save"), stale)["error"]["code"],
         "CONFLICT"
     );
     let unauthorized = json!({
         "id":parent["id"],"expected_revision":draft["revision"],"review_token":"unknown","mutation_key":"unreviewed"
     });
     assert_eq!(
-        runtime.request(2, &method("change.publish"), unauthorized)["error"]["code"],
+        runtime.request(3, &method("change.publish"), unauthorized)["error"]["code"],
         "PERMISSION_DENIED"
     );
     let active = publish(&mut runtime, &draft, "parent-publish");
@@ -179,7 +179,7 @@ fn governance_rejects_traversal_stale_writes_dependency_removal_and_unreviewed_p
         json!([parent["id"]]),
     );
     let archive = runtime.request(
-        2,
+        3,
         &method("asset.archive"),
         json!({
             "id":parent["id"],"expected_revision":active["revision"],"mutation_key":"archive"
@@ -205,7 +205,7 @@ fn governance_validates_structured_content_and_blocks_sensitive_drafts_and_eleva
     };
     assert_eq!(
         runtime.request(
-            2,
+            3,
             &method("draft.save"),
             save(r#"{"api_key":"fixture-secret"}"#, "secret")
         )["error"]["code"],
@@ -237,7 +237,7 @@ fn governance_validates_structured_content_and_blocks_sensitive_drafts_and_eleva
         "id":policy["id"],"expected_revision":policy["revision"],"mutation_key":"policy-draft",
         "en":r#"{"deny":["hardware.control"]}"#,"vi":"# Cấm điều khiển phần cứng","format":"json"
     }));
-    assert_eq!(runtime.request(2, &method("change.review"), json!({
+    assert_eq!(runtime.request(3, &method("change.review"), json!({
         "id":policy["id"],"expected_revision":policy["revision"],"mutation_key":"review-policy"
     }))["error"]["code"], "CAPABILITY_UNAVAILABLE");
 }
@@ -389,7 +389,7 @@ fn governance_export_uses_published_bytes_and_import_requires_exact_preview() {
     corrupted["document"]["en"] = json!("# Corrupted");
     assert_eq!(
         runtime.request(
-            2,
+            3,
             &method("asset.import.preview"),
             json!({"bundle":corrupted})
         )["error"]["code"],
@@ -397,7 +397,7 @@ fn governance_export_uses_published_bytes_and_import_requires_exact_preview() {
     );
     let mut renamed = bundle.clone();
     renamed["title"] = json!("Different title");
-    assert_eq!(runtime.request(2, &method("asset.import.apply"), json!({
+    assert_eq!(runtime.request(3, &method("asset.import.apply"), json!({
         "bundle":renamed,"fingerprint":preview["fingerprint"],"slug":"import-copy","mutation_key":"tampered"
     }))["error"]["code"], "CONFLICT");
     let copy = runtime.call(&method("asset.import.apply"), json!({
@@ -432,7 +432,7 @@ fn governance_attachment_aliases_and_executable_attachments_are_denied() {
         json!([{"path":"//server/share/file.md","content":"a"}]),
     ] {
         assert_eq!(
-            runtime.request(2, &method("draft.save"), request(files))["error"]["code"],
+            runtime.request(3, &method("draft.save"), request(files))["error"]["code"],
             "INVALID_PATH"
         );
     }
@@ -448,7 +448,7 @@ fn governance_attachment_aliases_and_executable_attachments_are_denied() {
     );
     assert_eq!(checked["valid"], false);
     assert_eq!(checked["diagnostics"][0]["code"], "ATTACHMENT_UNSUPPORTED");
-    assert_eq!(runtime.request(2, &method("change.review"), json!({
+    assert_eq!(runtime.request(3, &method("change.review"), json!({
         "id":asset["id"],"expected_revision":saved["revision"],"mutation_key":"unsafe-script"
     }))["error"]["code"], "VALIDATION_FAILED");
 }
@@ -477,7 +477,7 @@ fn governance_interrupted_sql_write_never_activates_partial_publication() {
 
     // The fixture aborts after inserting the immutable revision but before moving
     // the active pointer. This exercises the real SQL transaction, not a test flag.
-    let database = fixture.0.join("openrules.sqlite3");
+    let database = fixture.0.join("cirnetrules.sqlite3");
     let sql = rusqlite::Connection::open(&database).unwrap();
     sql.execute_batch(
         "CREATE TRIGGER fixture_interrupt BEFORE UPDATE OF active_revision ON governance_assets
@@ -490,7 +490,7 @@ fn governance_interrupted_sql_write_never_activates_partial_publication() {
     let apply = json!({"id":asset["id"],"expected_revision":draft["revision"],
                        "review_token":review["review_token"],"mutation_key":"apply"});
     assert_eq!(
-        runtime.request(2, &method("change.publish"), apply.clone())["ok"],
+        runtime.request(3, &method("change.publish"), apply.clone())["ok"],
         false
     );
     let recovered = runtime.call(&method("asset.get"), json!({"id":asset["id"]}));
@@ -514,7 +514,7 @@ fn governance_wire_schema_checks_mutation_identity_and_typed_input() {
     let schema: Value =
         serde_json::from_str(include_str!("../../en/schemas/dashboard-ipc.schema.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let frame = |method, params| json!({"v":2,"id":"test","method":format!("openrules.governance.{method}"),"params":params});
+    let frame = |method, params| json!({"v":3,"id":"test","method":format!("cirnetrules.governance.{method}"),"params":params});
     let good = json!({
         "id":"asset-0123456789abcdef0123456789abcdef","expected_revision":1,
         "mutation_key":"save-1","en":"# Input","vi":"# Dữ liệu","format":"markdown",

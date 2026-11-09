@@ -6,7 +6,10 @@
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QDeadlineTimer>
+#include <QPointer>
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -21,26 +24,48 @@ class IdentityUpgrade {
 public:
     using Done = std::function<void(const QJsonObject &, const QString &)>;
 
-    static void run(QObject &context, QString mode, const QStringList &runtimeArgs, Done done)
+    static void run(QObject &context, QString mode, const QStringList &runtimeArgs, Done done,
+                    std::shared_ptr<std::atomic_bool> cancelled = {},
+                    std::function<void(QString)> progress = {})
     {
         auto args = runtimeArgs;
         args[0] = mode;
         const auto program = RuntimeClient::siblingExecutable();
         struct Outcome { QJsonObject result; QString error; };
         const auto outcome = std::make_shared<Outcome>();
-        auto *worker = QThread::create([program, args, mode, outcome] {
+        auto *worker = QThread::create([program, args, mode, outcome, cancelled, progress, &context] {
             outcome->error = RuntimeClient::validateExecutable(program, true);
             if (!outcome->error.isEmpty())
                 return;
             QProcess process;
-            process.setStandardErrorFile(QProcess::nullDevice());
             process.start(program, args);
-            if (!process.waitForStarted(3000) ||
-                (process.state() != QProcess::NotRunning &&
-                 !process.waitForFinished(mode == "--identity-preview" ? 5000 : 90000))) {
+            if (!process.waitForStarted(3000)) {
+                outcome->error = tr("The runtime could not start.");
+                return;
+            }
+            QDeadlineTimer deadline(mode == "--identity-preview" ? 5000 : 90000);
+            bool cancelSent = false;
+            while (process.state() != QProcess::NotRunning && !deadline.hasExpired()) {
+                if (!cancelSent && cancelled && cancelled->load(std::memory_order_relaxed)) {
+                    process.write("cancel\n");
+                    cancelSent = true;
+                }
+                process.waitForFinished(80);
+                process.setReadChannel(QProcess::StandardError);
+                while (process.canReadLine()) {
+                    const auto line = process.readLine(256).trimmed();
+                    if (progress && line.startsWith("identity:")) {
+                        const auto phase = QString::fromUtf8(line.sliced(9));
+                        QMetaObject::invokeMethod(&context, [progress, phase] { progress(phase); }, Qt::QueuedConnection);
+                    }
+                }
+                process.setReadChannel(QProcess::StandardOutput);
+            }
+            if (process.state() != QProcess::NotRunning) {
                 process.kill();
                 process.waitForFinished(3000);
-                outcome->error = tr("The local data check could not finish. Reopen OPENRULES to retry.");
+                outcome->error = tr("The local data check could not finish. Reopen %1 to retry.")
+                                     .arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME));
                 return;
             }
             const auto response = process.readAllStandardOutput();
@@ -50,6 +75,13 @@ public:
                 return;
             }
             outcome->result = QJsonDocument::fromJson(response).object();
+            if (outcome->result.value("product_id") != QStringLiteral(CIRNETRULES_PRODUCT_ID)
+                || outcome->result.value("protocol") != CIRNETRULES_IPC_PROTOCOL) {
+                outcome->result = {};
+                outcome->error = tr("The data-upgrade runtime is incompatible. Use the runtime installed with %1.")
+                                     .arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME));
+                return;
+            }
             if (outcome->result.value("status") == QStringLiteral("ERROR")) {
                 const auto issue = outcome->result.value("error").toObject();
                 if (issue.value("code") == QStringLiteral("STORAGE_BUSY"))
@@ -72,12 +104,12 @@ public:
 int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
-    QApplication::setApplicationName(QStringLiteral("openrules-desktop"));
-    QApplication::setApplicationDisplayName(QStringLiteral(OPENRULES_PRODUCT_NAME));
-    QApplication::setApplicationVersion(QStringLiteral(OPENRULES_APP_VERSION));
-    QApplication::setOrganizationName(QStringLiteral(OPENRULES_PRODUCT_NAME));
+    QApplication::setApplicationName(QStringLiteral(CIRNETRULES_PRODUCT_ID));
+    QApplication::setApplicationDisplayName(QStringLiteral(CIRNETRULES_PRODUCT_NAME));
+    QApplication::setApplicationVersion(QStringLiteral(CIRNETRULES_APP_VERSION));
+    QApplication::setOrganizationName(QStringLiteral(CIRNETRULES_ORGANIZATION));
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("OPENRULES"));
+    parser.setApplicationDescription(QStringLiteral(CIRNETRULES_PRODUCT_NAME));
     parser.addHelpOption();
     parser.addVersionOption();
     QCommandLineOption dataDir(QStringLiteral("data-dir"), QStringLiteral("Local runtime data directory"),
@@ -118,19 +150,11 @@ int main(int argc, char **argv)
         // Keep the single runtime connection and bound the wait before showing an English fallback.
         QObject::connect(&runtime, &RuntimeClient::ready, &bootstrap, [&] {
             ready = true;
-            runtime.request("runtime.info", {}, [&](const QJsonObject &info, const QString &error) {
-                if (window || !error.isEmpty())
+            runtime.request("preferences.get", {}, [&](const QJsonObject &result, const QString &failure) {
+                if (window || !failure.isEmpty())
                     return;
-                if (info.value("version").toString() != QStringLiteral(OPENRULES_APP_VERSION)) {
-                    showWindow({});
-                    return;
-                }
-                runtime.request("preferences.get", {}, [&](const QJsonObject &result, const QString &failure) {
-                    if (window || !failure.isEmpty())
-                        return;
-                    showWindow(result.value("settings").toObject().value("appearance").toObject()
-                                         .value("language").toString());
-                });
+                showWindow(result.value("settings").toObject().value("appearance").toObject()
+                                     .value("language").toString());
             });
         });
         QObject::connect(&runtime, &RuntimeClient::disconnected, &bootstrap, [&](const QString &error) {
@@ -165,21 +189,32 @@ int main(int argc, char **argv)
             reportError(IdentityUpgrade::tr("The runtime sent an invalid data-upgrade response."));
             return;
         }
+        const bool canUseCurrent = result.value("can_use_current").toBool();
         QMessageBox dialog(QMessageBox::Information, title,
             conflict
-                ? IdentityUpgrade::tr("The current and previous databases both contain local data. Choose Use current data to keep them separate, or close OPENRULES.")
+                ? IdentityUpgrade::tr("Independent data stores were found. Choose an available current store or close Desktop to review the source paths.")
                 : IdentityUpgrade::tr("Upgrade the previous Desktop data in place of a fresh database. Close the previous Desktop and its runtime before continuing."),
             QMessageBox::Cancel);
         dialog.setTextFormat(Qt::PlainText);
-        dialog.setInformativeText(IdentityUpgrade::tr("Previous database\n%1\n\nOPENRULES database\n%2")
-            .arg(result.value("source").toString(), result.value("destination").toString())
-            + (conflict ? QString{} : QStringLiteral("\n\n")
-                + IdentityUpgrade::tr("Keep the old runtime closed after the upgrade. The old database is reserved for offline recovery. Later writes from the old runtime would diverge.")));
-        auto *proceed = dialog.addButton(conflict ? IdentityUpgrade::tr("Use current data") :
-            IdentityUpgrade::tr("Back up and upgrade"), QMessageBox::AcceptRole);
+        QStringList locations;
+        for (const auto &candidate : result.value("candidates").toArray()) {
+            const auto entry = candidate.toObject();
+            locations.append(IdentityUpgrade::tr("%1 database (%2 bytes, WAL %3 bytes)\n%4")
+                .arg(entry.value("product").toString()).arg(entry.value("database_bytes").toInteger())
+                .arg(entry.value("wal_bytes").toInteger()).arg(entry.value("path").toString()));
+        }
+        locations.append(IdentityUpgrade::tr("%1 database\n%2")
+            .arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME), result.value("destination").toString()));
+        if (!conflict)
+            locations.append(IdentityUpgrade::tr("Keep the old runtime closed after the upgrade. The old database is reserved for offline recovery. Later writes from the old runtime would diverge."));
+        dialog.setInformativeText(locations.join(QStringLiteral("\n\n")));
+        QPushButton *proceed = nullptr;
+        if (!conflict || canUseCurrent)
+            proceed = dialog.addButton(conflict ? IdentityUpgrade::tr("Use current data") :
+                IdentityUpgrade::tr("Back up and upgrade"), QMessageBox::AcceptRole);
         dialog.setDefaultButton(QMessageBox::Cancel);
         dialog.exec();
-        if (dialog.clickedButton() != proceed) {
+        if (!proceed || dialog.clickedButton() != proceed) {
             app.quit();
             return;
         }
@@ -187,7 +222,10 @@ int main(int argc, char **argv)
         progress->setWindowTitle(title);
         progress->setLabelText(IdentityUpgrade::tr("Checking local data…"));
         progress->setRange(0, 0);
-        progress->setCancelButton(nullptr);
+        auto cancelled = std::make_shared<std::atomic_bool>(false);
+        progress->setCancelButtonText(IdentityUpgrade::tr("Pause upgrade"));
+        QObject::connect(progress.get(), &QProgressDialog::canceled, &app,
+                         [cancelled] { cancelled->store(true, std::memory_order_relaxed); });
         progress->setWindowFlag(Qt::WindowCloseButtonHint, false);
         progress->setWindowModality(Qt::ApplicationModal);
         progress->show();
@@ -199,7 +237,19 @@ int main(int argc, char **argv)
                 else if (response.value("status") == "READY")
                     startDesktop();
                 else
-                    reportError(IdentityUpgrade::tr("Local data still requires recovery. Reopen OPENRULES to retry."));
+                    reportError(IdentityUpgrade::tr("Local data still requires recovery. Reopen %1 to retry.")
+                        .arg(QStringLiteral(CIRNETRULES_PRODUCT_NAME)));
+            }, cancelled, [bar = QPointer<QProgressDialog>(progress.get())](const QString &phase) {
+                if (!bar || bar->wasCanceled())
+                    return;
+                if (phase == "BACKUP")
+                    bar->setLabelText(IdentityUpgrade::tr("Backing up local data…"));
+                else if (phase == "VERIFY")
+                    bar->setLabelText(IdentityUpgrade::tr("Verifying the candidate database…"));
+                else if (phase == "ACTIVATE") {
+                    bar->setCancelButton(nullptr);
+                    bar->setLabelText(IdentityUpgrade::tr("Activating the verified database…"));
+                }
             });
     });
     return app.exec();

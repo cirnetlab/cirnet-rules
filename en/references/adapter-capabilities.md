@@ -1,10 +1,10 @@
-<!-- doc-id: OPENRULES-ADAPTER-CAPABILITIES -->
+<!-- doc-id: CIRNETRULES-ADAPTER-CAPABILITIES -->
 <!-- revision: 1 -->
 <a id="adapter-capabilities"></a>
 
 # External engine interoperability
 
-OPENRULES can inspect a selected local engine without creating a session. A matching probe confirms that the peer reported the pinned version and used the expected response shape. Authentication, sandboxing, approval enforcement, and agent execution need separate evidence. Governance authoring works offline.
+CIRNETRULES can inspect a selected local engine without creating a session. A matching probe confirms that the peer reported the pinned version and used the expected response shape. Authentication, sandboxing, approval enforcement, and agent execution need separate evidence. Governance authoring works offline.
 
 ## Source audit
 
@@ -13,11 +13,11 @@ OPENRULES can inspect a selected local engine without creating a session. A matc
 | OpenHands-main.zip | 3,277 | `1a66039ecd20d93e792eec257c7f5abf4d709a10` | `7e48061c8e1b3ff61f5382d427d37573d83c544f4bc517706d56542e297da88d` |
 | opencode-dev.zip | 12,377 | `fee1ca5aa9e1d62a7ca42ef7eeaa8c02fe6ed080` | `2d25f85683c60484dfadc362269c3bc777b5bc330e0025ea468ecc14a8ba7f6d` |
 
-The audit read selected files directly from the two archives. Both archive roots have MIT licenses. OPENRULES implements the wire subsets and UI patterns in Rust and Qt. No upstream source, runtime, or asset was embedded. Imported files retain their own provenance and licensing terms.
+The audit read selected files directly from the two archives. Both archive roots have MIT licenses. CIRNETRULES implements the wire subsets and UI patterns in Rust and Qt. No upstream source, runtime, or asset was embedded. Imported files retain their own provenance and licensing terms.
 
 | Source mechanism | Classification | Use and evidence |
 | --- | --- | --- |
-| OpenHands `docs/architecture.md` and `src/components/features/skills/add-skill-modal.tsx` | REUSE_PATTERN | Separate the desktop and engine. The upstream Add Skill modal guides setup. OPENRULES authoring uses its own runtime and database. |
+| OpenHands `docs/architecture.md` and `src/components/features/skills/add-skill-modal.tsx` | REUSE_PATTERN | Separate the desktop and engine. The upstream Add Skill modal guides setup. CIRNETRULES authoring uses its own runtime and database. |
 | OpenHands `src/api/skills-service.ts`, `src/utils/skill-enablement.ts`, and `src/utils/skill-scope.ts` | REIMPLEMENT | Catalog scope and enablement are separate from authored content. The compatibility preview maps skill metadata without activation. |
 | OpenHands `src/api/agent-profiles-service/agent-profiles-service.api.ts` and `profile-behavior.ts` | REUSE_PATTERN | Reference profile resources instead of embedding credentials or copying selections into a live engine. |
 | OpenHands `src/utils/plugin-launch-preflight.ts` | REUSE_PATTERN | Preserve typed values and surface unsupported fields. Contract fixtures cover false and opaque fields. |
@@ -42,12 +42,12 @@ The public references describe profiles and configuration. The archive pins dete
 | Session creation, context injection, model/tool calls, approvals, streaming, interrupt, resume, isolation, diff, usage | Blocked | Blocked | Native execution blocked |
 | Verified live engine execution | Not run | Not run | Not run |
 
-The private IPC exposes `openrules.integration.list`, `openrules.integration.probe`, and `openrules.integration.import_preview`. The probe takes a numeric port and engine ID, with no host override. It sends a read-only GET to the fixed version endpoint at `127.0.0.1`. It uses one admitted job on a dedicated worker, a 1.2-second overall socket budget, an 8 KiB header limit, and a 32 KiB body limit. It never follows redirects, uses a proxy, sends credentials or reads any returned server paths. A server demanding authentication is reported separately. HTTP/1.x responses with an explicit content length or connection-close body are accepted for JSON inspection.
+The private IPC exposes `cirnetrules.integration.list`, `cirnetrules.integration.probe`, and `cirnetrules.integration.import_preview`. The probe takes a numeric port and engine ID, with no host override. It sends a read-only GET to the fixed version endpoint at `127.0.0.1`. It uses one admitted job on a dedicated worker, a 1.2-second overall socket budget, an 8 KiB header limit, and a 32 KiB body limit. It never follows redirects, uses a proxy, sends credentials or reads any returned server paths. A server demanding authentication is reported separately. HTTP/1.x responses with an explicit content length or connection-close body are accepted for JSON inspection.
 
 ## Offline format subset
 
 - OpenHands skill preview requires YAML frontmatter in `SKILL.md` with `name` and `description`. It extracts optional `license` and `compatibility`. Extensions remain source-only.
-- OpenCode accepts strict JSON or Markdown with YAML frontmatter for one agent profile. It previews string model selection, description, mode and the disabled flag. The V1 `disable` flag maps to `disabled`. V1 `permission` and V2 `permissions` never become OPENRULES grants. Settings that belong to the other dialect produce a diagnostic. Whole-project configuration, JSONC, structured model selection, provider parameters, and upstream instructions remain outside this mapping.
+- OpenCode accepts strict JSON or Markdown with YAML frontmatter for one agent profile. It previews string model selection, description, mode and the disabled flag. The V1 `disable` flag maps to `disabled`. V1 `permission` and V2 `permissions` never become CIRNETRULES grants. Settings that belong to the other dialect produce a diagnostic. Whole-project configuration, JSONC, structured model selection, provider parameters, and upstream instructions remain outside this mapping.
 - The report classifies fields as supported, translated, retained as source, or rejected. Policy, execution, and credential fields are rejected. The preview does not fetch references, activate skills, persist configuration, or start a process. It bounds input size and field count, rejects YAML aliases, anchors, tags and directives, and locates parse diagnostics when the parser supplies a location.
 
 ## Verification status

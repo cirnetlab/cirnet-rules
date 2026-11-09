@@ -1,6 +1,6 @@
 <!-- doc-id: POLICY -->
 <!-- revision: 2 -->
-<!-- source-sha256: 6023c9ea5f499a823756b45b62a13ba9a4682bf23123369841d0d3ea45b991b7 -->
+<!-- source-sha256: b3fca7e38f2e46d2afd378e9f850286814bec4e21edbb31510e9f9c826912744 -->
 <!-- translation-status: synchronized -->
 
 <a id="release"></a>
@@ -49,7 +49,7 @@ giữ `PLANNED` và `RELEASED`. Task local mới đi từ `PROPOSED` → `READY`
 → `CLOSED`. Thiếu điều kiện cho `BLOCKED`. Quyết định miễn tài liệu tường
 minh có thể đóng task đã nghiệm thu. Người quản lý release ghi bằng chứng
 phát hành riêng. Kiểm chứng gắn đầu vào đã kiểm với revision governance và task.
-Xem [quy trình OPENRULES](../references/openrules-local.md).
+Xem [quy trình CIRNETRULES](../references/cirnetrules-local.md).
 
 Danh sách ngoại lệ ban đầu đóng. Ngoại lệ tương lai cần ID quy tắc, owner,
 lý do, hạn và phê duyệt. Agent không tự miễn gate của mình. Quy tắc và hook

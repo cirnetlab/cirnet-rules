@@ -1,0 +1,591 @@
+{
+  "version": 1,
+  "exceptions": [
+    {
+      "path": ".gitignore",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "7c17b7117ee2435f5c8665d581a5d9b9d4fba75c3c8cede2d84c8b5e7d8b45cd": 1,
+        "c0e253ff83f8c10c59992cc5b6aebe3f011824f756c1a28cd031b6907252cd7b": 1
+      }
+    },
+    {
+      "path": "en/CHANGELOG.md",
+      "reason": "Earlier change or verification identifiers retained as history.",
+      "matches": {
+        "1840f6faf5c7242f4deb64474b6e620e6c54e85784fe24b83531e94d3446ef3a": 1,
+        "3e9c3bb41bb78f9e950ece98edd5078c0071d53859886c9c8289c74f0d032cf8": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/cgacp/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "7a5a82af342afd612bb6c3eb016fc3b4282c70707508510bc8a0361308858666": 1,
+        "9daca96ad098cdb689004a0707ee1967d3699df037c0073796f4fb7fc01b9c07": 1,
+        "ca75f25fb85acac9639428795e7f504faa867c97327da0188f6adbd70f1b1e5f": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/conversation-automation-deletion/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "9fea2794beed5856ea72052ce71c0c859e5b902768ec9aa51b5420b5817848f5": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/dashboard-ux/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "7a0d47023cafd77c38fe7b234d7c19dfb33a23eff47af2f7e47080f2f27f484c": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/dashboard/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "a336474861ca24013b355e8952245a622ac4e57aed6dec401980272c10b93575": 1,
+        "ca4a965adc203f2b63e3e30cb0be81ea8aee821ece42648b3b9eb512f828293e": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/desktop-appearance-customization/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "8123ec5a8298659478c459cc6d6a107c8a5331e9113c0fda9a92e8c62b2feb37": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/desktop-interaction/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "407e97bc33ae085c4364f10fe2f1eb9c866249a6c4ddb4c1290222dc9695eac9": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/desktop-live-appearance-storage/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "4248464ba0ba293131960916d7fe6c07f56a041147e8e6fa0a373de0a9f7b109": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/desktop-performance-lifecycle/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "f737f769563dcb5150edae37e38c6498efad5133d0934973169a66cde2e0c9cb": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/desktop-row-hover-toast/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "eb8991cbb13c1055ea91bbb9aaba778de5cb9a57e5307bf1195d75f0506832a7": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/desktop-settings-refinement/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "c486e44147e4d650d7734167e0279f54dda6b2f7a7eee74386687589d452d409": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/desktop-status-visuals/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "f8ef4792b36df4e6bd2df1606ba10aea13e19193fdcd01b67020ebc3b8a49d6c": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/openrules-governance/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "728c221cd1b5c6c1c7134bd2eca5eca8d1b46ca861601867e777093214a2af3b": 1,
+        "82497a5fa33acf4268aa7dfce70d1e4ac61f1a7b6fdb579af16201ae1f7584fa": 1,
+        "eec732ebc6f149710b5cdf1f60648152ba1f8b34abf32e51b335a69f6f7e6e31": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "en/plans/cirnet-rules/sidebar-footer/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "cd469c4f8b6945178eed074b2af9d714406f7020f7d92e00e9149d4ff9db9c7e": 1
+      }
+    },
+    {
+      "path": "en/references/cirnetrules-identity.md",
+      "reason": "Operator instructions describe previous data generations and recovery.",
+      "matches": {
+        "381903d082b91169dab58cf8c850bcfb65bdd0be0cdf45ccb0e589fccc588081": 1,
+        "a972d73955025695daa85a6e0fee80b0cf87ed9411d8dcb556ca44935407e44d": 1,
+        "b4bcdafb6589ce654e4744aa2ba4353363a5e356d08413c71ac57567abd9a091": 1,
+        "c3bff303e49d9055aefe69c9e975ac7da10cfc0465bf743496c86d0d069cf821": 1
+      }
+    },
+    {
+      "path": "en/references/cirnetrules-verification.md",
+      "reason": "Earlier change or verification identifiers retained as history.",
+      "matches": {
+        "47c487b2eee0b235cc8036346de7c646dc3158024392c07bcbf2e43a34f21020": 1,
+        "5042af0746a16e350f211687bd67c1ef19af8861b7c7ffcf211492b53822ac3f": 1,
+        "6df8ed7ca1fa024ff32b1e40a307a1b502eca9c884092b9c4a924bfa278aca66": 1,
+        "ad7261adb1dcf0d9865e5b452a343f1fc3580815e97d4b90871e341b2153089c": 1,
+        "cf346e3a98139b3c4f2f1b6ab7d2d055c590f11edbeb5990fa3563e9f1d8db3f": 1,
+        "ea0e064131a6aaf5cc5f87bdc61a017429b441b2150216f70c434feaf8062e80": 1,
+        "ed2649f2a2d80bc8cbc799dda16d55590d6326aed7019fa037fd238cb4e000fc": 1,
+        "fc47f2424d646b7b2510f9922b9362624f1a299a04cc87bf6739265df0d3f934": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/cgacp/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "08e60d91070a3ab60aa3cc777b84d8c8a1b7a46d63df9e4307a7b4d50bb7688c": 1,
+        "1ea05ef18633f1c46923fc171a344eb638aa148563f3bfc559553505d069e5f7": 1,
+        "5f6cdb63e8848e48037d5acfa05caad12c31deab7aa441bafea6dfd1b1a7851b": 1,
+        "c32f010b9f3a1373e95a8a85450fb6f63d1a0fb03f6f0d43338f6836c0d1a3af": 1,
+        "e839d1303e2bbb8935255373fda79d89fd02bf4ba7e85b19fc8ca64652dc83ae": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/conversation-automation-deletion/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "0589ea3be291b7035d0277ea54c25e82ceca638489f5ff3abd53d94fbcf25367": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/dashboard-ux/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "14cbef186710027a51ddaae464b3e1d65dd4be2fe7b742ad5e5ad852c45c043d": 1,
+        "1780a2b4391977ffe51de36d9802c4c875f3ad11d26d4dc972a6ca8b2af7e404": 1,
+        "39642c3c91b087e68e8ee9a237118e4b8bcd08425c267a53bd7051711afb22f5": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/dashboard/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "0a11a80e5491f6773ea55a782d0d68eecc171a9359b31d1234dbd48f0fd230cd": 1,
+        "a25056e2df954f1adb3efd345f698108d8cb9fa7b0f94d1a1c64049b866fd4e7": 1,
+        "f35781c6e08b955d5c4dc4e4b500c1d3063077dedfa38c79f8e51666178787d4": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/desktop-appearance-customization/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "73b43eeac3d4dffd78a8942676ad19f7a6b657fbe1fc7c2b7bb3648c287ba90b": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/desktop-interaction/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "2674a6002b094a96509ce26a324ea1ed0d4710f55ab651f69c0d98278f218b70": 1,
+        "8c5a8d35335daff2260c6b1232fd81a21c0f3239894c78757bbc803f05aa2eb3": 1,
+        "a6c2a9361a8f68593af9e1de1df47eda1de795dc75611b14f0ae173f21e2182b": 1,
+        "ad88678c39214700d52b75c5fecc63bf82ac8b4b3672246308257cac1058491d": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/desktop-live-appearance-storage/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "156a16c5c5ed43a9bd74ae7d9cce9a95156878063ce29365eade81632d5183ba": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/desktop-performance-lifecycle/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "014fc5780c0954c12c5a75b9569212d4587948163857a4559ae0272fa6a0c772": 1,
+        "7ea76c932342ff736dc0d47e50061c77bca7d0002f7c275e00656f9381ada3fe": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/desktop-row-hover-toast/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "80fc1b886c138ba29b835c6396f09e33f22d1180225b0a758d6e3078a7aa0695": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/desktop-settings-refinement/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "e199186606e6ff55e8ffc4b636cfc8e4bdeecf69d577452adff10d39c83244ea": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/desktop-status-visuals/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "d24c78374953a3613612e37502deefc9b4e7f66ce0d4273a248b4b8a8959e465": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/openrules-governance/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "7ef89179f0fa927d2fe803712d84f1cd3b017a37ed0c3f82c6585319ebf72d29": 1,
+        "800b8da657404dff16a5398c083604922e97e7075c7338abb4b76855a4d522c9": 1,
+        "844c66ea680c83f22e1e51a37fca34e41bb4092129d724f551b31c6a932453f8": 1,
+        "89527e30b75de59984f3af3cbb36e575fd364cdfa9e6d0cd54cbe6c58d968f19": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "en/specs/cirnet-rules/sidebar-footer/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "4a7dce2670033663847d458bda0a7e17a69a9bf7e2bd4ee681b7d42e7d2bbf43": 1
+      }
+    },
+    {
+      "path": "scripts/package-dashboard.ps1",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "bc1e160c56a4cecea19455f0ae8a9d7164bc85cc34e08b82ab92ae69b6f9a9ab": 1
+      }
+    },
+    {
+      "path": "src/dashboard/catalog/tests.rs",
+      "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
+      "matches": {
+        "f3475836554459604f5f1e894ae9aa8a9c7fdea4bc406cb4f10f5dc1588a118c": 1
+      }
+    },
+    {
+      "path": "src/dashboard/identity.rs",
+      "reason": "Read-only predecessor discovery, lineage validation or evidence archive.",
+      "matches": {
+        "478ac0c617e561a5cd2638c9b2b31f98d8de3c80111ea6563fdb2ce815209973": 1,
+        "7574121a1de33660298b967bab8cfdafda7fa0a1d110fa4459b6e9c36b89b8b7": 1,
+        "a350bd223abe7b692b2f0cc0ceb1b750cd519b9cd2c3e859e218ccf3cf58cc6c": 1,
+        "d8d0d8289c9e8eb1530b0f4452704e95d591f41be62b6f5677a1fa40e714b25f": 1,
+        "e78eeb33fe14140bae01724d612d466f4feb8be64dbc3b764ee99d5edd24e728": 1,
+        "e9d3de4ba24c089d88838b7135dae11e978330daf252e358012e69da72daec14": 1
+      }
+    },
+    {
+      "path": "src/dashboard/identity_tests.rs",
+      "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
+      "matches": {
+        "41eb6ac13018b2889fe3e9caec5effa01bdc59b88517f5e626000f769bf0e33b": 1,
+        "87ca815d36c6d90752633d7ed1f0042e7817660402c2796776bd60512cfc78e1": 1,
+        "9caeb8dc599d7e3349bcc85249aab86bfa6e467a732d727502e65b1198f475cd": 1,
+        "a2ad6c362ef6152d3e5c5aba939000b439f760a26ab09742717746fdc5442ff8": 1,
+        "a87d5e2b73342e32a2f951255841f5b0dff3e2bed3fee87ab03a821ff2fe1c21": 1,
+        "cefd4ef618678fff853ba759ebe5f8bbb0841b6283ee6127e2a6582c144690d5": 1,
+        "dcaae6fe965c78cf63660f1b49cc7afc8bcadef38110479d74ae7c18ba5a709a": 1,
+        "ebfd001f16b847771b2a0015099dd6de08f243a6a6b0ccd1206866228d18ddd2": 2,
+        "fa066e883f996f875993f415d86f72f84f8bfae74054e812dd744f178ba788a3": 1
+      }
+    },
+    {
+      "path": "src/dashboard/legacy.rs",
+      "reason": "Read-only predecessor discovery, lineage validation or evidence archive.",
+      "matches": {
+        "ce24baa9a8afcdff011f4637abf31e148b5d7035d482fd4ab9f1f5807ba83fef": 1
+      }
+    },
+    {
+      "path": "src/dashboard/sessions.rs",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "0536e877b4b023365627c57a6214bc130cfb66719afdb1445cadd84723a90331": 1,
+        "bb94bf12c6107f2ae85812905633353eb41cb923a35212373b7691f600274f95": 1
+      }
+    },
+    {
+      "path": "src/main.rs",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "d7db6ea54542f20c4bcba884ac1c8a60d3bfcea32329dfab5cfdc9dbf4f9e0be": 1
+      }
+    },
+    {
+      "path": "src/runner/snapshot.rs",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "3785fbf6145f688796fa1502145a321220f7bf9b65e6c4f19d6b16aa1cef20e3": 1,
+        "bad296499b1cc4ded151c54c84b67f0a611b5d3ec1aad4191ef7c84b0d311f14": 1
+      }
+    },
+    {
+      "path": "src/tasks.rs",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "6105c23886205384c66edb4fe2ea2e78487759213e9a8892aa69f672daa496bc": 1
+      }
+    },
+    {
+      "path": "src/tests/cirnetrules.rs",
+      "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
+      "matches": {
+        "2c19388bd7d57ff064843bba8225b6232f79702d77e8a1a5fa72f5e7d67dba25": 1,
+        "f7933aed709bb4f044b8cf4c039709b290555ebb2fd8d8f0bdb1fbe978fec9af": 1
+      }
+    },
+    {
+      "path": "src/tests/dashboard.rs",
+      "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
+      "matches": {
+        "20218689a36fea88507eb27965b84b91e850ffd27e5ba9ea03e8ff510a62191d": 1
+      }
+    },
+    {
+      "path": "src/workspace/context_packet.rs",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "a8bd7407c6fc532bd0f0bd26100f9e51fca37f83ca77cc2badf1e349ccaec3f9": 1,
+        "feace77dd34d91a445d1d397c33b316a639e54dee15ef024a316a632a8109dac": 1
+      }
+    },
+    {
+      "path": "vi/CHANGELOG.md",
+      "reason": "Earlier change or verification identifiers retained as history.",
+      "matches": {
+        "19d0323f5d969c2765fb8c192a90361d7d98eaa1ecce5af2a779bc69e81519fe": 1,
+        "b031052c5cf456c21d98541594c8ffa93d5f7a8dfeee0512589c1594ca943672": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/cgacp/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "2f13e2d8ab397e69c2bfe6f2533f69e5932acaa14735a54ac0ef6b1166dafb31": 1,
+        "9daca96ad098cdb689004a0707ee1967d3699df037c0073796f4fb7fc01b9c07": 1,
+        "f383116bc1409f4f38f9c441977e356923d4a177ae60cc2d1a5cd2bba793a562": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/conversation-automation-deletion/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "9fea2794beed5856ea72052ce71c0c859e5b902768ec9aa51b5420b5817848f5": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/dashboard-ux/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "7a0d47023cafd77c38fe7b234d7c19dfb33a23eff47af2f7e47080f2f27f484c": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/dashboard/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "65c830818d83752504bf8c9f5f3c6df3287a0ea1252a137a4796b77fdaab28e2": 1,
+        "a336474861ca24013b355e8952245a622ac4e57aed6dec401980272c10b93575": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/desktop-appearance-customization/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "8123ec5a8298659478c459cc6d6a107c8a5331e9113c0fda9a92e8c62b2feb37": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/desktop-interaction/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "407e97bc33ae085c4364f10fe2f1eb9c866249a6c4ddb4c1290222dc9695eac9": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/desktop-live-appearance-storage/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "4248464ba0ba293131960916d7fe6c07f56a041147e8e6fa0a373de0a9f7b109": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/desktop-performance-lifecycle/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "f737f769563dcb5150edae37e38c6498efad5133d0934973169a66cde2e0c9cb": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/desktop-row-hover-toast/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "eb8991cbb13c1055ea91bbb9aaba778de5cb9a57e5307bf1195d75f0506832a7": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/desktop-settings-refinement/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "c486e44147e4d650d7734167e0279f54dda6b2f7a7eee74386687589d452d409": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/desktop-status-visuals/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "f8ef4792b36df4e6bd2df1606ba10aea13e19193fdcd01b67020ebc3b8a49d6c": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/openrules-governance/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "73f2b7028b3925e54d1469525c19fb448dcaec1fb8a0e8e7f746003162571ee7": 1,
+        "7d61f3638bee572ca48088cf284b65160f04f21a6c9bc49a6d591e3d8dbd2a09": 1,
+        "eec732ebc6f149710b5cdf1f60648152ba1f8b34abf32e51b335a69f6f7e6e31": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "vi/plans/cirnet-rules/sidebar-footer/plan.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "cd469c4f8b6945178eed074b2af9d714406f7020f7d92e00e9149d4ff9db9c7e": 1
+      }
+    },
+    {
+      "path": "vi/references/cirnetrules-identity.md",
+      "reason": "Operator instructions describe previous data generations and recovery.",
+      "matches": {
+        "215c3bd6d2889ea9eec297dbfad91245a16953b15883c10435b7b1be260d2352": 1,
+        "3e6398ffa88a45165ebbb2bf9ddc46da0f354d2ae33eb583f3ae920c7b3a2159": 1,
+        "e24e2c946557b479c65f996ff287951fba23bcd9a649cf5b791aa202f24ce93d": 1,
+        "e5aa58fed41812671a2bb48e518b32c9127e302e77687a71ce706817b31cf2ba": 1,
+        "e715704cfe978f3871e1517294b17e5ec42ad316f7afc7a9fabb4c9c3e5678f2": 1
+      }
+    },
+    {
+      "path": "vi/references/cirnetrules-verification.md",
+      "reason": "Earlier change or verification identifiers retained as history.",
+      "matches": {
+        "00bfa0fc94b38658327be892b2bade0eb5b9bf9e689233be1b53b77601e49ea5": 1,
+        "0958bef3b03fdaade07fbed2f26087a7deff1ea508d1d278a8680fbe6d4532c4": 1,
+        "208c0fd2393ef17215398307eaf5d2371a3a10269ec082d3ce70d6f7e5ae72a8": 1,
+        "6e11ecc0bca1385a362865de80d536d9cad61ddf2b7fb4aa008216bc7ce02b3a": 1,
+        "6fbead99c89361b40cc04e6dc4cc24021b268f1d1aff4fa3b250668ab418b42b": 1,
+        "86dde8a081fc384bc14b52243d18bbac7dd91486ad9718832ebc81918da5441b": 1,
+        "8d854e8bc0d3637f38106e873f2dd11971e914e42dca3fd9c90be7bdcdde89dd": 1,
+        "a2ba4f7f7b3007b6e63abe9516c7cd0b324490ed84be7088aedf75870b4ba3f9": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/cgacp/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "0a6183de6a84a014a77a5d8c586455319a16bb4e174dbb059f23dcbfcdc029c0": 1,
+        "22715413b341e60899b6607fa6cefd2ff367248a17d05eae4ff5c1e545d316af": 1,
+        "b54268b1994c05a18b0d2ad77baa344c45803a77a38d379f4c8c73636214ab3a": 1,
+        "e3cc35fa486d8845f9187f7c310ba4486ee02c3665d75662c372fb671bb540ca": 1,
+        "e839d1303e2bbb8935255373fda79d89fd02bf4ba7e85b19fc8ca64652dc83ae": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/conversation-automation-deletion/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "0589ea3be291b7035d0277ea54c25e82ceca638489f5ff3abd53d94fbcf25367": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/dashboard-ux/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "39642c3c91b087e68e8ee9a237118e4b8bcd08425c267a53bd7051711afb22f5": 1,
+        "b5386eb2546fe29811186d93b73b266353fe896758037591de7f0bcb611aa94e": 1,
+        "db7859a6dd713d1e6cbe121fb775bf2f6ed59feb47e015ef6e997d5364284a22": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/dashboard/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "3fd71b229caa65f77a40493b0d4e68f6d9ecb47fa975fb0b6bbd128ffc7f485f": 1,
+        "a25056e2df954f1adb3efd345f698108d8cb9fa7b0f94d1a1c64049b866fd4e7": 1,
+        "e5be6a10d2d1487c65908228c8dc5178bb2c41693f4d085dca56226307aaf9cf": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/desktop-appearance-customization/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "73b43eeac3d4dffd78a8942676ad19f7a6b657fbe1fc7c2b7bb3648c287ba90b": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/desktop-interaction/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "67a0221ed24585af31e46e5aa973c3f53a13d1d5d66b3aa745931234cc44febc": 1,
+        "8225a61ba6ef20c9dad752472aad684bc277261cb9d326b7d6b08165762f1b2b": 1,
+        "8c5a8d35335daff2260c6b1232fd81a21c0f3239894c78757bbc803f05aa2eb3": 1,
+        "bdfd9c10c491bf061b54f959f4da15947d4a8b1d92d8f557617b69373c47b6c6": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/desktop-live-appearance-storage/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "156a16c5c5ed43a9bd74ae7d9cce9a95156878063ce29365eade81632d5183ba": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/desktop-performance-lifecycle/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "7ea76c932342ff736dc0d47e50061c77bca7d0002f7c275e00656f9381ada3fe": 1,
+        "8c1ddd50657ebdd9f4cb6c53f0e31479489426bb15a009439d0bd5b165da8d12": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/desktop-row-hover-toast/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "80fc1b886c138ba29b835c6396f09e33f22d1180225b0a758d6e3078a7aa0695": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/desktop-settings-refinement/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "e199186606e6ff55e8ffc4b636cfc8e4bdeecf69d577452adff10d39c83244ea": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/desktop-status-visuals/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "d24c78374953a3613612e37502deefc9b4e7f66ce0d4273a248b4b8a8959e465": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/openrules-governance/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "26185b3cc36a6a7f3e67ac353b99402263aa03b294e4e954c3059aa06676562a": 1,
+        "7ef89179f0fa927d2fe803712d84f1cd3b017a37ed0c3f82c6585319ebf72d29": 1,
+        "803e325f105ae33158b122631b0746842adf821587a8857fcc4f7c8ed67bd16c": 1,
+        "d3f18241783b6f74cc3713fb07de0e74306baf0a2062d4f765e7015023cc0f5c": 1,
+        "filename": 1
+      }
+    },
+    {
+      "path": "vi/specs/cirnet-rules/sidebar-footer/spec.md",
+      "reason": "Historical plan or specification retained at its original path and contents.",
+      "matches": {
+        "4a7dce2670033663847d458bda0a7e17a69a9bf7e2bd4ee681b7d42e7d2bbf43": 1
+      }
+    }
+  ]
+}

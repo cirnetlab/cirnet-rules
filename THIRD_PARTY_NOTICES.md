@@ -1,4 +1,4 @@
-# OPENRULES Windows candidate notices
+# CIRNETRULES Windows candidate notices
 
 The desktop candidate uses dynamically linked Qt 6 Widgets and the Qt Windows
 platform plugin from the operator's development kit. The runtime uses SQLite

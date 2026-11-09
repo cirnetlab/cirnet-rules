@@ -1,5 +1,5 @@
 <RCC>
-  <qresource prefix="/openrules">
+  <qresource prefix="/cirnetrules">
     <file>theme.qss</file>
     <file alias="favicon.png">../../assets/favicon.png</file>
   </qresource>

@@ -1,6 +1,6 @@
-<!-- doc-id: OPENRULES-INTERACTION-STATE -->
+<!-- doc-id: CIRNETRULES-INTERACTION-STATE -->
 <!-- revision: 2 -->
-<!-- source-sha256: 2e64f355ad3312aff86f167d6c4e821740eb71f946b23f599a5d2c5a16a2474f -->
+<!-- source-sha256: 5bcc70bd0250243337e71147c97a017769c49e56afae578ee9520c2f1c271ad9 -->
 <!-- translation-status: synchronized -->
 <a id="interaction-state"></a>
 

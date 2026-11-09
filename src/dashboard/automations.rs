@@ -1058,7 +1058,7 @@ mod tests {
     }
     impl Fixture {
         fn new() -> (Self, Database, String) {
-            let root = crate::test_support::temporary_directory("openrules-session").unwrap();
+            let root = crate::test_support::temporary_directory("cirnetrules-session").unwrap();
             let checkout = root.join("đồ án bất kỳ");
             std::fs::create_dir(&checkout).unwrap();
             fn git(repo: &std::path::Path, args: &[&str]) {
@@ -1080,7 +1080,7 @@ mod tests {
                 &checkout,
                 &[
                     "-c",
-                    "user.name=OPENRULES fixture",
+                    "user.name=CIRNETRULES fixture",
                     "-c",
                     "user.email=fixture@example.invalid",
                     "-c",

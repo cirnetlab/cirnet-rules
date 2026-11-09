@@ -1607,7 +1607,7 @@ void GovernancePanel::importBundle(const QString &source)
 {
     const auto document = QJsonDocument::fromJson(source.toUtf8());
     if (!document.isObject()) {
-        reportStatic(QT_TRANSLATE_NOOP("GovernancePanel", "Choose a valid OPENRULES JSON bundle."), true);
+        reportStatic(QT_TRANSLATE_NOOP("GovernancePanel", "Choose a valid governance JSON bundle."), true);
         return;
     }
     const auto bundle = document.object();

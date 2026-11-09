@@ -260,9 +260,12 @@ fn link(db: &mut Database, input: Link) -> Result<Value, AppError> {
 }
 
 fn inventory(input: Source) -> Result<Inventory, AppError> {
-    if input.source.file_name().and_then(|name| name.to_str()) != Some(".cgacp") {
+    if !matches!(
+        input.source.file_name().and_then(|name| name.to_str()),
+        Some(".openrules" | ".cgacp")
+    ) {
         return Err(legacy_invalid(
-            "Select the legacy .cgacp directory explicitly.",
+            "Select a supported legacy state directory explicitly.",
         ));
     }
     let source = ordinary_directory(input.source)?;

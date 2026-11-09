@@ -1,6 +1,6 @@
 <!-- doc-id: TOOLS -->
 <!-- revision: 2 -->
-<!-- source-sha256: 8a4b48db525c732e2b52875c83dae8eb4c4061d33f15ccb8f4534cf51ba38f3d -->
+<!-- source-sha256: 7fbcbd317ff37398d5e94b41be4af415305af1e00a993a81df86cd083d61d572 -->
 <!-- translation-status: synchronized -->
 
 <a id="commands"></a>
@@ -19,7 +19,7 @@ cargo build --locked
 ~~~
 
 Trên Windows binary có đuôi exe. Cargo target là src/main.rs và
-src/tests/cli.rs. Schema ở en/schemas. Xem [quy trình local](../references/openrules-local.md)
+src/tests/cli.rs. Schema ở en/schemas. Xem [quy trình local](../references/cirnetrules-local.md)
 để tạo, thực thi, nghiệm thu task và chọn chế độ release tường minh.
 Các lệnh context, doctor, version và drift cũ vẫn dùng cho audit lịch sử.
 Luồng thường dùng scoped health và task context.

@@ -1,4 +1,4 @@
-<!-- doc-id: OPENRULES-GOVERNANCE-WORKSPACE -->
+<!-- doc-id: CIRNETRULES-GOVERNANCE-WORKSPACE -->
 <!-- revision: 1 -->
 <a id="workspace"></a>
 

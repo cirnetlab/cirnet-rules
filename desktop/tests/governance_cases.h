@@ -24,9 +24,9 @@ namespace governance_cases {
 inline void authorSkill(const std::function<void(MainWindow &, const QString &)> &capture,
                         const std::function<void(MainWindow &)> &openConfiguration)
 {
-    const auto runtime = qEnvironmentVariable("OPENRULES_TEST_RUNTIME");
+    const auto runtime = qEnvironmentVariable("CIRNETRULES_TEST_RUNTIME");
     if (runtime.isEmpty())
-        QSKIP("Set OPENRULES_TEST_RUNTIME to exercise native authoring against Rust.");
+        QSKIP("Set CIRNETRULES_TEST_RUNTIME to exercise native authoring against Rust.");
     QTemporaryDir fixture;
     QVERIFY(fixture.isValid());
     const QStringList args{"--stdio", "--data-dir", fixture.filePath("data")};

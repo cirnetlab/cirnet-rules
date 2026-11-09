@@ -6,7 +6,7 @@ use std::{
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
-const CACHE: &str = ".openrules/cache";
+const CACHE: &str = ".cirnetrules/cache";
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct SourceStamp {
@@ -360,7 +360,8 @@ fn sensitive_path(path: &str) -> bool {
         segment.starts_with(".env")
             || matches!(
                 segment.as_str(),
-                ".openrules"
+                ".cirnetrules"
+                    | ".openrules"
                     | ".cgacp"
                     | ".ssh"
                     | ".aws"

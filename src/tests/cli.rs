@@ -1,5 +1,6 @@
 use serde_json::Value;
-mod openrules;
+mod cirnetrules;
+mod identity_inventory;
 #[path = "../test_support.rs"]
 mod test_support;
 use std::{path::Path, process::Command};

@@ -1,4 +1,5 @@
 #include "live_text.h"
+#include "build_info.h"
 
 #include <QCoreApplication>
 #include <QLabel>
@@ -24,7 +25,7 @@ bool Language::set(QString locale)
     std::unique_ptr<QTranslator> next;
     if (locale != "en") {
         next = std::make_unique<QTranslator>();
-        if (!next->load(QStringLiteral(":/i18n/openrules_%1.qm").arg(locale)))
+        if (!next->load(QStringLiteral(":/i18n/" CIRNETRULES_PRODUCT_ID "_%1.qm").arg(locale)))
             return false;
     }
     if (translator_)

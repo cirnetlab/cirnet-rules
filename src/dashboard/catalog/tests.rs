@@ -5,7 +5,7 @@ struct Fixture(PathBuf);
 
 impl Fixture {
     fn new() -> Self {
-        Self(crate::test_support::temporary_directory("openrules-catalog").unwrap())
+        Self(crate::test_support::temporary_directory("cirnetrules-catalog").unwrap())
     }
 
     fn git(path: &Path, args: &[&str]) {
@@ -64,7 +64,7 @@ impl Drop for Fixture {
                 .0
                 .file_name()
                 .and_then(|x| x.to_str())
-                .is_some_and(|x| x.starts_with("openrules-catalog-"))
+                .is_some_and(|x| x.starts_with("cirnetrules-catalog-"))
         {
             let _ = fs::remove_dir_all(&self.0);
         }
@@ -177,7 +177,7 @@ fn concurrent_add_and_online_backup_preserve_a_single_registration() {
     drop(Database::open(&restoration).unwrap());
     fs::copy(
         snapshot["path"].as_str().unwrap(),
-        restoration.join("openrules.sqlite3"),
+        restoration.join("cirnetrules.sqlite3"),
     )
     .unwrap();
     let mut restored = Database::open(&restoration).unwrap();
@@ -268,7 +268,7 @@ fn sqlite_busy_and_future_schema_fail_without_mutating_existing_state() {
         Database::open(&data).err().unwrap().code,
         "MIGRATION_REQUIRED"
     );
-    let original = Connection::open(data.join("openrules.sqlite3")).unwrap();
+    let original = Connection::open(data.join("cirnetrules.sqlite3")).unwrap();
     assert_eq!(
         original
             .pragma_query_value::<i64, _>(None, "user_version", |row| row.get(0))

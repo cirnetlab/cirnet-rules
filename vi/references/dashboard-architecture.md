@@ -1,6 +1,6 @@
-<!-- doc-id: OPENRULES-DESKTOP-ARCHITECTURE -->
+<!-- doc-id: CIRNETRULES-DESKTOP-ARCHITECTURE -->
 <!-- revision: 8 -->
-<!-- source-sha256: 82067975cff6b8ada3825bec631842ccea563649d29af3ce9125ebbdcef3ceb7 -->
+<!-- source-sha256: f4ec1e0abe85b5fd84e21dbbec713fb916d7545d59a125560a6de58890d8560e -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 

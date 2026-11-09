@@ -19,6 +19,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
@@ -67,9 +68,11 @@ QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
                           const QJsonArray &methods, const QString &mode)
 {
     if (method == "runtime.info")
-        return {{"product_generation", QStringLiteral(OPENRULES_PRODUCT_NAME)},
-                {"version", QStringLiteral(OPENRULES_APP_VERSION)},
-                {"release_name", QStringLiteral(OPENRULES_RELEASE_NAME)},
+        return {{"product_generation", QStringLiteral(CIRNETRULES_PRODUCT_SYMBOL)},
+                {"product_id", mode == "wrong-product" ? QStringLiteral("previous-product") : QStringLiteral(CIRNETRULES_PRODUCT_ID)},
+                {"protocol", CIRNETRULES_IPC_PROTOCOL},
+                {"version", QStringLiteral(CIRNETRULES_APP_VERSION)},
+                {"release_name", QStringLiteral(CIRNETRULES_RELEASE_NAME)},
                 {"native_agent", QJsonObject{{"codex", "HANDOFF_ONLY"}}},
                 {"execution_enforcement", QJsonObject{{"ISOLATED_EXECUTION", "BLOCKED"}}}};
     if (method == "preferences.get") {
@@ -186,10 +189,10 @@ int runFixture(const QString &mode)
     while (std::fgets(line, sizeof line, stdin)) {
         const auto request = QJsonDocument::fromJson(QByteArray(line)).object();
         const auto wireMethod = request.value("method").toString();
-        if (request.value("v").toInt() != OPENRULES_IPC_PROTOCOL ||
-            !wireMethod.startsWith(QStringLiteral("openrules.")))
+        if (request.value("v").toInt() != CIRNETRULES_IPC_PROTOCOL ||
+            !wireMethod.startsWith(QStringLiteral(CIRNETRULES_API_NAMESPACE)))
             return 2;
-        const auto method = wireMethod.sliced(10);
+        const auto method = wireMethod.sliced(qsizetype(sizeof(CIRNETRULES_API_NAMESPACE) - 1));
         if (method == "test.invalid") {
             std::fputs("{malformed}\n", stdout);
             std::fflush(stdout);
@@ -205,7 +208,7 @@ int runFixture(const QString &mode)
         if (method == "test.holdAutomationList")
             holdAutomationList = true;
         methods.append(method);
-        QJsonObject responseObject{{"v", OPENRULES_IPC_PROTOCOL}, {"id", request.value("id")}};
+        QJsonObject responseObject{{"v", mode == "previous-protocol" ? 2 : CIRNETRULES_IPC_PROTOCOL}, {"id", request.value("id")}};
         if (mode == "save-error" && method == "preferences.set" && firstPreferenceWrite) {
             firstPreferenceWrite = false;
             responseObject.insert("ok", false);
@@ -225,7 +228,7 @@ int runFixture(const QString &mode)
             heldReplies.append(response);
             continue;
         }
-        if (mode == "eof-burst") {
+        if (mode == "eof-burst" && methods.size() > 1) {
             heldReplies.append(response);
             continue;
         }
@@ -310,7 +313,7 @@ void chooseTheme(MainWindow &window, const QString &name)
 
 bool captureWidget(QWidget &widget, const QString &name)
 {
-    const auto directory = qEnvironmentVariable("OPENRULES_UI_CAPTURE");
+    const auto directory = qEnvironmentVariable("CIRNETRULES_UI_CAPTURE");
     if (directory.isEmpty())
         return true;
     QTest::qWait(60);
@@ -338,6 +341,60 @@ void withDashboardFixture(const std::function<void(MainWindow &)> &test,
 class DesktopTest final : public QObject {
     Q_OBJECT
 private slots:
+    void runtimeChecksumAndBranding()
+    {
+        const auto filename = QFileInfo(RuntimeClient::siblingExecutable()).fileName();
+#ifdef Q_OS_WIN
+        QCOMPARE(filename, QStringLiteral("cirnetrules-runtime.exe"));
+#else
+        QCOMPARE(filename, QStringLiteral("cirnetrules-runtime"));
+#endif
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto executable = directory.filePath(filename);
+        QVERIFY(QFile::copy(QCoreApplication::applicationFilePath(), executable));
+        QVERIFY(!RuntimeClient::validateExecutable(executable, true).isEmpty());
+        QFile checksum(executable + ".sha256");
+        QVERIFY(checksum.open(QIODevice::WriteOnly));
+        QCOMPARE(checksum.write(QByteArray(64, '0')), 64);
+        checksum.close();
+        QVERIFY(RuntimeClient::validateExecutable(executable, true).contains("does not match"));
+
+        withDashboardFixture([](MainWindow &window) {
+            QCOMPARE(window.windowTitle(), QStringLiteral("CIRNET RULES"));
+            QVERIFY(!window.windowIcon().isNull());
+            QTest::mouseClick(window.findChild<QToolButton *>("navSettings"), Qt::LeftButton);
+            settingsSection(window, "runtime");
+            auto *diagnostics = window.findChild<QPushButton *>("runtimeDiagnostics");
+            QVERIFY(diagnostics);
+            QTimer::singleShot(0, &window, [&window] {
+                auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+                QVERIFY(dialog);
+                auto *text = dialog->findChild<QPlainTextEdit *>();
+                const bool correct = text && text->toPlainText().startsWith(QStringLiteral("CIRNET RULES "));
+                interaction_cases::capture(*dialog, "cirnetrules-diagnostics");
+                dialog->reject();
+                QVERIFY(correct);
+            });
+            QTest::mouseClick(diagnostics, Qt::LeftButton);
+        });
+    }
+
+    void rejectsIncompatibleRuntimeBeforeReady()
+    {
+        for (const auto &mode : {QStringLiteral("previous-protocol"), QStringLiteral("wrong-product")}) {
+            RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", mode});
+            QSignalSpy ready(&client, &RuntimeClient::ready);
+            QSignalSpy disconnected(&client, &RuntimeClient::disconnected);
+            client.start();
+            QTRY_COMPARE(disconnected.count(), 1);
+            QCOMPARE(ready.count(), 0);
+            QVERIFY(client.runtimeInfo().isEmpty());
+            const auto reason = disconnected.takeFirst().at(0).toString();
+            QVERIFY(reason.contains("incompatible") || reason.contains("identities differ"));
+        }
+    }
+
     void nativeGovernanceAuthoring()
     {
         governance_cases::authorSkill(
@@ -736,8 +793,8 @@ private slots:
         auto *toggle = window.findChild<QToolButton *>("toggleSidebar");
         auto *automations = window.findChild<QPushButton *>("navAutomations");
         QVERIFY(mark && brand && split && sidebar && toggle && automations);
-        QCOMPARE(window.windowTitle(), QStringLiteral("OPENRULES"));
-        QCOMPARE(brand->text(), QStringLiteral("OPENRULES"));
+        QCOMPARE(window.windowTitle(), QStringLiteral(CIRNETRULES_PRODUCT_NAME));
+        QCOMPARE(brand->text(), QStringLiteral(CIRNETRULES_PRODUCT_NAME));
         QVERIFY(!window.findChild<QLabel *>("brandSubtitle"));
         QVERIFY(!mark->pixmap().isNull());
         const auto y = [sidebar](QWidget *widget) { return widget->mapTo(sidebar, widget->rect().center()).y(); };
@@ -756,7 +813,7 @@ private slots:
         qInfo() << "Populated fixture ready ms" << startup.elapsed() << "requests through readiness" << initialMethods.size() - 1;
         const auto ratio = window.devicePixelRatioF();
         bool hasExpectedDpr = false;
-        const auto expectedDpr = qEnvironmentVariable("OPENRULES_EXPECT_DPR").toDouble(&hasExpectedDpr);
+        const auto expectedDpr = qEnvironmentVariable("CIRNETRULES_EXPECT_DPR").toDouble(&hasExpectedDpr);
         if (hasExpectedDpr)
             QVERIFY(qAbs(ratio - expectedDpr) < 0.01);
         qInfo() << "Qt platform" << QGuiApplication::platformName() << "devicePixelRatio" << ratio;
@@ -853,7 +910,7 @@ private slots:
         QVERIFY(!checkbox->isChecked());
 
         settingsSection(window, "about");
-        QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().startsWith("OPENRULES\n"));
+        QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().startsWith(QStringLiteral(CIRNETRULES_PRODUCT_NAME "\n")));
         QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("HANDOFF ONLY"));
         QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("ISOLATED EXECUTION · BLOCKED"));
         QVERIFY(captureWidget(window, "settings-about"));
@@ -1183,9 +1240,9 @@ private slots:
 
     void realRuntimePersistsRepositoryAndIntake()
     {
-        const auto runtime = qEnvironmentVariable("OPENRULES_TEST_RUNTIME");
+        const auto runtime = qEnvironmentVariable("CIRNETRULES_TEST_RUNTIME");
         if (runtime.isEmpty())
-            QSKIP("Set OPENRULES_RUNTIME_EXECUTABLE at CMake configure time to run the Rust runtime test.");
+            QSKIP("Set CIRNETRULES_RUNTIME_EXECUTABLE at CMake configure time to run the Rust runtime test.");
         const auto git = QStandardPaths::findExecutable("git");
         QVERIFY(!git.isEmpty());
         QTemporaryDir fixture;
@@ -1199,7 +1256,7 @@ private slots:
         file.close();
         QVERIFY(runGit(git, directory, {"init", "--quiet"}));
         QVERIFY(runGit(git, directory, {"add", "--", QFileInfo(source).fileName()}));
-        QVERIFY(runGit(git, directory, {"-c", "user.name=OPENRULES Fixture", "-c", "user.email=fixture@example.invalid",
+        QVERIFY(runGit(git, directory, {"-c", "user.name=CIRNETRULES Fixture", "-c", "user.email=fixture@example.invalid",
                                        "-c", "commit.gpgsign=false", "-c", "core.hooksPath=.git/nonexistent",
                                        "commit", "--quiet", "-m", "Fixture"}));
         RuntimeClient client(runtime, {"--stdio", "--data-dir", fixture.filePath("database")});
@@ -1211,7 +1268,7 @@ private slots:
         client.start();
         QTRY_COMPARE(connected.size(), 1);
         const auto info = invoke(client, "runtime.info");
-        QCOMPARE(info.value("product_generation").toString(), QStringLiteral(OPENRULES_PRODUCT_NAME));
+        QCOMPARE(info.value("product_generation").toString(), QStringLiteral(CIRNETRULES_PRODUCT_SYMBOL));
         const auto preview = invoke(client, "repo.preview", {{"path", source}});
         QCOMPARE(preview.value("file_hint").toString(), QFileInfo(source).fileName());
         QVERIFY(preview.value("root").toString().contains(QStringLiteral("Mạch nguồn fixture")));
@@ -1457,7 +1514,7 @@ private slots:
     void vietnameseCatalogLoads()
     {
         QTranslator translator;
-        const auto file = qEnvironmentVariable("OPENRULES_TEST_QM");
+        const auto file = qEnvironmentVariable("CIRNETRULES_TEST_QM");
         QVERIFY(!file.isEmpty());
         QVERIFY(translator.load(file));
         QCOMPARE(translator.translate("MainWindow", "Automations"), QStringLiteral("Tự động hóa"));
@@ -1471,14 +1528,14 @@ private slots:
         const QSignalSpy ready(&client, &RuntimeClient::ready);
         client.start();
         QTRY_COMPARE(ready.size(), 1);
-        QCOMPARE(invoke(client, "runtime.info").value("version").toString(), QStringLiteral(OPENRULES_APP_VERSION));
+        QCOMPARE(invoke(client, "runtime.info").value("version").toString(), QStringLiteral(CIRNETRULES_APP_VERSION));
         const auto settings = invoke(client, "preferences.get").value("settings").toObject();
         QCOMPARE(settings.value("appearance").toObject().value("language").toString(), QStringLiteral("zh_CN"));
 
         QTranslator translator;
-        const auto file = qEnvironmentVariable("OPENRULES_TEST_ZH_QM",
-                                               QFileInfo(qEnvironmentVariable("OPENRULES_TEST_QM")).dir()
-                                                   .filePath("openrules_zh_CN.qm"));
+        const auto file = qEnvironmentVariable("CIRNETRULES_TEST_ZH_QM",
+                                               QFileInfo(qEnvironmentVariable("CIRNETRULES_TEST_QM")).dir()
+                                                   .filePath("cirnetrules_zh_CN.qm"));
         QVERIFY(translator.load(file));
         QCOMPARE(translator.translate("MainWindow", "Language"), QStringLiteral("语言"));
         QCOMPARE(translator.translate("StoragePage", "Storage"), QStringLiteral("存储"));
@@ -1502,7 +1559,7 @@ private slots:
     void vietnameseNativeLayout()
     {
         QTranslator translator;
-        QVERIFY(translator.load(qEnvironmentVariable("OPENRULES_TEST_QM")));
+        QVERIFY(translator.load(qEnvironmentVariable("CIRNETRULES_TEST_QM")));
         struct RestoreLanguage {
             QTranslator &translator;
             ~RestoreLanguage() { QCoreApplication::removeTranslator(&translator); }
@@ -1592,7 +1649,7 @@ int main(int argc, char **argv)
         return runFixture(argc == 3 ? QString::fromLatin1(argv[2]) : QString{});
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
-    auto fontPath = qEnvironmentVariable("OPENRULES_TEST_FONT");
+    auto fontPath = qEnvironmentVariable("CIRNETRULES_TEST_FONT");
 #ifdef Q_OS_WIN
     if (fontPath.isEmpty() && QGuiApplication::platformName() == "offscreen") {
         const auto windows = qEnvironmentVariable("WINDIR");

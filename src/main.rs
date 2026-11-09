@@ -58,7 +58,7 @@ const COMMANDS: &[&str] = &[
 fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
     if let Some(path) = explicit
         .map(PathBuf::from)
-        .or_else(|| env::var_os("OPENRULES_GOVERNANCE").map(PathBuf::from))
+        .or_else(|| env::var_os(application_identity::GOVERNANCE_ENV).map(PathBuf::from))
     {
         return path
             .canonicalize()
@@ -97,7 +97,7 @@ fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
             }
         }
     }
-    Err("OPENRULES governance checkout was not found in the local workspace".into())
+    Err("CIRNETRULES governance checkout was not found in the local workspace".into())
 }
 
 fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, String> {
@@ -114,13 +114,17 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
             | "bootstrap"
             | "doctor"
     ) {
-        match std::fs::symlink_metadata(root.join(".cgacp")) {
-            Ok(_) => {
-                return Ok(json!({"status":"BLOCKED",
+        for legacy in [".openrules", ".cgacp"] {
+            match std::fs::symlink_metadata(root.join(legacy)) {
+                Ok(_) => {
+                    return Ok(json!({"status":"BLOCKED",
                     "reason":"Existing legacy maintenance state requires reviewed migration before local task operations."}));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => {
+                    return Err("Could not verify the legacy maintenance state directory".into());
+                }
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => return Err("Could not verify the legacy maintenance state directory".into()),
         }
     }
     match command {
@@ -171,7 +175,7 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
                 .or_else(|| root.parent().map(Path::to_path_buf))
                 .ok_or("Product workspace unavailable")?;
             prepare_release_registry(&root, &mut registry)?;
-            registry["_openrules_release_governance"] = json!(root);
+            registry["_cirnetrules_release_governance"] = json!(root);
             return release::check_release(&workspace, &registry);
         }
         "check-translations" if args.contains_key("paths") => {
@@ -384,7 +388,7 @@ fn main() -> ExitCode {
     if command == "--application-info" {
         println!(
             "{}",
-            json!({"product_generation":application_identity::GENERATION,
+            json!({"product_generation":application_identity::PRODUCT_SYMBOL,"product_id":application_identity::PRODUCT_ID,
             "version":application_identity::VERSION,"release_name":application_identity::release_name()})
         );
         return ExitCode::SUCCESS;

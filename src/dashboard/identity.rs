@@ -13,36 +13,67 @@ use std::{
     io::{self, Read, Write},
 };
 
+const PREVIOUS_PRODUCT: &str = "OPENRULES";
+const PREVIOUS_FILE: &str = "openrules.sqlite3";
+const LEGACY_PRODUCT: &str = "CGACP";
 const LEGACY_FILE: &str = "cgacp.sqlite3";
-const STAGED: &str = ".identity-candidate.sqlite3";
-const STARTED: &str = "identity-prepared";
-const RECEIPT: &str = "identity-verified.json";
-const COMPLETE: &str = "identity-activated";
-const SELECTED: &str = "identity-current-selected";
-const LOCK: &str = "identity.lock";
+const JOURNAL: &str = "identity-cutover-v2";
+const JOURNAL_REVISION: u8 = 2;
+const STAGED: &str = "candidate.sqlite3";
+const STARTED: &str = "prepared.json";
+const RECEIPT: &str = "verified.json";
+const COMPLETE: &str = "activated";
+const SELECTED: &str = "current-selected";
+const LOCK: &str = "identity-cutover.lock";
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+enum Generation {
+    #[serde(rename = "OPENRULES")]
+    Previous,
+    #[serde(rename = "CGACP")]
+    Legacy,
+}
+
+impl Generation {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Previous => PREVIOUS_PRODUCT,
+            Self::Legacy => LEGACY_PRODUCT,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 enum State {
     Ready,
-    Available,
-    Resume,
+    Available(Generation),
+    Resume(Generation),
     Conflict,
 }
 
-impl State {
-    fn wire(&self) -> &'static str {
-        match self {
-            Self::Ready => "READY",
-            Self::Available => "MIGRATION_AVAILABLE",
-            Self::Resume => "RESUME",
-            Self::Conflict => "CONFLICT",
-        }
-    }
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Intent {
+    revision: u8,
+    source_product: Generation,
+    target_product: String,
+    source: PathBuf,
+    target: PathBuf,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Receipt {
+    intent: Intent,
+    snapshot_sha256: String,
+    source_schema: i64,
+    backup: String,
+}
+
+// Read-only compatibility with the previous cutover receipt.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreviousReceipt {
     source: PathBuf,
     digest: String,
     backup: String,
@@ -50,30 +81,64 @@ struct Receipt {
 
 pub struct Locations {
     data_dir: PathBuf,
+    journal: PathBuf,
     active: PathBuf,
+    previous: PathBuf,
     legacy: PathBuf,
 }
 
 impl Locations {
     pub fn new(data_dir: PathBuf, use_default: bool) -> Self {
-        let legacy = if use_default {
-            data_dir.with_file_name("CGACP").join(LEGACY_FILE)
-        } else {
-            data_dir.join(LEGACY_FILE)
+        let source = |folder, file| {
+            if use_default {
+                data_dir.with_file_name(folder).join(file)
+            } else {
+                data_dir.join(file)
+            }
         };
         Self {
             active: data_dir.join(DATABASE_FILE),
+            journal: data_dir.join(JOURNAL),
+            previous: source(PREVIOUS_PRODUCT, PREVIOUS_FILE),
+            legacy: source(LEGACY_PRODUCT, LEGACY_FILE),
             data_dir,
-            legacy,
         }
     }
 
     pub fn preview(&self) -> Result<Value, AppError> {
         let state = self.state()?;
+        let (status, source) = match state {
+            State::Ready => ("READY", None),
+            State::Available(source) => ("MIGRATION_AVAILABLE", Some(source)),
+            State::Resume(source) => ("RESUME", Some(source)),
+            State::Conflict => ("CONFLICT", None),
+        };
+        let mut candidates = Vec::new();
+        if state != State::Ready {
+            for generation in [Generation::Previous, Generation::Legacy] {
+                let path = self.source(generation);
+                if check_database_files(path)? {
+                    let bytes = |p| {
+                        fs::metadata(p)
+                            .map(|meta| meta.len())
+                            .map_err(storage_error)
+                    };
+                    let mut wal = path.as_os_str().to_owned();
+                    wal.push("-wal");
+                    let wal = Path::new(&wal);
+                    let wal_bytes = if ordinary_file(wal)? { bytes(wal)? } else { 0 };
+                    candidates.push(json!({"product":generation.name(),"path":path,
+                        "database_bytes":bytes(path)?,"wal_bytes":wal_bytes}));
+                }
+            }
+        }
         Ok(json!({
-            "status":state.wire(),
-            "source":self.legacy,
-            "destination":self.active
+            "status":status,
+            "source":source.map(|source| self.source(source)),
+            "source_product":source.map(Generation::name),
+            "destination":self.active,
+            "candidates":candidates,
+            "can_use_current":state == State::Conflict && check_database_files(&self.active)?
         }))
     }
 
@@ -82,53 +147,97 @@ impl Locations {
         match self.state()? {
             State::Ready => Database::open(&self.data_dir),
             State::Conflict => Err(conflict()),
-            State::Available | State::Resume => Err(AppError::new(
+            State::Available(_) | State::Resume(_) => Err(AppError::new(
                 "IDENTITY_MIGRATION_REQUIRED",
-                "Review the local database upgrade in OPENRULES Desktop before opening it.",
+                format!(
+                    "Review the local database upgrade in {} before opening it.",
+                    crate::application_identity::DISPLAY_NAME
+                ),
             )),
         }
     }
 
+    #[cfg(test)]
     pub fn migrate(&self) -> Result<Value, AppError> {
+        self.migrate_checked(&std::sync::atomic::AtomicBool::new(false), |_| {})
+    }
+
+    pub fn migrate_checked(
+        &self,
+        cancelled: &std::sync::atomic::AtomicBool,
+        progress: impl Fn(&str),
+    ) -> Result<Value, AppError> {
+        let check_cancel = || {
+            if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                Err(AppError::new(
+                    "CANCELLED",
+                    "Upgrade paused before activation. Reopen Desktop to resume.",
+                ))
+            } else {
+                Ok(())
+            }
+        };
         let _lock = self.lock()?;
-        match self.state()? {
+        let generation = match self.state()? {
             State::Ready => return self.preview(),
             State::Conflict => return Err(conflict()),
-            State::Resume if ordinary_file(&self.active)? => {
-                self.complete()?;
+            State::Resume(source) if ordinary_file(&self.active)? => {
+                progress("ACTIVATE");
+                self.complete(source)?;
                 return self.preview();
             }
-            State::Available | State::Resume => {}
-        }
-
-        // The legacy writer used WAL. Exclusive locking must be acquired before
-        // reading it, so a live reader/writer cannot continue through cutover.
-        check_database_files(&self.legacy)?;
-        let source = Connection::open_with_flags(
-            &self.legacy,
-            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NOFOLLOW,
-        )?;
-        source.busy_timeout(Duration::from_millis(800))?;
-        source.pragma_update(None, "locking_mode", "EXCLUSIVE")?;
-        source.execute_batch("BEGIN EXCLUSIVE; COMMIT;")?;
+            State::Available(source) | State::Resume(source) => source,
+        };
+        let intent = self.intent(generation);
+        ensure_directory(&self.journal)?;
+        check_cancel()?;
+        progress("CHECK_SOURCE");
+        // Fence the older writer too. A prior receipt proves ancestry, not
+        // that the retired application stopped writing after its cutover.
+        let _ancestor = if generation == Generation::Previous && check_database_files(&self.legacy)?
+        {
+            let (path, digest) = self.previous_backup()?.ok_or_else(conflict)?;
+            let ancestor = lock_source(&self.legacy)?;
+            let historical = Connection::open_with_flags(
+                &path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            )?;
+            if file_digest(&path)? != digest
+                || logical_fingerprint(&ancestor)? != logical_fingerprint(&historical)?
+            {
+                return Err(conflict());
+            }
+            Some(ancestor)
+        } else {
+            None
+        };
+        let source = lock_source(&intent.source)?;
         verify(&source)?;
         verify_history(&source)?;
-        if !ordinary_file(&self.data_dir.join(STARTED))? {
-            self.write_marker(STARTED, b"migration-prepared\n")?;
+        let source_schema = ensure_supported(&source)?;
+        if !ordinary_file(&self.journal.join(STARTED))? {
+            self.write_json(STARTED, &intent)?;
         }
 
-        let staged = self.data_dir.join(STAGED);
+        // Rebuild any unpublished stage from the exclusively locked source.
+        // Prior backups stay available for recovery.
+        check_cancel()?;
+        progress("BACKUP");
+        let staged = self.journal.join(STAGED);
         clear_file(&staged)?;
         for extension in ["-wal", "-shm", "-journal"] {
-            clear_file(&self.data_dir.join(format!("{STAGED}{extension}")))?;
+            clear_file(&self.journal.join(format!("{STAGED}{extension}")))?;
         }
-        clear_file(&self.data_dir.join(RECEIPT))?;
-
+        clear_file(&self.journal.join(RECEIPT))?;
         let backup = Database::backup_from(&source, &self.data_dir)?;
         let backup_name = backup["backup"].as_str().ok_or_else(journal_error)?;
         super::validate_backup_name(backup_name)?;
         let backup_path = self.data_dir.join("backups").join(backup_name);
-        ordinary_file(&backup_path)?;
+        if !ordinary_file(&backup_path)? {
+            return Err(journal_error());
+        }
+        check_cancel()?;
+        progress("VERIFY");
         let mut backup_file = private_options()
             .open(&backup_path)
             .map_err(storage_error)?;
@@ -140,8 +249,7 @@ impl Locations {
         io::copy(&mut backup_file, &mut output).map_err(storage_error)?;
         output.sync_all().map_err(storage_error)?;
         drop(output);
-
-        let digest = file_digest(&staged)?;
+        let snapshot_sha256 = file_digest(&staged)?;
         let candidate = Connection::open_with_flags(
             &staged,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW,
@@ -149,27 +257,28 @@ impl Locations {
         verify(&candidate)?;
         verify_history(&candidate)?;
         candidate.close().map_err(|(_, error)| error)?;
-
-        let receipt = serde_json::to_vec(&Receipt {
-            source: self.legacy.clone(),
-            digest,
-            backup: backup_name.to_owned(),
-        })
-        .map_err(|_| journal_error())?;
-        self.write_marker(RECEIPT, &receipt)?;
-
-        // Install only after the backup and the journal are durable.
+        self.write_json(
+            RECEIPT,
+            &Receipt {
+                intent,
+                snapshot_sha256,
+                source_schema,
+                backup: backup_name.to_owned(),
+            },
+        )?;
+        check_cancel()?;
+        progress("ACTIVATE");
         if check_database_files(&self.active)? {
             return Err(conflict());
         }
         publish(&staged, &self.active)?;
-        self.complete()?;
+        self.complete(generation)?;
         self.preview()
     }
 
     pub fn use_current(&self) -> Result<Value, AppError> {
         let _lock = self.lock()?;
-        if self.state()? != State::Conflict {
+        if self.state()? != State::Conflict || !check_database_files(&self.active)? {
             return Err(conflict());
         }
         let active = Connection::open_with_flags(
@@ -178,32 +287,100 @@ impl Locations {
         )?;
         verify(&active)?;
         verify_history(&active)?;
+        ensure_directory(&self.journal)?;
         self.write_marker(SELECTED, b"retain-current\n")?;
         self.preview()
+    }
+
+    fn source(&self, generation: Generation) -> &Path {
+        match generation {
+            Generation::Previous => &self.previous,
+            Generation::Legacy => &self.legacy,
+        }
+    }
+
+    fn intent(&self, generation: Generation) -> Intent {
+        Intent {
+            revision: JOURNAL_REVISION,
+            source_product: generation,
+            target_product: crate::application_identity::PRODUCT_SYMBOL.to_owned(),
+            source: self.source(generation).to_owned(),
+            target: self.active.clone(),
+        }
+    }
+
+    fn previous_backup(&self) -> Result<Option<(PathBuf, String)>, AppError> {
+        let directory = self.previous.parent().ok_or_else(journal_error)?;
+        let completed = directory.join("identity-activated");
+        let receipt = directory.join("identity-verified.json");
+        if !ordinary_file(&completed)? || !ordinary_file(&receipt)? {
+            return Ok(None);
+        }
+        let old: PreviousReceipt = read_json(&receipt)?;
+        super::validate_backup_name(&old.backup)?;
+        let backup = directory.join("backups").join(&old.backup);
+        if old.source != self.legacy || !valid_digest(&old.digest) || !ordinary_file(&backup)? {
+            return Ok(None);
+        }
+        Ok(Some((backup, old.digest)))
     }
 
     fn state(&self) -> Result<State, AppError> {
         check_ancestors(&self.data_dir, true)?;
         let active = check_database_files(&self.active)?;
-        let legacy = check_database_files(&self.legacy)?;
-        let complete = ordinary_file(&self.data_dir.join(COMPLETE))?;
-        let selected = ordinary_file(&self.data_dir.join(SELECTED))?;
-        let receipt = ordinary_file(&self.data_dir.join(RECEIPT))?;
-        let started = ordinary_file(&self.data_dir.join(STARTED))?;
-        if complete || selected {
-            // A missing active file after migration is a recovery incident, not a fresh install.
-            if !active || (complete && !receipt) {
+        if ordinary_file(&self.journal.join(SELECTED))? {
+            return if active {
+                Ok(State::Ready)
+            } else {
+                Err(journal_error())
+            };
+        }
+        let complete = ordinary_file(&self.journal.join(COMPLETE))?;
+        let started = ordinary_file(&self.journal.join(STARTED))?;
+        let receipt = ordinary_file(&self.journal.join(RECEIPT))?;
+        if complete || started || receipt {
+            if !started || (complete && (!active || !receipt)) {
                 return Err(journal_error());
             }
-            return Ok(State::Ready);
+            let intent: Intent = read_json(&self.journal.join(STARTED))?;
+            let generation = intent.source_product;
+            if intent != self.intent(generation) {
+                return Err(journal_error());
+            }
+            if receipt {
+                self.receipt(generation)?;
+            }
+            if complete {
+                return Ok(State::Ready);
+            }
+            if active && !receipt {
+                return Ok(State::Conflict);
+            }
+            if !active && !check_database_files(self.source(generation))? {
+                return Err(journal_error());
+            }
+            // A newly discovered competing predecessor must never be ignored.
+            if !active && generation == Generation::Legacy && check_database_files(&self.previous)?
+            {
+                return Ok(State::Conflict);
+            }
+            return Ok(State::Resume(generation));
         }
-        if started && !legacy && !active {
+
+        let previous = check_database_files(&self.previous)?;
+        let legacy = check_database_files(&self.legacy)?;
+        let previous_directory = self.previous.parent().ok_or_else(journal_error)?;
+        if !previous
+            && (ordinary_file(&previous_directory.join("identity-activated"))?
+                || ordinary_file(&previous_directory.join("identity-current-selected"))?)
+        {
             return Err(journal_error());
         }
-        Ok(match (active, legacy, receipt) {
-            (_, _, true) => State::Resume,
-            (true, true, false) => State::Conflict,
-            (false, true, false) => State::Available,
+        Ok(match (active, previous, legacy) {
+            (true, true, _) | (true, _, true) => State::Conflict,
+            (false, true, true) if self.previous_backup()?.is_none() => State::Conflict,
+            (false, true, _) => State::Available(Generation::Previous),
+            (false, false, true) => State::Available(Generation::Legacy),
             _ => State::Ready,
         })
     }
@@ -220,35 +397,43 @@ impl Locations {
         file.try_lock().map_err(|_| {
             AppError::new(
                 "STORAGE_BUSY",
-                "Another OPENRULES process is opening or upgrading this data directory.",
+                "Another Desktop process is opening or upgrading this data directory.",
             )
         })?;
         Ok(file)
     }
 
-    fn complete(&self) -> Result<(), AppError> {
-        let path = self.data_dir.join(RECEIPT);
-        let mut bytes = Vec::new();
-        File::open(path)
-            .map_err(storage_error)?
-            .take(64 * 1024)
-            .read_to_end(&mut bytes)
-            .map_err(storage_error)?;
-        let receipt: Receipt = serde_json::from_slice(&bytes).map_err(|_| journal_error())?;
+    fn receipt(&self, generation: Generation) -> Result<Receipt, AppError> {
+        let receipt: Receipt = read_json(&self.journal.join(RECEIPT))?;
         super::validate_backup_name(&receipt.backup)?;
+        if receipt.intent != self.intent(generation)
+            || !valid_digest(&receipt.snapshot_sha256)
+            || !(1..=super::MIGRATIONS.len() as i64).contains(&receipt.source_schema)
+        {
+            return Err(journal_error());
+        }
+        Ok(receipt)
+    }
+
+    fn complete(&self, generation: Generation) -> Result<(), AppError> {
+        let receipt = self.receipt(generation)?;
         let backup = self.data_dir.join("backups").join(receipt.backup);
-        if receipt.source != self.legacy
-            || !ordinary_file(&backup)?
-            || file_digest(&self.active)? != receipt.digest
-            || file_digest(&backup)? != receipt.digest
+        if !ordinary_file(&backup)?
+            || file_digest(&self.active)? != receipt.snapshot_sha256
+            || file_digest(&backup)? != receipt.snapshot_sha256
         {
             return Err(journal_error());
         }
         self.write_marker(COMPLETE, b"migration-activated\n")
     }
 
+    fn write_json(&self, name: &str, record: &impl Serialize) -> Result<(), AppError> {
+        let bytes = serde_json::to_vec(record).map_err(|_| journal_error())?;
+        self.write_marker(name, &bytes)
+    }
+
     fn write_marker(&self, name: &str, data: &[u8]) -> Result<(), AppError> {
-        let temp = self.data_dir.join(format!(".{name}.pending"));
+        let temp = self.journal.join(format!(".{name}.pending"));
         clear_file(&temp)?;
         let mut file = private_options()
             .create_new(true)
@@ -257,8 +442,82 @@ impl Locations {
         file.write_all(data).map_err(storage_error)?;
         file.sync_all().map_err(storage_error)?;
         drop(file);
-        publish(&temp, &self.data_dir.join(name))
+        publish(&temp, &self.journal.join(name))
     }
+}
+
+fn lock_source(path: &Path) -> Result<Connection, AppError> {
+    check_database_files(path)?;
+    let source = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+    )?;
+    source.busy_timeout(Duration::from_millis(800))?;
+    source.pragma_update(None, "locking_mode", "EXCLUSIVE")?;
+    source.execute_batch("BEGIN EXCLUSIVE; COMMIT;")?;
+    Ok(source)
+}
+
+fn logical_fingerprint(connection: &Connection) -> Result<String, AppError> {
+    use rusqlite::types::ValueRef;
+    use std::time::Instant;
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut hash = Sha256::new();
+    let mut update = |tag: u8, bytes: &[u8]| {
+        hash.update([tag]);
+        hash.update((bytes.len() as u64).to_le_bytes());
+        hash.update(bytes);
+    };
+    let mut tables = connection.prepare(
+        "SELECT name, sql FROM sqlite_schema WHERE type='table' AND name NOT GLOB 'sqlite_*' ORDER BY name",
+    )?;
+    let mut list = tables.query([])?;
+    while let Some(table) = list.next()? {
+        let name: String = table.get(0)?;
+        let schema: String = table.get(1)?;
+        update(0, name.as_bytes());
+        update(1, schema.as_bytes());
+        let mut query = connection.prepare(&format!(
+            "SELECT * FROM \"{}\" ORDER BY rowid",
+            name.replace('"', "\"\""),
+        ))?;
+        let columns = query.column_count();
+        let mut rows = query.query([])?;
+        while let Some(row) = rows.next()? {
+            if Instant::now() >= deadline {
+                return Err(AppError::new(
+                    "STORAGE_BUSY",
+                    "The predecessor comparison exceeded its time budget.",
+                ));
+            }
+            update(2, &[]);
+            for index in 0..columns {
+                match row.get_ref(index)? {
+                    ValueRef::Null => update(3, &[]),
+                    ValueRef::Integer(value) => update(4, &value.to_le_bytes()),
+                    ValueRef::Real(value) => update(5, &value.to_le_bytes()),
+                    ValueRef::Text(value) => update(6, value),
+                    ValueRef::Blob(value) => update(7, value),
+                }
+            }
+        }
+    }
+    Ok(format!("{:x}", hash.finalize()))
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, AppError> {
+    let mut bytes = Vec::new();
+    File::open(path)
+        .map_err(storage_error)?
+        .take(64 * 1024)
+        .read_to_end(&mut bytes)
+        .map_err(storage_error)?;
+    serde_json::from_slice(&bytes).map_err(|_| journal_error())
+}
+
+fn valid_digest(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 fn verify_history(connection: &Connection) -> Result<(), AppError> {
@@ -368,7 +627,12 @@ fn publish(source: &Path, destination: &Path) -> Result<(), AppError> {
             .chain([0])
             .collect::<Vec<_>>()
     };
-    let (source, destination) = (wide(source), wide(destination));
+    let source = fs::canonicalize(source).map_err(storage_error)?;
+    let parent = destination.parent().ok_or_else(journal_error)?;
+    let destination = fs::canonicalize(parent)
+        .map_err(storage_error)?
+        .join(destination.file_name().ok_or_else(journal_error)?);
+    let (source, destination) = (wide(&source), wide(&destination));
     // Omitting MOVEFILE_REPLACE_EXISTING makes this atomic publication fail on collision.
     if unsafe {
         MoveFileExW(

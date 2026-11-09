@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "OPENRULES local stdio protocol",
+  "title": "CIRNETRULES local stdio protocol",
   "$defs": {
     "recordId": {"type": "string", "pattern": "^[1-9][0-9]{0,18}$"},
     "pageCursor": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,18})$"},
@@ -185,7 +185,7 @@
       ],
       "allOf": [
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.asset.list"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.asset.list"}}},
           "then": {"properties": {"params": {
             "type": "object", "additionalProperties": false,
             "properties": {
@@ -198,7 +198,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.profile.list"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.profile.list"}}},
           "then": {"properties": {"params": {
             "type": "object", "additionalProperties": false,
             "properties": {
@@ -208,7 +208,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.assignment.list"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.assignment.list"}}},
           "then": {"properties": {"params": {
             "type": "object", "additionalProperties": false,
             "properties": {
@@ -219,7 +219,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.effective.preview"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.effective.preview"}}},
           "then": {"properties": {"params": {
             "type": "object", "additionalProperties": false,
             "properties": {
@@ -231,7 +231,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.governance.revision.history", "openrules.governance.change.history"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.governance.revision.history", "cirnetrules.governance.change.history"]}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false, "required": ["id"],
             "properties": {
@@ -242,7 +242,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.revision.get"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.revision.get"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false, "required": ["id", "revision"],
             "properties": {
@@ -252,14 +252,14 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.governance.asset.get", "openrules.governance.asset.export"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.governance.asset.get", "cirnetrules.governance.asset.export"]}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "required": ["id"], "additionalProperties": false,
             "properties": {"id": {"$ref": "#/$defs/governanceAssetId"}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.asset.create"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.asset.create"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "required": ["kind", "slug", "title", "mutation_key"], "additionalProperties": false,
             "properties": {
@@ -273,7 +273,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.governance.asset.rename", "openrules.governance.asset.duplicate"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.governance.asset.rename", "cirnetrules.governance.asset.duplicate"]}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
             "required": ["slug", "title"],
@@ -281,7 +281,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.draft.save"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.draft.save"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
             "required": ["en", "vi", "format"],
@@ -296,33 +296,33 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.governance.draft.discard", "openrules.governance.change.review", "openrules.governance.asset.archive", "openrules.governance.asset.restore", "openrules.governance.asset.delete"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.governance.draft.discard", "cirnetrules.governance.change.review", "cirnetrules.governance.asset.archive", "cirnetrules.governance.asset.restore", "cirnetrules.governance.asset.delete"]}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.governance.revision.validate", "openrules.governance.revision.compare"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.governance.revision.validate", "cirnetrules.governance.revision.compare"]}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceExpected"}], "unevaluatedProperties": false
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.change.publish"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.change.publish"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
             "required": ["review_token"], "properties": {"review_token": {"type": "string", "pattern": "^review-[0-9a-f]{32}$"}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.change.rollback"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.change.rollback"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
             "required": ["target_revision"], "properties": {"target_revision": {"$ref": "#/$defs/governanceRevision"}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.assignment.update"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.assignment.update"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
             "required": ["binding_id", "enabled"],
@@ -330,21 +330,21 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.profile.default"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.profile.default"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "allOf": [{"$ref": "#/$defs/governanceMutation"}], "unevaluatedProperties": false,
             "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.asset.import.preview"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.asset.import.preview"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false, "required": ["bundle"],
             "properties": {"bundle": {"$ref": "#/$defs/governanceBundle"}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.governance.asset.import.apply"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.governance.asset.import.apply"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false, "required": ["bundle", "fingerprint", "mutation_key"],
             "properties": {
@@ -354,11 +354,11 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.integration.list"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.integration.list"}}},
           "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.integration.probe"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.integration.probe"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false, "required": ["adapter", "port"],
             "properties": {
@@ -368,7 +368,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.integration.import_preview"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.integration.import_preview"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false, "required": ["format", "source"],
             "properties": {
@@ -378,11 +378,11 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.preferences.get"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.preferences.get"}}},
           "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.preferences.set"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.preferences.set"}}},
           "then": {
             "required": ["params"],
             "properties": {
@@ -399,7 +399,7 @@
           }
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.conversation.delete.preview", "openrules.message.delete.preview", "openrules.conversation.delete", "openrules.message.delete", "openrules.conversation.unarchive"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.conversation.delete.preview", "cirnetrules.message.delete.preview", "cirnetrules.conversation.delete", "cirnetrules.message.delete", "cirnetrules.conversation.unarchive"]}}},
           "then": {
             "required": ["params"],
             "properties": {
@@ -417,19 +417,19 @@
           }
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.message.delete.preview", "openrules.message.delete"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.message.delete.preview", "cirnetrules.message.delete"]}}},
           "then": {"properties": {"params": {"required": ["message_id"]}}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.conversation.delete", "openrules.message.delete"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.conversation.delete", "cirnetrules.message.delete"]}}},
           "then": {"properties": {"params": {"required": ["revision", "token", "key"]}}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.conversation.unarchive"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.conversation.unarchive"}}},
           "then": {"properties": {"params": {"required": ["revision"]}}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.conversation.get"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.conversation.get"}}},
           "then": {"properties": {"params": {
             "type": "object",
             "required": ["id"],
@@ -443,7 +443,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.automation.delete"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.automation.delete"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "required": ["id", "revision"], "additionalProperties": false,
             "properties": {
@@ -453,25 +453,25 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.operation.get", "openrules.operation.cancel"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.operation.get", "cirnetrules.operation.cancel"]}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "required": ["operation_id"], "additionalProperties": false,
             "properties": {"operation_id": {"$ref": "#/$defs/operationId"}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.storage.chats", "openrules.storage.scan", "openrules.storage.backup", "openrules.storage.backup.start"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.storage.chats", "cirnetrules.storage.scan", "cirnetrules.storage.backup", "cirnetrules.storage.backup.start"]}}},
           "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["openrules.storage.verify", "openrules.storage.verify.start"]}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.storage.verify", "cirnetrules.storage.verify.start"]}}},
           "then": {"properties": {"params": {
             "type": "object", "additionalProperties": false,
             "properties": {"backup": {"oneOf": [{"$ref": "#/$defs/backupName"}, {"type": "null"}]}}
           }}}
         },
         {
-          "if": {"properties": {"method": {"const": "openrules.storage.compact.start"}}},
+          "if": {"properties": {"method": {"const": "cirnetrules.storage.compact.start"}}},
           "then": {"required": ["params"], "properties": {"params": {
             "type": "object", "additionalProperties": false,
             "required": ["expected_page_count", "expected_free_pages"],
@@ -484,7 +484,7 @@
       ],
       "properties": {
         "v": {
-          "const": 2
+          "const": 3
         },
         "id": {
           "type": "string",
@@ -492,7 +492,7 @@
         },
         "method": {
           "type": "string",
-          "pattern": "^openrules\\.[A-Za-z0-9_.-]{1,86}$"
+          "pattern": "^cirnetrules\\.[A-Za-z0-9_.-]{1,84}$"
         },
         "params": {
           "type": "object"
@@ -512,7 +512,7 @@
       "then": {"properties": {"result": {"$ref": "#/$defs/storageOperation"}}},
       "properties": {
         "v": {
-          "const": 2
+          "const": 3
         },
         "id": {
           "type": "string"
@@ -534,7 +534,7 @@
       ],
       "properties": {
         "v": {
-          "const": 2
+          "const": 3
         },
         "id": {
           "type": "string"

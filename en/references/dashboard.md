@@ -1,8 +1,8 @@
-<!-- doc-id: OPENRULES-DESKTOP-OPERATOR -->
+<!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
 <!-- revision: 13 -->
 <a id="operator"></a>
 
-# OPENRULES Dashboard
+# CIRNET RULES Dashboard
 
 The application version comes from Cargo.
 The local candidate release title is `cirnet-rules-0.1.0`. Release review is
@@ -20,10 +20,10 @@ Linux, CMake must be able to find a C++ compiler and Qt 6 Widgets and
 LinguistTools development packages.
 
 Use the pinned Rust toolchain and a Qt 6 Widgets development kit for the local
-C++ compiler. Build `openrules-runtime` with Cargo, then configure CMake with
-`OPENRULES_RUNTIME_EXECUTABLE` set to the resulting binary. Build
-`openrules-desktop` and run CTest. Install to a separate staging directory with
-`OPENRULES_DEPLOY_QT` enabled for a Windows distribution candidate. Launch the
+C++ compiler. Build `cirnetrules-runtime` with Cargo, then configure CMake with
+`CIRNETRULES_RUNTIME_EXECUTABLE` set to the resulting binary. Build
+`cirnetrules-desktop` and run CTest. Install to a separate staging directory with
+`CIRNETRULES_DEPLOY_QT` enabled for a Windows distribution candidate. Launch the
 installed Dashboard from its bin directory. Use `--data-dir` with a dedicated
 absolute test directory for disposable verification.
 
@@ -72,7 +72,7 @@ The handoff profile shows waiting approval. View committed messages after
 reopening. Automations provide manual runs and a daily IANA timezone
 schedule. Use the preview before enabling and confirm an inactive one-shot.
 The Rust runtime owns the schedule. To keep scheduling while the Dashboard is
-closed, run `openrules-runtime --scheduler` in a separate foreground terminal
+closed, run `cirnetrules-runtime --scheduler` in a separate foreground terminal
 with the same data directory. Scheduler state remains durable during downtime.
 Missed daily occurrences coalesce. Paused or stale definitions cannot start a
 new proposal silently.
@@ -131,9 +131,9 @@ to record artifact SHA-256 and source provenance. The candidate remains
 `RELEASE_BLOCKED` until native Agent, isolation, authenticated review,
 clean Windows and redistribution gates are evidenced.
 
-[Architecture and limitations](dashboard-architecture.md) · [Interaction states](desktop-interaction.md) · [Release candidate](dashboard-release.md) · [Task workflow](openrules-local.md)
+[Architecture and limitations](dashboard-architecture.md) · [Interaction states](desktop-interaction.md) · [Release candidate](dashboard-release.md) · [Task workflow](cirnetrules-local.md)
 
-[Identity and data upgrade](openrules-identity.md)
+[Identity and data upgrade](cirnetrules-identity.md)
 
 ## Governance
 

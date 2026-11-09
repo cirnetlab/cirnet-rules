@@ -1,6 +1,9 @@
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const GENERATION: &str = "OPENRULES";
+#[allow(dead_code)]
+mod generated {
+    include!(concat!(env!("OUT_DIR"), "/identity.rs"));
+}
+pub use generated::*;
 
-pub fn release_name() -> String {
-    format!("cirnet-rules-{VERSION}")
+pub fn release_name() -> &'static str {
+    RELEASE_NAME
 }

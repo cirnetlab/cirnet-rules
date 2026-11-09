@@ -28,7 +28,7 @@
     <message><source>Custom</source><translation>Tùy chỉnh</translation></message>
     <message><source>Custom accent</source><translation>Màu nhấn tùy chỉnh</translation></message>
     <message><source>Language</source><translation>Ngôn ngữ</translation></message>
-    <message><source>Language changes take effect after reopening OPENRULES.</source><translation>Thay đổi ngôn ngữ có hiệu lực sau khi mở lại OPENRULES.</translation></message>
+    <message><source>Language changes take effect after reopening CIRNET RULES.</source><translation>Thay đổi ngôn ngữ có hiệu lực sau khi mở lại CIRNET RULES.</translation></message>
     <message><source>Choose %1</source><translation>Chọn %1</translation></message>
     <message><source>Enter a six-digit hexadecimal color. Clear the field to use the theme color.</source><translation>Nhập mã màu hệ mười sáu gồm sáu chữ số. Xóa nội dung để dùng màu của chủ đề.</translation></message>
     <message><source>Enter a six-digit hexadecimal color.</source><translation>Nhập mã màu hệ mười sáu gồm sáu chữ số.</translation></message>
@@ -47,7 +47,7 @@
     <message><source>Conversation text size</source><translation>Cỡ chữ hội thoại</translation></message>
     <message><source>Code text size</source><translation>Cỡ chữ mã</translation></message>
     <message><source>&amp;Accent</source><translation>&amp;Màu nhấn</translation></message>
-    <message><source>Choose a contrast-checked OPENRULES palette.</source><translation>Chọn bảng màu OPENRULES đã kiểm tra độ tương phản.</translation></message>
+    <message><source>Choose a contrast-checked CIRNET RULES palette.</source><translation>Chọn bảng màu CIRNET RULES đã kiểm tra độ tương phản.</translation></message>
     <message><source>Interface &amp;font</source><translation>&amp;Phông chữ giao diện</translation></message>
     <message><source>Change the font used by the desktop.</source><translation>Đổi phông chữ ứng dụng sử dụng.</translation></message>
     <message><source>&amp;Conversation text size</source><translation>Cỡ chữ &amp;hội thoại</translation></message>
@@ -120,14 +120,14 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Connected</source><translation>Đã kết nối</translation></message>
     <message><source>Connecting</source><translation>Đang kết nối</translation></message>
     <message><source>Disconnected</source><translation>Đã ngắt kết nối</translation></message>
-    <message><source>OPENRULES %1&#10;Runtime: %2&#10;%3</source><translation>OPENRULES %1&#10;Runtime: %2&#10;%3</translation></message>
+    <message><source>%1 %2&#10;Runtime: %3&#10;%4</source><translation>%1 %2&#10;Runtime: %3&#10;%4</translation></message>
     <message><source>Copy diagnostics</source><translation>Sao chép chẩn đoán</translation></message>
     <message><source>Toast level</source><translation>Mức thông báo nhanh</translation></message>
     <message><source>All toasts</source><translation>Tất cả thông báo nhanh</translation></message>
     <message><source>Warnings and errors</source><translation>Cảnh báo và lỗi</translation></message>
     <message><source>Clear read</source><translation>Xóa mục đã đọc</translation></message>
     <message><source>Notification history</source><translation>Lịch sử thông báo</translation></message>
-    <message><source>About OPENRULES</source><translation>Giới thiệu OPENRULES</translation></message>
+    <message><source>About %1</source><translation>Giới thiệu %1</translation></message>
     <message><source>About</source><translation>Giới thiệu</translation></message>
     <message><source>Retry saving</source><translation>Thử lưu lại</translation></message>
     <message><source>Native execution capability: %1</source><translation>Khả năng thực thi gốc: %1</translation></message>
@@ -203,8 +203,8 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Connecting to local runtime…</source><translation>Đang kết nối runtime cục bộ…</translation></message>
     <message><source>Expand sidebar</source><translation>Mở rộng thanh bên</translation></message>
     <message><source>Local — %1</source><translation>Cục bộ — %1</translation></message>
-    <message><source>Close OPENRULES</source><translation>Đóng OPENRULES</translation></message>
-    <message><source>Some preferences are unsaved. Close OPENRULES without saving them?</source><translation>Một số tùy chọn chưa được lưu. Đóng OPENRULES mà không lưu các thay đổi này?</translation></message>
+    <message><source>Close %1</source><translation>Đóng %1</translation></message>
+    <message><source>Some preferences are unsaved. Close %1 without saving them?</source><translation>Một số tùy chọn chưa được lưu. Đóng %1 mà không lưu các thay đổi này?</translation></message>
     <message><source>Conversation</source><translation>Cuộc trò chuyện</translation></message>
     <message><source>Conversation history</source><translation>Lịch sử trò chuyện</translation></message>
     <message><source>Conversation transcript</source><translation>Nội dung trò chuyện</translation></message>
@@ -316,7 +316,7 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Send</source><translation>Gửi</translation></message>
     <message><source>Show archived</source><translation>Hiện mục đã lưu trữ</translation></message>
     <message><source>State</source><translation>Trạng thái</translation></message>
-    <message><source>Stop the local runtime and close OPENRULES? Saved conversations and runs can be restored on reopen.</source><translation>Dừng runtime cục bộ và đóng OPENRULES? Các cuộc trò chuyện và lượt chạy đã lưu sẽ tải lại khi mở ứng dụng.</translation></message>
+    <message><source>Stop the local runtime and close %1? Saved conversations and runs can be restored on reopen.</source><translation>Dừng runtime cục bộ và đóng %1? Các cuộc trò chuyện và lượt chạy đã lưu sẽ tải lại khi mở ứng dụng.</translation></message>
     <message><source>Task and route details</source><translation>Chi tiết nhiệm vụ và định tuyến</translation></message>
     <message><source>Task details</source><translation>Chi tiết nhiệm vụ</translation></message>
     <message><source>The runtime did not return a verified worktree.</source><translation>Runtime chưa trả về worktree đã xác minh.</translation></message>
@@ -419,13 +419,13 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
   </context>
   <context>
     <name>RuntimeClient</name>
-    <message><source>The runtime protocol is incompatible. Use the runtime installed with OPENRULES.</source><translation>Giao thức runtime không tương thích. Hãy dùng runtime được cài cùng OPENRULES.</translation></message>
-    <message><source>The OPENRULES runtime checksum does not match.</source><translation>Mã kiểm tra runtime OPENRULES không khớp.</translation></message>
-    <message><source>The OPENRULES runtime checksum is invalid.</source><translation>Mã kiểm tra runtime OPENRULES không hợp lệ.</translation></message>
-    <message><source>The OPENRULES runtime checksum is missing.</source><translation>Thiếu mã kiểm tra runtime OPENRULES.</translation></message>
-    <message><source>The OPENRULES runtime could not be verified.</source><translation>Chưa xác minh được runtime OPENRULES.</translation></message>
-    <message><source>The OPENRULES runtime executable is missing or invalid.</source><translation>Tệp thực thi runtime OPENRULES bị thiếu hoặc không hợp lệ.</translation></message>
-    <message><source>The OPENRULES runtime is outside the application directory.</source><translation>Runtime OPENRULES nằm ngoài thư mục ứng dụng.</translation></message>
+    <message><source>The runtime protocol is incompatible. Use the runtime installed with %1.</source><translation>Giao thức runtime không tương thích. Hãy dùng runtime được cài cùng %1.</translation></message>
+    <message><source>The local runtime checksum does not match.</source><translation>Mã kiểm tra runtime  không khớp.</translation></message>
+    <message><source>The local runtime checksum is invalid.</source><translation>Mã kiểm tra runtime  không hợp lệ.</translation></message>
+    <message><source>The local runtime checksum is missing.</source><translation>Thiếu mã kiểm tra runtime .</translation></message>
+    <message><source>The local runtime could not be verified.</source><translation>Chưa xác minh được runtime .</translation></message>
+    <message><source>The local runtime executable is missing or invalid.</source><translation>Tệp thực thi runtime  bị thiếu hoặc không hợp lệ.</translation></message>
+    <message><source>The local runtime is outside the application directory.</source><translation>Runtime  nằm ngoài thư mục ứng dụng.</translation></message>
     <message><source>The runtime could not start.</source><translation>Runtime chưa khởi động được.</translation></message>
     <message><source>The runtime is disconnected.</source><translation>Runtime đã ngắt kết nối.</translation></message>
     <message><source>The runtime rejected the operation.</source><translation>Runtime đã từ chối thao tác.</translation></message>
@@ -437,7 +437,9 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <message><source>The runtime stopped.</source><translation>Runtime đã dừng.</translation></message>
     <message><source>The runtime stopped. Reconnect to restore saved state.</source><translation>Runtime đã dừng. Kết nối lại để khôi phục trạng thái đã lưu.</translation></message>
     <message><source>The runtime transport failed.</source><translation>Kết nối truyền dữ liệu với runtime gặp lỗi.</translation></message>
-  </context>
+      <message><source>Dashboard and runtime identities differ.</source><translation>Định danh Desktop và runtime không khớp.</translation></message>
+    <message><source>Wait for runtime identity verification before sending operations.</source><translation>Chờ xác minh định danh runtime trước khi gửi thao tác.</translation></message>
+</context>
   <context>
     <name>QPlatformTheme</name>
     <message><source>Save</source><translation>Lưu</translation></message>
@@ -556,25 +558,34 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <name>IdentityUpgrade</name>
     <message><source>Keep the old runtime closed after the upgrade. The old database is reserved for offline recovery. Later writes from the old runtime would diverge.</source><translation>Sau khi nâng cấp, hãy giữ runtime cũ ở trạng thái đóng. Cơ sở dữ liệu cũ dành cho khôi phục offline. Mọi thay đổi do runtime cũ ghi về sau sẽ không đồng bộ.</translation></message>
     <message><source>Local data upgrade</source><translation>Nâng cấp dữ liệu cục bộ</translation></message>
-    <message><source>The local data check could not finish. Reopen OPENRULES to retry.</source><translation>Không thể hoàn tất kiểm tra dữ liệu cục bộ. Mở lại OPENRULES để thử lại.</translation></message>
+    <message><source>The local data check could not finish. Reopen %1 to retry.</source><translation>Không thể hoàn tất kiểm tra dữ liệu cục bộ. Mở lại %1 để thử lại.</translation></message>
     <message><source>The runtime could not inspect the local data.</source><translation>Runtime không thể kiểm tra dữ liệu cục bộ.</translation></message>
     <message><source>Local data is in use. Close the previous Desktop and its runtime, then retry.</source><translation>Dữ liệu cục bộ đang được sử dụng. Đóng ứng dụng Desktop cũ và runtime của nó rồi thử lại.</translation></message>
     <message><source>The runtime sent an invalid data-upgrade response.</source><translation>Runtime gửi phản hồi nâng cấp dữ liệu không hợp lệ.</translation></message>
-    <message><source>The current and previous databases both contain local data. Choose Use current data to keep them separate, or close OPENRULES.</source><translation>Cơ sở dữ liệu hiện tại và trước đây đều chứa dữ liệu cục bộ. Chọn Dùng dữ liệu hiện tại để giữ riêng hai bộ dữ liệu hoặc đóng OPENRULES.</translation></message>
+    <message><source>The current and previous databases both contain local data. Choose Use current data to keep them separate, or close CIRNET RULES.</source><translation>Cơ sở dữ liệu hiện tại và trước đây đều chứa dữ liệu cục bộ. Chọn Dùng dữ liệu hiện tại để giữ riêng hai bộ dữ liệu hoặc đóng CIRNET RULES.</translation></message>
     <message><source>Upgrade the previous Desktop data in place of a fresh database. Close the previous Desktop and its runtime before continuing.</source><translation>Nâng cấp dữ liệu Desktop cũ để tiếp tục sử dụng. Hãy đóng Desktop cũ và runtime của nó trước khi tiếp tục.</translation></message>
     <message><source>Previous database
 %1
 
-OPENRULES database
+CIRNET RULES database
 %2</source><translation>Cơ sở dữ liệu cũ
 %1
 
-Cơ sở dữ liệu OPENRULES
+Cơ sở dữ liệu CIRNET RULES
 %2</translation></message>
     <message><source>Use current data</source><translation>Dùng dữ liệu hiện tại</translation></message>
     <message><source>Back up and upgrade</source><translation>Sao lưu và nâng cấp</translation></message>
     <message><source>Checking local data…</source><translation>Đang kiểm tra dữ liệu cục bộ…</translation></message>
-    <message><source>Local data still requires recovery. Reopen OPENRULES to retry.</source><translation>Dữ liệu cục bộ vẫn cần khôi phục. Mở lại OPENRULES để thử lại.</translation></message>
+    <message><source>Local data still requires recovery. Reopen %1 to retry.</source><translation>Dữ liệu cục bộ vẫn cần khôi phục. Mở lại %1 để thử lại.</translation></message>
+    <message><source>The runtime could not start.</source><translation>Không thể khởi động runtime.</translation></message>
+    <message><source>The data-upgrade runtime is incompatible. Use the runtime installed with %1.</source><translation>Runtime nâng cấp dữ liệu không tương thích. Hãy dùng runtime được cài cùng %1.</translation></message>
+    <message><source>Independent data stores were found. Choose an available current store or close Desktop to review the source paths.</source><translation>Phát hiện các kho dữ liệu độc lập. Chọn kho hiện tại nếu có hoặc đóng Desktop để kiểm tra đường dẫn nguồn.</translation></message>
+    <message><source>%1 database (%2 bytes, WAL %3 bytes)&#10;%4</source><translation>Database %1 (%2 byte, WAL %3 byte)&#10;%4</translation></message>
+    <message><source>%1 database&#10;%2</source><translation>Database %1&#10;%2</translation></message>
+    <message><source>Pause upgrade</source><translation>Tạm dừng nâng cấp</translation></message>
+    <message><source>Backing up local data…</source><translation>Đang sao lưu dữ liệu cục bộ…</translation></message>
+    <message><source>Verifying the candidate database…</source><translation>Đang kiểm tra database staging…</translation></message>
+    <message><source>Activating the verified database…</source><translation>Đang kích hoạt database đã kiểm tra…</translation></message>
 </context>
   <context>
     <name>GovernancePanel</name>
@@ -691,8 +702,8 @@ Cơ sở dữ liệu OPENRULES
       <translation>Chọn một tệp thông thường có thể đọc và không phải liên kết tượng trưng.</translation>
     </message>
     <message>
-      <source>Choose a valid OPENRULES JSON bundle.</source>
-      <translation>Chọn một gói JSON OPENRULES hợp lệ.</translation>
+      <source>Choose a valid governance JSON bundle.</source>
+      <translation>Chọn một gói JSON governance hợp lệ.</translation>
     </message>
     <message>
       <source>Choose repository binding</source>

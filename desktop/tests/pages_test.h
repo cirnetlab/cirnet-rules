@@ -162,7 +162,7 @@ inline void verifyDashboardPages(MainWindow &window)
     const auto beforeStep = time->time();
     QTest::keyClick(time, Qt::Key_Up);
     QCOMPARE(time->time(), beforeStep.addSecs(60));
-    if (const auto capture = qEnvironmentVariable("OPENRULES_UI_CAPTURE"); !capture.isEmpty())
+    if (const auto capture = qEnvironmentVariable("CIRNETRULES_UI_CAPTURE"); !capture.isEmpty())
         QVERIFY(dialog->grab().save(capture + "/automation-daily-controls.png"));
     QTest::keyClick(dialog, Qt::Key_Escape);
     QTRY_VERIFY(!window.findChild<QDialog *>("automationEditor"));

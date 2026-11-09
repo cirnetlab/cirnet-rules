@@ -2,16 +2,16 @@
 <!-- revision: 2 -->
 <a id="index"></a>
 
-# OPENRULES
+# CIRNET RULES
 
 [Tiếng Việt](../vi/README.md) · [Bootstrap](AGENTS.md) · [Registry](../governance.yaml)
 
-OPENRULES routes scoped local tasks, keeps spec and plan records centrally, and
+CIRNETRULES routes scoped local tasks, keeps spec and plan records centrally, and
 controls verification and documentation sync. English is the instruction
 authority. The current release policy targets `0.2.4` and family `0.2`.
 Product owners retain contracts, runtime, release-set and evidence.
 
-- [Local operator workflow](references/openrules-local.md), [routing](routing/README.md) and [verification](references/openrules-verification.md)
+- [Local operator workflow](references/cirnetrules-local.md), [routing](routing/README.md) and [verification](references/cirnetrules-verification.md)
 - [Policies and transition rules](policies/governance.md)
 - [Ownership and architecture profiles](profiles/product-architecture.md)
 - [Six-repository audit](references/product-audit.md)

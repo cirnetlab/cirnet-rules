@@ -14,7 +14,7 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let workspace = crate::test_support::temporary_directory("openrules-e2e").unwrap();
+        let workspace = crate::test_support::temporary_directory("cirnetrules-e2e").unwrap();
         let governance = workspace.join("cirnet-rules");
         let product = workspace.join("Interface feature worktree");
         fs::create_dir_all(&governance).unwrap();
@@ -58,7 +58,7 @@ impl Fixture {
             &governance,
             &[
                 "-c",
-                "user.name=OPENRULES fixture",
+                "user.name=CIRNETRULES fixture",
                 "-c",
                 "user.email=fixture@example.invalid",
                 "-c",
@@ -95,7 +95,7 @@ impl Fixture {
             &product,
             &[
                 "-c",
-                "user.name=OPENRULES fixture",
+                "user.name=CIRNETRULES fixture",
                 "-c",
                 "user.email=fixture@example.invalid",
                 "-c",
@@ -135,7 +135,7 @@ impl Fixture {
     fn cli(&self, args: &[&str], code: i32) -> Value {
         let output = Command::new(env!("CARGO_BIN_EXE_cirnet-governance"))
             .current_dir(&self.product)
-            .env_remove("OPENRULES_GOVERNANCE")
+            .env_remove("CIRNETRULES_GOVERNANCE")
             .args(args)
             .output()
             .unwrap();
@@ -174,7 +174,7 @@ fn legacy_maintenance_state_does_not_get_shadowed_by_a_new_store() {
             .unwrap()
             .contains("reviewed migration")
     );
-    assert!(!fixture.governance.join(".openrules").exists());
+    assert!(!fixture.governance.join(".cirnetrules").exists());
     assert_eq!(
         fs::read(fixture.governance.join(".cgacp/tasks/legacy.json")).unwrap(),
         original,
@@ -395,7 +395,7 @@ fn a_ui_task_routes_verifies_and_resumes_two_docs_destinations() {
             worktree,
             &[
                 "-c",
-                "user.name=OPENRULES fixture",
+                "user.name=CIRNETRULES fixture",
                 "-c",
                 "user.email=fixture@example.invalid",
                 "-c",
@@ -573,10 +573,10 @@ fn a_ui_task_routes_verifies_and_resumes_two_docs_destinations() {
         0,
     );
     assert_eq!(closed["state"], "CLOSED");
-    assert!(!f.product.join(".openrules").exists());
+    assert!(!f.product.join(".cirnetrules").exists());
     assert!(!f.product.join("en/plans").exists());
     println!(
-        "OPENRULES UI cold {} warm {}",
+        "CIRNETRULES UI cold {} warm {}",
         first["metrics"], second["metrics"]
     );
 }

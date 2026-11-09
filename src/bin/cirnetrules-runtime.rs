@@ -9,7 +9,10 @@ mod operations;
 #[path = "../test_support.rs"]
 mod test_support;
 
-use application_identity::{GENERATION, VERSION, release_name};
+use application_identity::{
+    API_NAMESPACE, DISPLAY_NAME, IPC_PROTOCOL as PROTOCOL, PRODUCT_ID, PRODUCT_SYMBOL, VERSION,
+    release_name,
+};
 use dashboard::{
     automations, catalog, integrations, preferences, sessions,
     storage::{self, AppError, Database},
@@ -19,7 +22,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     env,
-    io::{self, BufRead, Write},
+    io::{self, BufRead, Read, Write},
     path::PathBuf,
     process::ExitCode,
     sync::mpsc,
@@ -27,7 +30,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-const PROTOCOL: u8 = 2;
 const MAX_FRAME: usize = 256 * 1024;
 const TICK: Duration = Duration::from_secs(1);
 
@@ -47,7 +49,7 @@ fn empty_object() -> Value {
 
 fn info() -> Value {
     json!({
-        "product_generation":GENERATION, "version":VERSION,
+        "product_generation":PRODUCT_SYMBOL, "product_id":PRODUCT_ID, "display_name":DISPLAY_NAME, "version":VERSION,
         "release_name":release_name(), "protocol":PROTOCOL,
         "operator_channel":"private_inherited_stdio", "release_actions":"RELEASE_BLOCKED",
         "native_agent":{"codex":"HANDOFF_ONLY","claude":"HANDOFF_ONLY","antigravity":"HANDOFF_ONLY"},
@@ -98,7 +100,8 @@ struct Trace {
 
 impl Trace {
     fn new() -> Self {
-        let enabled = env::var_os("OPENRULES_TRACE_IPC").is_some_and(|value| value == "1");
+        let enabled =
+            env::var_os(application_identity::TRACE_IPC_ENV).is_some_and(|value| value == "1");
         let lines = if enabled {
             let (sender, receiver) = mpsc::sync_channel::<String>(64);
             thread::spawn(move || {
@@ -131,7 +134,7 @@ impl Trace {
         {
             self.remaining -= 1;
             let _ = lines.try_send(format!(
-                "openrules-ipc id={id} method={method} queued_us={} dispatch_us={} storage_pending={pending}",
+                "cirnetrules-ipc id={id} method={method} queued_us={} dispatch_us={} storage_pending={pending}",
                 queued.as_micros(), execution.as_micros(),
             ));
         }
@@ -176,11 +179,11 @@ fn reply(
     let Request {
         id, method, params, ..
     } = request;
-    let Some(method) = method.strip_prefix("openrules.") else {
+    let Some(method) = method.strip_prefix(API_NAMESPACE) else {
         return error(
             &id,
             "METHOD_NOT_FOUND",
-            "Expected an OPENRULES runtime method",
+            "Unexpected local runtime method namespace",
         );
     };
     let legacy = matches!(method, "storage.backup" | "storage.verify");
@@ -383,7 +386,7 @@ impl LocalScheduler {
     fn start(data_dir: PathBuf) -> io::Result<Self> {
         let (stop, stopped) = mpsc::channel();
         let worker = thread::Builder::new()
-            .name("openrules-scheduler".into())
+            .name("cirnetrules-scheduler".into())
             .spawn(move || {
                 let mut db = match Database::open(&data_dir) {
                     Ok(db) => db,
@@ -456,16 +459,35 @@ fn run() -> Result<(), String> {
     let locations = storage::identity::Locations::new(path, use_default);
     let identity = match mode.to_str() {
         Some("--identity-preview") => Some(locations.preview()),
-        Some("--identity-migrate") => Some(locations.migrate()),
+        Some("--identity-migrate") => {
+            use std::sync::{
+                Arc,
+                atomic::{AtomicBool, Ordering},
+            };
+            let cancelled = Arc::new(AtomicBool::new(false));
+            let watcher = Arc::clone(&cancelled);
+            thread::spawn(move || {
+                let mut line = String::new();
+                if io::stdin().lock().take(16).read_line(&mut line).is_ok()
+                    && line.trim() == "cancel"
+                {
+                    watcher.store(true, Ordering::Relaxed);
+                }
+            });
+            Some(locations.migrate_checked(&cancelled, |phase| eprintln!("identity:{phase}")))
+        }
         Some("--identity-use-current") => Some(locations.use_current()),
         Some("--stdio" | "--scheduler") => None,
         _ => return Err("Expected --stdio or --scheduler".into()),
     };
     if let Some(result) = identity {
-        println!(
-            "{}",
-            result.unwrap_or_else(|error| json!({"status":"ERROR","error":error.wire()}))
-        );
+        println!("{}", {
+            let mut result =
+                result.unwrap_or_else(|error| json!({"status":"ERROR","error":error.wire()}));
+            result["product_id"] = json!(PRODUCT_ID);
+            result["protocol"] = json!(PROTOCOL);
+            result
+        });
         return Ok(());
     }
     let mut db = locations.open().map_err(|error| error.to_string())?;

@@ -145,7 +145,7 @@ inline void verifySettingsPolish(MainWindow &window)
     QVERIFY(accent);
     QVERIFY(accent->count() >= 9);
     QVERIFY(!accent->itemIcon(accent->findData("green")).isNull());
-    if (!qEnvironmentVariableIsEmpty("OPENRULES_UI_CAPTURE")) {
+    if (!qEnvironmentVariableIsEmpty("CIRNETRULES_UI_CAPTURE")) {
         accent->showPopup();
         QTRY_VERIFY(accent->view()->isVisible());
         interaction_cases::capture(*accent->view()->window(), "settings-accent-palette");
@@ -239,7 +239,7 @@ inline void verifySettingsPolish(MainWindow &window)
         QTRY_COMPARE(QApplication::font().family(), installedFamily);
         font->setCurrentIndex(0);
     }
-    if (!qEnvironmentVariableIsEmpty("OPENRULES_UI_CAPTURE")) {
+    if (!qEnvironmentVariableIsEmpty("CIRNETRULES_UI_CAPTURE")) {
         auto *scroll = qobject_cast<QScrollArea *>(pages->currentWidget());
         QVERIFY(scroll);
         scroll->ensureWidgetVisible(language, 8, 24);

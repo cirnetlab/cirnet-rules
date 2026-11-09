@@ -22,7 +22,7 @@ namespace interaction_cases {
 
 inline void pinToPrimary(QWidget &widget)
 {
-    if (qEnvironmentVariableIsSet("OPENRULES_TEST_PRIMARY_SCREEN")) {
+    if (qEnvironmentVariableIsSet("CIRNETRULES_TEST_PRIMARY_SCREEN")) {
         auto *screen = QGuiApplication::primaryScreen();
         widget.setScreen(screen);
         widget.move(screen->availableGeometry().topLeft() + QPoint(8, 8));
@@ -31,7 +31,7 @@ inline void pinToPrimary(QWidget &widget)
 
 inline void capture(QWidget &widget, const QString &name)
 {
-    const auto directory = qEnvironmentVariable("OPENRULES_UI_CAPTURE");
+    const auto directory = qEnvironmentVariable("CIRNETRULES_UI_CAPTURE");
     if (!directory.isEmpty())
         QVERIFY(widget.grab().save(directory + "/" + name + ".png"));
 }

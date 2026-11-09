@@ -999,7 +999,7 @@ fn import_bundle(store: &Store<'_>, input: BundleApply, at: i64) -> Result<Strin
         kind,
         slug,
         &title,
-        Some(source_name.as_deref().unwrap_or("OPENRULES bundle")),
+        Some(source_name.as_deref().unwrap_or("CIRNETRULES bundle")),
         &document,
         at,
     )?;

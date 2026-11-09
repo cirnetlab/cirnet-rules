@@ -543,7 +543,7 @@ fn token(secret: &[u8], checkout: &Checkout, timestamp: i64) -> Result<String, A
     let bytes = serde_json::to_vec(&(timestamp, checkout))
         .map_err(|_| AppError::new("INVALID_PATH", "Cannot encode the selected local path."))?;
     let mut hash = Sha256::new();
-    hash.update(b"openrules-local-checkout-preview\0");
+    hash.update(b"cirnetrules-local-checkout-preview\0");
     hash.update(bytes);
     hash.update(secret);
     Ok(format!("{timestamp}.{:x}", hash.finalize()))

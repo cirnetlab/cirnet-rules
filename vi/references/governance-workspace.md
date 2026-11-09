@@ -1,6 +1,6 @@
-<!-- doc-id: OPENRULES-GOVERNANCE-WORKSPACE -->
+<!-- doc-id: CIRNETRULES-GOVERNANCE-WORKSPACE -->
 <!-- revision: 1 -->
-<!-- source-sha256: 73ac696ed6d23a16aca28545f94d2a4d4f406c0637d3340a47ffea3f82b35a4e -->
+<!-- source-sha256: 00eabfac828261a9c5eecd4219726a61f0f924e45228b9a09fbf4f9e619ea3cb -->
 <!-- translation-status: synchronized -->
 <a id="workspace"></a>
 

@@ -70,7 +70,7 @@ fn read_only_git_guard_suppresses_checkout_callbacks() {
     };
     let tmp = env::temp_dir().canonicalize().unwrap();
     let fixture = tmp.join(format!(
-        "openrules runner fixture {}-{}",
+        "cirnetrules runner fixture {}-{}",
         std::process::id(),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -142,7 +142,7 @@ fn runner_times_out_and_honors_a_cancel_request() {
 
     let mut command = fixture_command("wait");
     let cancel =
-        std::env::temp_dir().join(format!("openrules-cancel-fixture-{}", std::process::id()));
+        std::env::temp_dir().join(format!("cirnetrules-cancel-fixture-{}", std::process::id()));
     std::fs::write(&cancel, b"cancel").unwrap();
     let result = run_process(&mut command, Duration::from_secs(10), 128, Some(&cancel)).unwrap();
     std::fs::remove_file(cancel).unwrap();
@@ -153,7 +153,7 @@ fn runner_times_out_and_honors_a_cancel_request() {
 #[test]
 fn runner_finishes_when_an_owned_descendant_inherits_the_pipes() {
     let fixture = std::env::temp_dir().join(format!(
-        "openrules-runner-tree-{}-{}",
+        "cirnetrules-runner-tree-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -162,7 +162,7 @@ fn runner_finishes_when_an_owned_descendant_inherits_the_pipes() {
     ));
     std::fs::create_dir(&fixture).unwrap();
     let mut command = fixture_command("parent");
-    command.env("OPENRULES_TREE_FIXTURE", &fixture);
+    command.env("CIRNETRULES_TREE_FIXTURE", &fixture);
     let result = run_process(&mut command, Duration::from_secs(5), 2048, None).unwrap();
     assert!(result.exit.success());
     assert!(
@@ -181,7 +181,7 @@ fn runner_finishes_when_an_owned_descendant_inherits_the_pipes() {
 fn timeout_and_cancel_stop_owned_descendants_before_they_write() {
     for cancelled in [false, true] {
         let fixture = std::env::temp_dir().join(format!(
-            "openrules-runner-stop-{}-{}",
+            "cirnetrules-runner-stop-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -203,7 +203,7 @@ fn timeout_and_cancel_stop_owned_descendants_before_they_write() {
             })
         });
         let mut command = fixture_command("parent-wait");
-        command.env("OPENRULES_TREE_FIXTURE", &fixture);
+        command.env("CIRNETRULES_TREE_FIXTURE", &fixture);
         let timeout = Duration::from_millis(if cancelled { 5000 } else { 1100 });
         let receipt = process_receipt(
             run_process(
@@ -239,17 +239,18 @@ fn fixture_command(mode: &str) -> std::process::Command {
             "runner::tests::subprocess_fixture",
             "--nocapture",
         ])
-        .env("OPENRULES_RUNNER_FIXTURE", mode);
+        .env("CIRNETRULES_RUNNER_FIXTURE", mode);
     command
 }
 
 #[test]
 fn subprocess_fixture() {
-    match std::env::var("OPENRULES_RUNNER_FIXTURE").as_deref() {
+    match std::env::var("CIRNETRULES_RUNNER_FIXTURE").as_deref() {
         Ok("emit") => println!("SECRET_FIXTURE{}", "x".repeat(5000)),
         Ok("wait") => std::thread::sleep(std::time::Duration::from_secs(30)),
         Ok(mode @ ("parent" | "parent-wait")) => {
-            let dir = std::path::PathBuf::from(std::env::var_os("OPENRULES_TREE_FIXTURE").unwrap());
+            let dir =
+                std::path::PathBuf::from(std::env::var_os("CIRNETRULES_TREE_FIXTURE").unwrap());
             let mut descendant = fixture_command("descendant").spawn().unwrap();
             let until = std::time::Instant::now() + Duration::from_secs(3);
             while !dir.join("ready").is_file() {
@@ -262,7 +263,8 @@ fn subprocess_fixture() {
             }
         }
         Ok("descendant") => {
-            let dir = std::path::PathBuf::from(std::env::var_os("OPENRULES_TREE_FIXTURE").unwrap());
+            let dir =
+                std::path::PathBuf::from(std::env::var_os("CIRNETRULES_TREE_FIXTURE").unwrap());
             std::fs::write(dir.join("ready"), b"1").unwrap();
             std::thread::sleep(Duration::from_secs(3));
             std::fs::write(dir.join("late"), b"1").unwrap();

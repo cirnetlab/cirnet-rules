@@ -1,10 +1,10 @@
-<!-- doc-id: OPENRULES-DESKTOP-OPERATOR -->
+<!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
 <!-- revision: 13 -->
-<!-- source-sha256: 4d71e987992a86060327a6b19f03b6a25e7f88f4f2a0909ed8dec45870aef3ef -->
+<!-- source-sha256: cdd5b8c07f061ee3764f759b8cc32a93817bc86dd5e4a1db31ba356a364ea13a -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
-# Dashboard OPENRULES
+# Dashboard CIRNET RULES
 
 Phiên bản ứng dụng lấy từ Cargo.
 Tên release ứng viên local là `cirnet-rules-0.1.0`. Rà soát release tách
@@ -22,10 +22,10 @@ Linux, CMake cần tìm được trình biên dịch C++ và các gói phát tri
 Widgets và LinguistTools.
 
 Dùng Rust toolchain đã pin và bộ Qt 6 Widgets cho trình biên dịch C++ local.
-Build `openrules-runtime` bằng Cargo, rồi cấu hình CMake với
-`OPENRULES_RUNTIME_EXECUTABLE` trỏ đến binary vừa build. Build
-`openrules-desktop` và chạy CTest. Khi chuẩn bị gói Windows, cài vào thư mục
-staging riêng và bật `OPENRULES_DEPLOY_QT`. Mở Dashboard đã cài từ thư mục bin.
+Build `cirnetrules-runtime` bằng Cargo, rồi cấu hình CMake với
+`CIRNETRULES_RUNTIME_EXECUTABLE` trỏ đến binary vừa build. Build
+`cirnetrules-desktop` và chạy CTest. Khi chuẩn bị gói Windows, cài vào thư mục
+staging riêng và bật `CIRNETRULES_DEPLOY_QT`. Mở Dashboard đã cài từ thư mục bin.
 Dùng `--data-dir` với thư mục tuyệt đối riêng để kiểm thử dùng một lần.
 
 ## Quy trình vận hành
@@ -74,7 +74,7 @@ mở lại ứng dụng. Automation hỗ
 trợ chạy thủ công và lịch hằng ngày theo múi giờ IANA. Xem trước lịch trước
 khi bật và xác nhận lượt chạy một lần khi automation đang tắt. Runtime Rust
 quản lý lịch. Để giữ lịch khi đóng Dashboard, chạy
-`openrules-runtime --scheduler` trong terminal riêng với cùng thư mục dữ liệu.
+`cirnetrules-runtime --scheduler` trong terminal riêng với cùng thư mục dữ liệu.
 Trạng thái lịch được lưu khi runtime dừng. Các lượt hằng ngày bị lỡ được gộp.
 Definition bị tạm dừng hoặc stale phải được kiểm tra trước khi tạo đề xuất mới.
 
@@ -129,9 +129,9 @@ ghi SHA-256 artifact và nguồn build. Ứng viên giữ `RELEASE_BLOCKED` khi
 còn gate Agent native, cô lập, review xác thực, cài Windows sạch và
 điều kiện phân phối.
 
-[Kiến trúc và giới hạn](dashboard-architecture.md) · [Trạng thái tương tác](desktop-interaction.md) · [Ứng viên phát hành](dashboard-release.md) · [Quy trình task](openrules-local.md)
+[Kiến trúc và giới hạn](dashboard-architecture.md) · [Trạng thái tương tác](desktop-interaction.md) · [Ứng viên phát hành](dashboard-release.md) · [Quy trình task](cirnetrules-local.md)
 
-[Định danh và nâng cấp dữ liệu](openrules-identity.md)
+[Định danh và nâng cấp dữ liệu](cirnetrules-identity.md)
 
 ## Governance
 

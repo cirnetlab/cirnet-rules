@@ -1,4 +1,4 @@
-<!-- doc-id: OPENRULES-INTERACTION-STATE -->
+<!-- doc-id: CIRNETRULES-INTERACTION-STATE -->
 <!-- revision: 2 -->
 <a id="interaction-state"></a>
 

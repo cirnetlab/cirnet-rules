@@ -1,6 +1,6 @@
-<!-- doc-id: OPENRULES-DESKTOP-RELEASE -->
+<!-- doc-id: CIRNETRULES-DESKTOP-RELEASE -->
 <!-- revision: 1 -->
-<!-- source-sha256: 284180faa05d53890db07e39f16fdaa4393100076532f413416469d6be50ebea -->
+<!-- source-sha256: 44199a9e85f555d87306cc63a88f357c7f53613417fd69e37bc7d55adad48c4f -->
 <!-- translation-status: synchronized -->
 <a id="candidate"></a>
 
@@ -8,7 +8,8 @@
 
 | Định danh | Ứng viên |
 | --- | --- |
-| Tên sản phẩm | OPENRULES |
+| Tên hiển thị | CIRNET RULES |
+| ID sản phẩm | `cirnetrules` |
 | Phiên bản ứng dụng | 0.1.0 |
 | Tên release | `cirnet-rules-0.1.0` |
 | Tag đề xuất | `v0.1.0` |

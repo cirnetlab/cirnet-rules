@@ -6,13 +6,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $sourceRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$metadata = Get-Content -LiteralPath (Join-Path $sourceRoot 'application-identity.json') -Raw | ConvertFrom-Json
+$product = [string]$metadata.product_id
+if ($product -cnotmatch '^[a-z][a-z0-9]*$') { throw 'Invalid application product ID.' }
 $stage = (Resolve-Path -LiteralPath $InstallTree).Path
 $output = (Resolve-Path -LiteralPath $OutputDirectory).Path
 if ($output -eq $stage -or $output.StartsWith($stage + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) {
     throw 'The output directory must be outside the installed tree.'
 }
-$runtime = Join-Path $stage 'bin/openrules-runtime.exe'
-$dashboard = Join-Path $stage 'bin/openrules-desktop.exe'
+$runtime = Join-Path $stage "bin/$product-runtime.exe"
+$dashboard = Join-Path $stage "bin/$product-desktop.exe"
 if (!(Test-Path -LiteralPath $dashboard -PathType Leaf) -or !(Test-Path -LiteralPath $runtime -PathType Leaf)) {
     throw 'Install the Release dashboard and runtime before packaging.'
 }
@@ -20,9 +23,9 @@ $identity = & $runtime --version | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'Could not verify runtime identity.' }
 $versionFile = (Get-Content -LiteralPath (Join-Path $sourceRoot 'VERSION') -Raw).Trim()
 $version = [string]$identity.version
-if ($identity.product_generation -ne 'OPENRULES' -or $version -ne $versionFile -or
+if ($identity.product_id -cne $product -or $identity.product_generation -cne $product.ToUpperInvariant() -or $identity.protocol -ne $metadata.ipc_protocol -or $version -ne $versionFile -or
     $version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -or
-    $identity.release_name -ne "cirnet-rules-$version") {
+    $identity.release_name -ne "$($metadata.repository)-$version") {
     throw 'Runtime, source version and release name disagree.'
 }
 $tag = "v$version"
@@ -35,7 +38,7 @@ if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[a-f0-9]{40,64}$') { throw 'Could 
 $stageRows = [System.Collections.Generic.List[object]]::new()
 foreach ($entry in Get-ChildItem -LiteralPath $stage -Force -Recurse | Sort-Object FullName) {
     $rel = [IO.Path]::GetRelativePath($stage,$entry.FullName).Replace('\','/')
-    if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $rel -match '(^|/)(\.git|\.openrules|\.cgacp|secrets)(/|$)|\.sqlite3($|-)|^\.env') {
+    if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $rel -match '(^|/)(\.git|\.cirnetrules|\.openrules|\.cgacp|secrets)(/|$)|\.sqlite3($|-)|^\.env') {
         throw "Unexpected data or link in staging tree: $rel"
     }
     if (!$entry.PSIsContainer) {
@@ -56,7 +59,7 @@ foreach ($rel in (git -c core.quotepath=false --no-optional-locks -C $sourceRoot
 }
 $sourceFingerprint = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
     [Text.Encoding]::UTF8.GetBytes(($sourceLines -join [char]10)))).ToLowerInvariant()
-$name = "openrules-$version-windows-x64-candidate"
+$name = "$product-$version-windows-x64-candidate"
 $archive = Join-Path $output "$name.zip"
 $manifest = Join-Path $output "$name.manifest.json"
 $checksum = Join-Path $output "$name.sha256"
@@ -67,7 +70,9 @@ foreach ($file in @($archive,$manifest,$checksum)) {
 $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 [ordered]@{
     schema=1
+    product_id=$identity.product_id
     product_generation=$identity.product_generation
+    ipc_protocol=$identity.protocol
     application_version=$version
     release_name=$identity.release_name
     proposed_tag=$tag

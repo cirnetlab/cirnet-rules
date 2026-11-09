@@ -1,4 +1,4 @@
-# OPENRULES
+# CIRNET RULES
 
 [English](en/README.md) · [Tiếng Việt](vi/README.md)
 
@@ -65,6 +65,6 @@ ranh giới HTTP do `cirnet-remote` sở hữu. Agent chỉ đọc hoặc sửa 
 file đã nằm trong phạm vi được cấp; thay đổi contract cần được xử lý theo
 đúng repo sở hữu và phạm vi task.
 
-Xem [quy trình local](en/references/openrules-local.md),
+Xem [quy trình local](en/references/cirnetrules-local.md),
 [routing](en/routing/README.md), [công cụ](en/tools/README.md),
 [Dashboard](vi/references/dashboard.md) và [registry](governance.yaml).
