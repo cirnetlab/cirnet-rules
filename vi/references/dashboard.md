@@ -1,6 +1,6 @@
 <!-- doc-id: OPENRULES-DESKTOP-OPERATOR -->
 <!-- revision: 13 -->
-<!-- source-sha256: 596c357e31183c94446c77a74ef537a34b9c142425a3a248e87b3f548bdb8a08 -->
+<!-- source-sha256: 4d71e987992a86060327a6b19f03b6a25e7f88f4f2a0909ed8dec45870aef3ef -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
