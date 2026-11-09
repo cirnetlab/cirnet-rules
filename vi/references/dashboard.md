@@ -135,7 +135,7 @@ còn gate Agent native, cô lập, review xác thực, cài Windows sạch và
 
 ## Governance
 
-Dùng [Cấu hình / Governance](governance-workspace.md) để quản lý bản nháp,
+Dùng [Cấu hình](governance-workspace.md) để quản lý bản nháp,
 tệp, kiểm tra, công bố và khôi phục ngay trong ứng dụng. Khi tạo hội thoại,
 chọn hồ sơ governance đã công bố hoặc dùng hồ sơ mặc định. Chi tiết task
 hiển thị manifest các revision đã lưu. Dòng thực thi vẫn báo bàn giao cục bộ.

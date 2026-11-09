@@ -162,7 +162,7 @@ GovernancePanel::GovernancePanel(Request request, Repositories repositories)
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(2, 4, 2, 2);
     layout->setSpacing(8);
-    layout->addWidget(label(QT_TRANSLATE_NOOP("GovernancePanel", "Configuration / Governance"), "heading"));
+    layout->addWidget(label(QT_TRANSLATE_NOOP("GovernancePanel", "Configuration"), "heading"));
     pages_ = new QTabWidget;
     pages_->setObjectName("governanceSections");
     pages_->setDocumentMode(true);

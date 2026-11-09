@@ -707,8 +707,8 @@ Cơ sở dữ liệu OPENRULES
       <translation>Lệnh</translation>
     </message>
     <message>
-      <source>Configuration / Governance</source>
-      <translation>Cấu hình / Governance</translation>
+      <source>Configuration</source>
+      <translation>Cấu hình</translation>
     </message>
     <message>
       <source>Configuration dialect</source>

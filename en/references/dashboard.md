@@ -137,7 +137,7 @@ clean Windows and redistribution gates are evidenced.
 
 ## Governance
 
-Use [Configuration / Governance](governance-workspace.md) to manage drafts,
+Use [Configuration](governance-workspace.md) to manage drafts,
 files, validation, publication and rollback without a terminal. In New Chat,
 choose a published governance profile or use the configured default.
 Task details show the persisted manifest of asset revisions. The execution
