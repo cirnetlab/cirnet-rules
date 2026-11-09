@@ -175,7 +175,8 @@ fn reply(
         id, method, params, ..
     } = request;
     let outcome = match method.as_str() {
-        "storage.scan"
+        "storage.chats"
+        | "storage.scan"
         | "storage.backup"
         | "storage.verify"
         | "storage.backup.start"

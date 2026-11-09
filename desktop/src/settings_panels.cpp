@@ -1,4 +1,6 @@
 #include "settings_panels.h"
+#include "theme.h"
+#include "main_window.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -7,22 +9,25 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
 #include <QLocale>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QTimer>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 
-#include <array>
 #include <utility>
 
 namespace {
@@ -43,12 +48,13 @@ QPushButton *button(const QString &text, const char *name, QBoxLayout &layout)
     return control;
 }
 
-QVBoxLayout *group(QVBoxLayout &parent, const QString &heading)
+QVBoxLayout *storageCard(QVBoxLayout &parent)
 {
     auto *frame = new QFrame;
-    frame->setObjectName("settingsGroup");
+    frame->setObjectName("settingsCard");
     auto *body = new QVBoxLayout(frame);
-    body->addWidget(textLabel(heading, "sectionTitle"));
+    body->setContentsMargins(20, 16, 20, 18);
+    body->setSpacing(10);
     parent.addWidget(frame);
     return body;
 }
@@ -64,67 +70,134 @@ QString dateText(qint64 epoch)
                      : QString{};
 }
 
-class StorageBar final : public QWidget {
+QColor usageColor(const QPalette &palette, bool archived)
+{
+    if (!archived)
+        return palette.color(QPalette::Highlight);
+    return palette.color(QPalette::Window).lightness() > 128 ? QColor("#39728c") : QColor("#80b4ca");
+}
+
+class StorageDot final : public QWidget {
 public:
-    StorageBar() { setFixedHeight(16); }
-    void setParts(std::array<qint64, 3> parts) { parts_ = parts; update(); }
+    explicit StorageDot(bool archived) : archived_(archived) { setFixedSize(9, 9); }
 
 protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.fillRect(rect(), palette().color(QPalette::Midlight));
-        const qreal total = qreal(parts_[0]) + qreal(parts_[1]) + qreal(parts_[2]);
-        if (total <= 0)
-            return;
-        const std::array<QColor, 3> colors{
-            palette().color(QPalette::Highlight), QColor("#6695d5"), QColor("#9b8bd3")
-        };
-        qreal x = 0;
-        for (size_t index = 0; index < parts_.size(); ++index) {
-            const qreal partWidth = width() * qreal(parts_[index]) / total;
-            painter.fillRect(QRectF(x, 0, partWidth, height()), colors[index]);
-            x += partWidth;
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(usageColor(palette(), archived_));
+        painter.drawEllipse(rect());
+    }
+
+private:
+    bool archived_;
+};
+
+class StorageBar final : public QWidget {
+public:
+    StorageBar() { setFixedHeight(22); }
+    void setParts(qint64 active, qint64 archived) { active_ = active; archived_ = archived; update(); }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(palette().color(QPalette::Midlight));
+        const qreal total = qreal(active_) + qreal(archived_);
+        if (total > 0)
+            painter.setBrush(usageColor(palette(), active_ == 0));
+        painter.drawRoundedRect(QRectF(rect()), height() / 2.0, height() / 2.0);
+        if (active_ > 0 && archived_ > 0) {
+            const qreal division = width() * qreal(active_) / total;
+            painter.setClipRect(QRectF(division, 0, width() - division, height()));
+            painter.setBrush(usageColor(palette(), true));
+            painter.drawRoundedRect(QRectF(rect()), height() / 2.0, height() / 2.0);
         }
     }
 
 private:
-    std::array<qint64, 3> parts_{};
+    qint64 active_ = 0, archived_ = 0;
 };
 
 class StoragePage final : public QWidget {
     Q_DECLARE_TR_FUNCTIONS(StoragePage)
 
 public:
-    StoragePage(RuntimeClient &client, SettingsRequest request, std::function<void()> openArchived)
+    StoragePage(RuntimeClient &client, SettingsRequest request)
         : request_(std::move(request))
     {
         setObjectName("storagePage");
         auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(2, 8, 2, 8);
+        layout->setSpacing(16);
         layout->addWidget(textLabel(tr("Storage"), "heading"));
-        auto *device = group(*layout, tr("This device"));
-        accounting_ = textLabel(tr("Measure the CGACP data directory to see its current size."));
+        layout->addWidget(textLabel(tr("See how much local message text is stored in your conversations."), "lead"));
+        auto *device = storageCard(*layout);
+        auto *headline = new QHBoxLayout;
+        headline->addWidget(textLabel(tr("This device"), "sectionTitle"), 1);
+        refresh_ = button(tr("Refresh"), "refreshChatStorage", *headline);
+        refresh_->setProperty("actionRole", "secondary");
+        refresh_->setIcon(uiIcon(UiIcon::Refresh));
+        refresh_->setAccessibleName(tr("Refresh chat storage"));
+        device->addLayout(headline);
+        accounting_ = textLabel({}, "sectionTitle");
         accounting_->setObjectName("storageAccounting");
         accounting_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        accounting_->hide();
         device->addWidget(accounting_);
         bar_ = new StorageBar;
-        bar_->setAccessibleName(tr("Physical storage breakdown"));
+        bar_->setAccessibleName(tr("Chat storage breakdown"));
         bar_->hide();
         device->addWidget(bar_);
+        auto *legend = new QHBoxLayout;
+        legend->setSpacing(20);
+        auto addLegend = [legend](const QString &heading, const char *name, bool archived) {
+            auto *column = new QVBoxLayout;
+            auto *labelRow = new QHBoxLayout;
+            labelRow->setSpacing(8);
+            labelRow->addWidget(new StorageDot(archived), 0, Qt::AlignVCenter);
+            labelRow->addWidget(textLabel(heading, "sectionTitle"), 1);
+            column->addLayout(labelRow);
+            auto *description = textLabel({});
+            description->setObjectName(QLatin1StringView(name));
+            column->addWidget(description);
+            legend->addLayout(column, 1);
+            return description;
+        };
+        activeUsage_ = addLegend(tr("Active chats"), "storageActiveUsage", false);
+        archivedUsage_ = addLegend(tr("Archived chats"), "storageArchivedUsage", true);
+        device->addLayout(legend);
+        usageStatus_ = textLabel(tr("Waiting for the local runtime…"));
+        usageStatus_->setObjectName("storageUsageStatus");
+        device->addWidget(usageStatus_);
+
+        auto *maintenance = storageCard(*layout);
+        auto *toggle = button(tr("Database maintenance"), "storageMaintenanceToggle", *maintenance);
+        toggle->setIcon(uiIcon(UiIcon::Sliders));
+        toggle->setCheckable(true);
+        toggle->setProperty("navigation", true);
+        auto *maintenanceBody = new QWidget;
+        auto *backupGroup = new QVBoxLayout(maintenanceBody);
+        backupGroup->setContentsMargins(0, 2, 0, 0);
+        backupGroup->setSpacing(8);
+        backupGroup->addWidget(textLabel(tr("Database maintenance is separate from chat storage. Backups may contain earlier chat content.")));
         path_ = textLabel({});
         path_->setObjectName("storageDataRoot");
         path_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-        device->addWidget(path_);
-        auto *scanRow = new QHBoxLayout;
-        scan_ = button(tr("Measure storage"), "scanStorage", *scanRow);
-        scanRow->addStretch();
-        device->addLayout(scanRow);
-        scanRow = new QHBoxLayout;
-        copy_ = button(tr("Copy data path"), "copyStorageRoot", *scanRow);
-        open_ = button(tr("Open data folder"), "openStorageRoot", *scanRow);
-        scanRow->addStretch();
-        device->addLayout(scanRow);
-        auto *backupGroup = group(*layout, tr("Backups and database maintenance"));
+        backupGroup->addWidget(path_);
+        auto *inspectRow = new QHBoxLayout;
+        inspect_ = button(tr("Check database"), "inspectStorageDatabase", *inspectRow);
+        inspectRow->addStretch();
+        backupGroup->addLayout(inspectRow);
+        auto *pathRow = new QHBoxLayout;
+        copy_ = button(tr("Copy data path"), "copyStorageRoot", *pathRow);
+        open_ = button(tr("Open data folder"), "openStorageRoot", *pathRow);
+        pathRow->addStretch();
+        backupGroup->addLayout(pathRow);
         backups_ = new QComboBox;
         backups_->setObjectName("storageBackups");
         backups_->setAccessibleName(tr("Database or backup to verify"));
@@ -139,10 +212,7 @@ public:
         compact_ = button(tr("Review compaction"), "compactStorage", *backupRow);
         backupRow->addStretch();
         backupGroup->addLayout(backupRow);
-        backupGroup->addWidget(textLabel(tr("Backups may contain earlier chat content. Verification does not restore or overwrite your data.")));
-        auto *cleanupGroup = group(*layout, tr("Review stored chats"));
-        auto *archived = button(tr("Manage archived chats"), "storageArchivedChats", *cleanupGroup);
-        cleanupGroup->addWidget(textLabel(tr("Worktree, cache, and log removal is unavailable without recorded ownership. Registered repositories are kept.")));
+        backupGroup->addWidget(textLabel(tr("Verification does not restore or overwrite your data.")));
         auto *operationRow = new QHBoxLayout;
         progress_ = new QProgressBar;
         progress_->setObjectName("storageProgress");
@@ -151,10 +221,13 @@ public:
         operationRow->addWidget(progress_, 1);
         cancel_ = button(tr("Cancel operation"), "cancelStorageOperation", *operationRow);
         retry_ = button(tr("Retry status"), "retryStorageOperation", *operationRow);
-        layout->addLayout(operationRow);
+        backupGroup->addLayout(operationRow);
         status_ = textLabel({});
         status_->setObjectName("storageOperationStatus");
-        layout->addWidget(status_);
+        backupGroup->addWidget(status_);
+        maintenance->addWidget(maintenanceBody);
+        maintenanceBody->hide();
+        connect(toggle, &QPushButton::toggled, maintenanceBody, &QWidget::setVisible);
         layout->addStretch();
 
         poll_.setSingleShot(true);
@@ -162,10 +235,13 @@ public:
         connect(&poll_, &QTimer::timeout, this, [this] { poll(false); });
         connect(&client, &RuntimeClient::disconnected, this, [this] {
             ++generation_;
+            ready_ = false;
             poll_.stop();
             if (pending_ || !operation_.isEmpty())
-                status_->setText(tr("The runtime disconnected. Measure storage again to check the outcome."));
+                status_->setText(tr("The runtime disconnected before the operation finished."));
+            usageStatus_->setText(tr("Connect to the local runtime to refresh chat storage."));
             operation_.clear();
+            usageOperation_ = false;
             pending_ = false;
             statusFailed_ = false;
             cancellationQueued_ = false;
@@ -174,7 +250,8 @@ public:
             freePages_ = 0;
             syncActions();
         });
-        connect(scan_, &QPushButton::clicked, this, [this] { start("storage.scan"); });
+        connect(refresh_, &QPushButton::clicked, this, [this] { start("storage.chats"); });
+        connect(inspect_, &QPushButton::clicked, this, [this] { start("storage.scan"); });
         connect(backup_, &QPushButton::clicked, this, [this] { start("storage.backup.start"); });
         connect(verify_, &QPushButton::clicked, this, [this] {
             const auto name = backups_->currentData().toString();
@@ -194,8 +271,13 @@ public:
                 !QDesktopServices::openUrl(QUrl::fromLocalFile(path_->text())))
                 status_->setText(tr("Could not open the data folder."));
         });
-        connect(archived, &QPushButton::clicked, this, std::move(openArchived));
         syncActions();
+    }
+
+    void runtimeReady()
+    {
+        ready_ = true;
+        start("storage.chats");
     }
 
 protected:
@@ -204,10 +286,13 @@ protected:
         QWidget::showEvent(event);
         if (!operation_.isEmpty() && !pending_ && !statusFailed_)
             poll_.start();
+        else if (operation_.isEmpty())
+            start("storage.chats");
     }
     void hideEvent(QHideEvent *event) override
     {
-        poll_.stop();
+        if (!usageOperation_)
+            poll_.stop();
         QWidget::hideEvent(event);
     }
 
@@ -224,10 +309,15 @@ private:
 
     void start(const QString &method, QJsonObject params = {})
     {
-        if (pending_ || !operation_.isEmpty())
+        if (!ready_ || pending_ || !operation_.isEmpty())
             return;
-        status_->setText(tr("Submitting storage operation…"));
-        progress_->setRange(0, 0);
+        usageOperation_ = method == "storage.chats";
+        if (usageOperation_) {
+            usageStatus_->setText(tr("Measuring chat storage…"));
+        } else {
+            status_->setText(tr("Submitting storage operation…"));
+            progress_->setRange(0, 0);
+        }
         statusFailed_ = false;
         call(method, std::move(params));
     }
@@ -248,6 +338,13 @@ private:
         pending_ = false;
         const auto id = reply.value("operation_id").toString();
         if (!error.isEmpty() || id.isEmpty() || (!operation_.isEmpty() && id != operation_)) {
+            if (usageOperation_) {
+                usageStatus_->setText(error.isEmpty() ? tr("Chat storage measurement is unavailable.") : error);
+                operation_.clear();
+                usageOperation_ = false;
+                syncActions();
+                return;
+            }
             cancellationQueued_ |= std::exchange(cancellationInFlight_, false);
             statusFailed_ = true;
             status_->setText(error.isEmpty() ? tr("Storage operation status is unavailable.") : error);
@@ -268,71 +365,69 @@ private:
         if (state == "SUCCEEDED") {
             const auto kind = reply.value("kind").toString();
             const auto result = reply.value("result").toObject();
-            if (kind == "SCAN")
-                renderScan(result);
-            else if (kind == "COMPACT")
-                freePages_ = 0;  // A fresh measurement is required for another confirmation.
-            const auto backup = result.value("backup").toString();
-            QString summary = tr("Storage operation completed.");
-            if (!backup.isEmpty()) {
-                if (backups_->findData(backup) < 0)
-                    backups_->addItem(backup, backup);
-                backups_->setCurrentIndex(backups_->findData(backup));
-                summary = tr("Storage operation completed. Backup: %1").arg(backup);
-            } else if (kind == "COMPACT") {
-                summary = tr("Storage operation completed. Database pages: %1 before, %2 after.")
-                    .arg(result.value("before_page_count").toInteger()).arg(result.value("after_page_count").toInteger());
+            if (usageOperation_) {
+                renderUsage(result);
+            } else {
+                renderMaintenance(kind, result);
             }
-            status_->setText(summary);
             operation_.clear();
         } else if (state == "FAILED" || state == "CANCELLED") {
             const auto issue = reply.value("error").toObject();
-            status_->setText(state == "CANCELLED" ? tr("Storage operation cancelled.")
-                                                  : tr("Storage operation failed: %1").arg(issue.value("message").toString()));
+            auto *notice = usageOperation_ ? usageStatus_ : status_;
+            notice->setText(state == "CANCELLED" ? tr("Storage operation cancelled.")
+                                                 : tr("Storage operation failed: %1").arg(issue.value("message").toString()));
             operation_.clear();
         } else if (state == "CANCEL_REQUESTED") {
             cancellationQueued_ = false;
             status_->setText(tr("Waiting for the storage worker to stop…"));
         } else {
-            status_->setText(tr("Storage operation: %1").arg(phase.isEmpty() ? state : phase));
+            if (!usageOperation_)
+                status_->setText(tr("Storage operation: %1").arg(uiStatusLabel(phase.isEmpty() ? state : phase)));
             if (cancellationQueued_) {
                 poll(true);
                 return;
             }
         }
-        if (operation_.isEmpty())
+        if (operation_.isEmpty()) {
             cancellationQueued_ = false;
-        else if (isVisible())
+            usageOperation_ = false;
+        } else if (isVisible() || usageOperation_) {
             poll_.start();
+        }
         syncActions();
+    }
+
+    void renderUsage(const QJsonObject &usage)
+    {
+        const auto active = usage.value("active").toObject();
+        const auto archived = usage.value("archived").toObject();
+        const auto activeBytes = active.value("message_bytes").toInteger();
+        const auto archivedBytes = archived.value("message_bytes").toInteger();
+        const auto activeCount = active.value("conversations").toInteger();
+        const auto archivedCount = archived.value("conversations").toInteger();
+        const auto caption = [](qint64 bytes, qint64 count) {
+            const auto conversations = count == 1 ? tr("1 conversation")
+                                                   : tr("%1 conversations").arg(QLocale().toString(count));
+            return QStringLiteral("%1 · %2").arg(sizeText(bytes), conversations);
+        };
+        accounting_->setText(tr("%1 of local message text").arg(sizeText(activeBytes + archivedBytes)));
+        accounting_->show();
+        bar_->setParts(activeBytes, archivedBytes);
+        bar_->show();
+        activeUsage_->setText(caption(activeBytes, activeCount));
+        archivedUsage_->setText(caption(archivedBytes, archivedCount));
+        usageStatus_->setText(activeCount + archivedCount > 0
+            ? tr("Updated %1").arg(dateText(usage.value("measured_at").toInteger()))
+            : tr("No local conversations yet."));
     }
 
     void renderScan(const QJsonObject &snapshot)
     {
-        const auto physical = snapshot.value("physical").toObject();
         const auto logical = snapshot.value("logical").toObject();
-        const auto db = physical.value("database_bytes").toInteger();
-        const auto sidecars = physical.value("wal_bytes").toInteger() + physical.value("shm_bytes").toInteger()
-                            + physical.value("journal_bytes").toInteger();
-        const auto backup = physical.value("backup_bytes").toInteger() + physical.value("pending_backup_bytes").toInteger();
         pageSize_ = logical.value("page_size").toInteger();
         pageCount_ = logical.value("page_count").toInteger();
         freePages_ = logical.value("free_pages").toInteger();
-        const auto partial = snapshot.value("partial").toBool();
-        const auto physicalLine = tr("%1 on disk · Database %2 · Sidecars %3 · Backups %4")
-                                  .arg(sizeText(physical.value("total_bytes").toInteger()), sizeText(db),
-                                       sizeText(sidecars), sizeText(backup));
-        const auto logicalLine = tr("Logical message content: %1 active, %2 archived. Reusable database pages: %3.")
-                                 .arg(sizeText(logical.value("active_message_bytes").toInteger()),
-                                      sizeText(logical.value("archived_message_bytes").toInteger()),
-                                      sizeText(pageSize_ * freePages_));
-        const auto measured = tr("Measured %1").arg(dateText(snapshot.value("measured_at").toInteger()));
-        const auto coverage = partial ? tr("Partial measurement. Skipped entries: %1.").arg(snapshot.value("skipped").toInt())
-                                      : QString{};
-        accounting_->setText(QStringList{physicalLine, logicalLine, measured, coverage}.join('\n').trimmed());
         path_->setText(snapshot.value("data_root").toString());
-        bar_->setParts({db, sidecars, backup});
-        bar_->show();
         const auto selected = backups_->currentData().toString();
         backups_->clear();
         backups_->addItem(tr("Live database"));
@@ -344,6 +439,25 @@ private:
         }
         if (const auto index = backups_->findData(selected); index >= 0)
             backups_->setCurrentIndex(index);
+    }
+
+    void renderMaintenance(const QString &kind, const QJsonObject &result)
+    {
+        if (kind == "SCAN")
+            renderScan(result);
+        const auto backup = result.value("backup").toString();
+        if (!backup.isEmpty()) {
+            if (backups_->findData(backup) < 0)
+                backups_->addItem(backup, backup);
+            backups_->setCurrentIndex(backups_->findData(backup));
+            status_->setText(tr("Storage operation completed. Backup: %1").arg(backup));
+        } else if (kind == "COMPACT") {
+            freePages_ = 0;
+            status_->setText(tr("Storage operation completed. Database pages: %1 before, %2 after.")
+                .arg(result.value("before_page_count").toInteger()).arg(result.value("after_page_count").toInteger()));
+        } else {
+            status_->setText(tr("Storage operation completed."));
+        }
     }
 
     void previewCompaction()
@@ -365,16 +479,16 @@ private:
 
     void syncActions()
     {
-        const bool idle = !pending_ && operation_.isEmpty();
-        for (auto *control : {scan_, backup_, verify_})
+        const bool idle = ready_ && !pending_ && operation_.isEmpty();
+        for (auto *control : {refresh_, inspect_, backup_, verify_})
             control->setEnabled(idle);
         compact_->setEnabled(idle && freePages_ > 0);
         const auto hasPath = QDir::isAbsolutePath(path_->text());
         copy_->setEnabled(hasPath);
         open_->setEnabled(hasPath);
-        progress_->setVisible(!operation_.isEmpty() || pending_);
-        cancel_->setEnabled(!operation_.isEmpty() && !cancellationQueued_ && !cancellationInFlight_ &&
-                            !cancelling_ && !statusFailed_);
+        progress_->setVisible(!usageOperation_ && (!operation_.isEmpty() || pending_));
+        cancel_->setEnabled(!usageOperation_ && !operation_.isEmpty() && !cancellationQueued_ &&
+                            !cancellationInFlight_ && !cancelling_ && !statusFailed_);
         retry_->setVisible(!operation_.isEmpty() && statusFailed_);
     }
 
@@ -382,17 +496,19 @@ private:
     QTimer poll_;
     quint64 generation_ = 0;
     QString operation_;
+    bool ready_ = false, usageOperation_ = false;
     bool pending_ = false;
     bool cancellationQueued_ = false;
     bool cancellationInFlight_ = false;
     bool cancelling_ = false;
     bool statusFailed_ = false;
     qint64 pageSize_ = 0, pageCount_ = 0, freePages_ = 0;
-    QLabel *accounting_ = nullptr, *path_ = nullptr, *status_ = nullptr;
+    QLabel *accounting_ = nullptr, *activeUsage_ = nullptr, *archivedUsage_ = nullptr, *usageStatus_ = nullptr;
+    QLabel *path_ = nullptr, *status_ = nullptr;
     StorageBar *bar_ = nullptr;
     QProgressBar *progress_ = nullptr;
     QComboBox *backups_ = nullptr;
-    QPushButton *scan_ = nullptr, *copy_ = nullptr, *open_ = nullptr, *backup_ = nullptr,
+    QPushButton *refresh_ = nullptr, *inspect_ = nullptr, *copy_ = nullptr, *open_ = nullptr, *backup_ = nullptr,
                 *verify_ = nullptr, *compact_ = nullptr, *cancel_ = nullptr, *retry_ = nullptr;
 };
 
@@ -407,7 +523,25 @@ public:
     {
         setObjectName("archivedChatsPage");
         auto *layout = new QVBoxLayout(this);
-        layout->addWidget(textLabel(tr("Archived chats"), "heading"));
+        layout->setContentsMargins(0, 0, 0, 0);
+        scroll_ = new QScrollArea;
+        scroll_->setWidgetResizable(true);
+        scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scroll_->setAccessibleName(tr("Archived chats"));
+        layout->addWidget(scroll_);
+        auto *host = new QWidget;
+        auto *centering = new QHBoxLayout(host);
+        centering->setContentsMargins(0, 0, 0, 0);
+        auto *body = new QWidget;
+        body->setMaximumWidth(960);
+        centering->addWidget(body, 1);
+        auto *bodyLayout = new QVBoxLayout(body);
+        bodyLayout->setContentsMargins(6, 8, 14, 12);
+        bodyLayout->setSpacing(16);
+        scroll_->setWidget(host);
+        bodyLayout->addWidget(textLabel(tr("Archived chats"), "heading"));
+        bodyLayout->addWidget(textLabel(tr("Restore a chat to the sidebar or review it for permanent deletion."), "lead"));
+
         search_ = new QLineEdit;
         search_->setObjectName("archivedChatSearch");
         search_->setProperty("searchField", true);
@@ -415,52 +549,53 @@ public:
         search_->setMaxLength(120);
         search_->setPlaceholderText(tr("Search archived chats"));
         search_->setAccessibleName(tr("Search archived chats"));
-        layout->addWidget(search_);
-        auto *filters = new QHBoxLayout;
+        search_->setMinimumWidth(0);
+        filters_ = new QGridLayout;
+        filters_->setSpacing(8);
+        bodyLayout->addLayout(filters_);
         repository_ = new QComboBox;
         repository_->setObjectName("archivedRepositoryFilter");
         repository_->setAccessibleName(tr("Repository filter"));
         repository_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-        repository_->setMinimumContentsLength(12);
+        repository_->setMinimumContentsLength(10);
         date_ = new QComboBox;
         date_->setObjectName("archivedDateFilter");
         date_->setAccessibleName(tr("Archive date filter"));
         date_->addItem(tr("Any date"), 0);
         date_->addItem(tr("Older than 30 days"), 30);
         date_->addItem(tr("Older than 90 days"), 90);
-        filters->addWidget(repository_, 1);
-        filters->addWidget(date_);
-        layout->addLayout(filters);
-        auto *sources = new QHBoxLayout;
         source_ = new QComboBox;
         source_->setObjectName("archivedSourceFilter");
         source_->setAccessibleName(tr("Chat source filter"));
         source_->addItem(tr("Any source"));
         source_->addItem(tr("Desktop"), "DASHBOARD");
         source_->addItem(tr("Automation"), "AUTOMATION");
-        sources->addWidget(source_);
-        sources->addStretch();
-        layout->addLayout(sources);
+        arrangeFilters();
+
+        auto *scopeRow = new QHBoxLayout;
+        scope_ = textLabel(tr("All repositories"), "sectionTitle");
+        scopeRow->addWidget(scope_, 1);
+        reload_ = button(tr("Refresh"), "archivedRefresh", *scopeRow);
+        reload_->setProperty("actionRole", "secondary");
+        reload_->setIcon(uiIcon(UiIcon::Refresh));
+        bodyLayout->addLayout(scopeRow);
         state_ = textLabel({});
         state_->setObjectName("archivedChatsState");
-        layout->addWidget(state_);
-        chats_ = new QListWidget;
-        chats_->setObjectName("archivedChats");
-        chats_->setAccessibleName(tr("Archived chats"));
-        chats_->setWordWrap(true);
-        chats_->setTextElideMode(Qt::ElideRight);
-        layout->addWidget(chats_, 1);
+        bodyLayout->addWidget(state_);
+        cards_ = new QWidget;
+        cards_->setObjectName("archivedChats");
+        cardsLayout_ = new QVBoxLayout(cards_);
+        cardsLayout_->setContentsMargins(0, 0, 0, 0);
+        cardsLayout_->setSpacing(8);
+        bodyLayout->addWidget(cards_);
         auto *paging = new QHBoxLayout;
         first_ = button(tr("First page"), "archivedFirstPage", *paging);
+        first_->setProperty("actionRole", "secondary");
         next_ = button(tr("Next page"), "archivedNextPage", *paging);
-        reload_ = button(tr("Refresh"), "archivedRefresh", *paging);
+        next_->setProperty("actionRole", "secondary");
         paging->addStretch();
-        layout->addLayout(paging);
-        auto *actions = new QHBoxLayout;
-        unarchive_ = button(tr("Unarchive"), "unarchiveChat", *actions);
-        erase_ = button(tr("Review deletion"), "deleteArchivedChat", *actions);
-        actions->addStretch();
-        layout->addLayout(actions);
+        bodyLayout->addLayout(paging);
+        bodyLayout->addStretch();
 
         debounce_.setSingleShot(true);
         debounce_.setInterval(220);
@@ -475,25 +610,16 @@ public:
             before_ = nextBefore_;
             load();
         });
-        connect(chats_, &QListWidget::currentItemChanged, this, [this] { syncActions(); });
-        connect(unarchive_, &QPushButton::clicked, this, [this] { unarchive(); });
-        connect(erase_, &QPushButton::clicked, this, [this] {
-            mutation_ = true;
-            syncActions();
-            deleteChat_(selection().value("id").toString(), [owner = QPointer(this)](bool success) {
-                if (!owner)
-                    return;
-                owner->mutation_ = false;
-                if (success)
-                    owner->resetQuery(false);
-                else
-                    owner->syncActions();
-            });
-        });
         syncActions();
     }
 
 protected:
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWidget::resizeEvent(event);
+        arrangeFilters();
+    }
+
     void showEvent(QShowEvent *event) override
     {
         QWidget::showEvent(event);
@@ -518,16 +644,93 @@ protected:
     void hideEvent(QHideEvent *event) override
     {
         debounce_.stop();
+        ++generation_;
+        queryReady_ = false;
         QWidget::hideEvent(event);
     }
 
 private:
     static bool hasCursor(const QJsonValue &value) { return !value.isNull() && !value.isUndefined(); }
 
-    QJsonObject selection() const
+    void arrangeFilters()
     {
-        const auto *item = chats_->currentItem();
-        return item ? item->data(Qt::UserRole).toJsonObject() : QJsonObject{};
+        const auto available = width();
+        const int columns = available >= 830 ? 4 : available >= 520 ? 3 : available >= 345 ? 2 : 1;
+        if (columns == filterColumns_)
+            return;
+        filterColumns_ = columns;
+        for (auto *widget : std::array<QWidget *, 4>{search_, repository_, source_, date_})
+            filters_->removeWidget(widget);
+        filters_->setColumnStretch(0, 1);
+        if (columns == 4) {
+            filters_->addWidget(search_, 0, 0);
+            filters_->addWidget(repository_, 0, 1);
+            filters_->addWidget(source_, 0, 2);
+            filters_->addWidget(date_, 0, 3);
+        } else if (columns == 3) {
+            filters_->addWidget(search_, 0, 0, 1, 3);
+            filters_->addWidget(repository_, 1, 0);
+            filters_->addWidget(source_, 1, 1);
+            filters_->addWidget(date_, 1, 2);
+        } else if (columns == 2) {
+            filters_->addWidget(search_, 0, 0, 1, 2);
+            filters_->addWidget(repository_, 1, 0, 1, 2);
+            filters_->addWidget(source_, 2, 0);
+            filters_->addWidget(date_, 2, 1);
+        } else {
+            filters_->addWidget(search_, 0, 0);
+            filters_->addWidget(repository_, 1, 0);
+            filters_->addWidget(source_, 2, 0);
+            filters_->addWidget(date_, 3, 0);
+        }
+    }
+
+    void clearCards()
+    {
+        while (auto *item = cardsLayout_->takeAt(0)) {
+            if (auto *row = item->widget()) {
+                row->hide();
+                row->setObjectName({});
+                row->deleteLater();
+            }
+            delete item;
+        }
+    }
+
+    void addCard(const QJsonObject &chat)
+    {
+        const auto id = chat.value("id").toString();
+        const auto title = chat.value("title").toString();
+        if (id.isEmpty())
+            return;
+        auto *card = new QFrame;
+        card->setObjectName("settingsCard");
+        card->setProperty("conversationId", id);
+        auto *row = new QHBoxLayout(card);
+        row->setContentsMargins(16, 12, 12, 12);
+        row->setSpacing(8);
+        auto *description = new QVBoxLayout;
+        description->setSpacing(4);
+        description->addWidget(textLabel(title, "sectionTitle"));
+        const auto timestamp = dateText(chat.value("updated_at").toInteger());
+        if (!timestamp.isEmpty())
+            description->addWidget(textLabel(timestamp));
+        row->addLayout(description, 1);
+        auto *erase = new QToolButton;
+        erase->setObjectName("deleteArchivedChat");
+        erase->setProperty("actionRole", "danger");
+        erase->setIcon(uiIcon(UiIcon::Trash));
+        erase->setIconSize({16, 16});
+        erase->setToolTip(tr("Review deletion"));
+        erase->setAccessibleName(tr("Delete %1").arg(title));
+        erase->setFocusPolicy(Qt::StrongFocus);
+        row->addWidget(erase);
+        auto *restore = button(tr("Unarchive"), "unarchiveChat", *row);
+        restore->setProperty("actionRole", "secondary");
+        restore->setAccessibleName(tr("Unarchive %1").arg(title));
+        cardsLayout_->addWidget(card);
+        connect(erase, &QToolButton::clicked, this, [this, id] { eraseChat(id); });
+        connect(restore, &QPushButton::clicked, this, [this, chat] { unarchive(chat); });
     }
 
     void call(const QString &method, QJsonObject params, RuntimeClient::Reply callback)
@@ -548,6 +751,7 @@ private:
         cutoff_ = days ? QDateTime::currentSecsSinceEpoch() - qint64(days) * 86400 : 0;
         queryReady_ = false;
         if (debounce) {
+            state_->setText(tr("Loading archived chats…"));
             debounce_.start();
             syncActions();
         } else {
@@ -560,8 +764,10 @@ private:
     {
         if (!isVisible() || loading_ || mutation_)
             return;
+        scope_->setText(repository_->currentText());
         const auto query = search_->text().trimmed();
         if (query.toUtf8().size() > 160) {
+            clearCards();
             state_->setText(tr("Shorten the search to 160 UTF-8 bytes."));
             syncActions();
             return;
@@ -588,25 +794,19 @@ private:
                 return;
             }
             if (!error.isEmpty() || !result.value("items").isArray()) {
+                clearCards();
                 state_->setText(error.isEmpty() ? tr("Could not load archived chats.")
                                                 : tr("Could not load archived chats: %1").arg(error));
                 reload_->setText(tr("Retry"));
                 syncActions();
                 return;
             }
-            const auto selected = selection().value("id").toString();
             const auto items = result.value("items").toArray();
             nextBefore_ = result.value("next_before");
-            chats_->clear();
-            for (const auto &value : items) {
-                const auto chat = value.toObject();
-                const auto title = chat.value("title").toString();
-                const auto timestamp = dateText(chat.value("updated_at").toInteger());
-                auto *item = new QListWidgetItem(timestamp.isEmpty() ? title : title + '\n' + timestamp, chats_);
-                item->setData(Qt::UserRole, chat);
-                if (chat.value("id").toString() == selected)
-                    chats_->setCurrentItem(item);
-            }
+            clearCards();
+            for (const auto &value : items)
+                addCard(value.toObject());
+            scroll_->verticalScrollBar()->setValue(0);
             const auto total = result.value("total").toInteger(-1);
             if (items.isEmpty())
                 state_->setText(total == 0 ? tr("No matching archived chats.") : tr("No archived chats on this page."));
@@ -619,13 +819,34 @@ private:
         });
     }
 
-    void unarchive()
+    void unarchive(const QJsonObject &row)
     {
-        const auto row = selection();
+        if (mutation_ || !queryReady_)
+            return;
         mutation_ = true;
         syncActions();
         call("conversation.unarchive", {{"id", row.value("id")}, {"revision", row.value("revision")}},
              [this](const auto &, const auto &error) { finishMutation(error); });
+    }
+
+    void eraseChat(const QString &id)
+    {
+        if (mutation_ || !queryReady_)
+            return;
+        mutation_ = true;
+        syncActions();
+        deleteChat_(id, [owner = QPointer(this)](bool success) {
+            if (!owner)
+                return;
+            owner->mutation_ = false;
+            if (success) {
+                if (owner->isVisible())
+                    owner->search_->setFocus(Qt::OtherFocusReason);
+                owner->resetQuery(false);
+            } else {
+                owner->syncActions();
+            }
+        });
     }
 
     void finishMutation(const QString &error)
@@ -633,6 +854,8 @@ private:
         mutation_ = false;
         if (error.isEmpty()) {
             changed_();
+            if (isVisible())
+                search_->setFocus(Qt::OtherFocusReason);
             resetQuery(false);
         } else {
             state_->setText(error);
@@ -643,12 +866,12 @@ private:
     void syncActions()
     {
         const bool idle = !loading_ && !mutation_ && !debounce_.isActive();
-        const bool actionable = idle && queryReady_ && !selection().isEmpty();
         for (auto *filter : {repository_, date_, source_})
             filter->setEnabled(!mutation_);
         search_->setEnabled(!mutation_);
-        unarchive_->setEnabled(actionable);
-        erase_->setEnabled(actionable);
+        cards_->setEnabled(idle && queryReady_);
+        first_->setVisible(hasCursor(before_));
+        next_->setVisible(queryReady_ && hasCursor(nextBefore_));
         first_->setEnabled(idle && hasCursor(before_));
         next_->setEnabled(idle && queryReady_ && hasCursor(nextBefore_));
         reload_->setEnabled(idle);
@@ -661,19 +884,32 @@ private:
     QTimer debounce_;
     quint64 generation_ = 0;
     qint64 cutoff_ = 0;
+    int filterColumns_ = 0;
     QJsonValue before_, nextBefore_;
     bool loading_ = false, mutation_ = false, queryReady_ = false;
     QLineEdit *search_ = nullptr;
-    QLabel *state_ = nullptr;
+    QLabel *state_ = nullptr, *scope_ = nullptr;
     QComboBox *repository_ = nullptr, *date_ = nullptr, *source_ = nullptr;
-    QListWidget *chats_ = nullptr;
-    QPushButton *first_ = nullptr, *next_ = nullptr, *reload_ = nullptr, *unarchive_ = nullptr, *erase_ = nullptr;
+    QScrollArea *scroll_ = nullptr;
+    QWidget *cards_ = nullptr;
+    QVBoxLayout *cardsLayout_ = nullptr;
+    QGridLayout *filters_ = nullptr;
+    QPushButton *first_ = nullptr, *next_ = nullptr, *reload_ = nullptr;
 };
 }
 
-QWidget *makeStorageSettings(RuntimeClient &client, SettingsRequest request, std::function<void()> openArchived)
+QWidget *makeStorageSettings(RuntimeClient &client, MainWindow &window, SettingsRequest request)
 {
-    return new StoragePage(client, std::move(request), std::move(openArchived));
+    auto *page = new StoragePage(client, std::move(request));
+    QObject::connect(&window, &MainWindow::localRuntimeReady, page, [page] { page->runtimeReady(); });
+    auto *host = new QWidget;
+    auto *layout = new QHBoxLayout(host);
+    layout->setContentsMargins(0, 0, 0, 0);
+    page->setMaximumWidth(960);
+    layout->addStretch();
+    layout->addWidget(page, 100, Qt::AlignTop);
+    layout->addStretch();
+    return host;
 }
 
 QWidget *makeArchivedChats(SettingsRequest request, std::function<QJsonArray()> bindings,

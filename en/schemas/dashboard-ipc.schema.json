@@ -83,11 +83,25 @@
         "appearance": {
           "type": "object",
           "additionalProperties": false,
+          "if": {"properties": {"accent": {"const": "custom"}}, "required": ["accent"]},
+          "then": {"required": ["custom_accent"]},
           "properties": {
-            "accent": {"enum": ["cirnet", "cobalt"]},
+            "accent": {"enum": ["cirnet", "cobalt", "green", "yellow", "pink", "orange", "purple", "white", "custom"]},
             "ui_font": {"enum": ["system", "monospace"]},
             "content_scale": {"oneOf": [{"const": 0}, {"type": "integer", "minimum": 85, "maximum": 150}]},
-            "code_scale": {"oneOf": [{"const": 0}, {"type": "integer", "minimum": 85, "maximum": 150}]}
+            "code_scale": {"oneOf": [{"const": 0}, {"type": "integer", "minimum": 85, "maximum": 150}]},
+            "interface_px": {"$ref": "#/$defs/appearanceTextPixels"},
+            "conversation_px": {"$ref": "#/$defs/appearanceTextPixels"},
+            "code_px": {"$ref": "#/$defs/appearanceTextPixels"},
+            "density_px": {"type": "integer", "minimum": 2, "maximum": 14},
+            "background": {"$ref": "#/$defs/appearanceRgb"},
+            "foreground": {"$ref": "#/$defs/appearanceRgb"},
+            "custom_accent": {"$ref": "#/$defs/appearanceRgb"},
+            "font_family": {
+              "type": "string", "minLength": 1, "maxLength": 128,
+              "pattern": "^[^\\s\\u0000-\\u001f\\u007f-\\u009f](?:[^\\u0000-\\u001f\\u007f-\\u009f]*[^\\s\\u0000-\\u001f\\u007f-\\u009f])?$"
+            },
+            "language": {"enum": ["en", "vi", "zh_CN"]}
           }
         },
         "sidebar_width": {"type": "integer", "minimum": 210, "maximum": 360},
@@ -97,6 +111,8 @@
         "notification_level": {"enum": ["all", "important"]}
       }
     },
+    "appearanceTextPixels": {"type": "integer", "minimum": 10, "maximum": 26},
+    "appearanceRgb": {"type": "string", "minLength": 7, "maxLength": 7, "pattern": "^#[0-9A-Fa-f]{6}$"},
     "preferencesResult": {
       "description": "Both preference methods return the normalized settings and current revision. Revision 0 is the initial default state.",
       "type": "object",
@@ -201,7 +217,7 @@
           }}}
         },
         {
-          "if": {"properties": {"method": {"enum": ["storage.scan", "storage.backup", "storage.backup.start"]}}},
+          "if": {"properties": {"method": {"enum": ["storage.chats", "storage.scan", "storage.backup", "storage.backup.start"]}}},
           "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
         },
         {

@@ -34,13 +34,18 @@ class QToolButton;
 class QVBoxLayout;
 class NotificationCenter;
 class ThemeManager;
+class AppearanceColorField;
 
 #include "theme.h"
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
 public:
-    explicit MainWindow(RuntimeClient &client, QWidget *parent = nullptr);
+    explicit MainWindow(RuntimeClient &client, QWidget *parent = nullptr,
+                        bool readyOnConstruction = false, const QString &startupError = {});
+
+signals:
+    void localRuntimeReady();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -56,6 +61,7 @@ private:
     QString settingsSection() const;
     void selectSettingsSection(const QString &section);
     QWidget *makeSettings();
+    QWidget *makeAppearanceSettings();
     void updateRuntimeDetails();
     void reconnectRuntime();
     void changeSidebar(bool collapsed);
@@ -64,7 +70,9 @@ private:
     void schedulePreferencesSave();
     void savePreferences();
     void applyPreferences(const QJsonObject &settings);
+    void applyAppearanceControls(const QJsonObject &settings);
     void applyAppearance();
+    QJsonObject appearanceSettings() const;
     QJsonObject preferenceSettings() const;
     void stopRuntimeAndClose();
     void call(const QString &method, QJsonObject params, RuntimeClient::Reply reply);
@@ -158,13 +166,19 @@ private:
     QJsonObject savedPreferences_;
     QTimer *preferencesTimer_ = nullptr;
     QButtonGroup *themeChoice_ = nullptr;
+    QToolButton *appearanceAdvancedToggle_ = nullptr;
+    QPushButton *appearanceReset_ = nullptr;
     QCheckBox *reducedMotion_ = nullptr;
-    QComboBox *densityChoice_ = nullptr;
+    QSpinBox *densityChoice_ = nullptr;
     QSpinBox *textScale_ = nullptr;
     QComboBox *accentChoice_ = nullptr;
     QComboBox *uiFontChoice_ = nullptr;
-    QComboBox *contentScaleChoice_ = nullptr;
-    QComboBox *codeScaleChoice_ = nullptr;
+    QSpinBox *contentScaleChoice_ = nullptr;
+    QSpinBox *codeScaleChoice_ = nullptr;
+    QComboBox *languageChoice_ = nullptr;
+    AppearanceColorField *backgroundColor_ = nullptr;
+    AppearanceColorField *foregroundColor_ = nullptr;
+    AppearanceColorField *accentColor_ = nullptr;
     QComboBox *notificationChoice_ = nullptr;
     QLabel *preferencesStatus_ = nullptr;
     QPushButton *preferencesRetry_ = nullptr;

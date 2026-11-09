@@ -116,6 +116,66 @@ fn finish_storage_job(runtime: &mut Runtime, start: Value) -> Value {
 }
 
 #[test]
+fn chat_storage_counts_only_local_message_bytes_by_conversation_state() {
+    let fixture = Fixture::new();
+    let data = fixture.0.join("chat-storage");
+    let mut runtime = Runtime::open(&data);
+    runtime.call("runtime.info", json!({}));
+    let measure = |runtime: &mut Runtime| {
+        let started = runtime.call("storage.chats", json!({}));
+        assert_eq!(started["kind"], "CHAT_USAGE");
+        finish_storage_job(runtime, started)
+    };
+    let empty = measure(&mut runtime);
+    assert_eq!(
+        empty["active"],
+        json!({"conversations":0,"message_bytes":0})
+    );
+    assert_eq!(empty["archived"], empty["active"]);
+    let active = "Tiếng Việt \0 🧪";
+    let archived = "Đã lưu";
+    {
+        let db = rusqlite::Connection::open(data.join("cgacp.sqlite3")).unwrap();
+        db.busy_timeout(Duration::from_secs(1)).unwrap();
+        db.execute_batch(
+            "INSERT INTO conversations
+               (id,create_key,create_digest,title,profile,state,source,revision,created_at,updated_at)
+             VALUES (1,'active','1','Active','handoff','ACTIVE','DASHBOARD',1,1,1),
+                    (2,'archived','2','Archived','handoff','ARCHIVED','AUTOMATION',1,1,1),
+                    (3,'empty','3','Empty archived','handoff','ARCHIVED','DASHBOARD',1,1,1);
+             CREATE TABLE fixture_unrelated(payload BLOB NOT NULL);
+             INSERT INTO fixture_unrelated VALUES(zeroblob(1048576));",
+        )
+        .unwrap();
+        for (id, message) in [(1, active), (2, archived)] {
+            db.execute(
+                "INSERT INTO messages
+                   (id,conversation_id,request_key,request_digest,ordinal,role,content,created_at)
+                 VALUES (?1,?1,'message','digest',1,'USER',?2,1)",
+                rusqlite::params![id, message],
+            )
+            .unwrap();
+        }
+    }
+    let usage = measure(&mut runtime);
+    assert_eq!(
+        usage["active"],
+        json!({"conversations":1,"message_bytes":active.len()})
+    );
+    assert_eq!(
+        usage["archived"],
+        json!({"conversations":2,"message_bytes":archived.len()})
+    );
+    assert_eq!(usage.as_object().unwrap().len(), 3);
+    assert!(usage["measured_at"].is_u64());
+    assert_eq!(
+        runtime.request(1, "storage.chats", json!({"root":"."}))["error"]["code"],
+        "INVALID_INPUT"
+    );
+    runtime.close();
+}
+
+#[test]
 fn storage_jobs_measure_verify_and_compact_an_isolated_store() {
     let fixture = Fixture::new();
     let data = fixture.0.join("storage-jobs");

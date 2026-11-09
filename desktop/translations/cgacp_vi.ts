@@ -19,6 +19,24 @@
   </context>
   <context>
     <name>MainWindow</name>
+    <message><source>Green</source><translation>Xanh lá</translation></message>
+    <message><source>Yellow</source><translation>Vàng</translation></message>
+    <message><source>Pink</source><translation>Hồng</translation></message>
+    <message><source>Orange</source><translation>Cam</translation></message>
+    <message><source>Purple</source><translation>Tím</translation></message>
+    <message><source>White</source><translation>Trắng</translation></message>
+    <message><source>Custom</source><translation>Tùy chỉnh</translation></message>
+    <message><source>Custom accent</source><translation>Màu nhấn tùy chỉnh</translation></message>
+    <message><source>Language</source><translation>Ngôn ngữ</translation></message>
+    <message><source>Language changes take effect after reopening CGACP.</source><translation>Thay đổi ngôn ngữ có hiệu lực sau khi mở lại CGACP.</translation></message>
+    <message><source>Choose %1</source><translation>Chọn %1</translation></message>
+    <message><source>Enter a six-digit hexadecimal color. Clear the field to use the theme color.</source><translation>Nhập mã màu hệ mười sáu gồm sáu chữ số. Xóa nội dung để dùng màu của chủ đề.</translation></message>
+    <message><source>Enter a six-digit hexadecimal color.</source><translation>Nhập mã màu hệ mười sáu gồm sáu chữ số.</translation></message>
+    <message><source>Saturation and brightness</source><translation>Độ bão hòa và độ sáng</translation></message>
+    <message><source>Hue</source><translation>Sắc độ</translation></message>
+    <message><source>Apply</source><translation>Áp dụng</translation></message>
+    <message><source>Unavailable: %1</source><translation>Không khả dụng: %1</translation></message>
+    <message><source>Low contrast between background and text may make some content difficult to read.</source><translation>Độ tương phản thấp giữa nền và chữ có thể khiến một số nội dung khó đọc.</translation></message>
     <message><source>Advanced appearance</source><translation>Giao diện nâng cao</translation></message>
     <message><source>Accent</source><translation>Màu nhấn</translation></message>
     <message><source>CIRNET teal</source><translation>Xanh ngọc CIRNET</translation></message>
@@ -36,8 +54,15 @@
     <message><source>Scale the transcript and composer independently.</source><translation>Đổi cỡ chữ riêng cho nội dung hội thoại và ô soạn.</translation></message>
     <message><source>Code text si&amp;ze</source><translation>Cỡ chữ &amp;mã</translation></message>
     <message><source>Scale monospaced diagnostics and structured details.</source><translation>Đổi cỡ chữ đơn cách cho chẩn đoán và chi tiết có cấu trúc.</translation></message>
-    <message><source>Reset appearance</source><translation>Đặt lại giao diện</translation></message>
-    <message><source>theme density text size reduced motion reset layout system light dark accent font</source><translation>chủ đề mật độ cỡ chữ giảm chuyển động đặt lại bố cục hệ thống sáng tối màu nhấn phông chữ</translation></message>
+    <message><source>Mode</source><translation>Chế độ</translation></message>
+    <message><source>Background</source><translation>Màu nền</translation></message>
+    <message><source>Foreground</source><translation>Màu chữ</translation></message>
+    <message><source>Advanced</source><translation>Nâng cao</translation></message>
+    <message><source>Reset default</source><translation>Khôi phục mặc định</translation></message>
+    <message><source>Show or hide advanced appearance settings.</source><translation>Hiện hoặc ẩn các cài đặt giao diện nâng cao.</translation></message>
+    <message><source>Interface text size</source><translation>Cỡ chữ giao diện</translation></message>
+    <message><source>&amp;Interface text size</source><translation>Cỡ chữ &amp;giao diện</translation></message>
+    <message><source>chat message usage backup verify compact data folder</source><translation>hội thoại tin nhắn dung lượng sao lưu xác minh thu gọn thư mục dữ liệu</translation></message>
     <message><source>Configuration</source><translation>Cấu hình</translation></message>
     <message><source>Inspect adapter</source><translation>Xem bộ điều hợp</translation></message>
     <message><source>Inspect &amp;adapter</source><translation>Xem bộ &amp;điều hợp</translation></message>
@@ -69,7 +94,6 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Scale text throughout the desktop.</source><translation>Đổi cỡ chữ trên toàn ứng dụng.</translation></message>
     <message><source>&amp;Reduced motion</source><translation>&amp;Giảm chuyển động</translation></message>
     <message><source>Skip motion effects while keeping visual feedback.</source><translation>Bỏ hiệu ứng chuyển động và giữ phản hồi trực quan.</translation></message>
-    <message><source>theme density text size reduced motion reset layout system light dark</source><translation>chủ đề mật độ cỡ chữ giảm chuyển động đặt lại bố cục hệ thống sáng tối</translation></message>
     <message><source>binding folder path worktree relink archive</source><translation>binding thư mục đường dẫn worktree liên kết lại lưu trữ</translation></message>
     <message><source>connection reconnect diagnostics capability</source><translation>kết nối kết nối lại chẩn đoán khả năng</translation></message>
     <message><source>toast history warnings errors</source><translation>toast lịch sử cảnh báo lỗi</translation></message>
@@ -90,7 +114,6 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>&amp;Theme</source><translation>&amp;Chủ đề</translation></message>
     <message><source>&amp;Density</source><translation>&amp;Mật độ</translation></message>
     <message><source>Text &amp;size</source><translation>Cỡ &amp;chữ</translation></message>
-    <message><source>Reset layout</source><translation>Đặt lại bố cục</translation></message>
     <message><source>Diagnostics</source><translation>Chẩn đoán</translation></message>
     <message><source>Runtime diagnostics</source><translation>Chẩn đoán runtime</translation></message>
     <message><source>Review connection and capability information before copying.</source><translation>Kiểm tra thông tin kết nối và khả năng trước khi sao chép.</translation></message>
@@ -412,9 +435,26 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <name>StoragePage</name>
     <message><source>Storage</source><translation>Lưu trữ</translation></message>
     <message><source>This device</source><translation>Thiết bị này</translation></message>
-    <message><source>Measure the CGACP data directory to see its current size.</source><translation>Đo thư mục dữ liệu CGACP để xem dung lượng hiện tại.</translation></message>
-    <message><source>Physical storage breakdown</source><translation>Phân bổ dung lượng vật lý</translation></message>
-    <message><source>Measure storage</source><translation>Đo dung lượng</translation></message>
+    <message><source>See how much local message text is stored in your conversations.</source><translation>Xem dung lượng văn bản tin nhắn được lưu trong các hội thoại trên thiết bị này.</translation></message>
+    <message><source>Refresh</source><translation>Làm mới</translation></message>
+    <message><source>Refresh chat storage</source><translation>Làm mới dung lượng hội thoại</translation></message>
+    <message><source>Chat storage breakdown</source><translation>Phân bổ dung lượng hội thoại</translation></message>
+    <message><source>Active chats</source><translation>Hội thoại đang dùng</translation></message>
+    <message><source>Archived chats</source><translation>Hội thoại đã lưu trữ</translation></message>
+    <message><source>Waiting for the local runtime…</source><translation>Đang chờ bộ thực thi cục bộ…</translation></message>
+    <message><source>Database maintenance</source><translation>Bảo trì cơ sở dữ liệu</translation></message>
+    <message><source>Database maintenance is separate from chat storage. Backups may contain earlier chat content.</source><translation>Bảo trì cơ sở dữ liệu tách riêng với dung lượng hội thoại. Bản sao lưu có thể chứa nội dung hội thoại trước đó.</translation></message>
+    <message><source>Check database</source><translation>Kiểm tra cơ sở dữ liệu</translation></message>
+    <message><source>Verification does not restore or overwrite your data.</source><translation>Xác minh giữ nguyên dữ liệu hiện tại.</translation></message>
+    <message><source>The runtime disconnected before the operation finished.</source><translation>Bộ thực thi đã mất kết nối trước khi hoàn tất thao tác.</translation></message>
+    <message><source>Connect to the local runtime to refresh chat storage.</source><translation>Kết nối bộ thực thi cục bộ để làm mới dung lượng hội thoại.</translation></message>
+    <message><source>Measuring chat storage…</source><translation>Đang đo dung lượng hội thoại…</translation></message>
+    <message><source>Chat storage measurement is unavailable.</source><translation>Chưa có số đo dung lượng hội thoại.</translation></message>
+    <message><source>1 conversation</source><translation>1 hội thoại</translation></message>
+    <message><source>%1 conversations</source><translation>%1 hội thoại</translation></message>
+    <message><source>%1 of local message text</source><translation>%1 văn bản tin nhắn cục bộ</translation></message>
+    <message><source>Updated %1</source><translation>Cập nhật lúc %1</translation></message>
+    <message><source>No local conversations yet.</source><translation>Chưa có hội thoại cục bộ.</translation></message>
     <message><source>Copy data path</source><translation>Sao chép đường dẫn</translation></message>
     <message><source>Open data folder</source><translation>Mở thư mục dữ liệu</translation></message>
     <message><source>Backups and database maintenance</source><translation>Sao lưu và bảo trì cơ sở dữ liệu</translation></message>
@@ -424,7 +464,6 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <message><source>Verify selected</source><translation>Xác minh mục đã chọn</translation></message>
     <message><source>Review compaction</source><translation>Xem trước thu gọn</translation></message>
     <message><source>Backups may contain earlier chat content. Verification does not restore or overwrite your data.</source><translation>Bản sao lưu có thể chứa nội dung hội thoại trước đó. Xác minh giữ nguyên dữ liệu hiện tại.</translation></message>
-    <message><source>Review stored chats</source><translation>Xem hội thoại đã lưu</translation></message>
     <message><source>Manage archived chats</source><translation>Quản lý hội thoại đã lưu trữ</translation></message>
     <message><source>Worktree, cache, and log removal is unavailable without recorded ownership. Registered repositories are kept.</source><translation>Chỉ có thể dọn cây làm việc, bộ nhớ đệm và nhật ký khi đã ghi nhận quyền sở hữu. Kho mã đã đăng ký được giữ nguyên.</translation></message>
     <message><source>Storage operation progress</source><translation>Tiến độ thao tác lưu trữ</translation></message>
@@ -451,6 +490,9 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
   <context>
     <name>ArchivedPage</name>
     <message><source>Archived chats</source><translation>Hội thoại đã lưu trữ</translation></message>
+    <message><source>Restore a chat to the sidebar or review it for permanent deletion.</source><translation>Khôi phục hội thoại vào thanh bên hoặc xem lại trước khi xóa vĩnh viễn.</translation></message>
+    <message><source>Delete %1</source><translation>Xóa %1</translation></message>
+    <message><source>Unarchive %1</source><translation>Bỏ lưu trữ %1</translation></message>
     <message><source>Search archived chats</source><translation>Tìm hội thoại đã lưu trữ</translation></message>
     <message><source>Repository filter</source><translation>Lọc kho mã</translation></message>
     <message><source>Archive date filter</source><translation>Lọc ngày lưu trữ</translation></message>

@@ -217,6 +217,7 @@ QWidget *MainWindow::makeRepositories()
     auto *filters = new QHBoxLayout;
     repoSearch_ = new QLineEdit;
     repoSearch_->setObjectName("repoSearch");
+    repoSearch_->setProperty("searchField", true);
     repoSearch_->setPlaceholderText(tr("Search name, path or branch"));
     repoSearch_->setAccessibleName(tr("Search repositories"));
     repoSearch_->setClearButtonEnabled(true);
@@ -590,7 +591,7 @@ void MainWindow::renderRepositoryRows()
             branch = tr("Linked · %1").arg(branch);
         updateCell(repositoryModel_->item(row, 2), branch, branch, branch);
         const auto status = item.value("status").toString();
-        QString statusLabel = status;
+        QString statusLabel = uiStatusLabel(status);
         if (status == QStringLiteral("ACTIVE"))
             statusLabel = item.contains("checked_at") ? tr("Verified") : tr("Not checked");
         else if (status == QStringLiteral("MISSING"))

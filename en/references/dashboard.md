@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 9 -->
+<!-- revision: 11 -->
 <a id="operator"></a>
 
 # CGACP Dashboard
@@ -31,10 +31,18 @@ absolute test directory for disposable verification.
 
 Drag the sidebar divider to resize it. Use the panel button or Ctrl+B to
 collapse or expand it. Activate Local in the footer to see the current
-connection status. Open Settings from the footer or with Ctrl+, and select a
-category on the left. Appearance provides theme previews, density, text
-size and Reduced motion. Back to workspace or Escape returns to the previous
-page. Reset layout restores sidebar and repository table presentation. Toasts
+connection status. Open Settings from the footer or with Ctrl+, and use the
+category icons or search on the left. Appearance includes mode previews,
+accent presets and a custom accent. Edit background and foreground as hex
+colors or open a picker from the color circle. Clear a color to use the
+theme value. Choose a system font, monospace or an installed font family.
+Open Advanced for pixel-based interface, conversation and code text sizes,
+vertical padding, language and Reduced motion. English is the default.
+Vietnamese and Simplified Chinese apply when the Dashboard is reopened.
+Reset default appears when appearance differs from its defaults.
+Back or Escape returns to the previous page. Scrollbars appear over the bar
+or briefly after wheel input. The wheel scrolls the surrounding view over
+value controls. Use the keyboard or control buttons to change a value. Toasts
 appear in the upper right in Conversation and the lower right elsewhere.
 Visible toasts follow the current page, leaving the composer clear. The glyph and
 color identify the notification severity. An automation run queued by the
@@ -72,11 +80,12 @@ Rust owns the SQLite database in the local application data directory or the
 explicit operator directory. Before upgrading an existing store to schema 6,
 the runtime creates an integrity-checked pre-upgrade snapshot. An earlier
 runtime requires a reviewed compatible snapshot in a separate directory.
-In Settings → Storage, Scan measures only the local data root. Physical files,
-logical message bytes and reusable SQLite pages describe different quantities.
-Create and verify an online backup from Storage. Compact requires a current
-scan and confirmation of the observed page counts. Operations report progress
-and support cancellation. The app has no managed worktree cleanup capability.
+The Storage summary loads automatically when the runtime connects. It reports
+the logical UTF-8 bytes and counts of active and archived conversations.
+Refresh requests an updated summary. Database maintenance separately exposes
+backup, integrity verification and compaction. Compaction requires a current
+database check and confirmation of the observed page counts. Operations
+report progress and support cancellation.
 To rehearse restore,
 close the runtime, restore a reviewed backup into a fresh private data
 directory and verify it there before switching the operator path. Preserve the
@@ -96,14 +105,15 @@ Automation. Confirming deletion also removes that definition and stops its
 schedule. Any active run of that definition blocks deletion. Repository files,
 other Conversations, and terminal run audit metadata remain available.
 Use Actions → Delete automation to remove a standalone Automation or a card
-whose Conversation was already deleted. Archive preserves history. In Archived chats, search the archived
-catalog and select an individual chat to unarchive or permanently delete.
+whose Conversation was already deleted. Archive preserves history. In Archived
+chats, search or filter the catalog, then unarchive or permanently delete from
+the corresponding card.
 Unarchive keeps its original identity and does not schedule any work.
 
 Configuration reports effective runtime capabilities and their authority.
 Native execution stays HANDOFF_ONLY where applicable. Appearance persists
-supported accent, UI font, content and code text scales through the local
-preference API. Reset appearance acts independently from Reset layout.
+the palette, interface font, pixel dimensions and language through the local
+preference API. Reset default applies to appearance preferences.
 
 The legacy import can preview and archive a stopped CLI file store using
 `legacy.preview` and `legacy.apply`. Apply requires the reviewed manifest

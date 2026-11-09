@@ -9,6 +9,7 @@
 #include "settings_polish_test.h"
 #include "table_visual_test.h"
 #include "interaction_cases.h"
+#include "shared_polish_test.h"
 
 #include <QAbstractItemModel>
 #include <QAction>
@@ -70,10 +71,14 @@ QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
                 {"release_name", QStringLiteral(CGACP_RELEASE_NAME)},
                 {"native_agent", QJsonObject{{"codex", "HANDOFF_ONLY"}}},
                 {"execution_enforcement", QJsonObject{{"ISOLATED_EXECUTION", "BLOCKED"}}}};
-    if (method == "preferences.get")
-        return {{"revision", 0}, {"settings", QJsonObject{{"theme", "dark"}, {"density", "comfortable"},
+    if (method == "preferences.get") {
+        QJsonObject settings{{"theme", "dark"}, {"density", "comfortable"},
                 {"text_scale", 100}, {"sidebar_width", 260}, {"sidebar_collapsed", false},
-                {"repository_layout", QJsonValue(QJsonValue::Null)}, {"notification_level", "all"}}}};
+                {"repository_layout", QJsonValue(QJsonValue::Null)}, {"notification_level", "all"}};
+        if (mode == "startup-language")
+            settings.insert("appearance", QJsonObject{{"language", "zh_CN"}});
+        return {{"revision", 0}, {"settings", settings}};
+    }
     if (method == "preferences.set")
         return {{"revision", params.value("expected_revision").toInteger() + 1}, {"settings", params.value("settings")}};
     if (method == "test.methods")
@@ -328,6 +333,10 @@ void withDashboardFixture(const std::function<void(MainWindow &)> &test,
 class DesktopTest final : public QObject {
     Q_OBJECT
 private slots:
+    void scrollbarsRevealOnThumbHoverAndWheel() { shared_polish::scrollbarsRevealOnThumbHoverAndWheel(); }
+    void appearancePixelsAndPaletteApplyToOpenWidgets() { shared_polish::appearancePixelsAndPaletteApplyToOpenWidgets(); }
+    void wheelScrollsWithoutChangingEditors() { shared_polish::wheelScrollsWithoutChangingEditors(); }
+
     void automationDeletionUsesIdAndRevision()
     {
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "automation-delete"});
@@ -705,11 +714,16 @@ private slots:
         }
         settingsSection(window, "appearance");
         QVERIFY(captureWidget(window, "settings-appearance"));
-        auto *density = window.findChild<QComboBox *>("densityChoice");
+        auto *advancedAppearance = window.findChild<QToolButton *>("appearanceAdvancedToggle");
+        QVERIFY(advancedAppearance && !advancedAppearance->isChecked());
+        QTest::mouseClick(advancedAppearance, Qt::LeftButton);
+        QVERIFY(captureWidget(window, "settings-appearance-advanced"));
+        QTest::mouseClick(advancedAppearance, Qt::LeftButton);
+        auto *density = window.findChild<QSpinBox *>("densityChoice");
         QVERIFY(density);
         chooseTheme(window, "Light");
         QVERIFY(QApplication::palette().color(QPalette::Window).lightness() > 128);
-        density->setCurrentIndex(density->findData("compact"));
+        density->setValue(4);
         QVERIFY(captureWidget(window, "settings-appearance-light"));
 
         settingsSection(window, "repositories");
@@ -756,8 +770,8 @@ private slots:
         QVERIFY(!checkbox->isChecked());
 
         settingsSection(window, "about");
-        QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("HANDOFF_ONLY"));
-        QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("ISOLATED_EXECUTION · BLOCKED"));
+        QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("HANDOFF ONLY"));
+        QVERIFY(window.findChild<QLabel *>("aboutDetails")->text().contains("ISOLATED EXECUTION · BLOCKED"));
         QVERIFY(captureWidget(window, "settings-about"));
         auto *back = window.findChild<QPushButton *>("settingsBack");
         QTest::mouseClick(back, Qt::LeftButton);
@@ -1078,6 +1092,11 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
     }
 
+    void archivedCardQueriesDiscardStaleReplies()
+    {
+        verifyArchivedCardQueries();
+    }
+
     void realRuntimePersistsRepositoryAndIntake()
     {
         const auto runtime = qEnvironmentVariable("CGACP_TEST_RUNTIME");
@@ -1336,8 +1355,14 @@ private slots:
         QTest::keyClick(reopened.findChild<QToolButton *>("toggleSidebar"), Qt::Key_Space);
         QCOMPARE(split->sizes().first(), savedWidth);
         settingsSection(reopened, "appearance");
-        QTest::keyClick(reopened.findChild<QPushButton *>("resetLayout"), Qt::Key_Space);
-        QCOMPARE(reopenedTable->horizontalHeader()->sectionSize(1), 290);
+        auto *reset = reopened.findChild<QPushButton *>("resetAppearanceDefault");
+        QVERIFY(reset && reset->isVisible());
+        QTest::keyClick(reset, Qt::Key_Space);
+        QVERIFY(reopened.findChild<QRadioButton *>("themeDark")->isChecked());
+        QVERIFY(!reset->isVisible());
+        QTest::keyClick(reopened.findChild<QPushButton *>("settingsBack"), Qt::Key_Space);
+        QCOMPARE(split->sizes().first(), savedWidth);
+        QCOMPARE(reopenedTable->horizontalHeader()->sectionSize(1), 1200);
         const auto afterReset = invoke(reopenedClient, "repo.list", {{"include_archived", true}}).value("items").toArray();
         QCOMPARE(afterReset.size(), 1);
         QCOMPARE(afterReset[0].toObject().value("binding_id").toString(), bindingId);
@@ -1354,6 +1379,40 @@ private slots:
         QCOMPARE(translator.translate("MainWindow", "Automations"), QStringLiteral("Tự động hóa"));
         QVERIFY(!translator.translate("MainWindow", "Appearance").isEmpty());
         QCOMPARE(translator.translate("MainWindow", "Cancel pending task"), QStringLiteral("Hủy nhiệm vụ đang chờ"));
+    }
+
+    void chineseCatalogLoadsAfterRuntimePreflight()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "startup-language"});
+        const QSignalSpy ready(&client, &RuntimeClient::ready);
+        client.start();
+        QTRY_COMPARE(ready.size(), 1);
+        QCOMPARE(invoke(client, "runtime.info").value("version").toString(), QStringLiteral(CGACP_APP_VERSION));
+        const auto settings = invoke(client, "preferences.get").value("settings").toObject();
+        QCOMPARE(settings.value("appearance").toObject().value("language").toString(), QStringLiteral("zh_CN"));
+
+        QTranslator translator;
+        const auto file = qEnvironmentVariable("CGACP_TEST_ZH_QM",
+                                               QFileInfo(qEnvironmentVariable("CGACP_TEST_QM")).dir()
+                                                   .filePath("cgacp_zh_CN.qm"));
+        QVERIFY(translator.load(file));
+        QCOMPARE(translator.translate("MainWindow", "Language"), QStringLiteral("语言"));
+        QCOMPARE(translator.translate("StoragePage", "Storage"), QStringLiteral("存储"));
+        QCOMPARE(translator.translate("ArchivedPage", "Archived chats"), QStringLiteral("已归档对话"));
+        struct RestoreLanguage {
+            QTranslator &translator;
+            ~RestoreLanguage() { QCoreApplication::removeTranslator(&translator); }
+        } restore{translator};
+        QCoreApplication::installTranslator(&translator);
+        MainWindow window(client, nullptr, true);
+        window.show();
+        QTRY_VERIFY(window.findChild<QPushButton *>("addAutomation")->isEnabled());
+        QCOMPARE(window.findChild<QPushButton *>("navAutomations")->text(), QStringLiteral("自动化"));
+        settingsSection(window, "appearance");
+        QCOMPARE(window.findChild<QLineEdit *>("settingsSearch")->placeholderText(), QStringLiteral("搜索设置"));
+        QCOMPARE(ready.size(), 1);
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
     }
 
     void vietnameseNativeLayout()
@@ -1379,19 +1438,24 @@ private slots:
         QVERIFY(captureWidget(window, "vi-automations"));
         settingsSection(window, "appearance");
         auto *scaling = window.findChild<QSpinBox *>("textScale");
-        QVERIFY(scaling);
-        scaling->setValue(125);
+        auto *advanced = window.findChild<QToolButton *>("appearanceAdvancedToggle");
+        QVERIFY(scaling && advanced);
+        QVERIFY(!scaling->isVisible());
+        QTest::keyClick(advanced, Qt::Key_Space);
+        QVERIFY(scaling->isVisible());
+        scaling->setValue(16);
         auto *brand = window.findChild<QLabel *>("brand");
         auto *appearance = window.findChild<QWidget *>("appearancePage");
         QVERIFY(brand && appearance);
         QVERIFY(!brand->isVisible());
         for (auto *label : appearance->findChildren<QLabel *>()) {
-            if (label->buddy())
+            if (label->buddy() && label->isVisible())
                 QTRY_VERIFY(label->width() >= label->fontMetrics().horizontalAdvance(label->text().remove('&')));
         }
-        auto *reset = window.findChild<QPushButton *>("resetLayout");
+        auto *reset = window.findChild<QPushButton *>("resetAppearanceDefault");
+        QTRY_VERIFY(reset && reset->isVisible());
         QTRY_VERIFY(reset->width() >= reset->fontMetrics().horizontalAdvance(reset->text()) + 16);
-        QVERIFY(captureWidget(window, "vi-appearance-text125"));
+        QVERIFY(captureWidget(window, "vi-appearance-text16"));
         auto *navigation = window.findChild<QListWidget *>("settingsNavigation");
         QVERIFY(navigation && navigation->currentItem());
         const auto item = navigation->currentItem();
@@ -1444,7 +1508,15 @@ int main(int argc, char **argv)
         return runFixture(argc == 3 ? QString::fromLatin1(argv[2]) : QString{});
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
-    const auto fontPath = qEnvironmentVariable("CGACP_TEST_FONT");
+    auto fontPath = qEnvironmentVariable("CGACP_TEST_FONT");
+#ifdef Q_OS_WIN
+    if (fontPath.isEmpty() && QGuiApplication::platformName() == "offscreen") {
+        const auto windows = qEnvironmentVariable("WINDIR");
+        const auto candidate = QDir(windows).filePath(QStringLiteral("Fonts/segoeui.ttf"));
+        if (!windows.isEmpty() && QFileInfo(candidate).isFile())
+            fontPath = candidate;
+    }
+#endif
     if (!fontPath.isEmpty()) {
         const auto id = QFontDatabase::addApplicationFont(fontPath);
         const auto families = QFontDatabase::applicationFontFamilies(id);

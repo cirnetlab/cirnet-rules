@@ -207,7 +207,8 @@ public:
         tags.removeAll(QString());
         tags_->setText(tags.join(QStringLiteral(" · ")));
         const auto last = item.value("last_run").toObject();
-        state_->setText(last.isEmpty() ? tr("No runs yet") : tr("Last run: %1").arg(last.value("status").toString()));
+        state_->setText(last.isEmpty() ? tr("No runs yet")
+                                      : tr("Last run: %1").arg(uiStatusLabel(last.value("status").toString())));
         toggle_->setText(item.value("enabled").toBool() ? tr("Pause") : tr("Enable"));
     }
 
@@ -258,6 +259,7 @@ QWidget *MainWindow::makeAutomations()
     filter->setColumnStretch(0, 1);
     automationSearch_ = new QLineEdit;
     automationSearch_->setObjectName("automationSearch");
+    automationSearch_->setProperty("searchField", true);
     automationSearch_->setPlaceholderText(tr("Search automations…"));
     automationSearch_->setAccessibleName(tr("Search automations"));
     automationSearch_->setClearButtonEnabled(true);
@@ -271,6 +273,8 @@ QWidget *MainWindow::makeAutomations()
     automationRepoFilter_->setAccessibleName(tr("Filter automation repository"));
     auto *refresh = new QPushButton(tr("Refresh"));
     refresh->setObjectName("refreshAutomations");
+    refresh->setProperty("actionRole", "secondary");
+    refresh->setIcon(uiIcon(UiIcon::Refresh));
     filter->addWidget(automationSearch_, 0, 0, 1, 3);
     filter->addWidget(automationFilter_, 1, 0);
     filter->addWidget(automationRepoFilter_, 1, 1);
@@ -799,7 +803,7 @@ void MainWindow::runAutomation(const QJsonObject &automation)
         const auto status = run.value("status").toString();
         const bool needsAttention = status == "WAITING_APPROVAL" || status == "BLOCKED" ||
                                     status == "RECOVERY_REQUIRED";
-        notifications_->post(tr("Run %1 · %2").arg(run.value("id").toString(), status),
+        notifications_->post(tr("Run %1 · %2").arg(run.value("id").toString(), uiStatusLabel(status)),
                              needsAttention ? "warning" : "info");
         if (!automationMore_->isEnabled())
             refreshAutomations();
@@ -899,7 +903,7 @@ void MainWindow::showAutomationBlockers(const QJsonObject &automation, const QJs
     for (const auto &value : blockers) {
         const auto row = value.toObject();
         states.append(tr("Run %1 · %2").arg(row.value("id").toString(),
-            row.value("status").toString(row.value("state").toString())));
+            uiStatusLabel(row.value("status").toString(row.value("state").toString()))));
     }
     auto *notice = new QMessageBox(QMessageBox::Warning, tr("Active automation run"),
         error + QStringLiteral("\n") + states.join(u'\n'), QMessageBox::Close, this);
@@ -931,8 +935,8 @@ void MainWindow::automationHistory(const QJsonObject &automation)
         table->horizontalHeader()->setStretchLastSection(true);
         for (qsizetype index = 0; index < runs.size(); ++index) {
             const auto row = runs[index].toObject();
-            const QStringList fields{row.value("id").toString(), row.value("status").toString(),
-                when(row.value("occurrence_at")), row.value("outcome").toString()};
+            const QStringList fields{row.value("id").toString(), uiStatusLabel(row.value("status").toString()),
+                when(row.value("occurrence_at")), uiStatusLabel(row.value("outcome").toString())};
             for (qsizetype column = 0; column < fields.size(); ++column) {
                 auto *cell = new QStandardItem(fields[column]);
                 cell->setToolTip(fields[column].toHtmlEscaped());
@@ -962,7 +966,7 @@ void MainWindow::automationHistory(const QJsonObject &automation)
                 if (!cancelError.isEmpty())
                     showError(cancelError);
                 else {
-                    showStatus(tr("Run status · %1").arg(value.value("status").toString()));
+                    showStatus(tr("Run status · %1").arg(uiStatusLabel(value.value("status").toString())));
                     refreshAutomations();
                 }
             });

@@ -46,7 +46,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
 
 #[path = "storage_jobs.rs"]
 mod jobs;
-pub(crate) use jobs::{compact, inventory, online_backup, verify_job};
+pub(crate) use jobs::{chat_usage, compact, inventory, online_backup, verify_job};
 
 #[derive(Clone, Debug)]
 pub struct AppError {

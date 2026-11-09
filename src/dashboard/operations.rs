@@ -107,6 +107,7 @@ pub(crate) struct Compact {
 }
 
 enum Job {
+    ChatUsage,
     Scan,
     Backup,
     Verify(Option<String>),
@@ -116,6 +117,10 @@ enum Job {
 impl Job {
     fn parse(method: &str, params: Value) -> Result<Self, AppError> {
         match method {
+            "storage.chats" => {
+                let _: Empty = decode(params)?;
+                Ok(Self::ChatUsage)
+            }
             "storage.scan" => {
                 let _: Empty = decode(params)?;
                 Ok(Self::Scan)
@@ -138,6 +143,7 @@ impl Job {
 
     fn kind(&self) -> &'static str {
         match self {
+            Self::ChatUsage => "CHAT_USAGE",
             Self::Scan => "SCAN",
             Self::Backup => "BACKUP",
             Self::Verify(_) => "VERIFY",
@@ -149,6 +155,7 @@ impl Job {
         control.begin();
         control.check()?;
         let outcome = match self {
+            Self::ChatUsage => storage::chat_usage(data, &control),
             Self::Scan => storage::inventory(data, &control),
             Self::Backup => storage::online_backup(data, &control),
             Self::Verify(backup) => storage::verify_job(data, backup.as_deref(), &control),

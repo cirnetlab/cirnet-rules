@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 4 -->
+<!-- revision: 6 -->
 <a id="authority"></a>
 
 # Dashboard architecture and authority
@@ -38,6 +38,12 @@ The Qt client uses asynchronous `preferences.get` and `preferences.set`
 requests and debounces layout writes. An expected revision prevents a
 second window from silently overwriting a newer update. Preferences contain
 layout and appearance data, with no task permissions or repository paths.
+The runtime validates optional RGB colors, pixel dimensions, font family,
+and language in the existing preference row. The client derives pixels
+from the legacy scale only when a pixel value is absent. It applies one
+application font before styling widgets and menus. Startup reads the
+saved language on the verified runtime connection. English is the fallback
+when the locale is unavailable within the bounded startup wait.
 The typed lifecycle repository and SQLite unit of work commit scoped deletion,
 idempotency receipts, and retained run metadata together. Legacy intake and
 automation paths still contain SQLite-specific code. PostgreSQL
@@ -58,8 +64,11 @@ applies new pages by ordinal and bounds the displayed transcript and sidebar.
 Runtime ingress and egress have bounded channels. The dispatcher owns the
 interactive SQLite connection, and the scheduler owns its own connection.
 An independent storage worker uses one running lane, three active operation
-slots and a bounded history. Backup, verification, scan and compaction report
-operation state and cooperate with cancellation. SQLite locks can still delay
+slots and a bounded history. The connection handshake starts a read-only
+`storage.chats` job that accounts for conversation text on a separate SQLite
+connection. The Dashboard polls its status independently of navigation.
+Backup, verification, database scan and compaction use the same worker.
+Operations report state and cooperate with cancellation. SQLite locks can still delay
 writes within their busy budget. Local Git and legacy import remain synchronous
 in the runtime dispatcher. The worker never owns UI objects.
 

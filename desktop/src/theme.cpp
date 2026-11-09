@@ -1,6 +1,9 @@
 #include "theme.h"
 
 #include <QAbstractItemView>
+#include <QAbstractScrollArea>
+#include <QAbstractSlider>
+#include <QAction>
 #include <QApplication>
 #include <QFontDatabase>
 #include <QComboBox>
@@ -8,23 +11,127 @@
 #include <QFile>
 #include <QFocusEvent>
 #include <QIconEngine>
+#include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmapCache>
 #include <QPointer>
 #include <QProxyStyle>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QStyleFactory>
 #include <QStyleHints>
 #include <QStyleOption>
+#include <QTimer>
 #include <QToolButton>
+#include <QWheelEvent>
 #include <QtMath>
+#include <cmath>
 
 namespace {
 QFont systemFont;
 QPalette systemPalette;
 constexpr auto keyboardFocusProperty = "keyboardFocusVisible";
+constexpr auto scrollRevealedProperty = "scrollRevealed";
+constexpr auto scrollHoverProperty = "scrollPointerOver";
+constexpr auto wheelRevealTimer = "scrollWheelRevealTimer";
 constexpr int stepperWidth = 28;
+
+QColor hexColor(const QString &text)
+{
+    return text.size() == 7 && text.startsWith(u'#') ? QColor(text) : QColor{};
+}
+
+QColor blend(const QColor &base, const QColor &over, double amount)
+{
+    const auto channel = [amount](int from, int to) { return qRound(from + (to - from) * amount); };
+    return QColor(channel(base.red(), over.red()), channel(base.green(), over.green()),
+                  channel(base.blue(), over.blue()));
+}
+
+double luminance(const QColor &color)
+{
+    const auto linear = [](double channel) {
+        return channel <= 0.04045 ? channel / 12.92 : std::pow((channel + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF()) + 0.0722 * linear(color.blueF());
+}
+
+void revealScrollBar(QScrollBar *bar, bool visible)
+{
+    if (!bar || bar->property(scrollRevealedProperty).toBool() == visible)
+        return;
+    bar->setProperty(scrollRevealedProperty, visible);
+    bar->style()->unpolish(bar);
+    bar->style()->polish(bar);
+    bar->update();
+}
+
+void flashScrollBar(QScrollBar *bar)
+{
+    if (!bar->isVisible() || bar->minimum() == bar->maximum())
+        return;
+    auto *timer = bar->findChild<QTimer *>(wheelRevealTimer, Qt::FindDirectChildrenOnly);
+    if (!timer) {
+        timer = new QTimer(bar);
+        timer->setObjectName(wheelRevealTimer);
+        timer->setSingleShot(true);
+        QObject::connect(timer, &QTimer::timeout, bar, [bar] {
+            revealScrollBar(bar, bar->property(scrollHoverProperty).toBool());
+        });
+    }
+    revealScrollBar(bar, true);
+    timer->start(850);
+}
+
+void revealWheelScrollBars(QWidget *widget, const QWheelEvent &event)
+{
+    const auto delta = event.pixelDelta().isNull() ? event.angleDelta() : event.pixelDelta();
+    if (delta.isNull())
+        return;
+    if (auto *bar = qobject_cast<QScrollBar *>(widget)) {
+        flashScrollBar(bar);
+        return;
+    }
+    for (auto *ancestor = widget; ancestor; ancestor = ancestor->parentWidget()) {
+        if (auto *area = qobject_cast<QAbstractScrollArea *>(ancestor)) {
+            if (delta.y())
+                flashScrollBar(area->verticalScrollBar());
+            if (delta.x())
+                flashScrollBar(area->horizontalScrollBar());
+            break;
+        }
+        if (ancestor->isWindow())
+            break;
+    }
+}
+
+bool routeEditorWheel(QWidget *widget, QWheelEvent &event)
+{
+    bool overEditor = false;
+    for (auto *ancestor = widget; ancestor; ancestor = ancestor->parentWidget()) {
+        if (auto *area = qobject_cast<QAbstractScrollArea *>(ancestor)) {
+            if (!overEditor)
+                return false;
+            auto *viewport = area->viewport();
+            QWheelEvent forwarded(viewport->mapFromGlobal(event.globalPosition()), event.globalPosition(),
+                                  event.pixelDelta(), event.angleDelta(), event.buttons(), event.modifiers(),
+                                  event.phase(), event.inverted(), event.source(), event.pointingDevice());
+            forwarded.ignore();
+            QApplication::sendEvent(viewport, &forwarded);
+            if (forwarded.isAccepted())
+                break;
+        }
+        overEditor = overEditor || qobject_cast<QAbstractSpinBox *>(ancestor)
+            || qobject_cast<QComboBox *>(ancestor)
+            || (qobject_cast<QAbstractSlider *>(ancestor) && !qobject_cast<QScrollBar *>(ancestor));
+        if (ancestor->isWindow())
+            break;
+    }
+    if (overEditor)
+        event.accept();
+    return overEditor;
+}
 
 class InteractionState final : public QObject {
 public:
@@ -69,16 +176,28 @@ protected:
                 if (box && box->standardButton(button) == QDialogButtonBox::Save)
                     button->setProperty("primary", true);
             }
+            if (auto *field = qobject_cast<QLineEdit *>(receiver);
+                field && field->property("searchField").toBool() && !field->findChild<QAction *>("focusSearchField")) {
+                auto *search = field->addAction(uiIcon(UiIcon::Search), QLineEdit::LeadingPosition);
+                search->setObjectName("focusSearchField");
+                connect(search, &QAction::triggered, field, [field] { field->setFocus(Qt::MouseFocusReason); });
+            }
+            break;
+        case QEvent::Enter:
+        case QEvent::Leave:
+            if (auto *bar = qobject_cast<QScrollBar *>(receiver)) {
+                const bool reveal = event->type() == QEvent::Enter;
+                bar->setProperty(scrollHoverProperty, reveal);
+                const auto *timer = bar->findChild<QTimer *>(wheelRevealTimer, Qt::FindDirectChildrenOnly);
+                revealScrollBar(bar, reveal || (timer && timer->isActive()));
+            }
             break;
         case QEvent::Wheel:
             if (auto *widget = qobject_cast<QWidget *>(receiver)) {
-                for (auto *candidate : {widget, widget->parentWidget()}) {
-                    if (candidate && (qobject_cast<QAbstractSpinBox *>(candidate) || qobject_cast<QComboBox *>(candidate)) &&
-                        !candidate->hasFocus()) {
-                        event->ignore();
-                        return true;
-                    }
-                }
+                auto &wheel = *static_cast<QWheelEvent *>(event);
+                if (routeEditorWheel(widget, wheel))
+                    return true;
+                revealWheelScrollBars(widget, wheel);
             }
             break;
         default:
@@ -141,10 +260,10 @@ void drawFieldFrame(const QStyleOptionComplex &option, QPainter &painter)
 {
     const auto enabled = option.state.testFlag(QStyle::State_Enabled);
     const auto &palette = option.palette;
-    painter.setPen(option.state.testFlag(QStyle::State_HasFocus) ? palette.highlight().color()
+    painter.setPen(option.state.testFlag(QStyle::State_HasFocus) ? palette.link().color()
                                                                 : palette.dark().color());
     painter.setBrush(enabled ? palette.base() : palette.window());
-    painter.drawRoundedRect(QRectF(option.rect).adjusted(0.5, 0.5, -0.5, -0.5), 6, 6);
+    painter.drawRoundedRect(QRectF(option.rect).adjusted(0.5, 0.5, -0.5, -0.5), 9, 9);
 }
 
 class DashboardStyle final : public QProxyStyle {
@@ -175,9 +294,19 @@ public:
         return native;
     }
 
-    void setCompact(bool compact)
+    void setVerticalPadding(int pixels)
     {
-        fieldPadding_ = compact ? 10 : 14;
+        fieldPadding_ = 2 * pixels + 2;
+    }
+
+    int styleHint(StyleHint hint, const QStyleOption *option, const QWidget *widget,
+                  QStyleHintReturn *data) const override
+    {
+        if (hint == SH_UnderlineShortcut)
+            return 0;
+        if (hint == SH_ComboBox_Popup && widget && widget->objectName() == "uiFontChoice")
+            return 0;
+        return QProxyStyle::styleHint(hint, option, widget, data);
     }
 
     QRect subControlRect(ComplexControl type, const QStyleOptionComplex *option, SubControl part,
@@ -450,6 +579,62 @@ public:
             p.drawArc(QRectF(3, 3, 12, 12), 34 * 16, 300 * 16);
             p.drawPolyline(QPolygonF{{14.5, 2.6}, {14.1, 5.9}, {10.8, 5.8}});
             break;
+        case UiIcon::Search:
+            p.drawEllipse(QPointF(7.6, 7.6), 4.6, 4.6);
+            p.drawLine(QPointF(11.1, 11.1), QPointF(15, 15));
+            break;
+        case UiIcon::Back:
+            p.drawPolyline(QPolygonF{{8, 4}, {3, 9}, {8, 14}});
+            p.drawLine(3, 9, 15, 9);
+            break;
+        case UiIcon::Appearance:
+            p.drawRoundedRect(QRectF(2.5, 3.5, 13, 9.5), 1.8, 1.8);
+            p.drawLine(9, 13, 9, 15);
+            p.drawLine(6, 15, 12, 15);
+            p.drawLine(5, 10, 11, 5);
+            break;
+        case UiIcon::Folder:
+            p.drawPolygon(QPolygonF{{2.5, 5}, {7, 5}, {9, 7}, {15.5, 7}, {15.5, 14.5}, {2.5, 14.5}});
+            break;
+        case UiIcon::Sliders:
+            p.drawLine(3, 6, 15, 6);
+            p.drawLine(3, 12, 15, 12);
+            p.setBrush(QApplication::palette().window());
+            p.drawEllipse(QPointF(7, 6), 1.8, 1.8);
+            p.drawEllipse(QPointF(11, 12), 1.8, 1.8);
+            break;
+        case UiIcon::Storage:
+            p.drawRoundedRect(QRectF(2.5, 5, 13, 9), 2, 2);
+            p.drawLine(3, 10, 15, 10);
+            p.drawPoint(12, 12);
+            break;
+        case UiIcon::Archive:
+            p.drawRoundedRect(QRectF(2.5, 3.5, 13, 4), 1.1, 1.1);
+            p.drawPolyline(QPolygonF{{3.5, 7.5}, {3.5, 14.5}, {14.5, 14.5}, {14.5, 7.5}});
+            p.drawLine(7, 10.5, 11, 10.5);
+            break;
+        case UiIcon::Runtime:
+            p.drawRoundedRect(QRectF(2.5, 4, 13, 10), 1.8, 1.8);
+            p.drawPolyline(QPolygonF{{5.2, 6.7}, {7.5, 9}, {5.2, 11.3}});
+            p.drawLine(9.5, 11, 12.5, 11);
+            break;
+        case UiIcon::Bell: {
+            QPainterPath bell(QPointF(3.5, 12.8));
+            bell.cubicTo(5, 11, 5.3, 10.5, 5.3, 7.7);
+            bell.cubicTo(5.3, 2.3, 12.7, 2.3, 12.7, 7.7);
+            bell.cubicTo(12.7, 10.5, 13, 11, 14.5, 12.8);
+            bell.closeSubpath();
+            p.drawPath(bell);
+            p.drawLine(8, 15.3, 10, 15.3);
+            break;
+        }
+        case UiIcon::Trash:
+            p.drawLine(3.5, 5.5, 14.5, 5.5);
+            p.drawPolyline(QPolygonF{{5, 5.5}, {6, 15}, {12, 15}, {13, 5.5}});
+            p.drawPolyline(QPolygonF{{7, 5.5}, {7, 3}, {11, 3}, {11, 5.5}});
+            p.drawLine(8, 8, 8, 12);
+            p.drawLine(10, 8, 10, 12);
+            break;
         case UiIcon::Success:
             p.drawEllipse(QPointF(9, 9), 6.5, 6.5);
             p.drawPolyline(QPolygonF{{5.8, 9}, {8.0, 11.2}, {12.2, 7}});
@@ -492,7 +677,8 @@ private:
             return color_;
         const bool light = palette.color(QPalette::Window).lightness() >= 128;
         switch (symbol_) {
-        case UiIcon::Clear: return palette.color(QPalette::PlaceholderText);
+        case UiIcon::Clear:
+        case UiIcon::Search: return palette.color(QPalette::PlaceholderText);
         case UiIcon::Info:
         case UiIcon::Question: return QColor(light ? "#245f94" : "#8bbcf0");
         case UiIcon::Success: return QColor(light ? "#176546" : "#80d5a6");
@@ -510,6 +696,36 @@ private:
 QIcon uiIcon(UiIcon symbol, const QColor &color)
 {
     return QIcon(new VectorIcon(symbol, color));
+}
+
+QColor appearanceAccent(const QString &accent, bool light, const QString &custom)
+{
+    struct Preset { QLatin1StringView name; const char *dark; const char *light; };
+    static constexpr Preset colors[]{
+        {QLatin1StringView("cobalt"), "#94beff", "#174eaa"},
+        {QLatin1StringView("green"), "#9cda71", "#376b22"},
+        {QLatin1StringView("yellow"), "#f5ca60", "#856200"},
+        {QLatin1StringView("pink"), "#f38ab6", "#a32a62"},
+        {QLatin1StringView("orange"), "#ff9e72", "#9c471b"},
+        {QLatin1StringView("purple"), "#c6a2ff", "#683ca5"},
+        {QLatin1StringView("white"), "#ffffff", "#ffffff"}
+    };
+    if (accent == "custom") {
+        const auto value = hexColor(custom);
+        if (value.isValid())
+            return value;
+    }
+    for (const auto &preset : colors)
+        if (accent == preset.name)
+            return QColor(light ? preset.light : preset.dark);
+    return QColor(light ? "#17674a" : "#7cdbb2");
+}
+
+double appearanceColorContrast(const QColor &first, const QColor &second)
+{
+    const auto a = luminance(first);
+    const auto b = luminance(second);
+    return (qMax(a, b) + 0.05) / (qMin(a, b) + 0.05);
 }
 
 void applyTheme(QApplication &app)
@@ -547,25 +763,44 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     textScale_ = textScale;
     appearance_ = appearance;
     light_ = light;
+    const int padding = qBound(2, appearance.value("density_px").toInt(density == "compact" ? 4 : 6), 14);
     if (dashboardStyle)
-        dashboardStyle->setCompact(density == "compact");
-    const auto tone = [light](const char *dark, const char *bright) {
-        return QString::fromLatin1(light ? bright : dark);
+        dashboardStyle->setVerticalPadding(padding);
+    const auto customBackground = hexColor(appearance.value("background").toString());
+    const auto customForeground = hexColor(appearance.value("foreground").toString());
+    const auto canvas = customBackground.isValid() ? customBackground : QColor(light ? "#f5f8f6" : "#161918");
+    const bool lightSurface = customBackground.isValid()
+        ? appearanceColorContrast(canvas, Qt::black) >= appearanceColorContrast(canvas, Qt::white)
+        : light;
+    const auto tone = [lightSurface](const char *dark, const char *bright) {
+        return QColor(lightSurface ? bright : dark);
     };
-    const auto canvas = tone("#181818", "#f6f6f5");
-    const auto rail = tone("#1c1c1c", "#eeeeec");
-    const auto surface = tone("#232323", "#ffffff");
-    const auto base = tone("#202020", "#ffffff");
-    const auto alternateRow = tone("#232323", "#f5f5f3");
-    const auto border = tone("#3b3b3b", "#cbcaca");
-    const auto control = tone("#747474", "#777774");
-    const auto text = tone("#ececec", "#202020");
-    const auto muted = tone("#b1b1b1", "#575757");
-    const auto hover = tone("#303030", "#e7e7e3");
-    const bool cobalt = appearance.value("accent") == QStringLiteral("cobalt");
-    const auto selected = cobalt ? tone("#273b58", "#dde8fb") : tone("#29423e", "#d6ebe7");
-    const auto accent = cobalt ? tone("#94beff", "#174eaa") : tone("#70d7c6", "#006a5e");
-    const auto onAccent = cobalt ? tone("#142740", "#ffffff") : tone("#102421", "#ffffff");
+    const auto neutral = tone("#ffffff", "#000000");
+    const auto layer = [&](const char *dark, const char *bright, double opacity) {
+        return customBackground.isValid() ? blend(canvas, neutral, opacity) : tone(dark, bright);
+    };
+    const auto rail = layer("#1b201e", "#ecf2ef", 0.04);
+    const auto surface = customBackground.isValid() && lightSurface ? blend(canvas, Qt::white, 0.24)
+                                                                   : layer("#212724", "#ffffff", 0.07);
+    const auto base = customBackground.isValid() && lightSurface ? blend(canvas, Qt::white, 0.17)
+                                                                : layer("#1d2220", "#ffffff", 0.045);
+    const auto alternateRow = layer("#222925", "#eff4f1", 0.075);
+    const auto border = layer("#39463f", "#c9d6cf", 0.19);
+    const auto control = layer("#778b80", "#687d72", 0.46);
+    const auto defaultText = tone("#edf5f0", "#192a23");
+    const auto text = customForeground.isValid() ? customForeground
+        : appearanceColorContrast(canvas, defaultText) >= 4.5 ? defaultText : neutral;
+    const auto muted = (customBackground.isValid() || customForeground.isValid())
+        ? blend(canvas, text, 0.78) : tone("#a9bcb1", "#50665c");
+    const auto hover = layer("#2d3832", "#e4eee8", 0.11);
+    const auto accentKey = appearance.value("accent").toString("cirnet");
+    const auto accent = appearanceAccent(accentKey, lightSurface, appearance.value("custom_accent").toString());
+    const auto onAccent = appearanceColorContrast(accent, Qt::black) >= appearanceColorContrast(accent, Qt::white)
+        ? QColor(Qt::black) : QColor(Qt::white);
+    const auto selected = blend(canvas, accent, lightSurface ? 0.17 : 0.21);
+    const auto scrollThumb = accentKey == "cirnet" && !customBackground.isValid()
+        ? tone("#618675", "#638878") : blend(control, accent, 0.40);
+    const auto contrastAccent = appearanceColorContrast(canvas, accent) >= 3.0 ? accent : neutral;
     const auto danger = tone("#ffaaa3", "#9e2720");
     const auto warning = tone("#ebbf83", "#794908");
 
@@ -585,7 +820,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     palette.setColor(QPalette::Midlight, QColor(hover));
     palette.setColor(QPalette::Highlight, QColor(accent));
     palette.setColor(QPalette::HighlightedText, QColor(onAccent));
-    palette.setColor(QPalette::Link, QColor(accent));
+    palette.setColor(QPalette::Link, contrastAccent);
     for (const auto role : {QPalette::Text, QPalette::WindowText, QPalette::ButtonText})
         palette.setColor(QPalette::Disabled, role, QColor(muted));
     palette.setColor(QPalette::Disabled, QPalette::Highlight, QColor(control));
@@ -594,10 +829,11 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
         QApplication::setPalette(palette);
     const auto fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     QFont font = appearance.value("ui_font") == QStringLiteral("monospace") ? fixedFont : systemFont;
-    if (font.pointSizeF() > 0)
-        font.setPointSizeF(font.pointSizeF() * textScale / 100.0);
-    else if (font.pixelSize() > 0)
-        font.setPixelSize(qRound(font.pixelSize() * textScale / 100.0));
+    const auto family = appearance.value("font_family").toString();
+    if (!family.isEmpty() && QFontDatabase::hasFamily(family) && QFontDatabase::isSmoothlyScalable(family))
+        font.setFamily(family);
+    const int interfacePx = qBound(10, appearance.value("interface_px").toInt(qRound(13 * textScale / 100.0)), 26);
+    font.setPixelSize(interfacePx);
     if (QApplication::font() != font)
         QApplication::setFont(font);
 
@@ -607,25 +843,28 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     }();
     if (!templateStyle.isEmpty()) {
         auto style = templateStyle;
-        const auto scaled = [textScale](int size) { return QString::number(qRound(size * textScale / 100.0)); };
-        const auto sizeFor = [textScale, &appearance](const char *key) {
-            const auto scale = appearance.value(QLatin1StringView(key)).toInt();
-            return QString::number(qRound(13 * (scale == 0 ? textScale : scale) / 100.0));
+        const auto scaled = [interfacePx](int size) { return QString::number(qRound(size * interfacePx / 13.0)); };
+        const auto sizeFor = [interfacePx, &appearance](const char *pixelKey, const char *scaleKey) {
+            const auto scale = appearance.value(QLatin1StringView(scaleKey)).toInt();
+            const auto fallback = scale == 0 ? interfacePx : qRound(13 * scale / 100.0);
+            return QString::number(qBound(10, appearance.value(QLatin1StringView(pixelKey)).toInt(fallback), 26));
         };
         auto fixedFamily = fixedFont.family();
         fixedFamily.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
         fixedFamily.replace(QStringLiteral("\""), QStringLiteral("\\\""));
         const QList<QPair<QString, QString>> tokens{
-            {"CANVAS", canvas}, {"RAIL", rail}, {"SURFACE", surface}, {"BASE", base}, {"ALTERNATE_ROW", alternateRow},
-            {"BORDER", border}, {"CONTROL", control}, {"TEXT", text}, {"MUTED", muted},
-            {"HOVER", hover}, {"SELECTED", selected}, {"ACCENT", accent}, {"ON_ACCENT", onAccent},
-            {"PRIMARY_HOVER", cobalt ? tone("#b2d0ff", "#215bbc") : tone("#92e6d8", "#08786a")},
-            {"PRIMARY_PRESSED", cobalt ? tone("#79a9f0", "#163f87") : tone("#58c7b5", "#00594f")},
-            {"DANGER", danger}, {"WARNING", warning}, {"BODY_SIZE", scaled(13)}, {"TITLE_SIZE", scaled(24)},
+            {"CANVAS", canvas.name()}, {"RAIL", rail.name()}, {"SURFACE", surface.name()}, {"BASE", base.name()},
+            {"ALTERNATE_ROW", alternateRow.name()}, {"BORDER", border.name()}, {"CONTROL", control.name()},
+            {"TEXT", text.name()}, {"MUTED", muted.name()}, {"HOVER", hover.name()}, {"SELECTED", selected.name()},
+            {"ACCENT", contrastAccent.name()}, {"PRIMARY", accent.name()}, {"ON_ACCENT", onAccent.name()},
+            {"SCROLL_THUMB", scrollThumb.name()},
+            {"PRIMARY_HOVER", blend(accent, onAccent == Qt::black ? Qt::white : Qt::black, 0.12).name()},
+            {"PRIMARY_PRESSED", blend(accent, onAccent, 0.14).name()},
+            {"DANGER", danger.name()}, {"WARNING", warning.name()}, {"TITLE_SIZE", scaled(24)},
             {"SECTION_SIZE", scaled(15)}, {"META_SIZE", scaled(12)},
-            {"CONTENT_SIZE", sizeFor("content_scale")}, {"CODE_SIZE", sizeFor("code_scale")},
+            {"CONTENT_SIZE", sizeFor("conversation_px", "content_scale")}, {"CODE_SIZE", sizeFor("code_px", "code_scale")},
             {"CODE_FAMILY", fixedFamily},
-            {"VERTICAL_PAD", density == "compact" ? "4" : "6"}
+            {"VERTICAL_PAD", QString::number(padding)}
         };
         for (const auto &[token, value] : tokens)
             style.replace("@" + token + "@", value);

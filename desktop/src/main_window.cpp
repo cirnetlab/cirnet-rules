@@ -37,7 +37,8 @@ QToolButton *iconButton(const QString &name, const QString &label)
 }
 }
 
-MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
+MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
+                       bool readyOnConstruction, const QString &startupError)
     : QMainWindow(parent), client_(client)
 {
     setWindowTitle(QStringLiteral(CGACP_PRODUCT_GENERATION));
@@ -162,7 +163,8 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
     });
     changeSidebar(false);
     showPage(automationsPage_);
-    setConnection(false, tr("Connecting to local runtime…"));
+    connecting_ = startupError.isEmpty();
+    setConnection(false, connecting_ ? tr("Connecting to local runtime…") : startupError);
     savedPreferences_ = preferenceSettings();
     connect(splitter_, &QSplitter::splitterMoved, this, [this] {
         if (!sidebarCollapsed_ && pages_->currentWidget() != settingsPage_) {
@@ -211,7 +213,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
             closeSettings();
     });
 
-    connect(&client_, &RuntimeClient::ready, this, [this] {
+    const auto beginHandshake = [this] {
         connecting_ = true;
         setConnection(false, tr("Connecting to local runtime…"));
         call("runtime.info", {}, [this](const QJsonObject &info, const QString &error) {
@@ -225,6 +227,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
             }
             runtimeInfo_ = info;
             setConnection(true, tr("Local runtime connected"));
+            emit localRuntimeReady();
             loadPreferences();
             refreshRepositories();
             refreshConversations();
@@ -232,7 +235,16 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent)
             if (!currentConversation_.isEmpty())
                 openConversation(currentConversation_);
         });
-    });
+    };
+    connect(&client_, &RuntimeClient::ready, this, beginHandshake);
+    if (readyOnConstruction) {
+        QTimer::singleShot(0, this, [this, beginHandshake] {
+            if (connecting_ && !shutdownPending_)
+                beginHandshake();
+        });
+    }
+    if (!startupError.isEmpty())
+        showStatus(startupError, true);
     connect(&client_, &RuntimeClient::disconnected, this, [this](const QString &reason) {
         const bool changed = online_ || connecting_ || connectionStatus_ != reason;
         connecting_ = false;

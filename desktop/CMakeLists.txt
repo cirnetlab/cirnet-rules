@@ -25,7 +25,9 @@ endif()
 
 qt_add_executable(cgacp-dashboard WIN32 src/main.cpp)
 target_link_libraries(cgacp-dashboard PRIVATE cgacp-widgets)
-qt_add_translations(cgacp-dashboard TS_FILES translations/cgacp_vi.ts RESOURCE_PREFIX "/i18n")
+qt_add_translations(cgacp-dashboard
+    TS_FILES translations/cgacp_vi.ts translations/cgacp_zh_CN.ts
+    RESOURCE_PREFIX "/i18n")
 install(TARGETS cgacp-dashboard RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 if(CGACP_RUNTIME_EXECUTABLE)
@@ -64,8 +66,8 @@ if(BUILD_TESTING)
     add_dependencies(cgacp-qt-tests cgacp-dashboard)
     add_test(NAME cgacp.desktop COMMAND cgacp-qt-tests)
     set_tests_properties(cgacp.desktop PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CGACP_TEST_QM=${CMAKE_CURRENT_BINARY_DIR}/cgacp_vi.qm"
-        TIMEOUT 35)
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CGACP_TEST_QM=${CMAKE_CURRENT_BINARY_DIR}/cgacp_vi.qm;CGACP_TEST_ZH_QM=${CMAKE_CURRENT_BINARY_DIR}/cgacp_zh_CN.qm"
+        TIMEOUT 60)
     if(WIN32)
         set_tests_properties(cgacp.desktop PROPERTIES
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")

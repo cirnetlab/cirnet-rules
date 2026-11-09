@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-OPERATOR -->
-<!-- revision: 9 -->
-<!-- source-sha256: 2742a440a58cdc3ddbae22195284ded7629d3e4ade91388a32cf65a462608ca2 -->
+<!-- revision: 11 -->
+<!-- source-sha256: f862d9a7f32de1ee283082722000fe888c722f2779d488389acd6a0c09f4a6bf -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -32,10 +32,18 @@ Dùng `--data-dir` với thư mục tuyệt đối riêng để kiểm thử dù
 
 Kéo đường phân cách để đổi độ rộng sidebar. Dùng nút panel hoặc Ctrl+B
 để thu gọn hay mở rộng. Kích hoạt Local ở chân sidebar để xem trạng thái
-kết nối hiện tại. Mở Cài đặt từ chân sidebar hoặc bằng Ctrl+, rồi chọn
-danh mục bên trái. Giao diện có bản xem trước chủ đề, mật độ, cỡ chữ và
-Giảm chuyển động. Quay lại không gian làm việc hoặc Escape đưa về trang
-trước đó. Đặt lại bố cục khôi phục cách trình bày sidebar và bảng repository.
+kết nối hiện tại. Mở Cài đặt từ chân sidebar hoặc bằng Ctrl+, rồi dùng biểu
+tượng danh mục hoặc ô tìm kiếm bên trái. Mục Giao diện có bản xem trước chế
+độ, các màu nhấn định sẵn và màu nhấn tùy chọn. Nhập mã hex cho màu nền và
+màu chữ hoặc bấm vòng tròn để mở bảng chọn màu. Xóa mã để dùng màu của chủ đề.
+Có thể chọn phông hệ thống, phông đơn cách hoặc một họ phông đã cài đặt.
+Mở Nâng cao để chỉnh cỡ chữ giao diện, hội thoại, mã và khoảng đệm dọc bằng
+pixel, đồng thời chọn ngôn ngữ và Giảm chuyển động. Tiếng Anh là mặc định.
+Tiếng Việt và tiếng Trung giản thể áp dụng khi mở lại Dashboard.
+Khôi phục mặc định xuất hiện khi giao diện khác cấu hình mặc định. Nút
+Quay lại hoặc Escape đưa về trang trước. Thanh cuộn hiện khi rê chuột lên
+thanh hoặc trong chốc lát sau khi lăn. Con lăn trên trường giá trị cuộn vùng
+bao quanh. Dùng bàn phím hoặc các nút của trường để đổi giá trị.
 Toast hiện ở góc trên phải trong Hội thoại và góc dưới phải ở các trang khác.
 Toast đang hiện đổi vị trí theo trang, chừa chỗ cho ô soạn tin. Biểu tượng và
 màu thể hiện mức độ thông báo. Lượt tự động hóa đang chờ trong hàng đợi
@@ -72,12 +80,12 @@ Definition bị tạm dừng hoặc stale phải được kiểm tra trước kh
 Rust sở hữu SQLite trong thư mục dữ liệu ứng dụng local hoặc thư mục do
 người vận hành chỉ định. Trước khi nâng kho hiện có lên schema 6, runtime
 tạo snapshot đã kiểm tra toàn vẹn. Runtime cũ cần bản sao tương thích đã
-rà trong thư mục riêng. Trong Cài đặt → Lưu trữ, Quét chỉ đo thư mục dữ
-liệu local. Kích thước tệp vật lý, byte tin nhắn logic và trang SQLite tái
-sử dụng là các đại lượng riêng. Tạo và kiểm tra bản sao lưu online ở trang
-này. Thu gọn database yêu cầu số đo mới và xác nhận số trang đã quan sát.
-Thao tác nền báo tiến độ và hỗ trợ hủy. Ứng dụng chưa có capability dọn
-worktree do hệ thống quản lý. Khi diễn tập khôi phục, đóng
+rà trong thư mục riêng. Tổng quan Lưu trữ tự tải khi runtime kết nối.
+Trang báo số hội thoại và số byte UTF-8 logic của hội thoại đang dùng và
+đã lưu trữ. Dùng Làm mới để cập nhật số liệu. Bảo trì cơ sở dữ liệu có
+các thao tác riêng để sao lưu, kiểm tra toàn vẹn và thu gọn. Thu gọn yêu cầu
+kiểm tra cơ sở dữ liệu mới và xác nhận số trang đã quan sát. Thao tác nền
+báo tiến độ và hỗ trợ hủy. Khi diễn tập khôi phục, đóng
 runtime, phục hồi bản sao đã rà vào thư mục riêng mới và kiểm tra tại đó
 trước khi đổi đường dẫn. Giữ thư mục gốc và các file WAL. Bản sao lưu là
 dữ liệu nhạy cảm local.
@@ -97,14 +105,14 @@ Xác nhận xóa cũng gỡ định nghĩa Automation và dừng lịch của n�
 và metadata kiểm toán lượt chạy đã kết thúc vẫn truy cập được.
 Dùng Thao tác → Xóa Automation để xóa Automation độc lập hoặc thẻ còn lại
 sau khi Hội thoại đã bị xóa từ trước.
-Lưu trữ giữ lịch sử. Trong Hội thoại đã lưu trữ, tìm rồi chọn từng hội thoại
-để bỏ lưu trữ hoặc xóa vĩnh viễn. Bỏ lưu trữ giữ định danh và không lên lịch
+Lưu trữ giữ lịch sử. Trong Hội thoại đã lưu trữ, tìm hoặc lọc danh sách,
+rồi bỏ lưu trữ hoặc xóa vĩnh viễn ngay trên thẻ tương ứng. Bỏ lưu trữ giữ định danh và không lên lịch
 chạy công việc.
 
 Cấu hình hiển thị capability hiệu lực và nguồn thẩm quyền của runtime.
-Thực thi native giữ HANDOFF_ONLY khi áp dụng. Giao diện lưu màu nhấn, font UI,
-cỡ chữ nội dung và mã qua API tùy chọn local. Đặt lại giao diện độc lập với
-đặt lại bố cục.
+Thực thi native giữ HANDOFF_ONLY khi áp dụng. Bảng màu, phông giao diện,
+kích thước pixel và ngôn ngữ được lưu qua API tùy chọn cục bộ.
+Khôi phục mặc định áp dụng cho tùy chọn giao diện.
 
 Có thể xem trước và lưu trữ kho file CLI đã dừng bằng `legacy.preview`
 và `legacy.apply`. Áp dụng cần digest manifest đã rà và xác nhận tiến

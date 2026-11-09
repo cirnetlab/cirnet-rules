@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-ARCHITECTURE -->
-<!-- revision: 4 -->
-<!-- source-sha256: 8b35a28791a810976cde163f7736c4bd62a54d25067635be8b1529d0978febbf -->
+<!-- revision: 6 -->
+<!-- source-sha256: 7db95bed241a4c4a05a37e0a6773f5d2b293d985c81ebb806c0d2c76670d3e3b -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 
@@ -38,7 +38,12 @@ Client Qt gọi bất đồng bộ
 `preferences.get` và `preferences.set` và gộp các thay đổi bố cục liên tiếp
 trước khi ghi. Revision dự kiến ngăn cửa sổ thứ hai âm thầm ghi đè lần cập
 nhật mới hơn. Tùy chọn chỉ chứa dữ liệu bố cục và giao diện, tách khỏi quyền
-task và đường dẫn repository. Repository vòng đời có kiểu dữ liệu và unit
+task và đường dẫn repository. Runtime kiểm tra màu RGB, kích thước pixel,
+họ phông và ngôn ngữ tùy chọn trong bản ghi hiện có. Client chỉ quy đổi
+tỉ lệ cũ khi thiếu giá trị pixel, rồi dùng cùng một phông ứng dụng cho
+widget và menu. Khi khởi động, client đọc ngôn ngữ đã lưu qua kết nối runtime
+đã xác minh. Client dùng tiếng Anh nếu hết thời gian chờ mà chưa lấy được
+ngôn ngữ. Repository vòng đời có kiểu dữ liệu và unit
 of work SQLite commit cùng nhau phạm vi xóa, biên nhận idempotency và
 metadata lượt chạy cần giữ. Intake và tự động hóa cũ còn phụ thuộc SQLite.
 Chuyển sang PostgreSQL cần hợp đồng
@@ -58,8 +63,11 @@ hạn dữ liệu hiển thị của transcript và sidebar.
 
 Runtime dùng kênh vào và ra có giới hạn. Dispatcher sở hữu kết nối SQLite
 tương tác và scheduler dùng kết nối riêng. Worker lưu trữ có một luồng
-chạy, ba vị trí thao tác đang hoạt động và lịch sử có giới hạn. Backup,
-kiểm tra, quét và thu gọn báo trạng thái, hỗ trợ hủy cộng tác. Khóa SQLite
+chạy, ba vị trí thao tác đang hoạt động và lịch sử có giới hạn. Khi kết nối,
+Dashboard khởi tạo tác vụ chỉ đọc `storage.chats` để tính dung lượng nội dung
+hội thoại trên kết nối SQLite riêng. Dashboard theo dõi trạng thái tác vụ độc lập
+với điều hướng. Cùng worker thực hiện sao lưu, kiểm tra, quét cơ sở dữ liệu
+và thu gọn. Các thao tác báo trạng thái và hỗ trợ hủy cộng tác. Khóa SQLite
 vẫn có thể làm chậm thao tác ghi trong ngân sách chờ. Git local và nhập
 dữ liệu cũ còn chạy đồng bộ trong dispatcher. Worker không sở hữu widget.
 

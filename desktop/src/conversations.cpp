@@ -95,6 +95,7 @@ RepositoryPicker::RepositoryPicker(bool multiple, const QString &selected, QWidg
     layout->setSpacing(6);
     search_->setObjectName("repositoryPickerSearch");
     search_->setAccessibleName(tr("Search repository bindings"));
+    search_->setProperty("searchField", true);
     search_->setPlaceholderText(tr("Search by repository, path or branch"));
     search_->setClearButtonEnabled(true);
     manage_->setObjectName("manageRepositoryPicker");
@@ -190,6 +191,7 @@ QWidget *MainWindow::makeConversationHistory()
     layout->addWidget(label(tr("Conversations"), "sectionTitle"));
     conversationSearch_ = new QLineEdit;
     conversationSearch_->setObjectName("conversationSearch");
+    conversationSearch_->setProperty("searchField", true);
     conversationSearch_->setPlaceholderText(tr("Search conversations"));
     conversationSearch_->setAccessibleName(tr("Search conversations"));
     conversationSearch_->setClearButtonEnabled(true);
@@ -898,16 +900,17 @@ void MainWindow::updateConversationSummary()
         }
         bindings.append(name);
     }
-    QString detail = tr("Local handoff · %1").arg(conversation_.value("state").toString());
+    QString detail = tr("Local handoff · %1").arg(uiStatusLabel(conversation_.value("state").toString()));
     if (!bindings.isEmpty())
         detail += QStringLiteral(" · ") + bindings.join(QStringLiteral(", "));
     const auto state = conversationTasks_.isEmpty() ? QString() : conversationTasks_.first().toObject().value("state").toString();
     if (!state.isEmpty())
-        detail += QStringLiteral("\n") + tr("Latest task: %1").arg(state);
+        detail += QStringLiteral("\n") + tr("Latest task: %1").arg(uiStatusLabel(state));
     for (const auto &value : conversationBlockers_) {
         const auto blocker = value.toObject();
         detail += QStringLiteral("\n") + tr("%1 %2 · %3")
-            .arg(blocker.value("kind").toString(), blocker.value("id").toString(), blocker.value("state").toString());
+            .arg(blocker.value("kind").toString(), blocker.value("id").toString(),
+                 uiStatusLabel(blocker.value("state").toString()));
     }
     conversationDetail_->setText(detail);
 }
@@ -1134,7 +1137,7 @@ void MainWindow::deleteConversationData(const QString &id, const QString &messag
             for (const auto &value : preview.value("blockers").toArray()) {
                 const auto row = value.toObject();
                 blockers.append(tr("%1 %2 · %3").arg(row.value("kind").toString(), row.value("id").toString(),
-                                                      row.value("state").toString()));
+                                                      uiStatusLabel(row.value("state").toString())));
             }
             finish(false);
             auto *notice = new QMessageBox(QMessageBox::Warning, tr("Deletion blocked"),

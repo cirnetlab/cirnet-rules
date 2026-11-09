@@ -9,10 +9,14 @@ class QApplication;
 
 enum class UiIcon {
     Add, Automations, Collapse, Expand, Settings, Status, Close, Clear, Refresh,
-    Info, Warning, Success, Error, Question
+    Info, Warning, Success, Error, Question, Search, Back, Appearance, Folder,
+    Sliders, Storage, Archive, Runtime, Bell, Trash
 };
 
 QIcon uiIcon(UiIcon symbol, const QColor &color = {});
+QColor appearanceAccent(const QString &accent, bool light, const QString &custom = {});
+double appearanceColorContrast(const QColor &first, const QColor &second);
+inline QString uiStatusLabel(QString code) { return code.replace(u'_', u' '); }
 void applyTheme(QApplication &app);
 
 class ThemeManager final : public QObject {

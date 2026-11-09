@@ -157,12 +157,30 @@ fn chat_sizes(conn: &Connection, state: &str) -> Result<(u64, u64), AppError> {
         |row| row.get(0),
     )?;
     let bytes = conn.query_row(
-        "SELECT coalesce(sum(length(CAST(m.content AS BLOB))),0) FROM messages m
+        "SELECT coalesce(sum(octet_length(m.content)),0) FROM messages m
          JOIN conversations c ON c.id=m.conversation_id WHERE c.state=?1",
         [state],
         |row| row.get(0),
     )?;
     Ok((count, bytes))
+}
+
+pub(crate) fn chat_usage(data: &Path, control: &Arc<JobControl>) -> Result<Value, AppError> {
+    control.update("MEASURE_CHATS", 0, None);
+    let mut conn = open(
+        &data.join(DATABASE_FILE),
+        OpenFlags::SQLITE_OPEN_READ_ONLY,
+        control,
+    )?;
+    let transaction = conn.transaction()?;
+    let (active_chats, active_bytes) = chat_sizes(&transaction, "ACTIVE")?;
+    let (archived_chats, archived_bytes) = chat_sizes(&transaction, "ARCHIVED")?;
+    transaction.commit()?;
+    Ok(json!({
+        "measured_at": now()?,
+        "active": {"conversations":active_chats,"message_bytes":active_bytes},
+        "archived": {"conversations":archived_chats,"message_bytes":archived_bytes},
+    }))
 }
 
 pub(crate) fn inventory(data: &Path, control: &Arc<JobControl>) -> Result<Value, AppError> {

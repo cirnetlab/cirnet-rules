@@ -10,25 +10,45 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFontDatabase>
+#include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpressionValidator>
+#include <QScreen>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QStyledItemDelegate>
 #include <QTimer>
+#include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 namespace {
+constexpr int baseTextPixels = 13;
+constexpr int baseDensityPixels = 6;
+constexpr int installedFontRole = Qt::UserRole + 1;
+const QJsonObject defaultAppearance{
+    {"theme", "dark"}, {"density", "comfortable"}, {"text_scale", 100}, {"reduced_motion", false},
+    {"appearance", QJsonObject{{"accent", "cirnet"}, {"ui_font", "system"},
+                               {"interface_px", baseTextPixels}, {"conversation_px", baseTextPixels},
+                               {"code_px", baseTextPixels}, {"density_px", baseDensityPixels},
+                               {"content_scale", 0}, {"code_scale", 0}, {"language", "en"}}},
+};
+
 QLabel *label(const QString &text, const QString &role)
 {
     auto *widget = new QLabel(text);
@@ -53,12 +73,41 @@ void selectData(QComboBox *combo, const QString &data)
         combo->setCurrentIndex(index);
 }
 
-void selectScale(QComboBox *combo, int scale)
+int textPixels(int legacyPercent)
 {
-    if (const int index = combo->findData(scale); index >= 0)
-        combo->setCurrentIndex(index);
-    else
-        combo->setCurrentIndex(0);
+    return qBound(10, qRound(baseTextPixels * legacyPercent / 100.0), 26);
+}
+
+int compatibleScale(int pixels)
+{
+    return qBound(85, qRound(pixels * 100.0 / baseTextPixels), 150);
+}
+
+QJsonObject normalizedAppearance(const QJsonObject &settings)
+{
+    auto style = settings.value("appearance").toObject();
+    const int interfacePx = style.value("interface_px").toInt(textPixels(settings.value("text_scale").toInt(100)));
+    const auto size = [interfacePx, &style](const char *pixels, const char *percent) {
+        const int legacy = style.value(QLatin1StringView(percent)).toInt();
+        return style.value(QLatin1StringView(pixels)).toInt(legacy == 0 ? interfacePx : textPixels(legacy));
+    };
+    const int conversationPx = size("conversation_px", "content_scale");
+    const int codePx = size("code_px", "code_scale");
+    const int densityPx = style.value("density_px").toInt(settings.value("density") == "compact" ? 4 : baseDensityPixels);
+    style.insert("interface_px", interfacePx);
+    style.insert("conversation_px", conversationPx);
+    style.insert("code_px", codePx);
+    style.insert("density_px", densityPx);
+    style.insert("accent", style.value("accent").toString("cirnet"));
+    style.insert("ui_font", style.value("ui_font").toString("system"));
+    style.insert("language", style.value("language").toString("en"));
+    style.insert("content_scale", conversationPx == interfacePx ? 0 : compatibleScale(conversationPx));
+    style.insert("code_scale", codePx == interfacePx ? 0 : compatibleScale(codePx));
+    return {{"theme", settings.value("theme").toString("dark")},
+            {"density", densityPx <= 4 ? "compact" : "comfortable"},
+            {"text_scale", compatibleScale(interfacePx)},
+            {"reduced_motion", settings.value("reduced_motion").toBool()},
+            {"appearance", style}};
 }
 
 void setPreferenceRevert(QWidget *page, bool visible)
@@ -69,7 +118,7 @@ void setPreferenceRevert(QWidget *page, bool visible)
 QString themeMode(const QButtonGroup &choices)
 {
     const auto *checked = choices.checkedButton();
-    return checked ? checked->property("themeMode").toString() : QStringLiteral("dark");
+    return checked ? checked->property("themeMode").toString() : defaultAppearance.value("theme").toString();
 }
 
 void selectTheme(const QButtonGroup &choices, const QString &key)
@@ -91,12 +140,12 @@ public:
         setProperty("themeMode", key);
         setAccessibleName(title);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        setMaximumWidth(145);
+        setMaximumWidth(112);
         setAttribute(Qt::WA_Hover);
     }
 
-    QSize sizeHint() const override { return {124, 60 + 2 * fontMetrics().lineSpacing()}; }
-    QSize minimumSizeHint() const override { return {70, sizeHint().height()}; }
+    QSize sizeHint() const override { return {108, 59 + 2 * fontMetrics().lineSpacing()}; }
+    QSize minimumSizeHint() const override { return {64, sizeHint().height()}; }
 
 protected:
     bool hitButton(const QPoint &position) const override { return rect().contains(position); }
@@ -111,7 +160,7 @@ protected:
         const auto surface = colors.color(underMouse() || isDown() ? QPalette::Button : QPalette::Base);
         painter.setBrush(surface);
         painter.setPen(QPen(isChecked() ? colors.color(QPalette::Highlight) : border, isChecked() ? 2 : 1));
-        painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 9, 9);
+        painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 12, 12);
 
         const QRectF preview(8, 8, width() - 16, 42);
         QPainterPath clip;
@@ -164,6 +213,354 @@ private:
     QString mode_;
 };
 
+QIcon colorDot(const QColor &color)
+{
+    QPixmap image(32, 32);
+    image.setDevicePixelRatio(2);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QApplication::palette().color(QPalette::Mid));
+    painter.setBrush(color);
+    painter.drawEllipse(QRectF(2, 2, 12, 12));
+    return QIcon(image);
+}
+
+class AppearanceChoiceDelegate final : public QStyledItemDelegate {
+public:
+    explicit AppearanceChoiceDelegate(QComboBox *choice) : QStyledItemDelegate(choice), choice_(choice) {}
+
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        return QStyledItemDelegate::sizeHint(option, index) + QSize(20, 0);
+    }
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        QStyledItemDelegate::paint(painter, option, index);
+        if (index.row() != choice_->currentIndex())
+            return;
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(QPen(option.palette.color(QPalette::Text), 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        const QPointF anchor(option.rect.right() - 12, option.rect.center().y());
+        painter->drawPolyline(QPolygonF{anchor + QPointF(-4, 0), anchor + QPointF(-1, 3), anchor + QPointF(5, -4)});
+        painter->restore();
+    }
+
+private:
+    QComboBox *choice_;
+};
+
+struct PickerColor {
+    int hue;
+    int saturation;
+    int value;
+};
+
+class ColorRamp final : public QWidget {
+public:
+    explicit ColorRamp(bool hueOnly) : hueOnly_(hueOnly)
+    {
+        setFocusPolicy(Qt::StrongFocus);
+        setFixedHeight(hueOnly ? 20 : 138);
+        setCursor(Qt::CrossCursor);
+    }
+
+    void setColor(PickerColor color)
+    {
+        color_ = color;
+        update();
+    }
+    void setChange(std::function<void(PickerColor)> change) { change_ = std::move(change); }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF box = QRectF(rect()).adjusted(1, 1, -1, -1);
+        QPainterPath clip;
+        clip.addRoundedRect(box, 7, 7);
+        painter.setClipPath(clip);
+        QLinearGradient horizontal(box.topLeft(), box.topRight());
+        QPointF marker;
+        if (hueOnly_) {
+            for (int step = 0; step <= 6; ++step)
+                horizontal.setColorAt(step / 6.0, QColor::fromHsv((step * 60) % 360, 255, 255));
+            painter.fillRect(box, horizontal);
+            marker = {box.left() + box.width() * color_.hue / 359, box.center().y()};
+        } else {
+            horizontal.setColorAt(0, Qt::white);
+            horizontal.setColorAt(1, QColor::fromHsv(color_.hue, 255, 255));
+            painter.fillRect(box, horizontal);
+            QLinearGradient vertical(box.topLeft(), box.bottomLeft());
+            vertical.setColorAt(0, Qt::transparent);
+            vertical.setColorAt(1, Qt::black);
+            painter.fillRect(box, vertical);
+            marker = {box.left() + box.width() * color_.saturation / 255,
+                      box.top() + box.height() * (255 - color_.value) / 255};
+        }
+        const auto markerBounds = box.adjusted(6, 6, -6, -6);
+        marker.setX(qBound(markerBounds.left(), marker.x(), markerBounds.right()));
+        marker.setY(qBound(markerBounds.top(), marker.y(), markerBounds.bottom()));
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(Qt::black, 3));
+        painter.drawEllipse(marker, 5, 5);
+        painter.setPen(QPen(Qt::white, 1.5));
+        painter.drawEllipse(marker, 5, 5);
+        if (hasFocus()) {
+            painter.setClipping(false);
+            painter.setPen(QPen(palette().color(QPalette::Link), 1));
+            painter.drawPath(clip);
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton) {
+            setFocus(Qt::MouseFocusReason);
+            moveTo(event->position());
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (event->buttons() & Qt::LeftButton)
+            moveTo(event->position());
+    }
+
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        int horizontal = 0;
+        int vertical = 0;
+        switch (event->key()) {
+        case Qt::Key_Left: horizontal = -1; break;
+        case Qt::Key_Right: horizontal = 1; break;
+        case Qt::Key_Up: vertical = 1; break;
+        case Qt::Key_Down: vertical = -1; break;
+        default:
+            QWidget::keyPressEvent(event);
+            return;
+        }
+        auto next = color_;
+        if (hueOnly_)
+            next.hue = (color_.hue + (horizontal + vertical) * 3 + 360) % 360;
+        else {
+            next.saturation = qBound(0, color_.saturation + horizontal * 5, 255);
+            next.value = qBound(0, color_.value + vertical * 5, 255);
+        }
+        change_(next);
+    }
+
+    void focusInEvent(QFocusEvent *event) override { QWidget::focusInEvent(event); update(); }
+    void focusOutEvent(QFocusEvent *event) override { QWidget::focusOutEvent(event); update(); }
+
+private:
+    void moveTo(const QPointF &position)
+    {
+        const auto x = qBound(0.0, (position.x() - 1) / (width() - 2), 1.0);
+        const auto y = qBound(0.0, (position.y() - 1) / (height() - 2), 1.0);
+        auto next = color_;
+        if (hueOnly_)
+            next.hue = qRound(359 * x);
+        else {
+            next.saturation = qRound(255 * x);
+            next.value = qRound(255 * (1 - y));
+        }
+        change_(next);
+    }
+
+    bool hueOnly_;
+    std::function<void(PickerColor)> change_;
+    PickerColor color_{0, 0, 0};
+};
+}
+
+class AppearanceColorField final : public QFrame {
+public:
+    AppearanceColorField(const QString &valueName, const QString &title, QPalette::ColorRole role,
+                         bool clearable, std::function<void()> change)
+        : title_(title), role_(role), clearable_(clearable), change_(std::move(change))
+    {
+        setObjectName("appearanceSwatch");
+        auto *row = new QHBoxLayout(this);
+        row->setContentsMargins(5, 3, 8, 3);
+        row->setSpacing(3);
+        dot_ = new QToolButton;
+        dot_->setObjectName(valueName + "Picker");
+        dot_->setFixedSize(26, 26);
+        dot_->setIconSize({16, 16});
+        dot_->setStyleSheet(QStringLiteral("QToolButton { padding: 0; }"));
+        dot_->setAccessibleName(MainWindow::tr("Choose %1").arg(title));
+        dot_->setToolTip(dot_->accessibleName());
+        row->addWidget(dot_);
+        value_ = new QLineEdit;
+        value_->setObjectName(valueName);
+        value_->setAccessibleName(title);
+        value_->setToolTip(clearable
+            ? MainWindow::tr("Enter a six-digit hexadecimal color. Clear the field to use the theme color.")
+            : MainWindow::tr("Enter a six-digit hexadecimal color."));
+        value_->setMaxLength(7);
+        value_->setValidator(new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^#?[A-Fa-f0-9]{0,6}$")), value_));
+        value_->setStyleSheet(QStringLiteral(
+            "QLineEdit { border: 1px solid transparent; background: transparent; border-radius: 5px; padding: 2px 4px; }"
+            "QLineEdit:focus { border-color: palette(link); }"));
+        row->addWidget(value_);
+        setFocusProxy(value_);
+        setFocusPolicy(Qt::StrongFocus);
+        connect(dot_, &QToolButton::clicked, this, [this] { openPicker(); });
+        connect(value_, &QLineEdit::editingFinished, this, [this] { commitText(); });
+        refresh();
+    }
+
+    QString stored() const { return stored_; }
+    QLineEdit *editor() const { return value_; }
+
+    void load(const QString &color)
+    {
+        stored_ = color.toUpper();
+        refresh(true);
+    }
+
+    void refresh(bool force = false)
+    {
+        const auto color = effectiveColor();
+        if (force || (!value_->isModified() && value_->text() != color.name().toUpper()))
+            value_->setText(color.name().toUpper());
+        dot_->setIcon(colorDot(color));
+        const QFontMetrics metrics(QApplication::font());
+        int digitWidth = 0;
+        for (const auto digit : QStringLiteral("0123456789ABCDEF"))
+            digitWidth = qMax(digitWidth, metrics.horizontalAdvance(digit));
+        value_->setFixedWidth(metrics.horizontalAdvance(u'#') + 6 * digitWidth + 24);
+    }
+
+private:
+    QColor effectiveColor() const
+    {
+        return stored_.isEmpty() ? QApplication::palette().color(role_) : QColor(stored_);
+    }
+
+    void commitText()
+    {
+        auto hex = value_->text().toUpper();
+        if (!value_->isModified() && hex == effectiveColor().name().toUpper()) {
+            refresh(true);
+            return;
+        }
+        if (hex.isEmpty() && clearable_) {
+            setStored({});
+            return;
+        }
+        if (!hex.startsWith('#'))
+            hex.prepend('#');
+        if (hex.size() == 7 && QColor::isValidColorName(hex)) {
+            setStored(hex);
+        } else {
+            refresh(true);
+            QToolTip::showText(value_->mapToGlobal(QPoint(0, value_->height())), value_->toolTip(), value_);
+        }
+    }
+
+    void setStored(const QString &color)
+    {
+        const bool changed = stored_ != color;
+        load(color);
+        if (changed)
+            change_();
+    }
+
+    void openPicker()
+    {
+        if (auto *existing = dot_->findChild<QDialog *>("appearanceColorPicker")) {
+            if (existing->isVisible()) {
+                existing->raise();
+                return;
+            }
+            existing->deleteLater();
+        }
+        auto *picker = new QDialog(dot_, Qt::Popup);
+        picker->setObjectName("appearanceColorPicker");
+        picker->setWindowTitle(dot_->accessibleName());
+        picker->setAccessibleName(picker->windowTitle());
+        picker->setAttribute(Qt::WA_DeleteOnClose);
+        picker->setMinimumWidth(272);
+        auto *layout = new QVBoxLayout(picker);
+        layout->setContentsMargins(12, 10, 12, 10);
+        layout->setSpacing(8);
+        layout->addWidget(label(title_, "sectionTitle"));
+        const auto seed = effectiveColor();
+        auto *preview = label(seed.name().toUpper(), "meta");
+        auto update = [preview](ColorRamp *plane, ColorRamp *hue, PickerColor color) {
+            plane->setColor(color);
+            hue->setColor(color);
+            preview->setText(QColor::fromHsv(color.hue, color.saturation, color.value).name().toUpper());
+        };
+        auto *plane = new ColorRamp(false);
+        auto *hue = new ColorRamp(true);
+        plane->setObjectName("appearanceColorPlane");
+        plane->setAccessibleName(MainWindow::tr("Saturation and brightness"));
+        hue->setObjectName("appearanceColorHue");
+        hue->setAccessibleName(MainWindow::tr("Hue"));
+        layout->addWidget(plane);
+        layout->addWidget(hue);
+        auto *actions = new QHBoxLayout;
+        actions->addWidget(preview, 1);
+        auto *cancel = new QPushButton(MainWindow::tr("Cancel"));
+        auto *apply = new QPushButton(MainWindow::tr("Apply"));
+        apply->setObjectName("applyAppearanceColor");
+        apply->setProperty("primary", true);
+        actions->addWidget(cancel);
+        actions->addWidget(apply);
+        layout->addLayout(actions);
+        connect(cancel, &QPushButton::clicked, picker, &QDialog::reject);
+        connect(picker, &QDialog::finished, dot_, [control = dot_, popup = QPointer(picker)] {
+            QTimer::singleShot(0, control, [control, popup] {
+                auto *owner = control->window();
+                const auto *active = QApplication::activeWindow();
+                if (QApplication::applicationState() != Qt::ApplicationActive ||
+                    (active && active != owner && active != popup.data()))
+                    return;
+                if (active != owner)
+                    owner->activateWindow();
+                if (!QApplication::focusWidget() || QApplication::focusWidget()->window() == popup.data())
+                    control->setFocus(Qt::PopupFocusReason);
+            });
+        });
+        connect(apply, &QPushButton::clicked, picker, [this, picker, preview] {
+            const auto value = preview->text();
+            picker->accept();
+            setStored(value);
+        });
+        plane->setChange([update, plane, hue](PickerColor color) { update(plane, hue, color); });
+        hue->setChange([update, plane, hue](PickerColor color) { update(plane, hue, color); });
+        update(plane, hue, {qMax(0, seed.hsvHue()), seed.hsvSaturation(), seed.value()});
+        preview->setText(seed.name().toUpper());
+        picker->adjustSize();
+        const auto anchor = dot_->mapToGlobal(QPoint(dot_->width(), dot_->height() + 4));
+        const auto available = dot_->screen()->availableGeometry();
+        const int x = qBound(available.left(), anchor.x() - picker->width(),
+                             qMax(available.left(), available.right() - picker->width() + 1));
+        const int preferredY = anchor.y() + picker->height() <= available.bottom() + 1
+            ? anchor.y() : dot_->mapToGlobal(QPoint(0, 0)).y() - picker->height() - 4;
+        const int y = qBound(available.top(), preferredY,
+                             qMax(available.top(), available.bottom() - picker->height() + 1));
+        picker->move(x, y);
+        picker->show();
+        plane->setFocus();
+    }
+
+    QString title_;
+    QPalette::ColorRole role_;
+    bool clearable_;
+    std::function<void()> change_;
+    QString stored_;
+    QToolButton *dot_;
+    QLineEdit *value_;
+};
+
+namespace {
 QFrame *settingsGroup()
 {
     auto *group = new QFrame;
@@ -182,12 +579,225 @@ void addSettingRow(QGridLayout &rows, int row, const QString &name, const QStrin
     auto *copy = new QVBoxLayout;
     copy->setSpacing(2);
     auto *heading = label(name, "sectionTitle");
-    heading->setBuddy(control);
+    if (control->focusPolicy() != Qt::NoFocus)
+        heading->setBuddy(control);
     copy->addWidget(heading);
-    copy->addWidget(label(description, "meta"));
+    if (!description.isEmpty())
+        copy->addWidget(label(description, "meta"));
     rows.addLayout(copy, row * 2, 0);
     rows.addWidget(control, row * 2, 1, Qt::AlignRight | Qt::AlignVCenter);
 }
+}
+
+QWidget *MainWindow::makeAppearanceSettings()
+{
+    auto *appearance = new QWidget;
+    appearance->setObjectName("appearancePage");
+    auto *center = new QHBoxLayout(appearance);
+    center->setContentsMargins(0, 0, 0, 0);
+    auto *panel = new QWidget;
+    panel->setMaximumWidth(850);
+    center->addStretch();
+    center->addWidget(panel, 100, Qt::AlignTop);
+    center->addStretch();
+    auto *layout = new QVBoxLayout(panel);
+    layout->setContentsMargins(2, 2, 2, 16);
+    layout->setSpacing(14);
+
+    auto *header = new QHBoxLayout;
+    header->addWidget(label(tr("Appearance"), "heading"), 1);
+    appearanceReset_ = new QPushButton(tr("Reset default"));
+    appearanceReset_->setObjectName("resetAppearanceDefault");
+    appearanceReset_->setProperty("actionRole", "secondary");
+    appearanceReset_->hide();
+    header->addWidget(appearanceReset_);
+    layout->addLayout(header);
+    layout->addSpacing(10);
+    layout->addWidget(label(tr("Visual style"), "sectionTitle"));
+
+    auto *modePanel = settingsGroup();
+    auto *mode = new QFormLayout(modePanel);
+    mode->setContentsMargins(16, 12, 16, 12);
+    mode->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    mode->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    mode->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    auto *tiles = new QWidget;
+    auto *previews = new QHBoxLayout(tiles);
+    previews->setContentsMargins(0, 0, 0, 0);
+    previews->setSpacing(8);
+    previews->addStretch();
+    themeChoice_ = new QButtonGroup(appearance);
+    const auto addMode = [this, previews](const QString &title, const QString &key, const QString &name) {
+        auto *tile = new ThemeTile(title, key, name);
+        themeChoice_->addButton(tile);
+        previews->addWidget(tile);
+    };
+    addMode(tr("System"), "system", "themeSystem");
+    addMode(tr("Light"), "light", "themeLight");
+    addMode(tr("Dark"), "dark", "themeDark");
+    selectTheme(*themeChoice_, defaultAppearance.value("theme").toString());
+    mode->addRow(label(tr("Mode"), "sectionTitle"), tiles);
+    layout->addWidget(modePanel);
+
+    const auto makeCard = [](QVBoxLayout &destination) {
+        auto *card = settingsGroup();
+        auto *rows = new QGridLayout(card);
+        rows->setContentsMargins(16, 10, 16, 10);
+        rows->setHorizontalSpacing(12);
+        rows->setVerticalSpacing(8);
+        rows->setColumnStretch(0, 1);
+        destination.addWidget(card);
+        return rows;
+    };
+    auto *visual = makeCard(*layout);
+    const auto colorChange = [this] {
+        applyAppearance();
+        schedulePreferencesSave();
+    };
+    accentChoice_ = new QComboBox;
+    accentChoice_->setObjectName("accentChoice");
+    accentChoice_->setAccessibleName(tr("Accent"));
+    accentChoice_->setIconSize({16, 16});
+    accentChoice_->setItemDelegate(new AppearanceChoiceDelegate(accentChoice_));
+    accentChoice_->addItem(tr("CIRNET teal"), "cirnet");
+    accentChoice_->addItem(tr("Cobalt blue"), "cobalt");
+    accentChoice_->addItem(tr("Green"), "green");
+    accentChoice_->addItem(tr("Yellow"), "yellow");
+    accentChoice_->addItem(tr("Pink"), "pink");
+    accentChoice_->addItem(tr("Orange"), "orange");
+    accentChoice_->addItem(tr("Purple"), "purple");
+    accentChoice_->addItem(tr("White"), "white");
+    accentChoice_->addItem(tr("Custom"), "custom");
+    accentColor_ = new AppearanceColorField("appearanceAccentColor", tr("Custom accent"),
+                                            QPalette::Highlight, false, colorChange);
+    accentColor_->hide();
+    auto *accentRow = new QWidget;
+    auto *accentLayout = new QHBoxLayout(accentRow);
+    accentLayout->setContentsMargins(0, 0, 0, 0);
+    accentLayout->setSpacing(6);
+    accentLayout->addWidget(accentChoice_);
+    accentLayout->addWidget(accentColor_);
+    accentRow->setFocusProxy(accentChoice_);
+    accentRow->setFocusPolicy(Qt::StrongFocus);
+    connect(accentChoice_, &QComboBox::currentIndexChanged, appearance, [this] {
+        const bool custom = accentChoice_->currentData() == "custom";
+        if (custom && accentColor_->stored().isEmpty())
+            accentColor_->load(QApplication::palette().color(QPalette::Highlight).name());
+        accentColor_->setVisible(custom);
+    });
+    backgroundColor_ = new AppearanceColorField("appearanceBackground", tr("Background"),
+                                                QPalette::Window, true, colorChange);
+    foregroundColor_ = new AppearanceColorField("appearanceForeground", tr("Foreground"),
+                                                QPalette::WindowText, true, colorChange);
+    auto *contrast = label(tr("Low contrast between background and text may make some content difficult to read."),
+                           "meta");
+    contrast->setObjectName("appearanceContrastWarning");
+    const auto refreshColors = [this, contrast] {
+        const auto palette = QApplication::palette();
+        const auto background = palette.color(QPalette::Window);
+        const auto foreground = palette.color(QPalette::WindowText);
+        const bool light = appearanceColorContrast(background, Qt::black) >= appearanceColorContrast(background, Qt::white);
+        for (int i = 0; i < accentChoice_->count(); ++i) {
+            const auto key = accentChoice_->itemData(i).toString();
+            const auto custom = accentColor_->stored().isEmpty() ? palette.color(QPalette::Highlight).name()
+                                                                 : accentColor_->stored();
+            accentChoice_->setItemIcon(i, colorDot(appearanceAccent(key, light, custom)));
+        }
+        for (auto *field : {backgroundColor_, foregroundColor_, accentColor_})
+            field->refresh();
+        const bool lowContrast = appearanceColorContrast(background, foreground) < 4.5;
+        if (lowContrast)
+            contrast->setStyleSheet(light ? QStringLiteral("color: #000000") : QStringLiteral("color: #ffffff"));
+        contrast->setVisible(lowContrast);
+    };
+    connect(theme_, &ThemeManager::changed, appearance, refreshColors);
+    uiFontChoice_ = new QComboBox;
+    uiFontChoice_->setObjectName("uiFontChoice");
+    uiFontChoice_->setAccessibleName(tr("Interface font"));
+    uiFontChoice_->addItem(tr("System"), "system");
+    uiFontChoice_->addItem(tr("Monospace"), "monospace");
+    uiFontChoice_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    uiFontChoice_->setMinimumContentsLength(12);
+    uiFontChoice_->setMaxVisibleItems(12);
+    uiFontChoice_->view()->setMinimumWidth(248);
+    uiFontChoice_->setItemDelegate(new AppearanceChoiceDelegate(uiFontChoice_));
+    for (const auto &family : QFontDatabase::families()) {
+        if (family.startsWith(u'@') || !QFontDatabase::isSmoothlyScalable(family))
+            continue;
+        uiFontChoice_->addItem(family);
+        uiFontChoice_->setItemData(uiFontChoice_->count() - 1, family, installedFontRole);
+        uiFontChoice_->setItemData(uiFontChoice_->count() - 1, family, Qt::ToolTipRole);
+    }
+    addSettingRow(*visual, 0, tr("&Accent"), {}, accentRow);
+    addSettingRow(*visual, 1, tr("Background"), {}, backgroundColor_);
+    addSettingRow(*visual, 2, tr("Foreground"), {}, foregroundColor_);
+    addSettingRow(*visual, 3, tr("Interface &font"), {}, uiFontChoice_);
+    visual->addWidget(contrast, 7, 0, 1, 2);
+    refreshColors();
+
+    appearanceAdvancedToggle_ = new QToolButton;
+    appearanceAdvancedToggle_->setObjectName("appearanceAdvancedToggle");
+    appearanceAdvancedToggle_->setText(tr("Advanced"));
+    appearanceAdvancedToggle_->setAccessibleDescription(tr("Show or hide advanced appearance settings."));
+    appearanceAdvancedToggle_->setCheckable(true);
+    appearanceAdvancedToggle_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    appearanceAdvancedToggle_->setArrowType(Qt::RightArrow);
+    appearanceAdvancedToggle_->setFocusPolicy(Qt::StrongFocus);
+    layout->addSpacing(4);
+    layout->addWidget(appearanceAdvancedToggle_, 0, Qt::AlignLeft);
+
+    auto *advanced = new QWidget;
+    auto *advancedLayout = new QVBoxLayout(advanced);
+    advancedLayout->setContentsMargins(0, 0, 0, 0);
+    advancedLayout->setSpacing(14);
+    auto *typography = makeCard(*advancedLayout);
+    const auto pixelControl = [](const char *name, const QString &title, int minimum, int maximum, int value) {
+        auto *control = new QSpinBox;
+        control->setObjectName(QLatin1StringView(name));
+        control->setAccessibleName(title);
+        control->setRange(minimum, maximum);
+        control->setValue(value);
+        control->setSuffix(QStringLiteral(" px"));
+        return control;
+    };
+    textScale_ = pixelControl("textScale", tr("Interface text size"), 10, 26, baseTextPixels);
+    contentScaleChoice_ = pixelControl("contentScaleChoice", tr("Conversation text size"), 10, 26, baseTextPixels);
+    codeScaleChoice_ = pixelControl("codeScaleChoice", tr("Code text size"), 10, 26, baseTextPixels);
+    addSettingRow(*typography, 0, tr("&Interface text size"),
+                  tr("Scale text throughout the desktop."), textScale_);
+    addSettingRow(*typography, 1, tr("&Conversation text size"),
+                  tr("Scale the transcript and composer independently."), contentScaleChoice_);
+    addSettingRow(*typography, 2, tr("Code text si&ze"),
+                  tr("Scale monospaced diagnostics and structured details."), codeScaleChoice_);
+
+    auto *interaction = makeCard(*advancedLayout);
+    densityChoice_ = pixelControl("densityChoice", tr("Density"), 2, 14, baseDensityPixels);
+    languageChoice_ = new QComboBox;
+    languageChoice_->setObjectName("languageChoice");
+    languageChoice_->setAccessibleName(tr("Language"));
+    languageChoice_->addItem(QStringLiteral("English"), "en");
+    languageChoice_->addItem(QStringLiteral("Tiếng Việt"), "vi");
+    languageChoice_->addItem(QStringLiteral("简体中文"), "zh_CN");
+    reducedMotion_ = new QCheckBox;
+    reducedMotion_->setObjectName("reducedMotion");
+    reducedMotion_->setAccessibleName(tr("Reduced motion"));
+    addSettingRow(*interaction, 0, tr("&Density"), tr("Adjust the spacing between controls."), densityChoice_);
+    addSettingRow(*interaction, 1, tr("Language"), tr("Language changes take effect after reopening CGACP."), languageChoice_);
+    addSettingRow(*interaction, 2, tr("&Reduced motion"),
+                  tr("Skip motion effects while keeping visual feedback."), reducedMotion_);
+    advanced->hide();
+    layout->addWidget(advanced);
+    connect(appearanceAdvancedToggle_, &QToolButton::toggled, advanced, [this, advanced](bool expanded) {
+        appearanceAdvancedToggle_->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        advanced->setVisible(expanded);
+    });
+
+    connect(appearanceReset_, &QPushButton::clicked, this, [this] {
+        applyAppearanceControls(defaultAppearance);
+        applyAppearance();
+        schedulePreferencesSave();
+    });
+    return scrollPanel(appearance);
 }
 
 QWidget *MainWindow::makeSettings()
@@ -224,6 +834,8 @@ QWidget *MainWindow::makeSettings()
     categories->addWidget(noResults);
     auto *back = new QPushButton(tr("Back"));
     back->setObjectName("settingsBack");
+    back->setIcon(uiIcon(UiIcon::Back));
+    back->setProperty("actionRole", "secondary");
     back->setAccessibleName(tr("Back to workspace"));
     back->setToolTip(tr("Back to workspace"));
     connect(back, &QPushButton::clicked, this, &MainWindow::closeSettings);
@@ -240,143 +852,28 @@ QWidget *MainWindow::makeSettings()
     settingsPages_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
     layout->addWidget(settingsPages_, 1);
     shell->addWidget(content, 1);
+    settingsNavigation_->setIconSize(QSize(17, 17));
     const auto section = [this](const QString &title, const QString &key, const QString &keywords, QWidget *panel) {
-        auto *item = new QListWidgetItem(title, settingsNavigation_);
+        static const QHash<QString, UiIcon> icons{
+            {"appearance", UiIcon::Appearance}, {"repositories", UiIcon::Folder},
+            {"runtime", UiIcon::Runtime}, {"configuration", UiIcon::Sliders},
+            {"storage", UiIcon::Storage}, {"archived", UiIcon::Archive},
+            {"notifications", UiIcon::Bell}, {"about", UiIcon::Info}
+        };
+        auto *item = new QListWidgetItem(uiIcon(icons.value(key, UiIcon::Settings)), title, settingsNavigation_);
         item->setData(Qt::UserRole, key);
         item->setData(Qt::UserRole + 1, title + ' ' + keywords);
         item->setToolTip(title);
         settingsPages_->addWidget(panel);
     };
 
-    auto *appearance = new QWidget;
-    appearance->setObjectName("appearancePage");
-    auto *appearanceCenter = new QHBoxLayout(appearance);
-    appearanceCenter->setContentsMargins(0, 0, 0, 0);
-    auto *appearancePanel = new QWidget;
-    appearancePanel->setMaximumWidth(850);
-    appearanceCenter->addStretch();
-    appearanceCenter->addWidget(appearancePanel, 100, Qt::AlignTop);
-    appearanceCenter->addStretch();
-    auto *appearanceLayout = new QVBoxLayout(appearancePanel);
-    appearanceLayout->setContentsMargins(2, 2, 2, 12);
-    appearanceLayout->setSpacing(12);
-    appearanceLayout->addWidget(label(tr("Appearance"), "heading"));
-    appearanceLayout->addSpacing(6);
-    appearanceLayout->addWidget(label(tr("Visual style"), "sectionTitle"));
-    auto *themePanel = settingsGroup();
-    auto *previews = new QHBoxLayout(themePanel);
-    previews->setContentsMargins(12, 10, 12, 10);
-    previews->setSpacing(8);
-    previews->addStretch();
-    themeChoice_ = new QButtonGroup(appearance);
-    const auto addMode = [this, previews](const QString &title, const QString &key, const QString &name) {
-        auto *tile = new ThemeTile(title, key, name);
-        themeChoice_->addButton(tile);
-        previews->addWidget(tile, 1);
+    const QStringList appearanceSearchTerms{
+        tr("Theme mode"), tr("Density"), tr("Text size"), tr("Interface text size"),
+        tr("Conversation text size"), tr("Code text size"), tr("Reduced motion"),
+        tr("System"), tr("Light"), tr("Dark"), tr("Accent"), tr("Interface font"),
+        tr("Advanced"), tr("Background"), tr("Foreground"), tr("Reset default"), tr("Language"),
     };
-    addMode(tr("System"), "system", "themeSystem");
-    addMode(tr("Light"), "light", "themeLight");
-    addMode(tr("Dark"), "dark", "themeDark");
-    previews->addStretch();
-    selectTheme(*themeChoice_, "dark");
-    appearanceLayout->addWidget(themePanel);
-
-    appearanceLayout->addSpacing(6);
-    appearanceLayout->addWidget(label(tr("Layout and typography"), "sectionTitle"));
-    auto *layoutPanel = settingsGroup();
-    auto *rows = new QGridLayout(layoutPanel);
-    rows->setContentsMargins(12, 12, 12, 12);
-    rows->setHorizontalSpacing(12);
-    rows->setVerticalSpacing(10);
-    rows->setColumnStretch(0, 1);
-    densityChoice_ = new QComboBox;
-    densityChoice_->setObjectName("densityChoice");
-    densityChoice_->addItem(tr("Comfortable"), "comfortable");
-    densityChoice_->addItem(tr("Compact"), "compact");
-    densityChoice_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    textScale_ = new QSpinBox;
-    textScale_->setObjectName("textScale");
-    textScale_->setRange(85, 150);
-    textScale_->setSingleStep(5);
-    textScale_->setValue(100);
-    textScale_->setSuffix(QStringLiteral("%"));
-    reducedMotion_ = new QCheckBox;
-    reducedMotion_->setObjectName("reducedMotion");
-    reducedMotion_->setAccessibleName(tr("Reduced motion"));
-    addSettingRow(*rows, 0, tr("&Density"), tr("Adjust the spacing between controls."), densityChoice_);
-    addSettingRow(*rows, 1, tr("Text &size"), tr("Scale text throughout the desktop."), textScale_);
-    addSettingRow(*rows, 2, tr("&Reduced motion"), tr("Skip motion effects while keeping visual feedback."), reducedMotion_);
-    appearanceLayout->addWidget(layoutPanel);
-
-    appearanceLayout->addWidget(label(tr("Advanced appearance"), "sectionTitle"));
-    auto *advancedPanel = settingsGroup();
-    auto *advanced = new QGridLayout(advancedPanel);
-    advanced->setContentsMargins(12, 12, 12, 12);
-    advanced->setHorizontalSpacing(12);
-    advanced->setVerticalSpacing(10);
-    advanced->setColumnStretch(0, 1);
-    accentChoice_ = new QComboBox;
-    accentChoice_->setObjectName("accentChoice");
-    accentChoice_->setAccessibleName(tr("Accent"));
-    accentChoice_->addItem(tr("CIRNET teal"), "cirnet");
-    accentChoice_->addItem(tr("Cobalt blue"), "cobalt");
-    uiFontChoice_ = new QComboBox;
-    uiFontChoice_->setObjectName("uiFontChoice");
-    uiFontChoice_->setAccessibleName(tr("Interface font"));
-    uiFontChoice_->addItem(tr("System"), "system");
-    uiFontChoice_->addItem(tr("Monospace"), "monospace");
-    const auto scaleOptions = [this](const char *name, const QString &title) {
-        auto *control = new QComboBox;
-        control->setObjectName(QLatin1StringView(name));
-        control->setAccessibleName(title);
-        control->addItem(tr("Follow interface"), 0);
-        for (int scale = 85; scale <= 150; scale += 5)
-            control->addItem(QString::number(scale) + '%', scale);
-        return control;
-    };
-    contentScaleChoice_ = scaleOptions("contentScaleChoice", tr("Conversation text size"));
-    codeScaleChoice_ = scaleOptions("codeScaleChoice", tr("Code text size"));
-    addSettingRow(*advanced, 0, tr("&Accent"), tr("Choose a contrast-checked CGACP palette."), accentChoice_);
-    addSettingRow(*advanced, 1, tr("Interface &font"), tr("Change the font used by the desktop."), uiFontChoice_);
-    addSettingRow(*advanced, 2, tr("&Conversation text size"), tr("Scale the transcript and composer independently."), contentScaleChoice_);
-    addSettingRow(*advanced, 3, tr("Code text si&ze"), tr("Scale monospaced diagnostics and structured details."), codeScaleChoice_);
-    appearanceLayout->addWidget(advancedPanel);
-    auto *resetAppearance = new QPushButton(tr("Reset appearance"));
-    resetAppearance->setObjectName("resetAppearance");
-    appearanceLayout->addWidget(resetAppearance, 0, Qt::AlignLeft);
-    connect(resetAppearance, &QPushButton::clicked, this, [this] {
-        const QSignalBlocker themeSignals(themeChoice_);
-        const QSignalBlocker densitySignals(densityChoice_);
-        const QSignalBlocker scaleSignals(textScale_);
-        const QSignalBlocker motionSignals(reducedMotion_);
-        const QSignalBlocker accentSignals(accentChoice_);
-        const QSignalBlocker fontSignals(uiFontChoice_);
-        const QSignalBlocker contentSignals(contentScaleChoice_);
-        const QSignalBlocker codeSignals(codeScaleChoice_);
-        selectTheme(*themeChoice_, "dark");
-        selectData(densityChoice_, "comfortable");
-        textScale_->setValue(100);
-        reducedMotion_->setChecked(false);
-        accentChoice_->setCurrentIndex(0);
-        uiFontChoice_->setCurrentIndex(0);
-        contentScaleChoice_->setCurrentIndex(0);
-        codeScaleChoice_->setCurrentIndex(0);
-        applyAppearance();
-        schedulePreferencesSave();
-    });
-    auto *reset = new QPushButton(tr("Reset layout"));
-    reset->setObjectName("resetLayout");
-    appearanceLayout->addWidget(reset, 0, Qt::AlignLeft);
-    connect(reset, &QPushButton::clicked, this, [this] {
-        applyingPreferences_ = true;
-        sidebarWidth_ = 260;
-        changeSidebar(false);
-        restoreRepositoryLayout({});
-        applyingPreferences_ = false;
-        schedulePreferencesSave();
-    });
-    section(tr("Appearance"), "appearance", tr("theme density text size reduced motion reset layout system light dark accent font"),
-            scrollPanel(appearance));
+    section(tr("Appearance"), "appearance", appearanceSearchTerms.join(u' '), makeAppearanceSettings());
     section(tr("Repositories"), "repositories", tr("binding folder path worktree relink archive"), repositoriesPage_);
 
     auto *runtime = new QWidget;
@@ -453,7 +950,7 @@ QWidget *MainWindow::makeSettings()
         const auto native = runtimeInfo_.value("native_agent").toObject();
         const auto adapter = agentInspect->currentText();
         capabilityDetails->setText(tr("Requested: Local handoff\nEffective: %1\nSource: local runtime")
-            .arg(online_ ? native.value(adapter).toString(tr("Unavailable")) : tr("Unavailable")));
+            .arg(online_ ? uiStatusLabel(native.value(adapter).toString(tr("Unavailable"))) : tr("Unavailable")));
     });
     configurationLayout->addStretch();
     section(tr("Configuration"), "configuration", tr("agent profile approval sandbox scope permission"), scrollPanel(configuration));
@@ -461,8 +958,8 @@ QWidget *MainWindow::makeSettings()
     const SettingsRequest request = [this](const QString &method, QJsonObject params, RuntimeClient::Reply reply) {
         call(method, std::move(params), std::move(reply));
     };
-    section(tr("Storage"), "storage", tr("disk backup verify compact measure data folder cleanup"),
-            scrollPanel(makeStorageSettings(client_, request, [this] { selectSettingsSection("archived"); })));
+    section(tr("Storage"), "storage", tr("chat message usage backup verify compact data folder"),
+            scrollPanel(makeStorageSettings(client_, *this, request)));
     section(tr("Archived chats"), "archived", tr("conversation search unarchive restore delete"),
             makeArchivedChats(request, [this] { return repositories_; }, [this] { refreshConversations(); },
             [this](const QString &id, std::function<void(bool)> complete) {
@@ -546,6 +1043,15 @@ QWidget *MainWindow::makeSettings()
             QTimer::singleShot(0, this, &MainWindow::restoreRepositoryScroll);
     });
     settingsNavigation_->setCurrentRow(0);
+    const auto fitCategories = [this, sidebar] {
+        const auto metrics = settingsNavigation_->fontMetrics();
+        int width = 200;
+        for (int row = 0; row < settingsNavigation_->count(); ++row)
+            width = qMax(width, metrics.horizontalAdvance(settingsNavigation_->item(row)->text()) + 76);
+        sidebar->setFixedWidth(qMin(width, 300));
+    };
+    fitCategories();
+    connect(theme_, &ThemeManager::changed, sidebar, fitCategories);
     connect(settingsSearch_, &QLineEdit::textChanged, this, [this, noResults](const QString &text) {
         bool matched = false;
         for (int row = 0; row < settingsNavigation_->count(); ++row) {
@@ -573,18 +1079,46 @@ QWidget *MainWindow::makeSettings()
         const auto query = settingsSearch_->text().trimmed();
         QWidget *target = settingsNavigation_;
         if (!query.isEmpty() && settingsSection() == "appearance") {
-            if (tr("Reduced motion").contains(query, Qt::CaseInsensitive))
+            const auto matches = [&query](const QString &text) { return text.contains(query, Qt::CaseInsensitive); };
+            if (matches(tr("Reduced motion")))
                 target = reducedMotion_;
-            else if (tr("Text size").contains(query, Qt::CaseInsensitive))
+            else if (matches(tr("Text size")) || matches(tr("Interface text size")))
                 target = textScale_;
-            else if (tr("Density").contains(query, Qt::CaseInsensitive))
+            else if (matches(tr("Conversation text size")))
+                target = contentScaleChoice_;
+            else if (matches(tr("Code text size")))
+                target = codeScaleChoice_;
+            else if (matches(tr("Density")))
                 target = densityChoice_;
-            else if (tr("Theme mode").contains(query, Qt::CaseInsensitive)) {
+            else if (matches(tr("Language")))
+                target = languageChoice_;
+            else if (matches(tr("Accent")))
+                target = accentChoice_;
+            else if (matches(tr("Background")))
+                target = backgroundColor_->editor();
+            else if (matches(tr("Foreground")))
+                target = foregroundColor_->editor();
+            else if (matches(tr("Interface font")))
+                target = uiFontChoice_;
+            else if (matches(tr("Advanced")))
+                target = appearanceAdvancedToggle_;
+            else if (matches(tr("Theme mode"))) {
                 if (auto *selected = themeChoice_->checkedButton())
                     target = selected;
             }
+            if (target == reducedMotion_ || target == textScale_ || target == contentScaleChoice_ ||
+                target == codeScaleChoice_ || target == densityChoice_ || target == languageChoice_)
+                appearanceAdvancedToggle_->setChecked(true);
         }
         target->setFocus(Qt::ShortcutFocusReason);
+        if (target != settingsNavigation_) {
+            auto *scroll = qobject_cast<QScrollArea *>(settingsPages_->currentWidget());
+            if (scroll) {
+                QTimer::singleShot(0, scroll, [scroll, target] {
+                    scroll->ensureWidgetVisible(target, 12, 12);
+                });
+            }
+        }
     });
     const auto visualChange = [this] {
         applyAppearance();
@@ -602,9 +1136,9 @@ QWidget *MainWindow::makeSettings()
         if (checked)
             visualChange();
     });
-    connect(densityChoice_, &QComboBox::currentIndexChanged, this, visualChange);
-    connect(textScale_, &QSpinBox::valueChanged, this, queuePreview);
-    for (auto *control : {accentChoice_, uiFontChoice_, contentScaleChoice_, codeScaleChoice_})
+    for (auto *control : {textScale_, contentScaleChoice_, codeScaleChoice_, densityChoice_})
+        connect(control, &QSpinBox::valueChanged, this, queuePreview);
+    for (auto *control : {accentChoice_, uiFontChoice_, languageChoice_})
         connect(control, &QComboBox::currentIndexChanged, this, queuePreview);
     connect(notificationChoice_, &QComboBox::currentIndexChanged, this, visualChange);
     connect(reducedMotion_, &QCheckBox::toggled, this, visualChange);
@@ -670,14 +1204,14 @@ void MainWindow::updateRuntimeDetails()
     QStringList adapters;
     const auto native = online_ ? runtimeInfo_.value("native_agent").toObject() : QJsonObject{};
     for (auto it = native.begin(); it != native.end(); ++it)
-        adapters.append(it.key() + QStringLiteral(" · ") + it.value().toString());
+        adapters.append(it.key() + QStringLiteral(" · ") + uiStatusLabel(it.value().toString()));
     auto capability = tr("Native execution capability: %1")
                       .arg(adapters.isEmpty() ? tr("Unavailable") : adapters.join(QStringLiteral("\n")));
     const auto controls = online_ ? runtimeInfo_.value("execution_enforcement").toObject() : QJsonObject{};
     if (!controls.isEmpty()) {
         QStringList details;
         for (auto it = controls.begin(); it != controls.end(); ++it)
-            details.append(it.key() + QStringLiteral(" · ") + it.value().toString());
+            details.append(uiStatusLabel(it.key()) + QStringLiteral(" · ") + uiStatusLabel(it.value().toString()));
         capability += QStringLiteral("\n\n") + tr("Execution controls: %1").arg(details.join(QStringLiteral("\n")));
     }
     runtimeCapabilities_->setText(capability);
@@ -690,7 +1224,7 @@ void MainWindow::updateRuntimeDetails()
     agentInspect->setCurrentText(selectedAdapter);
     agentInspect->setEnabled(!native.isEmpty());
     capabilityDetails->setText(tr("Requested: Local handoff\nEffective: %1\nSource: local runtime")
-        .arg(native.value(agentInspect->currentText()).toString(tr("Unavailable"))));
+        .arg(uiStatusLabel(native.value(agentInspect->currentText()).toString(tr("Unavailable")))));
     const auto storageLimits = online_ ? runtimeInfo_.value("storage_jobs").toObject() : QJsonObject{};
     auto *limits = settingsPage_->findChild<QLabel *>("configurationLimits");
     limits->setText(storageLimits.isEmpty() ? tr("Storage worker limits are unavailable.")
@@ -702,53 +1236,94 @@ void MainWindow::updateRuntimeDetails()
                                    QStringLiteral(CGACP_RELEASE_NAME), capability));
 }
 
+QJsonObject MainWindow::appearanceSettings() const
+{
+    const auto fontFamily = uiFontChoice_->currentData(installedFontRole).toString();
+    QJsonObject style{
+        {"accent", accentChoice_->currentData().toString()},
+        {"ui_font", fontFamily.isEmpty() ? uiFontChoice_->currentData().toString() : QStringLiteral("system")},
+        {"interface_px", textScale_->value()}, {"conversation_px", contentScaleChoice_->value()},
+        {"code_px", codeScaleChoice_->value()}, {"density_px", densityChoice_->value()},
+        {"language", languageChoice_->currentData().toString()}
+    };
+    if (!fontFamily.isEmpty())
+        style.insert("font_family", fontFamily);
+    if (!accentColor_->stored().isEmpty())
+        style.insert("custom_accent", accentColor_->stored());
+    if (!backgroundColor_->stored().isEmpty())
+        style.insert("background", backgroundColor_->stored());
+    if (!foregroundColor_->stored().isEmpty())
+        style.insert("foreground", foregroundColor_->stored());
+    return normalizedAppearance({{"theme", themeMode(*themeChoice_)},
+                                 {"reduced_motion", reducedMotion_->isChecked()},
+                                 {"appearance", style}});
+}
+
 QJsonObject MainWindow::preferenceSettings() const
 {
+    auto settings = appearanceSettings();
     const auto repoLayout = repositoryLayout();
-    return {{"theme", themeMode(*themeChoice_)}, {"density", densityChoice_->currentData().toString()},
-            {"text_scale", textScale_->value()}, {"sidebar_width", sidebarWidth_},
-            {"sidebar_collapsed", sidebarCollapsed_},
-            {"reduced_motion", reducedMotion_->isChecked()},
-            {"appearance", QJsonObject{{"accent", accentChoice_->currentData().toString()},
-                                       {"ui_font", uiFontChoice_->currentData().toString()},
-                                       {"content_scale", contentScaleChoice_->currentData().toInt()},
-                                       {"code_scale", codeScaleChoice_->currentData().toInt()}}},
-            {"repository_layout", repoLayout.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(repoLayout)},
-            {"notification_level", notificationChoice_->currentData().toString()}};
+    settings.insert("sidebar_width", sidebarWidth_);
+    settings.insert("sidebar_collapsed", sidebarCollapsed_);
+    settings.insert("repository_layout", repoLayout.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(repoLayout));
+    settings.insert("notification_level", notificationChoice_->currentData().toString());
+    return settings;
 }
 
 void MainWindow::applyAppearance()
 {
-    const QJsonObject appearance{{"accent", accentChoice_->currentData().toString()},
-                                 {"ui_font", uiFontChoice_->currentData().toString()},
-                                 {"content_scale", contentScaleChoice_->currentData().toInt()},
-                                 {"code_scale", codeScaleChoice_->currentData().toInt()}};
-    theme_->apply(themeMode(*themeChoice_), densityChoice_->currentData().toString(), textScale_->value(), appearance);
+    const auto visual = appearanceSettings();
+    theme_->apply(visual.value("theme").toString(), visual.value("density").toString(),
+                  visual.value("text_scale").toInt(), visual.value("appearance").toObject());
+    appearanceReset_->setVisible(visual != defaultAppearance);
     notifications_->setLevel(notificationChoice_->currentData().toString());
     notifications_->setReducedMotion(reducedMotion_->isChecked());
 }
 
-void MainWindow::applyPreferences(const QJsonObject &settings)
+void MainWindow::applyAppearanceControls(const QJsonObject &settings)
 {
-    applyingPreferences_ = true;
+    const auto normalized = normalizedAppearance(settings);
+    const auto appearance = normalized.value("appearance").toObject();
     const QSignalBlocker themeSignals(themeChoice_);
     const QSignalBlocker densitySignals(densityChoice_);
     const QSignalBlocker scaleSignals(textScale_);
-    const QSignalBlocker notificationSignals(notificationChoice_);
     const QSignalBlocker motionSignals(reducedMotion_);
     const QSignalBlocker accentSignals(accentChoice_);
     const QSignalBlocker fontSignals(uiFontChoice_);
     const QSignalBlocker contentSignals(contentScaleChoice_);
     const QSignalBlocker codeSignals(codeScaleChoice_);
-    selectTheme(*themeChoice_, settings.value("theme").toString("dark"));
-    selectData(densityChoice_, settings.value("density").toString("comfortable"));
-    textScale_->setValue(settings.value("text_scale").toInt(100));
-    reducedMotion_->setChecked(settings.value("reduced_motion").toBool());
-    const auto appearance = settings.value("appearance").toObject();
-    selectData(accentChoice_, appearance.value("accent").toString("cirnet"));
-    selectData(uiFontChoice_, appearance.value("ui_font").toString("system"));
-    selectScale(contentScaleChoice_, appearance.value("content_scale").toInt());
-    selectScale(codeScaleChoice_, appearance.value("code_scale").toInt());
+    const QSignalBlocker languageSignals(languageChoice_);
+    selectTheme(*themeChoice_, normalized.value("theme").toString());
+    textScale_->setValue(appearance.value("interface_px").toInt());
+    contentScaleChoice_->setValue(appearance.value("conversation_px").toInt());
+    codeScaleChoice_->setValue(appearance.value("code_px").toInt());
+    densityChoice_->setValue(appearance.value("density_px").toInt());
+    reducedMotion_->setChecked(normalized.value("reduced_motion").toBool());
+    selectData(languageChoice_, appearance.value("language").toString());
+    selectData(accentChoice_, appearance.value("accent").toString());
+    accentColor_->load(appearance.value("custom_accent").toString());
+    accentColor_->setVisible(accentChoice_->currentData() == "custom");
+    backgroundColor_->load(appearance.value("background").toString());
+    foregroundColor_->load(appearance.value("foreground").toString());
+    const auto family = appearance.value("font_family").toString();
+    if (family.isEmpty()) {
+        selectData(uiFontChoice_, appearance.value("ui_font").toString());
+    } else {
+        int index = uiFontChoice_->findData(family, installedFontRole);
+        if (index < 0) {
+            uiFontChoice_->addItem(tr("Unavailable: %1").arg(family));
+            index = uiFontChoice_->count() - 1;
+            uiFontChoice_->setItemData(index, family, installedFontRole);
+        }
+        uiFontChoice_->setCurrentIndex(index);
+    }
+}
+
+void MainWindow::applyPreferences(const QJsonObject &settings)
+{
+    applyingPreferences_ = true;
+    applyAppearanceControls(settings);
+    const QSignalBlocker notificationSignals(notificationChoice_);
     selectData(notificationChoice_, settings.value("notification_level").toString("all"));
     sidebarWidth_ = qBound(210, settings.value("sidebar_width").toInt(260), 360);
     sidebarCollapsed_ = settings.value("sidebar_collapsed").toBool();
@@ -781,17 +1356,23 @@ void MainWindow::loadPreferences()
                            revision != preferencesRevision_;
         auto merged = remote;
         if (preferencesDirty_) {
+            const auto beforeVisual = normalizedAppearance(savedPreferences_);
             for (auto it = local.begin(); it != local.end(); ++it) {
                 if (it.key() == "appearance") {
-                    auto style = remote.value("appearance").toObject();
-                    const auto before = savedPreferences_.value("appearance").toObject();
+                    auto style = normalizedAppearance(remote).value("appearance").toObject();
+                    const auto before = beforeVisual.value("appearance").toObject();
                     const auto pending = it.value().toObject();
+                    for (auto part = before.begin(); part != before.end(); ++part) {
+                        if (!pending.contains(part.key()))
+                            style.remove(part.key());
+                    }
                     for (auto part = pending.begin(); part != pending.end(); ++part) {
                         if (part.value() != before.value(part.key()))
                             style.insert(part.key(), part.value());
                     }
                     merged.insert("appearance", style);
-                } else if (it.value() != savedPreferences_.value(it.key())) {
+                } else if (it.value() != (beforeVisual.contains(it.key())
+                               ? beforeVisual.value(it.key()) : savedPreferences_.value(it.key()))) {
                     merged.insert(it.key(), it.value());
                 }
             }
