@@ -1,8 +1,10 @@
 <!-- doc-id: CIRNETRULES-ROUTING -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="routing"></a>
 
 # Local workspace and routing
+
+CNR exposes these maintenance operations through [its workspace and task commands](../references/cnr.md#execution).
 
 `workspace-discover` inspects bounded workspace metadata and proposes candidates.
 Use `workspace-bind` with a registered repo ID, a workspace-relative path and an

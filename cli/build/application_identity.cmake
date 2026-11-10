@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-set(identity_manifest "${CMAKE_CURRENT_LIST_DIR}/../application-identity.json")
+set(identity_manifest "${CMAKE_CURRENT_LIST_DIR}/../../application-identity.json")
 file(READ "${identity_manifest}" identity_json)
 foreach(field IN ITEMS product_id display_name organization repository ipc_protocol)
     string(JSON identity_${field} GET "${identity_json}" "${field}")

@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
-<!-- revision: 14 -->
-<!-- source-sha256: bbb8dac5c8465ceaf2afe53602e68902a6816100ebb22d1a5ab64eaa96de13d5 -->
+<!-- revision: 15 -->
+<!-- source-sha256: fe1555da83fc82762a00024a8f2f73963a71e5b67e6f9d61f42dc038e6fd391d -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -126,7 +126,7 @@ trình ghi cũ đã dừng. Dùng `legacy.inspect` và `legacy.link` để xem h
 sơ lưu trữ và gắn alias cũ với binding đã rà riêng. Nhập giữ nguyên nguồn
 và không kích hoạt lại grant, lease hoặc lượt chạy cũ.
 
-Chạy `scripts/package-dashboard.ps1` trên cây staging Windows đã cài để
+Chạy `cli/packaging/package-dashboard.ps1` trên cây staging Windows đã cài để
 ghi SHA-256 artifact và nguồn build. Ứng viên giữ `RELEASE_BLOCKED` khi
 còn gate Agent native, cô lập, review xác thực, cài Windows sạch và
 điều kiện phân phối.

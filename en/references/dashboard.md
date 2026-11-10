@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
-<!-- revision: 14 -->
+<!-- revision: 15 -->
 <a id="operator"></a>
 
 # CIRNET RULES Dashboard
@@ -128,7 +128,7 @@ records and link an old alias to a separately reviewed live binding with
 `legacy.inspect` and `legacy.link`. Import leaves the source intact and
 does not reactivate grants, leases or old runs.
 
-Run `scripts/package-dashboard.ps1` against an installed Windows staging tree
+Run `cli/packaging/package-dashboard.ps1` against an installed Windows staging tree
 to record artifact SHA-256 and source provenance. The candidate remains
 `RELEASE_BLOCKED` until native Agent, isolation, authenticated review,
 clean Windows and redistribution gates are evidenced.

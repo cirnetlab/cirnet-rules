@@ -3,7 +3,7 @@ file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" CIRNETRULES_VERSION LIMIT_COU
 if(NOT CIRNETRULES_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a numeric application version")
 endif()
-include(scripts/application_identity.cmake)
+include(cli/build/application_identity.cmake)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${identity_manifest}" VERSION Cargo.toml)
 file(STRINGS Cargo.toml cargo_identity REGEX "^(name|version) = ")
 list(GET cargo_identity 0 cargo_package)

@@ -1,10 +1,10 @@
 mod execution;
-mod process;
 mod snapshot;
 
 pub use execution::{execute_step, run};
 pub(crate) use snapshot::git_executable;
 
+use crate::execution::process;
 use crate::{docs, tasks};
 use serde_json::{Value, json};
 use snapshot::{capture, is_boundary, safe_relative, sensitive};

@@ -1,8 +1,11 @@
 <!-- doc-id: TOOLS -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="commands"></a>
 
 # Rust governance tooling
+
+Use [CNR](../references/cnr.md) for runtime, SDK and development tool management.
+The maintenance binary remains available for scoped governance tasks.
 
 Use Rust and Cargo 1.99.1 and Git. A WORK task requires only its selected
 checkout bindings. Build once and run the binary for subsequent steps.

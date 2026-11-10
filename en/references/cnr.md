@@ -1,0 +1,100 @@
+<!-- doc-id: CNR-OPERATOR -->
+<!-- revision: 1 -->
+<a id="cnr-cli"></a>
+
+# CNR operator guide
+
+CNR is the CIRNET RULES terminal for runtimes, SDKs and development tools.
+Build it with the repository's pinned Rust and Cargo:
+
+~~~sh
+cargo build --locked --bin cnr
+./target/debug/cnr --help
+./target/debug/cnr --project . env plan --json
+~~~
+
+On Windows use `target/debug/cnr.exe`. Run `cnr` or `cnr tui` from an
+interactive terminal. Use the arrow keys, Enter, slash for search, and Esc
+or Ctrl+C to leave. `--lang vi` selects Vietnamese terminal labels and
+command summaries. `--no-banner` selects the compact header and `NO_COLOR`
+removes color. A noninteractive launch prints help. The version, help and
+catalog can run without a project or a Desktop process.
+
+<a id="environment"></a>
+
+## Project configuration
+
+- `cnr init` creates `cnr.toml` while retaining any existing configuration.
+  Resolve a directory with `--project PATH` or the nearest project marker.
+- `cnr pin rust@1.99.1` sets a project pin. `cnr use rust@1.99.1` selects
+  it in the active profile. Inspect and edit with `config show`,
+  `config get KEY`, `config set KEY VALUE` or `config unset KEY`. A removed pin
+  stays protected by an older lock until the lock is refreshed. Set keys such as
+  `profile`, `tools.rust` or `profiles.dev.rust`.
+- `cnr env plan` lists native requirements, resolved versions, and
+  conflicts or unresolved pins. `cnr env lock` records exact versions and
+  native manifest digests in `cnr.lock`. `--locked` requires a matching
+  lock and checks for drift. Native dependency lockfiles remain authoritative.
+- `cnr env sync --dry-run` plans the exact selected versions. Add
+  `--yes` to confirm the project-scoped plan after review. Completed
+  steps can be reused if a later step fails. Use `env profiles`,
+  `env export --json` and `env import PATH` to exchange project configuration.
+  Store the exported JSON separately from the tool installations.
+
+<a id="tool-providers"></a>
+
+## Providers and ownership
+
+`search QUERY`, `list` and `info TOOL` read the same catalog. Filter with
+`--type runtime|toolchain|sdk|package-manager|development-tool`,
+`--installed` or `--available`. Available refers to the local catalog.
+`doctor` reports local prerequisites and project environment status.
+
+Rust, Python and Node use an existing native `rustup`, `uv` or `fnm`
+respectively. An installation uses an exact release and project-local
+storage. Review `cnr install TOOL@VERSION --dry-run`, then explicitly
+confirm it with `--yes`. `cnr update` previews; an explicit
+`update TOOL@VERSION` selects a single target. `update --all` selects
+the exact versions in the current environment. `remove TOOL[@VERSION]`
+checks ownership, project references and active use. User and system scope
+changes require a separately authorized installer.
+
+CMake, Ninja, Qt, MSVC, Windows SDK and the other catalog tools expose
+discovery and capability status. Use their approved installers when a native
+mutation is unavailable. `--offline` limits managed installations to
+already satisfied operations. Use `cache` and `audit` for local state and
+receipts. A failed external installer may leave a recovery record; rerun
+the same reviewed operation or use the recovery information it reports.
+
+<a id="execution"></a>
+
+## Native execution and governance
+
+Use `build`, `run` and `test` with a supported engine, for example
+`cnr build rust --locked --offline --dry-run`. Use `package ENGINE ACTION`
+for supported native dependency operations, and `exec -- PROGRAM ARG...`
+for an explicit executable. For changes and execution, review the plan
+and confirm the operation with `--yes`. Arguments after the delimiter
+are passed as values, with platform and policy validation.
+
+Use `venv create NAME [VERSION]`, `venv list`, `venv info NAME`,
+`venv run NAME -- ARG...` and `venv remove NAME`. Runs use the environment's
+interpreter in a child process. A virtual environment stays bound to its
+project and interpreter.
+
+Native dependency options and deadlines apply only where the selected
+engine can enforce them. Build hooks, package lifecycle scripts and
+explicit commands can act with the local process's permissions. The
+process harness bounds captured output and owns cancellation and cleanup.
+
+Use `cnr workspace discover` and `cnr task show -- --task ID` for
+existing governance operations. Options after the delimiter follow the
+[maintenance workflow](cirnetrules-local.md). CNR leaves maintenance
+command envelopes, task grants, and Dashboard IPC authority in place.
+The existing release workflow remains separately authorized.
+
+`--json` returns one JSON document on stdout. Native process output is
+bounded and sent separately to stderr. Exit 0 means success, 1 means
+failure, 2 means blocked or unrun, and 130 means cancelled.
+`child_exit_code` reports the child separately. `cnr completion SHELL` emits completion for
+Bash, Zsh, Fish or PowerShell.

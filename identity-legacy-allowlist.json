@@ -10,6 +10,13 @@
       }
     },
     {
+      "path": "cli/packaging/package-dashboard.ps1",
+      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
+      "matches": {
+        "bc1e160c56a4cecea19455f0ae8a9d7164bc85cc34e08b82ab92ae69b6f9a9ab": 1
+      }
+    },
+    {
       "path": "en/CHANGELOG.md",
       "reason": "Earlier change or verification identifiers retained as history.",
       "matches": {
@@ -245,13 +252,6 @@
       "reason": "Historical plan or specification retained at its original path and contents.",
       "matches": {
         "4a7dce2670033663847d458bda0a7e17a69a9bf7e2bd4ee681b7d42e7d2bbf43": 1
-      }
-    },
-    {
-      "path": "scripts/package-dashboard.ps1",
-      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
-      "matches": {
-        "bc1e160c56a4cecea19455f0ae8a9d7164bc85cc34e08b82ab92ae69b6f9a9ab": 1
       }
     },
     {

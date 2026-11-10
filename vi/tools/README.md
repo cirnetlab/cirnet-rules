@@ -1,11 +1,14 @@
 <!-- doc-id: TOOLS -->
-<!-- revision: 2 -->
-<!-- source-sha256: 7fbcbd317ff37398d5e94b41be4af415305af1e00a993a81df86cd083d61d572 -->
+<!-- revision: 3 -->
+<!-- source-sha256: 6d27850e7db712ecb876c3e3e40070c8785aaabfcc044e9dec1cc45e69eeaddf -->
 <!-- translation-status: synchronized -->
 
 <a id="commands"></a>
 
 # Công cụ quản trị Rust
+
+Dùng [CNR](../references/cnr.md) để quản lý runtime, SDK và công cụ phát triển.
+Binary bảo trì vẫn phục vụ các task governance có phạm vi.
 
 Dùng Rust và Cargo 1.99.1 cùng Git. Task WORK cần các checkout đã liên kết
 trong phạm vi. Build một lần rồi chạy binary cho các bước sau. Mã 0 là

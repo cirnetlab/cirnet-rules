@@ -4,6 +4,8 @@
 
 Local Rust tooling for scoped task routing, execution, verification and governance.
 
+[CNR CLI guide](en/references/cnr.md) · [Hướng dẫn CNR CLI](vi/references/cnr.md)
+
 [Dashboard operator guide](en/references/dashboard.md) · [Hướng dẫn Dashboard](vi/references/dashboard.md)
 
 Open **Settings → Configuration** to author and review governance from Desktop.

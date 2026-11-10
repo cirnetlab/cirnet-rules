@@ -5,7 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$sourceRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$sourceRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $metadata = Get-Content -LiteralPath (Join-Path $sourceRoot 'application-identity.json') -Raw | ConvertFrom-Json
 $product = [string]$metadata.product_id
 if ($product -cnotmatch '^[a-z][a-z0-9]*$') { throw 'Invalid application product ID.' }

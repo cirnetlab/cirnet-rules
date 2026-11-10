@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-CHANGELOG -->
-<!-- revision: 3 -->
+<!-- revision: 4 -->
 <a id="unreleased"></a>
 
 # Changelog
@@ -8,6 +8,7 @@
 
 ### Added
 
+- CNR adds a project-scoped terminal for environment, provider and native execution workflows. It shares the existing maintenance core.
 - The native Configuration workspace manages bilingual drafts, text attachments, review, publication and rollback through the Rust runtime and SQLite.
 - Published assets can be assigned to repository bindings and included in a deterministic context preview. New conversations and automation runs pin governance metadata.
 - Read-only probes inspect the pinned OpenHands and OpenCode version endpoints. Import inspection reports the supported subset of selected upstream formats.

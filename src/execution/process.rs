@@ -12,7 +12,7 @@ use std::{
 mod owned;
 const CLEANUP_LIMIT: Duration = Duration::from_secs(2);
 
-pub(super) struct Output {
+pub(crate) struct Output {
     pub prefix: Vec<u8>,
     pub truncated: bool,
 }
@@ -33,11 +33,11 @@ fn capture(mut reader: impl Read, limit: usize) -> io::Result<Output> {
     Ok(Output { prefix, truncated })
 }
 
-pub(super) struct ResultRecord {
+pub(crate) struct ResultRecord {
     pub exit: ExitStatus,
     pub output: Output,
-    error: Output,
-    elapsed_ms: u64,
+    pub error: Output,
+    pub elapsed_ms: u64,
     pub timed_out: bool,
     pub cancelled: bool,
     drained: bool,
@@ -91,11 +91,22 @@ fn drain(
     }
 }
 
-pub(super) fn run_process(
+pub(crate) fn run_process(
     command: &mut Command,
     timeout: Duration,
     limit: usize,
     cancel: Option<&Path>,
+) -> Result<ResultRecord, String> {
+    run_process_with(command, timeout, limit, || {
+        cancel.is_some_and(Path::is_file)
+    })
+}
+
+pub(super) fn run_process_with(
+    command: &mut Command,
+    timeout: Duration,
+    limit: usize,
+    is_cancelled: impl Fn() -> bool,
 ) -> Result<ResultRecord, String> {
     let start = Instant::now();
     command
@@ -113,7 +124,7 @@ pub(super) fn run_process(
         if let Some(exit) = tree.poll(&mut child)? {
             break exit;
         }
-        cancelled = cancel.is_some_and(Path::is_file);
+        cancelled = is_cancelled();
         timed_out = !cancelled && start.elapsed() >= timeout;
         if cancelled || timed_out {
             tree.stop()?;
@@ -142,7 +153,7 @@ pub(super) fn run_process(
     })
 }
 
-pub(super) fn process_receipt(result: ResultRecord) -> Value {
+pub(crate) fn process_receipt(result: ResultRecord) -> Value {
     let mut digest = Sha256::new();
     digest.update((result.output.prefix.len() as u64).to_le_bytes());
     digest.update(&result.output.prefix);

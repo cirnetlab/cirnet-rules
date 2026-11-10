@@ -45,7 +45,7 @@ mod platform {
         }
     }
 
-    pub(in crate::runner::process) struct Tree(Handle);
+    pub(in crate::execution::process) struct Tree(Handle);
 
     impl Tree {
         fn new() -> Result<Self, String> {
@@ -82,7 +82,7 @@ mod platform {
             Ok(())
         }
 
-        pub(in crate::runner::process) fn stop(&self) -> Result<(), String> {
+        pub(in crate::execution::process) fn stop(&self) -> Result<(), String> {
             // SAFETY: this job handle is non-inheritable and owned by the runner.
             if unsafe { TerminateJobObject(self.0.0, 1) } == 0 {
                 return Err("Unable to confirm process Job Object termination".into());
@@ -113,7 +113,7 @@ mod platform {
             }
         }
 
-        pub(in crate::runner::process) fn poll(
+        pub(in crate::execution::process) fn poll(
             &self,
             child: &mut Child,
         ) -> Result<Option<ExitStatus>, String> {
@@ -171,7 +171,7 @@ mod platform {
         Ok(())
     }
 
-    pub(in crate::runner::process) fn spawn(
+    pub(in crate::execution::process) fn spawn(
         command: &mut Command,
     ) -> Result<(Child, Tree), String> {
         let tree = Tree::new()?;
@@ -189,7 +189,7 @@ mod platform {
         Ok((child, tree))
     }
 
-    pub(in crate::runner::process) const OWNERSHIP: &str = "windows_job_object";
+    pub(in crate::execution::process) const OWNERSHIP: &str = "windows_job_object";
 }
 
 #[cfg(unix)]
@@ -197,9 +197,9 @@ mod platform {
     use super::{Child, Command, ExitStatus};
     use std::os::unix::process::CommandExt;
 
-    pub(in crate::runner::process) struct Tree(libc::pid_t);
+    pub(in crate::execution::process) struct Tree(libc::pid_t);
     impl Tree {
-        pub(in crate::runner::process) fn poll(
+        pub(in crate::execution::process) fn poll(
             &self,
             child: &mut Child,
         ) -> Result<Option<ExitStatus>, String> {
@@ -227,7 +227,7 @@ mod platform {
             super::super::wait_bounded(child).map(Some)
         }
 
-        pub(in crate::runner::process) fn stop(&self) -> Result<(), String> {
+        pub(in crate::execution::process) fn stop(&self) -> Result<(), String> {
             // SAFETY: spawn created a private process group whose ID equals
             // its leader's PID. Negative ID targets this owned group only.
             if unsafe { libc::kill(-self.0, libc::SIGKILL) } != 0
@@ -239,7 +239,7 @@ mod platform {
         }
     }
 
-    pub(in crate::runner::process) fn spawn(
+    pub(in crate::execution::process) fn spawn(
         command: &mut Command,
     ) -> Result<(Child, Tree), String> {
         let mut child = command
@@ -257,7 +257,7 @@ mod platform {
         Ok((child, Tree(pid)))
     }
 
-    pub(in crate::runner::process) const OWNERSHIP: &str = "unix_process_group";
+    pub(in crate::execution::process) const OWNERSHIP: &str = "unix_process_group";
 }
 
 pub(super) use platform::{OWNERSHIP, spawn};

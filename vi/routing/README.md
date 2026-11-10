@@ -1,10 +1,12 @@
 <!-- doc-id: CIRNETRULES-ROUTING -->
-<!-- revision: 1 -->
-<!-- source-sha256: 65cc4d97dba503995821ea14d8c0728f414ba702cf603172749504ecdaac12a3 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 97ec3aec084a3139903636032c0e436649b4f5cd9de1c2a861e4fa1f763457a1 -->
 <!-- translation-status: synchronized -->
 <a id="routing"></a>
 
 # Workspace local và định tuyến
+
+CNR cung cấp các thao tác bảo trì qua [lệnh workspace và task](../references/cnr.md#execution).
 
 `workspace-discover` đọc metadata trong giới hạn của workspace và đề xuất
 ứng viên. Dùng `workspace-bind` với ID repo đã đăng ký, đường dẫn tương đối

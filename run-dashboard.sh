@@ -13,7 +13,7 @@ if ! command -v cmake >/dev/null 2>&1; then
     exit 1
 fi
 
-product_id=$(cmake -P scripts/application_identity.cmake)
+product_id=$(cmake -P cli/build/application_identity.cmake)
 [ -n "$product_id" ]
 
 export CARGO_TARGET_DIR="$root/target"

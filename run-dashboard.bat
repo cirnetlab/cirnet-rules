@@ -14,7 +14,7 @@ if errorlevel 1 (
 )
 
 set "PRODUCT_ID="
-for /f "delims=" %%I in ('cmake -P scripts/application_identity.cmake') do set "PRODUCT_ID=%%I"
+for /f "delims=" %%I in ('cmake -P cli/build/application_identity.cmake') do set "PRODUCT_ID=%%I"
 if not defined PRODUCT_ID goto :failed
 
 rem Prefer a matching installed stable toolchain when rustup has no version alias.
