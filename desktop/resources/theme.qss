@@ -122,9 +122,17 @@ QListWidget#conversationList, QListWidget#settingsNavigation { background: trans
 QListWidget#conversationList::item, QListWidget#settingsNavigation::item { border-radius: 8px; }
 QListWidget#settingsNavigation::item { padding: @VERTICAL_PAD@px 8px; }
 QListWidget#settingsNavigation::item:selected { font-weight: 650; }
-QHeaderView { background: @SURFACE@; }
-QHeaderView::section { background: @SURFACE@; color: @TEXT@; border: 0; padding: @VERTICAL_PAD@px 8px; }
-QTableView { alternate-background-color: @ALTERNATE_ROW@; }
+QTableView[dataTable="true"] {
+    border: 1px solid @BORDER@; alternate-background-color: @ALTERNATE_ROW@;
+}
+QTableView[dataTable="true"]::item { padding: @VERTICAL_PAD@px 10px; }
+QTableView[dataTable="true"]::item:hover:!selected { background: @TABLE_HOVER@; }
+QTableView[dataTable="true"]::item:selected { background: @TABLE_SELECTED@; color: @TEXT@; }
+QTableView[dataTable="true"] QHeaderView { background: @TABLE_HEADER@; border-bottom: 1px solid @BORDER@; }
+QTableView[dataTable="true"] QHeaderView::section {
+    background: @TABLE_HEADER@; color: @TEXT@; font-weight: 600;
+    border: 0; padding: @TABLE_HEADER_PAD@px 10px;
+}
 QDialog, QMessageBox, QMenu, QComboBox QAbstractItemView { background: @SURFACE@; }
 QMenu, QComboBox QAbstractItemView { border: 1px solid @CONTROL@; }
 QMenu::item:selected { color: @TEXT@; background: @SELECTED@; }

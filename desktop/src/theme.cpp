@@ -629,13 +629,20 @@ public:
             p.drawLine(8, 15.3, 10, 15.3);
             break;
         }
-        case UiIcon::Trash:
-            p.drawLine(3.5, 5.5, 14.5, 5.5);
-            p.drawPolyline(QPolygonF{{5, 5.5}, {6, 15}, {12, 15}, {13, 5.5}});
-            p.drawPolyline(QPolygonF{{7, 5.5}, {7, 3}, {11, 3}, {11, 5.5}});
-            p.drawLine(8, 8, 8, 12);
-            p.drawLine(10, 8, 10, 12);
+        case UiIcon::Trash: {
+            p.setPen(QPen(ink, 1.65, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            p.drawLine(QPointF(2.75, 5.25), QPointF(15.25, 5.25));
+            p.drawPolyline(QPolygonF{{6.75, 5.25}, {7.5, 2.75}, {10.5, 2.75}, {11.25, 5.25}});
+            QPainterPath body(QPointF(4.25, 5.25));
+            body.lineTo(5.0, 13.75);
+            body.quadTo(5.15, 15.25, 6.65, 15.25);
+            body.lineTo(11.35, 15.25);
+            body.quadTo(12.85, 15.25, 13.0, 13.75);
+            body.lineTo(13.75, 5.25);
+            p.drawPath(body);
+            p.drawLine(QPointF(9, 8.25), QPointF(9, 12.25));
             break;
+        }
         case UiIcon::Success:
             p.drawEllipse(QPointF(9, 9), 6.5, 6.5);
             p.drawPolyline(QPolygonF{{5.8, 9}, {8.0, 11.2}, {12.2, 7}});
@@ -684,7 +691,8 @@ private:
         case UiIcon::Question: return QColor(light ? "#245f94" : "#8bbcf0");
         case UiIcon::Success: return QColor(light ? "#176546" : "#80d5a6");
         case UiIcon::Warning: return QColor(light ? "#794908" : "#ebbf83");
-        case UiIcon::Error: return QColor(light ? "#9e2720" : "#ffaaa3");
+        case UiIcon::Error:
+        case UiIcon::Trash: return QColor(light ? "#9e2720" : "#ffaaa3");
         default: return palette.color(QPalette::WindowText);
         }
     }
@@ -809,6 +817,9 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     const auto onAccent = appearanceColorContrast(accent, Qt::black) >= appearanceColorContrast(accent, Qt::white)
         ? QColor(Qt::black) : QColor(Qt::white);
     const auto selected = lightSurface ? blend(canvas, accent, 0.17) : blend(canvas, neutral, 0.105);
+    const auto tableHeader = blend(surface, neutral, lightSurface ? 0.085 : 0.063);
+    const auto tableHover = blend(base, neutral, lightSurface ? 0.055 : 0.067);
+    const auto tableSelected = blend(base, neutral, lightSurface ? 0.16 : 0.12);
     const auto scrollThumb = !lightSurface ? blend(border, control, 0.45)
         : accentKey == "cirnet" && !customBackground.isValid() ? QColor("#638878") : blend(control, accent, 0.40);
     const auto contrastAccent = appearanceColorContrast(canvas, accent) >= 3.0 ? accent : neutral;
@@ -871,6 +882,8 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
             {"CANVAS", canvas.name()}, {"RAIL", rail.name()}, {"SURFACE", surface.name()}, {"BASE", base.name()},
             {"COMPOSER", composer.name()},
             {"ALTERNATE_ROW", alternateRow.name()}, {"BORDER", border.name()}, {"CONTROL", control.name()},
+            {"TABLE_HEADER", tableHeader.name()}, {"TABLE_HOVER", tableHover.name()},
+            {"TABLE_SELECTED", tableSelected.name()}, {"TABLE_HEADER_PAD", QString::number(padding + 3)},
             {"TEXT", text.name()}, {"MUTED", muted.name()}, {"HOVER", hover.name()}, {"SELECTED", selected.name()},
             {"ACCENT", contrastAccent.name()}, {"PRIMARY", accent.name()}, {"ON_ACCENT", onAccent.name()},
             {"SCROLL_THUMB", scrollThumb.name()},

@@ -795,7 +795,7 @@ private:
         erase->setObjectName("deleteArchivedChat");
         erase->setProperty("actionRole", "danger");
         erase->setIcon(uiIcon(UiIcon::Trash));
-        erase->setIconSize({16, 16});
+        erase->setIconSize({18, 18});
         live::text(erase, [] { return tr("Review deletion"); }, &QWidget::setToolTip);
         live::text(erase, [title] { return tr("Delete %1").arg(title); }, &QWidget::setAccessibleName);
         erase->setFocusPolicy(Qt::StrongFocus);

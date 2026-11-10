@@ -1,6 +1,5 @@
 #pragma once
 
-#include <QApplication>
 #include <QHeaderView>
 #include <QHoverEvent>
 #include <QItemSelectionModel>
@@ -30,11 +29,13 @@ class FullRowTable final : public QTableView {
 public:
     FullRowTable()
     {
+        setProperty("dataTable", true);
         setSelectionBehavior(SelectRows);
         setSelectionMode(SingleSelection);
         setEditTriggers(NoEditTriggers);
         setAlternatingRowColors(true);
         setShowGrid(false);
+        horizontalHeader()->setTextElideMode(Qt::ElideRight);
         viewport()->setAttribute(Qt::WA_Hover);
         setItemDelegate(new RowDelegate(*this));
     }
@@ -51,19 +52,27 @@ protected:
     void paintEvent(QPaintEvent *event) override
     {
         QTableView::paintEvent(event);
+        if (!model() || !selectionModel())
+            return;
         QPainter painter(viewport());
         const auto tail = trailingArea();
-        if (tail.intersects(event->rect())) {
-            QStyleOptionViewItem option;
-            initViewItemOption(&option);
-            option.viewItemPosition = QStyleOptionViewItem::End;
-            const int hovered = hoveredRow();
-            for (int row = rowAt(event->rect().top()); row >= 0 && row < model()->rowCount(); ++row) {
-                const auto bounds = rowBounds(row);
-                if (bounds.top() > event->rect().bottom())
-                    break;
+        const bool paintTail = tail.intersects(event->rect());
+        QStyleOptionViewItem option;
+        initViewItemOption(&option);
+        option.viewItemPosition = QStyleOptionViewItem::End;
+        const auto divider = option.palette.brush(QPalette::Dark);
+        const auto accent = option.palette.brush(QPalette::Link);
+        const int hovered = hoveredRow();
+        const int rowCount = model()->rowCount(rootIndex());
+        for (int row = rowAt(event->rect().top()); row >= 0 && row < rowCount; ++row) {
+            const auto bounds = rowBounds(row);
+            if (bounds.top() > event->rect().bottom())
+                break;
+            if (bounds.isEmpty())
+                continue;
+            const bool selected = selectionModel()->isRowSelected(row, rootIndex());
+            if (paintTail) {
                 option.rect = bounds.intersected(tail);
-                const bool selected = selectionModel()->isRowSelected(row, rootIndex());
                 if (selected || row == hovered) {
                     option.state.setFlag(QStyle::State_Selected, selected);
                     option.state.setFlag(QStyle::State_MouseOver, row == hovered);
@@ -75,9 +84,14 @@ protected:
                     painter.fillRect(option.rect, option.palette.brush(role));
                 }
             }
+            painter.fillRect(bounds.left(), bounds.bottom(), bounds.width(), 1, divider);
+            if (selected) {
+                const int edge = isRightToLeft() ? bounds.right() - 1 : bounds.left();
+                painter.fillRect(edge, bounds.top(), 2, bounds.height() - 1, accent);
+            }
         }
         if (hasFocus() && currentIndex().isValid() && property("keyboardFocusVisible").toBool()) {
-            painter.setPen(QApplication::palette().color(QPalette::Highlight));
+            painter.setPen(option.palette.color(QPalette::Link));
             painter.drawRect(rowBounds(currentIndex().row()).adjusted(0, 0, -1, -1));
         }
     }
