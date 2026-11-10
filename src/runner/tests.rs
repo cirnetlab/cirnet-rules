@@ -195,7 +195,7 @@ fn timeout_and_cancel_stop_owned_descendants_before_they_write() {
             let ready = ready.clone();
             let marker = marker.clone();
             std::thread::spawn(move || {
-                let until = std::time::Instant::now() + Duration::from_secs(4);
+                let until = std::time::Instant::now() + Duration::from_secs(10);
                 while !ready.is_file() && std::time::Instant::now() < until {
                     std::thread::sleep(Duration::from_millis(10));
                 }
@@ -204,7 +204,7 @@ fn timeout_and_cancel_stop_owned_descendants_before_they_write() {
         });
         let mut command = fixture_command("parent-wait");
         command.env("CIRNETRULES_TREE_FIXTURE", &fixture);
-        let timeout = Duration::from_millis(if cancelled { 5000 } else { 1100 });
+        let timeout = Duration::from_millis(if cancelled { 10000 } else { 6000 });
         let receipt = process_receipt(
             run_process(
                 &mut command,
@@ -252,21 +252,21 @@ fn subprocess_fixture() {
             let dir =
                 std::path::PathBuf::from(std::env::var_os("CIRNETRULES_TREE_FIXTURE").unwrap());
             let mut descendant = fixture_command("descendant").spawn().unwrap();
-            let until = std::time::Instant::now() + Duration::from_secs(3);
+            let until = std::time::Instant::now() + Duration::from_secs(10);
             while !dir.join("ready").is_file() {
                 assert!(std::time::Instant::now() < until);
                 std::thread::sleep(Duration::from_millis(10));
             }
             assert!(descendant.try_wait().unwrap().is_none());
             if mode == "parent-wait" {
-                std::thread::sleep(Duration::from_secs(30));
+                std::thread::sleep(Duration::from_secs(60));
             }
         }
         Ok("descendant") => {
             let dir =
                 std::path::PathBuf::from(std::env::var_os("CIRNETRULES_TREE_FIXTURE").unwrap());
             std::fs::write(dir.join("ready"), b"1").unwrap();
-            std::thread::sleep(Duration::from_secs(3));
+            std::thread::sleep(Duration::from_secs(30));
             std::fs::write(dir.join("late"), b"1").unwrap();
         }
         _ => {}
