@@ -73,9 +73,7 @@ QString dateText(qint64 epoch)
 
 QColor usageColor(const QPalette &palette, bool archived)
 {
-    if (!archived)
-        return palette.color(QPalette::Highlight);
-    return palette.color(QPalette::Window).lightness() > 128 ? QColor("#39728c") : QColor("#80b4ca");
+    return archived ? uiTone(UiTone::Info) : palette.color(QPalette::Highlight);
 }
 
 class StorageDot final : public QWidget {
@@ -215,7 +213,7 @@ public:
         auto *backupHeader = new QBoxLayout(QBoxLayout::LeftToRight);
         backupHeader->addWidget(live::text(textLabel({}, "sectionTitle"), [] { return tr("Backups and verification"); }), 1);
         backup_ = button([] { return tr("Create backup"); }, "createStorageBackup", *backupHeader);
-        backup_->setIcon(uiIcon(UiIcon::Add));
+        backup_->setIcon(uiPrimaryIcon(UiIcon::Add));
         backup_->setProperty("primary", true);
         backupGroup->addLayout(backupHeader);
         backupGroup->addWidget(live::text(textLabel({}), [] { return tr("Verification does not restore or overwrite your data."); }));

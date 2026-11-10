@@ -13,7 +13,11 @@ enum class UiIcon {
     Sliders, Storage, Archive, Runtime, Bell, Trash
 };
 
+enum class UiTone { TableHover, TableSelection, Info, Success, Warning, Danger };
+
 QIcon uiIcon(UiIcon symbol, const QColor &color = {});
+QIcon uiPrimaryIcon(UiIcon symbol);
+QColor uiTone(UiTone tone);
 QColor defaultAppearanceBackground(bool light);
 QColor appearanceAccent(const QString &accent, bool light, const QString &custom = {});
 double appearanceColorContrast(const QColor &first, const QColor &second);

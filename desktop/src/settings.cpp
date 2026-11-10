@@ -157,8 +157,7 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
         const auto colors = palette();
-        auto border = colors.color(QPalette::WindowText);
-        border.setAlpha(55);
+        const auto border = colors.color(QPalette::Dark);
         const auto surface = colors.color(underMouse() || isDown() ? QPalette::Button : QPalette::Base);
         const bool keyboardFocus = property("keyboardFocusVisible").toBool();
         const int outline = keyboardFocus ? 3 : isChecked() ? 2 : 1;
@@ -393,7 +392,6 @@ public:
         dot_->setObjectName(valueName + "Picker");
         dot_->setFixedSize(26, 26);
         dot_->setIconSize({16, 16});
-        dot_->setStyleSheet(QStringLiteral("QToolButton { padding: 0; }"));
         row->addWidget(dot_);
         value_ = new QLineEdit;
         value_->setObjectName(valueName);
@@ -408,9 +406,6 @@ public:
         });
         value_->setMaxLength(7);
         value_->setValidator(new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^#?[A-Fa-f0-9]{0,6}$")), value_));
-        value_->setStyleSheet(QStringLiteral(
-            "QLineEdit { border: 1px solid transparent; background: transparent; border-radius: 5px; padding: 2px 4px; }"
-            "QLineEdit:focus { border-color: palette(link); }"));
         row->addWidget(value_);
         setFocusProxy(value_);
         setFocusPolicy(Qt::StrongFocus);
@@ -713,26 +708,24 @@ QWidget *MainWindow::makeAppearanceSettings()
                                                 QPalette::Window, true, colorChange);
     foregroundColor_ = new AppearanceColorField("appearanceForeground", [] { return tr("Foreground"); },
                                                 QPalette::WindowText, true, colorChange);
-    auto *contrast = live::text(label({},
-                           "meta"), [] { return tr("Low contrast between background and text may make some content difficult to read."); });
+    auto *contrast = live::text(label({}, "meta"), [] { return tr("Some colors were adjusted for readability."); });
     contrast->setObjectName("appearanceContrastWarning");
     const auto refreshColors = [this, contrast] {
         const auto palette = QApplication::palette();
         const auto background = palette.color(QPalette::Window);
         const auto foreground = palette.color(QPalette::WindowText);
+        const auto accent = palette.color(QPalette::Highlight);
         const bool light = appearanceColorContrast(background, Qt::black) >= appearanceColorContrast(background, Qt::white);
+        const auto custom = accentColor_->stored().isEmpty() ? accent.name() : accentColor_->stored();
         for (int i = 0; i < accentChoice_->count(); ++i) {
             const auto key = accentChoice_->itemData(i).toString();
-            const auto custom = accentColor_->stored().isEmpty() ? palette.color(QPalette::Highlight).name()
-                                                                 : accentColor_->stored();
             accentChoice_->setItemIcon(i, colorDot(appearanceAccent(key, light, custom)));
         }
         for (auto *field : {backgroundColor_, foregroundColor_, accentColor_})
             field->refresh();
-        const bool lowContrast = appearanceColorContrast(background, foreground) < 4.5;
-        if (lowContrast)
-            contrast->setStyleSheet(light ? QStringLiteral("color: #000000") : QStringLiteral("color: #ffffff"));
-        contrast->setVisible(lowContrast);
+        const QColor preferredText(foregroundColor_->stored());
+        const auto preferredAccent = appearanceAccent(accentChoice_->currentData().toString(), light, custom);
+        contrast->setVisible((preferredText.isValid() && preferredText != foreground) || preferredAccent != accent);
     };
     connect(theme_, &ThemeManager::changed, appearance, refreshColors);
     uiFontChoice_ = new QComboBox;

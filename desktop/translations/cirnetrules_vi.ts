@@ -36,7 +36,7 @@
     <message><source>Hue</source><translation>Sắc độ</translation></message>
     <message><source>Apply</source><translation>Áp dụng</translation></message>
     <message><source>Unavailable: %1</source><translation>Không khả dụng: %1</translation></message>
-    <message><source>Low contrast between background and text may make some content difficult to read.</source><translation>Độ tương phản thấp giữa nền và chữ có thể khiến một số nội dung khó đọc.</translation></message>
+    <message><source>Some colors were adjusted for readability.</source><translation>Một số màu đã được điều chỉnh để dễ đọc hơn.</translation></message>
     <message><source>Advanced appearance</source><translation>Giao diện nâng cao</translation></message>
     <message><source>Accent</source><translation>Màu nhấn</translation></message>
     <message><source>Default teal</source><translation>Xanh ngọc mặc định</translation></message>

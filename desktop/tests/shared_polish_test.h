@@ -1,20 +1,26 @@
 #pragma once
 
+#include "governance_editor.h"
 #include "theme.h"
 
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QEnterEvent>
 #include <QFontDatabase>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QScopeGuard>
 #include <QSlider>
 #include <QSpinBox>
+#include <QPushButton>
 #include <QTest>
 #include <QTextDocument>
+#include <QTextLayout>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -104,6 +110,101 @@ inline void appearancePixelsAndPaletteApplyToOpenWidgets()
         break;
     }
     theme.apply("dark", "comfortable", 100);
+}
+
+inline void customColorsKeepOpenSurfacesReadable()
+{
+    ThemeManager theme;
+    const auto restore = qScopeGuard([&] { theme.apply("dark", "comfortable", 100); });
+    QDialog panel;
+    auto *layout = new QVBoxLayout(&panel);
+    auto *label = new QLabel("Settings");
+    auto *field = new QLineEdit;
+    field->setPlaceholderText("Search");
+    auto *editor = new QPlainTextEdit;
+    editor->setObjectName("conversationComposer");
+    auto *primary = new QPushButton("Apply");
+    primary->setProperty("primary", true);
+    layout->addWidget(label);
+    layout->addWidget(field);
+    layout->addWidget(editor);
+    layout->addWidget(primary);
+    QMenu menu(&panel);
+    menu.addAction("Menu action");
+    menu.ensurePolished();
+    panel.resize(350, 235);
+    panel.show();
+
+    const auto colorAt = [](QWidget &widget, const QPoint &point) {
+        const auto frame = widget.grab();
+        const auto dpr = frame.devicePixelRatio();
+        return frame.toImage().pixelColor(qRound(point.x() * dpr), qRound(point.y() * dpr));
+    };
+    QColor previousEditor;
+    QColor previousPanel;
+    QColor previousMenu;
+    for (const auto *background : {"#10172C", "#757575", "#777777", "#A9B4EF", "#FFFDE0"}) {
+        theme.apply("dark", "comfortable", 100, {
+            {"background", background}, {"foreground", background},
+            {"accent", "custom"}, {"custom_accent", background}
+        });
+        const auto colors = QApplication::palette();
+        QCOMPARE(colors.color(QPalette::Window), QColor(background));
+        for (const auto group : {QPalette::Active, QPalette::Inactive}) {
+            for (const auto role : {QPalette::Window, QPalette::Base, QPalette::Button,
+                                    QPalette::AlternateBase, QPalette::Midlight}) {
+                QVERIFY2(appearanceColorContrast(colors.color(group, QPalette::Text),
+                                                colors.color(group, role)) >= 4.5, background);
+            }
+            QVERIFY2(appearanceColorContrast(colors.color(group, QPalette::HighlightedText),
+                                            colors.color(group, QPalette::Highlight)) >= 4.5, background);
+        }
+        const auto dialog = colorAt(panel, QPoint(4, panel.height() / 2));
+        const auto composition = colorAt(*editor->viewport(), editor->viewport()->rect().center());
+        const auto input = colorAt(*field, QPoint(field->width() - 14, field->height() / 2));
+        const auto action = colorAt(*primary, QPoint(12, primary->height() / 2));
+        menu.resize(menu.sizeHint());
+        const auto popup = colorAt(menu, QPoint(menu.width() - 6, menu.height() / 2));
+        QVERIFY2(dialog != previousPanel && composition != previousEditor && popup != previousMenu, background);
+        QVERIFY2(appearanceColorContrast(label->palette().color(QPalette::WindowText), dialog) >= 4.5, background);
+        QVERIFY2(appearanceColorContrast(colors.color(QPalette::Text), composition) >= 4.5, background);
+        QVERIFY2(appearanceColorContrast(colors.color(QPalette::PlaceholderText), input) >= 4.5, background);
+        QVERIFY2(appearanceColorContrast(colors.color(QPalette::HighlightedText), action) >= 4.5, background);
+        QVERIFY2(appearanceColorContrast(colors.color(QPalette::Text), popup) >= 4.5, background);
+        previousEditor = composition;
+        previousPanel = dialog;
+        previousMenu = popup;
+    }
+}
+
+inline void governanceTextTracksLiveTheme()
+{
+    ThemeManager theme;
+    theme.apply("dark", "comfortable", 100);
+    const auto restore = qScopeGuard([&] { theme.apply("dark", "comfortable", 100); });
+    GovernanceEditor editor;
+    GovernancePreview preview;
+    editor.setPlainText("# Header\nA draft");
+    editor.selectAll();
+    preview.showSource("[Policy](policy.md)", true);
+    const auto ink = [](const QTextDocument &document) {
+        const auto first = document.firstBlock();
+        const auto formats = first.layout()->formats();
+        return formats.isEmpty() ? first.begin().fragment().charFormat().foreground().color()
+                                 : formats.first().format.foreground().color();
+    };
+    QTRY_COMPARE(ink(*editor.document()), editor.palette().color(QPalette::Link));
+    QCOMPARE(ink(*preview.document()), preview.palette().color(QPalette::Link));
+
+    theme.apply("light", "comfortable", 100, {{"accent", "purple"}});
+    const auto verify = [&](const auto &widget) {
+        QCOMPARE(ink(*widget.document()), widget.palette().color(QPalette::Link));
+    };
+    verify(editor);
+    verify(preview);
+    QCOMPARE(editor.toPlainText(), QStringLiteral("# Header\nA draft"));
+    QVERIFY(editor.textCursor().hasSelection());
+    QCOMPARE(preview.document()->firstBlock().begin().fragment().charFormat().anchorHref(), QStringLiteral("policy.md"));
 }
 
 inline void wheelScrollsWithoutChangingEditors()

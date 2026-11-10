@@ -1,10 +1,12 @@
 #pragma once
 
 #include "interaction_cases.h"
+#include "full_row_table.h"
 
 #include <QHeaderView>
 #include <QHoverEvent>
 #include <QScopeGuard>
+#include <QStandardItemModel>
 #include <QTableView>
 
 namespace table_visual {
@@ -89,6 +91,60 @@ inline void verifyAlternateRowTail(QTableView &table, const QString &captureSuff
     QCOMPARE(pixelAt(base, QPoint(tail, odd.y())), pixelAt(base, odd));
     interaction_cases::capture(table, QStringLiteral("repositories-full-width-stripes") + captureSuffix);
     verifyFullRowHover(table, QStringLiteral("repositories-full-row-hover") + captureSuffix, true);
+}
+
+inline void liveThemeAndKeyboardFocus()
+{
+    ThemeManager theme;
+    theme.apply("light", "comfortable", 100, {{"accent", "cobalt"}});
+    QStandardItemModel model(3, 2);
+    model.setHorizontalHeaderLabels({"Name", "State"});
+    model.setData(model.index(0, 0), "Fixture");
+    FullRowTable table;
+    table.setModel(&model);
+    table.verticalHeader()->hide();
+    table.setColumnWidth(0, 105);
+    table.setColumnWidth(1, 95);
+    table.resize(375, 180);
+    interaction_cases::pinToPrimary(table);
+    table.show();
+    table.activateWindow();
+    auto &viewport = *table.viewport();
+    const auto first = cellSample(table, 0, 0);
+    const auto last = cellSample(table, 0, 1);
+    const QPoint tail(viewport.width() - 8, first.y());
+    QVERIFY(tail.x() > last.x() + 10);
+    QTest::mouseClick(&viewport, Qt::LeftButton, Qt::NoModifier, first);
+    QTRY_VERIFY(table.hasFocus());
+    QVERIFY(table.selectionModel()->isRowSelected(0));
+    const auto selected = viewport.grab();
+    const auto cobalt = pixelAt(selected, first);
+    QCOMPARE(pixelAt(selected, last), cobalt);
+    QCOMPARE(pixelAt(selected, tail), cobalt);
+
+    QTest::keyClick(&table, Qt::Key_Control);
+    QTest::keyClick(&table, Qt::Key_C, Qt::ControlModifier);
+    QVERIFY(!table.property("keyboardFocusVisible").toBool());
+    QCOMPARE(viewport.grab().toImage(), selected.toImage());
+
+    theme.apply("light", "comfortable", 100, {{"accent", "purple"}});
+    const auto purpleRow = viewport.grab();
+    const auto purple = pixelAt(purpleRow, first);
+    QVERIFY2(purple != cobalt, "Selection should use the active accent instead of a neutral fill");
+    QCOMPARE(pixelAt(purpleRow, last), purple);
+    QCOMPARE(pixelAt(purpleRow, tail), purple);
+    auto &header = *table.horizontalHeader();
+    const auto headerImage = header.grab();
+    for (const int y : {4, header.height() - 1})
+        QCOMPARE(pixelAt(headerImage, {95, y}), pixelAt(headerImage, {header.width() - 8, y}));
+
+    QTest::keyClick(&table, Qt::Key_Down);
+    QCOMPARE(table.currentIndex().row(), 1);
+    QVERIFY(table.property("keyboardFocusVisible").toBool());
+    const auto keyboardRow = viewport.grab();
+    const auto next = cellSample(table, 1, 0);
+    QCOMPARE(pixelAt(keyboardRow, {3, next.y()}), table.palette().color(QPalette::Link));
+    QCOMPARE(pixelAt(keyboardRow, {tail.x(), next.y() - 3}), pixelAt(keyboardRow, next));
 }
 
 } // namespace table_visual

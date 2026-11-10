@@ -343,11 +343,8 @@ void MainWindow::updateShellIcons()
     localStatus_->setToolButtonStyle(compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
     localStatus_->setToolTip(connectionStatus_);
     localStatus_->setAccessibleName(tr("Local — %1").arg(connectionStatus_));
-    const bool light = QApplication::palette().color(QPalette::Window).lightness() > 128;
-    const QColor status = online_ ? QColor(light ? "#086a55" : "#25bd64") :
-                         connecting_ ? QColor(light ? "#7e540a" : "#e9bf7f") :
-                                       QColor(light ? "#a32f27" : "#ffaaa3");
-    localStatus_->setIcon(uiIcon(UiIcon::Status, status));
+    const auto status = online_ ? UiTone::Success : connecting_ ? UiTone::Warning : UiTone::Danger;
+    localStatus_->setIcon(uiIcon(UiIcon::Status, uiTone(status)));
 }
 
 void MainWindow::showPage(QWidget *page)

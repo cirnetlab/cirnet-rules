@@ -401,7 +401,7 @@ Release %3
     <message><source>Hue</source><translation>色相</translation></message>
     <message><source>Apply</source><translation>应用</translation></message>
     <message><source>Unavailable: %1</source><translation>不可用：%1</translation></message>
-    <message><source>Low contrast between background and text may make some content difficult to read.</source><translation>背景与文字的对比度较低，部分内容可能难以阅读。</translation></message>
+    <message><source>Some colors were adjusted for readability.</source><translation>部分颜色已调整以提高可读性。</translation></message>
     <message><source>Changes the language of the open Dashboard.</source><translation>立即更改当前仪表板的语言。</translation></message>
   </context>
   <context>

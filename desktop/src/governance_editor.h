@@ -13,7 +13,8 @@
 class GovernanceEditor final : public QPlainTextEdit {
 public:
     explicit GovernanceEditor(QWidget *parent = nullptr)
-        : QPlainTextEdit(parent), gutter_(new Gutter(*this))
+        : QPlainTextEdit(parent), gutter_(new Gutter(*this)),
+          highlighter_(new Highlighter(document(), *this))
     {
         setProperty("codeText", true);
         setTabChangesFocus(true);
@@ -24,7 +25,6 @@ public:
             else
                 gutter_->update(0, rect.y(), gutter_->width(), rect.height());
         });
-        new Highlighter(document(), *this);
         placeGutter();
     }
 
@@ -38,8 +38,12 @@ protected:
     void changeEvent(QEvent *event) override
     {
         QPlainTextEdit::changeEvent(event);
-        if (event->type() == QEvent::FontChange || event->type() == QEvent::PaletteChange)
+        if (event->type() == QEvent::FontChange)
             placeGutter();
+        if (event->type() == QEvent::PaletteChange) {
+            highlighter_->rehighlight();
+            gutter_->update();
+        }
     }
 
 private:
@@ -103,11 +107,35 @@ private:
     }
 
     Gutter *gutter_;
+    Highlighter *highlighter_;
 };
 
 class GovernancePreview final : public QTextBrowser {
+    class LinkHighlighter final : public QSyntaxHighlighter {
+    public:
+        explicit LinkHighlighter(GovernancePreview &preview)
+            : QSyntaxHighlighter(preview.document()), preview_(preview) {}
+
+    protected:
+        void highlightBlock(const QString &) override
+        {
+            const auto block = currentBlock();
+            const auto color = preview_.palette().color(QPalette::Link);
+            // Markdown stores the import-time link color. Override it only for painting.
+            for (auto it = block.begin(); !it.atEnd(); ++it) {
+                const auto fragment = it.fragment();
+                if (fragment.charFormat().isAnchor())
+                    setFormat(fragment.position() - block.position(), fragment.length(), color);
+            }
+        }
+
+    private:
+        const GovernancePreview &preview_;
+    };
+
 public:
-    explicit GovernancePreview(QWidget *parent = nullptr) : QTextBrowser(parent)
+    explicit GovernancePreview(QWidget *parent = nullptr)
+        : QTextBrowser(parent), links_(new LinkHighlighter(*this))
     {
         setOpenLinks(false);
         setOpenExternalLinks(false);
@@ -122,5 +150,15 @@ public:
     }
 
 protected:
+    void changeEvent(QEvent *event) override
+    {
+        QTextBrowser::changeEvent(event);
+        if (event->type() == QEvent::PaletteChange)
+            links_->rehighlight();
+    }
+
     QVariant loadResource(int, const QUrl &) override { return {}; }
+
+private:
+    LinkHighlighter *links_;
 };

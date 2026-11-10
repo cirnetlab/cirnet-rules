@@ -248,7 +248,7 @@ QWidget *GovernancePanel::makeLibrary()
     filters->addWidget(kind_);
     filters->addWidget(search_, 1);
     new_ = button(QT_TRANSLATE_NOOP("GovernancePanel", "New asset"), "governanceNew", "primary");
-    new_->setIcon(uiIcon(UiIcon::Add));
+    new_->setIcon(uiPrimaryIcon(UiIcon::Add));
     import_ = button(QT_TRANSLATE_NOOP("GovernancePanel", "Import file"), "governanceImport");
     filters->addWidget(import_);
     filters->addWidget(new_);

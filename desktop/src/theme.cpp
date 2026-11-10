@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QFocusEvent>
 #include <QIconEngine>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
@@ -23,11 +24,15 @@
 #include <QStyleFactory>
 #include <QStyleHints>
 #include <QStyleOption>
+#include <QTabBar>
 #include <QTimer>
 #include <QToolButton>
 #include <QWheelEvent>
 #include <QtMath>
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <span>
 
 namespace {
 QFont systemFont;
@@ -56,6 +61,141 @@ double luminance(const QColor &color)
         return channel <= 0.04045 ? channel / 12.92 : std::pow((channel + 0.055) / 1.055, 2.4);
     };
     return 0.2126 * linear(color.redF()) + 0.7152 * linear(color.greenF()) + 0.0722 * linear(color.blueF());
+}
+
+constexpr double textContrast = 4.5;
+constexpr double controlContrast = 3.0;
+
+QColor contrastingInk(const QColor &background)
+{
+    return appearanceColorContrast(background, Qt::black) >= appearanceColorContrast(background, Qt::white)
+        ? QColor(Qt::black) : QColor(Qt::white);
+}
+
+QColor contrastInk(const QColor &preferred, const QColor &fallback,
+                   std::span<const QColor> backgrounds, double minimum)
+{
+    const auto fits = [=](const QColor &ink) {
+        return std::ranges::all_of(backgrounds, [&](const QColor &background) {
+            return appearanceColorContrast(background, ink) >= minimum;
+        });
+    };
+    if (fits(preferred))
+        return preferred;
+    // Move only as far toward the common ink pole as the rendered surfaces need.
+    double lower = 0;
+    double upper = 1;
+    for (int i = 0; i < 10; ++i) {
+        const auto midpoint = (lower + upper) / 2;
+        if (fits(blend(preferred, fallback, midpoint)))
+            upper = midpoint;
+        else
+            lower = midpoint;
+    }
+    return blend(preferred, fallback, upper);
+}
+
+struct ThemeColors {
+    QColor canvas, rail, surface, base, composer, alternateRow, border, control;
+    QColor hover, selected, tableHeader, tableHover, tableSelected;
+    QColor text, muted, disabled, accent, onAccent, accentHover, accentPressed, focus;
+    QColor info, success, warning, danger;
+
+    QPalette palette() const
+    {
+        QPalette colors;
+        colors.setColor(QPalette::Window, canvas);
+        colors.setColor(QPalette::WindowText, text);
+        colors.setColor(QPalette::Base, base);
+        colors.setColor(QPalette::AlternateBase, alternateRow);
+        colors.setColor(QPalette::Text, text);
+        colors.setColor(QPalette::Button, surface);
+        colors.setColor(QPalette::ButtonText, text);
+        colors.setColor(QPalette::ToolTipBase, surface);
+        colors.setColor(QPalette::ToolTipText, text);
+        colors.setColor(QPalette::PlaceholderText, muted);
+        colors.setColor(QPalette::Light, hover);
+        colors.setColor(QPalette::Midlight, hover);
+        colors.setColor(QPalette::Mid, control);
+        colors.setColor(QPalette::Dark, border);
+        colors.setColor(QPalette::Shadow, blend(canvas, Qt::black, 0.22));
+        colors.setColor(QPalette::BrightText, onAccent);
+        colors.setColor(QPalette::Highlight, accent);
+        colors.setColor(QPalette::HighlightedText, onAccent);
+        colors.setColor(QPalette::Link, focus);
+        colors.setColor(QPalette::LinkVisited, focus);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+        colors.setColor(QPalette::Accent, accent);
+#endif
+        for (const auto role : {QPalette::Text, QPalette::WindowText, QPalette::ButtonText,
+                                QPalette::PlaceholderText, QPalette::Link, QPalette::LinkVisited})
+            colors.setColor(QPalette::Disabled, role, disabled);
+        colors.setColor(QPalette::Disabled, QPalette::Highlight, control);
+        colors.setColor(QPalette::Disabled, QPalette::HighlightedText, contrastingInk(control));
+        return colors;
+    }
+};
+
+ThemeColors currentColors;
+
+ThemeColors resolveColors(bool lightMode, const QJsonObject &appearance)
+{
+    ThemeColors colors;
+    const auto background = hexColor(appearance.value("background").toString());
+    colors.canvas = background.isValid() ? background : defaultAppearanceBackground(lightMode);
+    const auto ink = contrastingInk(colors.canvas);
+    const bool light = ink == Qt::black;
+    const auto paper = light ? QColor(Qt::white) : QColor(Qt::black);
+    // Midtones need layers that move away from text rather than eroding its contrast.
+    const auto shade = appearanceColorContrast(colors.canvas, ink) >= 7.0 ? ink : paper;
+    const auto layer = [&](const QColor &surface, const QColor &tint, double amount) {
+        const auto candidate = blend(surface, tint, amount);
+        return appearanceColorContrast(candidate, ink) >= textContrast
+            ? candidate : blend(surface, paper, amount);
+    };
+    colors.rail = layer(colors.canvas, shade, light ? 0.035 : 0.025);
+    colors.surface = layer(colors.canvas, light ? paper : shade, light ? 0.62 : 0.075);
+    colors.base = layer(colors.canvas, light ? paper : shade, light ? 0.45 : 0.055);
+    colors.composer = light ? colors.base : layer(colors.canvas, shade, 0.11);
+    colors.hover = layer(colors.canvas, shade, light ? 0.068 : 0.092);
+    colors.alternateRow = layer(colors.base, shade, 0.035);
+    colors.tableHeader = layer(colors.base, shade, 0.078);
+    colors.tableHover = layer(colors.base, shade, 0.065);
+    colors.border = blend(colors.canvas, shade, light ? 0.18 : 0.15);
+
+    const auto requestedAccent = appearanceAccent(appearance.value("accent").toString("cirnet"),
+                                                  light, appearance.value("custom_accent").toString());
+    const std::array canvasOnly{colors.canvas};
+    colors.accent = contrastInk(requestedAccent, ink, canvasOnly, controlContrast);
+    colors.selected = layer(colors.canvas, colors.accent, 0.20);
+    colors.tableSelected = layer(colors.base, colors.accent, 0.20);
+    colors.onAccent = contrastingInk(colors.accent);
+    const auto accentState = [&](double amount) {
+        const auto candidate = blend(colors.accent, colors.onAccent, amount);
+        return appearanceColorContrast(candidate, colors.onAccent) >= textContrast
+            ? candidate : blend(colors.accent, contrastingInk(colors.onAccent), amount);
+    };
+    colors.accentHover = accentState(0.08);
+    colors.accentPressed = accentState(0.15);
+
+    const std::array surfaces{colors.canvas, colors.rail, colors.surface, colors.base, colors.composer,
+                              colors.hover, colors.selected, colors.alternateRow, colors.tableHeader,
+                              colors.tableHover, colors.tableSelected};
+    const auto foreground = hexColor(appearance.value("foreground").toString());
+    const auto preferred = foreground.isValid() ? foreground : QColor(light ? "#192a23" : "#f1f1f1");
+    colors.text = contrastInk(preferred, ink, surfaces, textContrast);
+    colors.muted = contrastInk(blend(colors.canvas, colors.text, 0.72), ink, surfaces, textContrast);
+    colors.disabled = contrastInk(blend(colors.canvas, colors.text, 0.43), ink, surfaces, controlContrast);
+    colors.control = contrastInk(blend(colors.canvas, ink, 0.35), ink, surfaces, controlContrast);
+    colors.focus = contrastInk(colors.accent, ink, surfaces, textContrast);
+    const auto status = [&](const char *dark, const char *bright) {
+        return contrastInk(QColor(light ? bright : dark), ink, surfaces, textContrast);
+    };
+    colors.info = status("#8bbcf0", "#245f94");
+    colors.success = status("#80d5a6", "#176546");
+    colors.warning = status("#ebbf83", "#794908");
+    colors.danger = status("#ffaaa3", "#9e2720");
+    return colors;
 }
 
 void revealScrollBar(QScrollBar *bar, bool visible)
@@ -134,6 +274,24 @@ bool routeEditorWheel(QWidget *widget, QWheelEvent &event)
     return overEditor;
 }
 
+bool usesManagedFocus(const QWidget *widget)
+{
+    return qobject_cast<const QAbstractButton *>(widget)
+        || qobject_cast<const QAbstractItemView *>(widget) || qobject_cast<const QTabBar *>(widget);
+}
+
+bool isNavigationKey(int key)
+{
+    switch (key) {
+    case Qt::Key_Tab: case Qt::Key_Backtab:
+    case Qt::Key_Left: case Qt::Key_Right: case Qt::Key_Up: case Qt::Key_Down:
+    case Qt::Key_Home: case Qt::Key_End: case Qt::Key_PageUp: case Qt::Key_PageDown:
+        return true;
+    default:
+        return false;
+    }
+}
+
 class InteractionState final : public QObject {
 public:
     explicit InteractionState(QApplication &app) : QObject(&app)
@@ -146,13 +304,16 @@ protected:
     {
         switch (event->type()) {
         case QEvent::MouseButtonPress:
+        case QEvent::NonClientAreaMouseButtonPress:
         case QEvent::TouchBegin:
             keyboard_ = false;
             setFocusVisible(nullptr);
             break;
         case QEvent::KeyPress:
-            keyboard_ = true;
-            setFocusVisible(QApplication::focusWidget());
+            if (isNavigationKey(static_cast<QKeyEvent *>(event)->key())) {
+                keyboard_ = true;
+                setFocusVisible(QApplication::focusWidget());
+            }
             break;
         case QEvent::FocusIn: {
             // Qt also dispatches the focus event to its styles after the widget.
@@ -210,7 +371,7 @@ protected:
 private:
     void setFocusVisible(QWidget *widget)
     {
-        if (!qobject_cast<QAbstractButton *>(widget) && !qobject_cast<QAbstractItemView *>(widget))
+        if (!usesManagedFocus(widget))
             widget = nullptr;
         if (focus_ == widget)
             return;
@@ -390,9 +551,7 @@ public:
     void drawPrimitive(PrimitiveElement part, const QStyleOption *option, QPainter *painter,
                        const QWidget *widget) const override
     {
-        if (part == PE_FrameFocusRect &&
-            (qobject_cast<const QAbstractButton *>(widget) ||
-             (qobject_cast<const QAbstractItemView *>(widget) && !widget->property(keyboardFocusProperty).toBool())))
+        if (part == PE_FrameFocusRect && usesManagedFocus(widget))
             return;
 
         Qt::ArrowType direction = Qt::NoArrow;
@@ -483,9 +642,10 @@ QPointer<DashboardStyle> dashboardStyle;
 
 class VectorIcon final : public QIconEngine {
 public:
-    VectorIcon(UiIcon symbol, QColor color) : symbol_(symbol), color_(color) {}
+    VectorIcon(UiIcon symbol, QColor color, bool primary = false)
+        : symbol_(symbol), color_(color), primary_(primary) {}
 
-    QIconEngine *clone() const override { return new VectorIcon(symbol_, color_); }
+    QIconEngine *clone() const override { return new VectorIcon(symbol_, color_, primary_); }
 
     QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override
     {
@@ -598,9 +758,10 @@ public:
             p.drawPolygon(QPolygonF{{2.5, 5}, {7, 5}, {9, 7}, {15.5, 7}, {15.5, 14.5}, {2.5, 14.5}});
             break;
         case UiIcon::Sliders:
-            p.drawLine(3, 6, 15, 6);
-            p.drawLine(3, 12, 15, 12);
-            p.setBrush(QApplication::palette().window());
+            p.drawLine(QPointF(3, 6), QPointF(5.2, 6));
+            p.drawLine(QPointF(8.8, 6), QPointF(15, 6));
+            p.drawLine(QPointF(3, 12), QPointF(9.2, 12));
+            p.drawLine(QPointF(12.8, 12), QPointF(15, 12));
             p.drawEllipse(QPointF(7, 6), 1.8, 1.8);
             p.drawEllipse(QPointF(11, 12), 1.8, 1.8);
             break;
@@ -681,30 +842,50 @@ private:
         const auto palette = QApplication::palette();
         if (mode == QIcon::Disabled)
             return palette.color(QPalette::Disabled, QPalette::ButtonText);
+        if (primary_)
+            return palette.color(QPalette::HighlightedText);
         if (color_.isValid())
             return color_;
-        const bool light = palette.color(QPalette::Window).lightness() >= 128;
         switch (symbol_) {
         case UiIcon::Clear:
         case UiIcon::Search: return palette.color(QPalette::PlaceholderText);
         case UiIcon::Info:
-        case UiIcon::Question: return QColor(light ? "#245f94" : "#8bbcf0");
-        case UiIcon::Success: return QColor(light ? "#176546" : "#80d5a6");
-        case UiIcon::Warning: return QColor(light ? "#794908" : "#ebbf83");
+        case UiIcon::Question: return uiTone(UiTone::Info);
+        case UiIcon::Success: return uiTone(UiTone::Success);
+        case UiIcon::Warning: return uiTone(UiTone::Warning);
         case UiIcon::Error:
-        case UiIcon::Trash: return QColor(light ? "#9e2720" : "#ffaaa3");
+        case UiIcon::Trash: return uiTone(UiTone::Danger);
         default: return palette.color(QPalette::WindowText);
         }
     }
 
     UiIcon symbol_;
     QColor color_;
+    bool primary_;
 };
 }
 
 QIcon uiIcon(UiIcon symbol, const QColor &color)
 {
     return QIcon(new VectorIcon(symbol, color));
+}
+
+QIcon uiPrimaryIcon(UiIcon symbol)
+{
+    return QIcon(new VectorIcon(symbol, {}, true));
+}
+
+QColor uiTone(UiTone tone)
+{
+    switch (tone) {
+    case UiTone::TableHover: return currentColors.tableHover;
+    case UiTone::TableSelection: return currentColors.tableSelected;
+    case UiTone::Info: return currentColors.info;
+    case UiTone::Success: return currentColors.success;
+    case UiTone::Warning: return currentColors.warning;
+    case UiTone::Danger: return currentColors.danger;
+    }
+    Q_UNREACHABLE_RETURN(QColor{});
 }
 
 QColor defaultAppearanceBackground(bool light)
@@ -753,6 +934,7 @@ void applyTheme(QApplication &app)
     dashboardStyle = new DashboardStyle;
     app.setStyle(dashboardStyle);
     new InteractionState(app);
+    ThemeManager{}.apply("dark", "comfortable", 100);
 }
 
 ThemeManager::ThemeManager(QObject *parent) : QObject(parent)
@@ -770,7 +952,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     const bool light = theme == "light" || (theme == "system" &&
                        (scheme == Qt::ColorScheme::Light ||
                         (scheme == Qt::ColorScheme::Unknown &&
-                         systemPalette.color(QPalette::Window).lightness() >= 128)));
+                         contrastingInk(systemPalette.color(QPalette::Window)) == Qt::black)));
     if (theme_ == theme && density_ == density && textScale_ == textScale &&
         light_ == light && appearance_ == appearance)
         return;
@@ -782,71 +964,9 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
     const int padding = qBound(2, appearance.value("density_px").toInt(density == "compact" ? 4 : 6), 14);
     if (dashboardStyle)
         dashboardStyle->setVerticalPadding(padding);
-    const auto customBackground = hexColor(appearance.value("background").toString());
-    const auto customForeground = hexColor(appearance.value("foreground").toString());
-    const auto canvas = customBackground.isValid() ? customBackground : defaultAppearanceBackground(light);
-    const bool lightSurface = customBackground.isValid()
-        ? appearanceColorContrast(canvas, Qt::black) >= appearanceColorContrast(canvas, Qt::white)
-        : light;
-    const auto tone = [lightSurface](const char *dark, const char *bright) {
-        return QColor(lightSurface ? bright : dark);
-    };
-    const auto neutral = tone("#ffffff", "#000000");
-    const auto layer = [&](const char *bright, double darkOpacity, double lightOpacity) {
-        if (!lightSurface)
-            return blend(canvas, neutral, darkOpacity);
-        return customBackground.isValid() ? blend(canvas, neutral, lightOpacity) : QColor(bright);
-    };
-    const auto rail = layer("#ecf2ef", 0.03, 0.04);
-    const auto surface = customBackground.isValid() && lightSurface ? blend(canvas, Qt::white, 0.24)
-                                                                   : layer("#ffffff", 0.067, 0.07);
-    const auto base = customBackground.isValid() && lightSurface ? blend(canvas, Qt::white, 0.17)
-                                                                : layer("#ffffff", 0.055, 0.045);
-    const auto composer = lightSurface ? base : blend(canvas, neutral, 0.12);
-    const auto alternateRow = layer("#eff4f1", 0.08, 0.075);
-    const auto border = layer("#c9d6cf", 0.13, 0.19);
-    const auto control = layer("#687d72", 0.42, 0.46);
-    const auto defaultText = tone("#f1f1f1", "#192a23");
-    const auto text = customForeground.isValid() ? customForeground
-        : appearanceColorContrast(canvas, defaultText) >= 4.5 ? defaultText : neutral;
-    const auto muted = !lightSurface || customBackground.isValid() || customForeground.isValid()
-        ? blend(canvas, text, lightSurface ? 0.78 : 0.70) : QColor("#50665c");
-    const auto hover = layer("#e4eee8", 0.092, 0.11);
-    const auto accentKey = appearance.value("accent").toString("cirnet");
-    const auto accent = appearanceAccent(accentKey, lightSurface, appearance.value("custom_accent").toString());
-    const auto onAccent = appearanceColorContrast(accent, Qt::black) >= appearanceColorContrast(accent, Qt::white)
-        ? QColor(Qt::black) : QColor(Qt::white);
-    const auto selected = lightSurface ? blend(canvas, accent, 0.17) : blend(canvas, neutral, 0.105);
-    const auto tableHeader = blend(surface, neutral, lightSurface ? 0.085 : 0.063);
-    const auto tableHover = blend(base, neutral, lightSurface ? 0.055 : 0.067);
-    const auto tableSelected = blend(base, neutral, lightSurface ? 0.16 : 0.12);
-    const auto scrollThumb = !lightSurface ? blend(border, control, 0.45)
-        : accentKey == "cirnet" && !customBackground.isValid() ? QColor("#638878") : blend(control, accent, 0.40);
-    const auto contrastAccent = appearanceColorContrast(canvas, accent) >= 3.0 ? accent : neutral;
-    const auto danger = tone("#ffaaa3", "#9e2720");
-    const auto warning = tone("#ebbf83", "#794908");
-
-    QPalette palette;
-    palette.setColor(QPalette::Window, QColor(canvas));
-    palette.setColor(QPalette::WindowText, QColor(text));
-    palette.setColor(QPalette::Base, QColor(base));
-    palette.setColor(QPalette::AlternateBase, QColor(alternateRow));
-    palette.setColor(QPalette::Text, QColor(text));
-    palette.setColor(QPalette::Button, QColor(surface));
-    palette.setColor(QPalette::ButtonText, QColor(text));
-    palette.setColor(QPalette::ToolTipBase, QColor(surface));
-    palette.setColor(QPalette::ToolTipText, QColor(text));
-    palette.setColor(QPalette::PlaceholderText, QColor(muted));
-    palette.setColor(QPalette::Mid, QColor(control));
-    palette.setColor(QPalette::Dark, QColor(border));
-    palette.setColor(QPalette::Midlight, QColor(hover));
-    palette.setColor(QPalette::Highlight, QColor(accent));
-    palette.setColor(QPalette::HighlightedText, QColor(onAccent));
-    palette.setColor(QPalette::Link, contrastAccent);
-    for (const auto role : {QPalette::Text, QPalette::WindowText, QPalette::ButtonText})
-        palette.setColor(QPalette::Disabled, role, QColor(muted));
-    palette.setColor(QPalette::Disabled, QPalette::Highlight, QColor(control));
-    palette.setColor(QPalette::Disabled, QPalette::HighlightedText, QColor(onAccent));
+    currentColors = resolveColors(light, appearance);
+    const auto &colors = currentColors;
+    const auto palette = colors.palette();
     if (QApplication::palette() != palette)
         QApplication::setPalette(palette);
     const auto fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -879,17 +999,17 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
             return name;
         };
         const QList<QPair<QString, QString>> tokens{
-            {"CANVAS", canvas.name()}, {"RAIL", rail.name()}, {"SURFACE", surface.name()}, {"BASE", base.name()},
-            {"COMPOSER", composer.name()},
-            {"ALTERNATE_ROW", alternateRow.name()}, {"BORDER", border.name()}, {"CONTROL", control.name()},
-            {"TABLE_HEADER", tableHeader.name()}, {"TABLE_HOVER", tableHover.name()},
-            {"TABLE_SELECTED", tableSelected.name()}, {"TABLE_HEADER_PAD", QString::number(padding + 3)},
-            {"TEXT", text.name()}, {"MUTED", muted.name()}, {"HOVER", hover.name()}, {"SELECTED", selected.name()},
-            {"ACCENT", contrastAccent.name()}, {"PRIMARY", accent.name()}, {"ON_ACCENT", onAccent.name()},
-            {"SCROLL_THUMB", scrollThumb.name()},
-            {"PRIMARY_HOVER", blend(accent, onAccent == Qt::black ? Qt::white : Qt::black, 0.12).name()},
-            {"PRIMARY_PRESSED", blend(accent, onAccent, 0.14).name()},
-            {"DANGER", danger.name()}, {"WARNING", warning.name()}, {"TITLE_SIZE", scaled(24)},
+            {"CANVAS", colors.canvas.name()}, {"RAIL", colors.rail.name()},
+            {"SURFACE", colors.surface.name()}, {"BASE", colors.base.name()},
+            {"COMPOSER", colors.composer.name()}, {"ALTERNATE_ROW", colors.alternateRow.name()},
+            {"BORDER", colors.border.name()}, {"CONTROL", colors.control.name()},
+            {"TABLE_HEADER", colors.tableHeader.name()}, {"TABLE_HEADER_PAD", QString::number(padding + 3)},
+            {"TEXT", colors.text.name()}, {"MUTED", colors.muted.name()}, {"DISABLED", colors.disabled.name()},
+            {"HOVER", colors.hover.name()}, {"SELECTED", colors.selected.name()},
+            {"ACCENT", colors.focus.name()}, {"PRIMARY", colors.accent.name()},
+            {"ON_ACCENT", colors.onAccent.name()}, {"SCROLL_THUMB", colors.control.name()},
+            {"PRIMARY_HOVER", colors.accentHover.name()}, {"PRIMARY_PRESSED", colors.accentPressed.name()},
+            {"DANGER", colors.danger.name()}, {"WARNING", colors.warning.name()}, {"TITLE_SIZE", scaled(24)},
             {"SECTION_SIZE", scaled(15)}, {"META_SIZE", scaled(12)},
             {"CONTENT_SIZE", sizeFor("conversation_px", "content_scale")}, {"CODE_SIZE", sizeFor("code_px", "code_scale")},
             {"UI_FAMILY", cssFamily(font.family())},

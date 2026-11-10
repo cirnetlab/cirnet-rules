@@ -1,5 +1,7 @@
 #pragma once
 
+#include "theme.h"
+
 #include <QHeaderView>
 #include <QHoverEvent>
 #include <QItemSelectionModel>
@@ -16,10 +18,13 @@ class FullRowTable final : public QTableView {
 
         void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
         {
-            auto rowOption = option;
-            rowOption.state.setFlag(QStyle::State_HasFocus, false);
-            rowOption.state.setFlag(QStyle::State_MouseOver, index.row() == table_.hoveredRow());
-            QStyledItemDelegate::paint(painter, rowOption, index);
+            auto cell = option;
+            initStyleOption(&cell, index);
+            painter->fillRect(cell.rect, table_.rowBackground(index.row(), cell.palette));
+            cell.state &= ~(QStyle::State_HasFocus | QStyle::State_MouseOver | QStyle::State_Selected);
+            cell.features.setFlag(QStyleOptionViewItem::Alternate, false);
+            cell.backgroundBrush = QBrush{};
+            table_.style()->drawControl(QStyle::CE_ItemViewItem, &cell, painter, &table_);
         }
 
     private:
@@ -43,7 +48,7 @@ public:
     QModelIndex indexAt(const QPoint &position) const override
     {
         const auto index = QTableView::indexAt(position);
-        if (index.isValid() || !trailingArea().contains(position))
+        if (index.isValid() || !model() || !trailingArea().contains(position))
             return index;
         return model()->index(rowAt(position.y()), 0, rootIndex());
     }
@@ -57,12 +62,11 @@ protected:
         QPainter painter(viewport());
         const auto tail = trailingArea();
         const bool paintTail = tail.intersects(event->rect());
-        QStyleOptionViewItem option;
-        initViewItemOption(&option);
-        option.viewItemPosition = QStyleOptionViewItem::End;
-        const auto divider = option.palette.brush(QPalette::Dark);
-        const auto accent = option.palette.brush(QPalette::Link);
-        const int hovered = hoveredRow();
+        const auto colors = palette();
+        const auto divider = colors.brush(QPalette::Dark);
+        const auto accent = colors.brush(QPalette::Link);
+        const int focusRow = hasFocus() && property("keyboardFocusVisible").toBool()
+            ? currentIndex().row() : -1;
         const int rowCount = model()->rowCount(rootIndex());
         for (int row = rowAt(event->rect().top()); row >= 0 && row < rowCount; ++row) {
             const auto bounds = rowBounds(row);
@@ -71,28 +75,14 @@ protected:
             if (bounds.isEmpty())
                 continue;
             const bool selected = selectionModel()->isRowSelected(row, rootIndex());
-            if (paintTail) {
-                option.rect = bounds.intersected(tail);
-                if (selected || row == hovered) {
-                    option.state.setFlag(QStyle::State_Selected, selected);
-                    option.state.setFlag(QStyle::State_MouseOver, row == hovered);
-                    style()->drawPrimitive(QStyle::PE_PanelItemViewItem, &option, &painter, this);
-                } else {
-                    // The item style does not paint AlternateBase beyond the final cell.
-                    const bool alternate = alternatingRowColors() && row % 2;
-                    const auto role = alternate ? QPalette::AlternateBase : QPalette::Base;
-                    painter.fillRect(option.rect, option.palette.brush(role));
-                }
-            }
+            if (paintTail)
+                painter.fillRect(bounds.intersected(tail), rowBackground(row, colors));
             painter.fillRect(bounds.left(), bounds.bottom(), bounds.width(), 1, divider);
-            if (selected) {
-                const int edge = isRightToLeft() ? bounds.right() - 1 : bounds.left();
-                painter.fillRect(edge, bounds.top(), 2, bounds.height() - 1, accent);
+            if (selected || row == focusRow) {
+                const int width = row == focusRow ? 4 : 2;
+                const int edge = isRightToLeft() ? bounds.right() + 1 - width : bounds.left();
+                painter.fillRect(edge, bounds.top(), width, bounds.height() - 1, accent);
             }
-        }
-        if (hasFocus() && currentIndex().isValid() && property("keyboardFocusVisible").toBool()) {
-            painter.setPen(option.palette.color(QPalette::Link));
-            painter.drawRect(rowBounds(currentIndex().row()).adjusted(0, 0, -1, -1));
         }
     }
 
@@ -136,6 +126,15 @@ protected:
     }
 
 private:
+    QColor rowBackground(int row, const QPalette &colors) const
+    {
+        if (selectionModel()->isRowSelected(row, rootIndex()))
+            return uiTone(UiTone::TableSelection);
+        if (row == hoveredRow())
+            return uiTone(UiTone::TableHover);
+        return colors.color(alternatingRowColors() && row % 2 ? QPalette::AlternateBase : QPalette::Base);
+    }
+
     QRect trailingArea() const
     {
         // Keep saved column widths user-resizable and treat remaining space as part of the row.

@@ -664,6 +664,10 @@ private slots:
     }
 
     void mouseAndKeyboardFocus() { interaction_cases::mouseAndKeyboardFocus(); }
+    void listFocusRequiresKeyboardNavigation() { interaction_cases::listFocusRequiresKeyboardNavigation(); }
+    void liveTableThemeAndKeyboardFocus() { table_visual::liveThemeAndKeyboardFocus(); }
+    void customColorsKeepOpenSurfacesReadable() { shared_polish::customColorsKeepOpenSurfacesReadable(); }
+    void governanceTextTracksLiveTheme() { shared_polish::governanceTextTracksLiveTheme(); }
     void compoundArrows() { interaction_cases::compoundArrows(); }
     void settingsLayoutAndKeyboard() { withDashboardFixture(verifySettingsPolish); }
     void languageUpdatesOpenDashboard()
@@ -704,6 +708,16 @@ private slots:
             maintenance->click();
             QVERIFY(backup->isVisible());
             QVERIFY(backup->property("primary").toBool());
+            QTRY_VERIFY(backup->isEnabled());
+            for (const auto &mode : {"Dark", "Light"}) {
+                chooseTheme(window, mode);
+                const auto icon = backup->icon().pixmap(QSize(20, 20), 1.0).toImage();
+                const auto ink = icon.pixelColor(icon.rect().center());
+                const auto fill = backup->palette().color(QPalette::Active, QPalette::Highlight);
+                QVERIFY(ink.alpha() > 225);
+                QVERIFY2(appearanceColorContrast(ink, fill) >= 4.5,
+                         qPrintable(QStringLiteral("%1 mode icon %2 on %3").arg(mode, ink.name(), fill.name())));
+            }
             QVERIFY(window.findChild<QWidget *>("storageDatabaseActions"));
             QVERIFY(window.findChild<QWidget *>("storageBackupActions"));
             QVERIFY(!cancel->isVisible());
@@ -739,6 +753,17 @@ private slots:
                 QTRY_COMPARE(window.palette().color(role), QColor(hex));
                 QCOMPARE(swatch(), QColor(hex));
             }
+            auto *foreground = window.findChild<QLineEdit *>("appearanceForeground");
+            auto *warning = window.findChild<QLabel *>("appearanceContrastWarning");
+            QVERIFY(foreground && warning);
+            foreground->setFocus();
+            foreground->selectAll();
+            QTest::keyClicks(foreground, "#25384C");
+            QTest::keyClick(foreground, Qt::Key_Return);
+            QTRY_VERIFY(warning->isVisible());
+            QCOMPARE(foreground->text(), QStringLiteral("#25384C"));
+            QVERIFY(appearanceColorContrast(window.palette().color(QPalette::Window),
+                                            window.palette().color(QPalette::WindowText)) >= 4.5);
         });
     }
 

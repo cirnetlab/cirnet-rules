@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QImage>
+#include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
 #include <QScreen>
@@ -79,6 +80,10 @@ inline void mouseAndKeyboardFocus()
     const QColor accent = action->palette().color(QPalette::Highlight);
     const auto borderBand = QRect(10, 0, action->width() - 20, 3);
     const int mouseOutline = inkPixels(*action, action->grab().toImage(), borderBand, accent);
+    QTest::keyClick(action, Qt::Key_Control);
+    QTest::keyClick(action, Qt::Key_C, Qt::ControlModifier);
+    QVERIFY(!action->property("keyboardFocusVisible").toBool());
+    QCOMPARE(inkPixels(*action, action->grab().toImage(), borderBand, accent), mouseOutline);
     QTest::keyClick(action, Qt::Key_Tab);
     QTRY_VERIFY(primary->hasFocus());
     QTest::keyClick(primary, Qt::Key_Tab, Qt::ShiftModifier);
@@ -90,6 +95,35 @@ inline void mouseAndKeyboardFocus()
     QVERIFY2(mouseOutline < 5, "Clicking and moving away must not leave an accent outline");
     QVERIFY2(keyboardOutline >= 8, "Tab focus must have a visible outline");
     QVERIFY2(inkPixels(*primary, primaryImage, primarySurface, accent) >= 5, "Primary action must retain its filled surface");
+}
+
+inline void listFocusRequiresKeyboardNavigation()
+{
+    ThemeManager theme;
+    theme.apply("light", "comfortable", 100);
+    QListWidget list;
+    list.setObjectName("settingsNavigation");
+    list.addItems({"Appearance", "Storage", "About"});
+    list.resize(240, 140);
+    pinToPrimary(list);
+    list.show();
+    list.activateWindow();
+    const auto first = list.visualItemRect(list.item(0));
+    QTest::mouseClick(list.viewport(), Qt::LeftButton, Qt::NoModifier, first.center());
+    QTRY_VERIFY(list.hasFocus());
+    const auto selected = list.viewport()->grab().toImage();
+    QTest::keyClick(&list, Qt::Key_Control);
+    QTest::keyClick(&list, Qt::Key_C, Qt::ControlModifier);
+    QCOMPARE(list.viewport()->grab().toImage(), selected);
+    QVERIFY(!list.property("keyboardFocusVisible").toBool());
+
+    QTest::keyClick(&list, Qt::Key_Down);
+    QCOMPARE(list.currentRow(), 1);
+    QVERIFY(list.property("keyboardFocusVisible").toBool());
+    const auto row = list.visualItemRect(list.currentItem());
+    const auto marker = QRect(row.left(), row.center().y() - 5, 3, 11);
+    QVERIFY(inkPixels(*list.viewport(), list.viewport()->grab().toImage(), marker,
+                      list.palette().color(QPalette::Link)) >= 6);
 }
 
 inline void iconStyles()
