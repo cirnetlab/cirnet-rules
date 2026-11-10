@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-LOCAL -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="operator-workflow"></a>
 
 # CIRNETRULES local operator workflow
@@ -63,6 +63,34 @@ must use the current revision.
    Select claude or antigravity for the other adapters. Use an owner-exclusive
    external session. Report native discovery, hook execution and task
    execution separately from the prepared bundle.
+
+<a id="recover-maintenance-task"></a>
+
+## Recover a maintenance task
+
+Stop older writers and keep the original file store. To preserve a reviewed
+archive of task evidence and leases, use the
+[legacy archive](dashboard.md#legacy-archive). For an individual recovery,
+prepare a new descriptor with the original task ID, current central spec and
+plan, a current authorization owner, empty actions and no expiration.
+Review the original evidence separately.
+
+1. Use `task-create --descriptor descriptor.json --legacy-review preview`.
+   Review the source path, SHA-256, state and revision alongside the proposed
+   descriptor and the current spec, plan and governance it references.
+2. Repeat the same command with the returned `review_sha256` in place of
+   `preview`. If inputs changed, review the new preview. An ID in multiple
+   legacy stores or an unrelated current record with that ID blocks recovery.
+   Recover dependencies before tasks that reference them.
+3. Use `task-show --task ID` to confirm `PROPOSED` and the source receipt.
+   Use `workspace-bind` to verify current Git bindings and rebuild context
+   from current sources. Use `task-revise` for a fresh grant, then follow the
+   normal readiness and execution gates.
+
+The original task, approvals, checkpoints, leases and evidence stay in the
+retired store and are outside active authority. Recovery can be repeated for
+other reviewed tasks. Regular task creation stays guarded while a retired
+store remains in the checkout.
 
 For release, use an explicitly authorized RELEASE descriptor and
 `release-check --task ID --actor ACTOR`. The existing `check-release`

@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-IDENTITY -->
-<!-- revision: 2 -->
-<!-- source-sha256: 53daeb22babd06cf770f48d5d27e33b8e7c1dba59009fc1c5c4ae586a8c04d77 -->
+<!-- revision: 3 -->
+<!-- source-sha256: 0129256518926c70132a891eb3b7e09490a691501c1002ae8349e7423ade1bed -->
 <!-- translation-status: synchronized -->
 <a id="identity-cutover"></a>
 
@@ -23,8 +23,11 @@ thuộc IPC riêng của Desktop. Giao thức engine ngoài và schema SQLite re
    `CIRNETLAB`. Tham số `--data-dir` dùng chung thư mục và đặt tên database mới.
 2. Chọn **Sao lưu và nâng cấp**. Runtime khóa thư mục dữ liệu mới và lấy quyền
    truy cập SQLite độc quyền vào nguồn. Sao lưu online bao gồm các giao dịch
-   đã commit trong WAL. Runtime kiểm database, khóa ngoại, checksum schema
-   và digest của bản staging trước khi kích hoạt.
+   đã commit trong WAL. Runtime giữ backup gốc và nâng cấp schema trên một
+   bản staging riêng. Runtime kiểm database đã nâng cấp, khóa ngoại, lịch sử
+   migration và digest của bản staging trước khi kích hoạt. Nếu gặp lỗi
+   quyền, dung lượng hoặc SQL, xử lý lỗi được báo rồi mở lại Desktop để thử
+   lại. Bản staging chưa được cài nằm ngoài kho đang hoạt động.
 3. Có thể tạm dừng trước khi kích hoạt. Mở lại Desktop để tiếp tục. Bản staging
    chưa được cài sẽ được dựng lại từ nguồn đã khóa. Bản đã cài trước khi quá
    trình kích hoạt bị gián đoạn được đối chiếu với journal và backup. Mất
@@ -46,10 +49,12 @@ Database nguồn, backup và biên nhận cũ được giữ để khôi phục 
 cũ đóng sau kích hoạt để tránh ghi dữ liệu phân kỳ. Lịch sử đã công bố và byte
 của các migration trước được giữ nguyên.
 
-Kho task dạng tệp `.openrules` và `.cgacp` giữ nguyên byte. Thao tác bảo trì
-task dừng khi tìm thấy kho cũ. Cổng lưu trữ lịch sử có thể đưa bằng chứng task
-và binding đã rà soát vào SQLite. Quy trình này không kích hoạt task, lease
-hay approval cũ. Cache có thể dựng lại trong `.cirnetrules`.
+Kho task dạng tệp `.openrules` và `.cgacp` giữ nguyên byte. Cổng lưu trữ lịch
+sử đưa bằng chứng task và binding đã rà soát vào SQLite.
+[Quy trình khôi phục bảo trì](cirnetrules-local.md#recover-maintenance-task)
+có thể khôi phục từng task thành đề xuất với cùng ID và biên nhận nguồn.
+Cần cấp quyền mới và xác minh binding Git trước khi thực thi. Cache có thể
+dựng lại trong `.cirnetrules`.
 
 <a id="identity-namespaces"></a>
 

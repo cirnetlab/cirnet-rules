@@ -9,7 +9,7 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
-    fmt, fs,
+    fmt, fs, io,
     path::{Component, Path, PathBuf},
     sync::Arc,
     thread,
@@ -64,6 +64,19 @@ pub struct AppError {
 }
 
 impl AppError {
+    fn storage_io(error: io::Error, operation: &str) -> Self {
+        match error.kind() {
+            io::ErrorKind::PermissionDenied => Self::new(
+                "PERMISSION_DENIED",
+                format!("{operation} Access was denied."),
+            ),
+            io::ErrorKind::StorageFull => {
+                Self::new("STORAGE_FULL", format!("{operation} The disk is full."))
+            }
+            _ => Self::new("STORAGE_UNAVAILABLE", operation),
+        }
+    }
+
     pub fn new(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -186,7 +199,7 @@ impl Database {
             ));
         }
         conn.pragma_update(None, "synchronous", "FULL")?;
-        migrate(&mut conn, &data_dir, &path)?;
+        migrate(&mut conn, Some((&data_dir, &path)))?;
         conn.busy_timeout(Duration::from_millis(200))?;
         let machine_id = conn.query_row(
             "SELECT value FROM catalog_settings WHERE key = 'machine_id'",
@@ -235,9 +248,7 @@ impl Database {
             .write(true)
             .create_new(true)
             .open(&staged)
-            .map_err(|_| {
-                AppError::new("STORAGE_UNAVAILABLE", "Cannot reserve a local backup file.")
-            })?;
+            .map_err(|error| AppError::storage_io(error, "Cannot reserve a local backup file."))?;
         let result = (|| {
             let mut dest = Connection::open_with_flags(
                 &staged,
@@ -296,11 +307,8 @@ impl Database {
                 control.check()?;
             }
             check_ancestors(&staged, false)?;
-            fs::rename(&staged, &path).map_err(|_| {
-                AppError::new(
-                    "STORAGE_UNAVAILABLE",
-                    "Cannot publish the verified local snapshot.",
-                )
+            fs::rename(&staged, &path).map_err(|error| {
+                AppError::storage_io(error, "Cannot publish the verified local snapshot.")
             })?;
             Ok(json!({"backup":name,"path":path,"integrity":integrity}))
         })();
@@ -413,7 +421,7 @@ fn ensure_supported(conn: &Connection) -> Result<i64, AppError> {
     Ok(current)
 }
 
-fn migrate(conn: &mut Connection, data_dir: &Path, path: &Path) -> Result<(), AppError> {
+fn migrate(conn: &mut Connection, backup: Option<(&Path, &Path)>) -> Result<(), AppError> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let current = ensure_supported(&tx)?;
     if current == 0 {
@@ -458,7 +466,10 @@ fn migrate(conn: &mut Connection, data_dir: &Path, path: &Path) -> Result<(), Ap
                 ));
             }
         } else {
-            if current > 0 && revision == current + 1 {
+            if current > 0
+                && revision == current + 1
+                && let Some((data_dir, path)) = backup
+            {
                 // The write transaction prevents another runtime changing the old schema
                 // between this snapshot and the upgrade. WAL allows a separate read connection.
                 let source = Connection::open_with_flags(

@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
-<!-- revision: 13 -->
+<!-- revision: 14 -->
 <a id="operator"></a>
 
 # CIRNET RULES Dashboard
@@ -118,6 +118,8 @@ Configuration reports effective runtime capabilities and their authority.
 Native execution stays HANDOFF_ONLY where applicable. Appearance persists
 the palette, interface font, pixel dimensions and language through the local
 preference API. Reset default applies to appearance preferences.
+
+<a id="legacy-archive"></a>
 
 The legacy import can preview and archive a stopped CLI file store using
 `legacy.preview` and `legacy.apply`. Apply requires the reviewed manifest

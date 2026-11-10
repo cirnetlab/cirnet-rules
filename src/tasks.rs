@@ -1,3 +1,5 @@
+mod recovery;
+
 use crate::{docs, policy};
 use serde_json::{Value, json};
 use std::{
@@ -14,6 +16,7 @@ use std::{
 
 const SCHEMA: &str = include_str!("../en/schemas/cirnetrules-task.schema.json");
 const STORE: &str = ".cirnetrules/tasks";
+const LEGACY_STORES: [&str; 2] = [".openrules", ".cgacp"];
 const RECORD_LIMIT: usize = 4 * 1024 * 1024;
 const TASK_LIMIT: usize = 1024;
 const CLAIM_SCAN_BYTES: u64 = 16 * 1024 * 1024;
@@ -108,8 +111,9 @@ fn plain_relative(path: &str) -> Result<(), String> {
 pub fn relative(path: &str) -> Result<(), String> {
     plain_relative(path)?;
     if path.split('/').any(|part| {
-        [".cirnetrules", ".openrules", ".cgacp"]
-            .iter()
+        [".cirnetrules"]
+            .into_iter()
+            .chain(LEGACY_STORES)
             .any(|name| part.eq_ignore_ascii_case(name))
     }) {
         return Err("Control-plane state is outside task file scope".into());
@@ -635,6 +639,13 @@ pub fn ensure_children_closed(root: &Path, task: &Value) -> Result<(), String> {
 fn ready(root: &Path, task: &Value, registry: &Value) -> Result<(), String> {
     let descriptor = &task["descriptor"];
     check_expiry(&descriptor["authorization"])?;
+    if !task["recovery"].is_null()
+        && items(&descriptor["authorization"]["actions"])
+            .next()
+            .is_none()
+    {
+        return Err("A recovered task needs a fresh grant before it can become ready".into());
+    }
     if !descriptor["write_scope"]
         .as_object()
         .is_some_and(|map| map.is_empty())
@@ -764,6 +775,9 @@ fn reset(root: &Path, task: &mut Value, descriptor: Value) -> Result<(), String>
         "evidence":task["evidence"], "review":task["review"], "acceptance":task["acceptance"]
     }));
     replacement["history"] = json!(history);
+    if let Some(recovery) = task.get("recovery") {
+        replacement["recovery"] = recovery.clone();
+    }
     *task = replacement;
     Ok(())
 }
@@ -835,7 +849,7 @@ pub fn run(
     registry: &Value,
 ) -> Result<Value, String> {
     let permitted: &[&str] = match command {
-        "task-create" => &["descriptor"],
+        "task-create" => &["descriptor", "legacy-review"],
         "task-show" | "task-resume" => &["task"],
         "task-revise" => &["task", "revision", "actor", "descriptor"],
         "task-checkpoint" => &["task", "revision", "actor", "checkpoint"],
@@ -850,6 +864,9 @@ pub fn run(
     }
     if command == "task-create" {
         let record = input(root, required(options, "descriptor")?)?;
+        if let Some(review) = options.get("legacy-review") {
+            return recovery::recover(root, record, registry, review);
+        }
         return Ok(json!({"status":"PASS", "task":create(root, record, registry)?}));
     }
     let id = required(options, "task")?;
@@ -981,6 +998,41 @@ pub fn run(
         _ => return Err("Unknown task command".into()),
     };
     Ok(json!({"status":"PASS","task":task}))
+}
+
+pub fn legacy_operation_blocked(
+    command: &str,
+    root: &Path,
+    args: &BTreeMap<String, String>,
+) -> Result<bool, String> {
+    if matches!(
+        command,
+        "workspace-discover" | "workspace-bind" | "workspace-health"
+    ) || (command == "task-create" && args.contains_key("legacy-review"))
+    {
+        // Workspace operations discover or explicitly bind current Git state.
+        // Recovery is the only operation that reads retired task files.
+        return Ok(false);
+    }
+    let mut legacy_exists = false;
+    for legacy in LEGACY_STORES {
+        match fs::symlink_metadata(root.join(legacy)) {
+            Ok(_) => legacy_exists = true,
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(_) => return Err("Could not verify the legacy maintenance state directory".into()),
+        }
+    }
+    if !legacy_exists {
+        return Ok(false);
+    }
+    let id = args.get("task").or_else(|| {
+        matches!(command, "route" | "task-context")
+            .then(|| args.get("id"))
+            .flatten()
+    });
+    Ok(!id.is_some_and(|id| {
+        load(root, id).is_ok_and(|task| task["recovery"]["review_sha256"].is_string())
+    }))
 }
 
 #[cfg(test)]

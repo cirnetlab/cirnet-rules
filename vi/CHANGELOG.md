@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-CHANGELOG -->
-<!-- revision: 2 -->
-<!-- source-sha256: c5d034b23c78eee2cdb6f21dddc36610a9d3e27fb3e3d699255a4edbfe07112b -->
+<!-- revision: 3 -->
+<!-- source-sha256: 8c8e8cd6cb251fd5e96cb6afd3cf872db9421adfd6026cd98619e2b8b9a5cffe -->
 <!-- translation-status: synchronized -->
 <a id="unreleased"></a>
 
@@ -18,6 +18,12 @@
 
 - Desktop CIRNET RULES hiện hành dùng manifest chung `application-identity.json`, IPC riêng revision 3, tên runtime và kho dữ liệu mới.
 - Dashboard nâng cấp kho cục bộ đời trước qua backup đã kiểm tra và journal riêng có thể tiếp tục.
+
+- Quy trình bảo trì hiện có có thể khôi phục task đã rà soát thành đề xuất chưa được cấp quyền, kèm biên nhận nguồn lưu bền vững.
+
+### Sửa lỗi
+
+- Migrator nâng cấp và kiểm chứng schema staging trước khi báo sẵn sàng. Lỗi từ chối truy cập lưu trữ giữ journal có thể tiếp tục và các bản sao lưu đã kiểm chứng.
 
 Các thay đổi trước đó trong cùng chu kỳ chưa phát hành
 

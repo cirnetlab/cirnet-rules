@@ -68,6 +68,9 @@ struct Receipt {
     snapshot_sha256: String,
     source_schema: i64,
     backup: String,
+    // Previous receipts used one digest for the backup and the unmodified candidate.
+    #[serde(default)]
+    backup_sha256: Option<String>,
 }
 
 // Read-only compatibility with the previous cutover receipt.
@@ -249,14 +252,26 @@ impl Locations {
         io::copy(&mut backup_file, &mut output).map_err(storage_error)?;
         output.sync_all().map_err(storage_error)?;
         drop(output);
-        let snapshot_sha256 = file_digest(&staged)?;
-        let candidate = Connection::open_with_flags(
+        let backup_sha256 = file_digest(&staged)?;
+        let mut candidate = Connection::open_with_flags(
             &staged,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NOFOLLOW,
         )?;
+        candidate.pragma_update(None, "foreign_keys", true)?;
+        candidate.pragma_update(None, "synchronous", "FULL")?;
+        // The raw backup is already durable. Upgrade the copy before publishing it.
+        super::migrate(&mut candidate, None).map_err(|mut error| {
+            error.message = format!("Could not upgrade the staged database. {}", error.message);
+            error
+        })?;
         verify(&candidate)?;
         verify_history(&candidate)?;
         candidate.close().map_err(|(_, error)| error)?;
+        private_options()
+            .open(&staged)
+            .and_then(|file| file.sync_all())
+            .map_err(storage_error)?;
+        let snapshot_sha256 = file_digest(&staged)?;
         self.write_json(
             RECEIPT,
             &Receipt {
@@ -264,6 +279,7 @@ impl Locations {
                 snapshot_sha256,
                 source_schema,
                 backup: backup_name.to_owned(),
+                backup_sha256: Some(backup_sha256),
             },
         )?;
         check_cancel()?;
@@ -408,6 +424,10 @@ impl Locations {
         super::validate_backup_name(&receipt.backup)?;
         if receipt.intent != self.intent(generation)
             || !valid_digest(&receipt.snapshot_sha256)
+            || receipt
+                .backup_sha256
+                .as_deref()
+                .is_some_and(|digest| !valid_digest(digest))
             || !(1..=super::MIGRATIONS.len() as i64).contains(&receipt.source_schema)
         {
             return Err(journal_error());
@@ -418,9 +438,13 @@ impl Locations {
     fn complete(&self, generation: Generation) -> Result<(), AppError> {
         let receipt = self.receipt(generation)?;
         let backup = self.data_dir.join("backups").join(receipt.backup);
+        let backup_digest = receipt
+            .backup_sha256
+            .as_deref()
+            .unwrap_or(&receipt.snapshot_sha256);
         if !ordinary_file(&backup)?
             || file_digest(&self.active)? != receipt.snapshot_sha256
-            || file_digest(&backup)? != receipt.snapshot_sha256
+            || file_digest(&backup)? != backup_digest
         {
             return Err(journal_error());
         }
@@ -647,11 +671,8 @@ fn publish(source: &Path, destination: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-fn storage_error(_: io::Error) -> AppError {
-    AppError::new(
-        "STORAGE_UNAVAILABLE",
-        "Could not access the local migration files.",
-    )
+fn storage_error(error: io::Error) -> AppError {
+    AppError::storage_io(error, "Could not access the local migration files.")
 }
 
 fn journal_error() -> AppError {

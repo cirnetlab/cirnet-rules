@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-CHANGELOG -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="unreleased"></a>
 
 # Changelog
@@ -16,6 +16,12 @@
 
 - The current CIRNET RULES Desktop uses the shared `application-identity.json` manifest, private IPC revision 3, and the new runtime and storage names.
 - The Dashboard can upgrade a previous local store through a separate verified backup and resumable journal.
+
+- The existing maintenance workflow can recover a reviewed task as an ungranted proposal with durable source provenance.
+
+### Fixed
+
+- The identity migrator upgrades and verifies the staged schema before reporting readiness. A storage denial leaves a resumable journal and retains verified backups.
 
 Earlier changes in this unreleased cycle
 

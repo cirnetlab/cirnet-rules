@@ -113,19 +113,10 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
             | "check-drift"
             | "bootstrap"
             | "doctor"
-    ) {
-        for legacy in [".openrules", ".cgacp"] {
-            match std::fs::symlink_metadata(root.join(legacy)) {
-                Ok(_) => {
-                    return Ok(json!({"status":"BLOCKED",
-                    "reason":"Existing legacy maintenance state requires reviewed migration before local task operations."}));
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(_) => {
-                    return Err("Could not verify the legacy maintenance state directory".into());
-                }
-            }
-        }
+    ) && tasks::legacy_operation_blocked(command, &root, &args)?
+    {
+        return Ok(json!({"status":"BLOCKED",
+            "reason":"Existing legacy maintenance state requires reviewed migration before local task operations."}));
     }
     match command {
         "workspace-discover" | "workspace-bind" | "workspace-health" | "route" | "task-context"

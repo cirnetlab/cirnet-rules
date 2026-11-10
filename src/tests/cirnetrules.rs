@@ -182,6 +182,196 @@ fn legacy_maintenance_state_does_not_get_shadowed_by_a_new_store() {
 }
 
 #[test]
+fn reviewed_legacy_task_recovery_preserves_evidence_and_requires_a_new_grant() {
+    let f = Fixture::new();
+    let mut proposal = json!({
+        "id":"recovered","request":"Resume toolbar work","objective":"Review the toolbar label",
+        "non_goals":["No release"],"primary_repo":"cirnet-interface",
+        "hints":["src/components/Toolbar.vue"],
+        "read_scope":{"cirnet-interface":["src/components/Toolbar.vue"]},
+        "write_scope":{},"verification_scope":{},"documentation_scope":{},
+        "risk":"low","role":"developer","mode":"WORK","owner":"builder",
+        "authorization":{"owner":"maintainer","basis":"New operator review","actions":[]},
+        "spec":"en/specs/cirnet-interface/recovered/spec.md",
+        "plan":"en/plans/cirnet-interface/recovered/plan.md",
+        "acceptance":["Review current toolbar"],"commands":[],
+        "docs_targets":[],"docs_not_required":"Read-only recovery"
+    });
+    let plan = proposal["plan"].as_str().unwrap().to_owned();
+    Fixture::put(
+        &f.governance,
+        proposal["spec"].as_str().unwrap(),
+        b"# Spec\n",
+    );
+    Fixture::put(&f.governance, &plan, b"# Plan\n");
+    f.json("descriptor.json", &proposal);
+    let old_path = ".openrules/tasks/recovered.json";
+    let mut old = json!({
+        "descriptor":proposal,"state":"IN_PROGRESS","revision":37,"approval_epoch":9,
+        "checkpoint":{"summary":"Previous checkpoint"},"evidence":[{"sha256":"preserve this"}],
+        "review":{"actor":"old-reviewer"},"acceptance":{"actor":"old-owner"}
+    });
+    old["descriptor"]["authorization"]["actions"] = json!(["read", "write", "release"]);
+    f.json(old_path, &old);
+    let original = fs::read(f.governance.join(old_path)).unwrap();
+    let lease_path = ".openrules/runs/recovered/active.json";
+    let lease =
+        b"{\"actor\":\"builder\",\"expires_at_ms\":4102444800000,\"token\":\"fixture-lease\"}\n";
+    Fixture::put(&f.governance, lease_path, lease);
+
+    let recover = |review: &str, code| {
+        f.cli(
+            &[
+                "task-create",
+                "--descriptor",
+                "descriptor.json",
+                "--legacy-review",
+                review,
+            ],
+            code,
+        )
+    };
+    f.cli(&["task-create", "--descriptor", "descriptor.json"], 2);
+    let preview = recover("preview", 0);
+    let digest = preview["review_sha256"].as_str().unwrap();
+    assert_eq!(preview["source"]["sha256"], sha(&original));
+    assert_eq!(preview["source"]["revision"], 37);
+    assert_eq!(preview["source"]["state"], "IN_PROGRESS");
+    assert_eq!(preview["proposal"]["descriptor"], proposal);
+    assert!(!f.governance.join(".cirnetrules").exists());
+    proposal["depends_on"] = json!(["missing-task"]);
+    f.json("descriptor.json", &proposal);
+    recover("preview", 1);
+    proposal.as_object_mut().unwrap().remove("depends_on");
+    f.json("descriptor.json", &proposal);
+
+    Fixture::put(&f.governance, &plan, b"# Changed plan\n");
+    recover(digest, 1);
+    Fixture::put(&f.governance, &plan, b"# Plan\n");
+    let mut changed = original.clone();
+    changed.push(b'\n');
+    Fixture::put(&f.governance, old_path, &changed);
+    recover(digest, 1);
+    Fixture::put(&f.governance, old_path, &original);
+    let ambiguous = ".cgacp/tasks/recovered.json";
+    Fixture::put(&f.governance, ambiguous, &original);
+    recover(digest, 1);
+    fs::remove_file(f.governance.join(ambiguous)).unwrap();
+    let active = ".cirnetrules/tasks/recovered.json";
+    let unrelated = json!({"descriptor":{"id":"recovered"},"state":"PROPOSED","revision":1});
+    f.json(active, &unrelated);
+    recover(digest, 1);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(f.governance.join(active)).unwrap()).unwrap(),
+        unrelated
+    );
+    fs::remove_file(f.governance.join(active)).unwrap();
+
+    let restored = recover(digest, 0)["task"].clone();
+    assert_eq!(recover(digest, 0)["task"], restored);
+    assert_eq!(
+        f.cli(&["task-show", "--task", "recovered"], 0)["task"],
+        restored
+    );
+    assert_eq!(restored["recovery"]["review_sha256"], digest);
+    assert_eq!(restored["recovery"]["source"], preview["source"]);
+    assert_eq!(restored["state"], "PROPOSED");
+    assert_eq!(restored["checkpoint"], Value::Null);
+    assert_eq!(restored["baseline"], Value::Null);
+    assert_eq!(restored["evidence"], json!([]));
+    assert_eq!(restored["review"], Value::Null);
+    assert_eq!(restored["acceptance"], Value::Null);
+    assert!(!f.governance.join(".cirnetrules/runs").exists());
+    f.cli(&["route", "--task", "recovered"], 2);
+    f.cli(
+        &[
+            "task-transition",
+            "--task",
+            "recovered",
+            "--revision",
+            "1",
+            "--actor",
+            "maintainer",
+            "--to",
+            "READY",
+        ],
+        1,
+    );
+
+    f.cli(&["workspace-discover"], 0);
+    f.cli(
+        &[
+            "workspace-bind",
+            "--repo",
+            "cirnet-interface",
+            "--path",
+            "Interface feature worktree",
+            "--actor",
+            "maintainer",
+        ],
+        0,
+    );
+    proposal["authorization"]["actions"] = json!(["read"]);
+    f.json("descriptor.json", &proposal);
+    recover("preview", 1);
+    let revised = f.cli(
+        &[
+            "task-revise",
+            "--task",
+            "recovered",
+            "--revision",
+            "1",
+            "--actor",
+            "maintainer",
+            "--descriptor",
+            "descriptor.json",
+        ],
+        0,
+    );
+    assert_eq!(revised["task"]["recovery"], restored["recovery"]);
+    f.cli(
+        &[
+            "task-transition",
+            "--task",
+            "recovered",
+            "--revision",
+            "2",
+            "--actor",
+            "maintainer",
+            "--to",
+            "READY",
+        ],
+        0,
+    );
+    let context = f.cli(
+        &[
+            "task-context",
+            "--task",
+            "recovered",
+            "--session",
+            "recovery",
+        ],
+        0,
+    );
+    assert!(context["metrics"]["emitted_bytes"].as_u64().unwrap() > 0);
+    assert_eq!(
+        f.cli(
+            &[
+                "task-context",
+                "--task",
+                "recovered",
+                "--session",
+                "recovery"
+            ],
+            0
+        )["metrics"]["emitted_bytes"],
+        0
+    );
+    assert_eq!(fs::read(f.governance.join(old_path)).unwrap(), original);
+    assert_eq!(fs::read(f.governance.join(lease_path)).unwrap(), lease);
+}
+
+#[test]
 fn a_ui_task_routes_verifies_and_resumes_two_docs_destinations() {
     let f = Fixture::new();
     let discovered = f.cli(&["workspace-discover"], 0);

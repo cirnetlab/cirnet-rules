@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-IDENTITY -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="identity-cutover"></a>
 
 # CIRNET RULES identity and local data upgrade
@@ -21,8 +21,12 @@ engine protocols and SQLite schema revision 7 have independent identities.
    `--data-dir` uses the same directory and a new database filename.
 2. Choose **Back up and upgrade**. The runtime locks the new data directory
    and obtains exclusive SQLite access to the source. It uses an online backup
-   to include committed WAL changes. It verifies the database, foreign keys,
-   schema checksums and the candidate digest before publishing it.
+   to include committed WAL changes. It keeps the original backup and
+   upgrades the schema in a separate staged copy. It verifies the upgraded
+   database, foreign keys, migration history and candidate digest before
+   publishing it. On a permission, disk space or SQL error, resolve the
+   reported condition and reopen Desktop to retry. An unpublished candidate
+   remains outside the active store.
 3. Pause before activation if needed. Reopen Desktop to resume. A copy that
    was never installed is rebuilt from the locked source. A copy installed
    before an interrupted activation is checked against its journal and backup.
@@ -47,10 +51,11 @@ for offline recovery. Keep old runtimes closed after activation to avoid
 divergent writes. Published history and earlier migration bytes stay intact.
 
 Filesystem task stores `.openrules` and `.cgacp` retain their original bytes.
-Maintenance task operations stop when such a store is present. The explicit
-legacy archive port can preserve reviewed task and binding evidence in SQLite.
-It does not make old tasks, leases or approvals active. Disposable caches can
-be rebuilt under `.cirnetrules`.
+The explicit legacy archive preserves reviewed task and binding evidence in
+SQLite. The [maintenance recovery workflow](cirnetrules-local.md#recover-maintenance-task)
+can restore an individual task as a proposal with the same ID and a source
+receipt. Fresh grants and verified Git bindings are required before execution.
+Disposable caches are rebuilt under `.cirnetrules`.
 
 <a id="identity-namespaces"></a>
 

@@ -304,13 +304,6 @@
       }
     },
     {
-      "path": "src/main.rs",
-      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
-      "matches": {
-        "d7db6ea54542f20c4bcba884ac1c8a60d3bfcea32329dfab5cfdc9dbf4f9e0be": 1
-      }
-    },
-    {
       "path": "src/runner/snapshot.rs",
       "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
       "matches": {
@@ -322,14 +315,17 @@
       "path": "src/tasks.rs",
       "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
       "matches": {
-        "6105c23886205384c66edb4fe2ea2e78487759213e9a8892aa69f672daa496bc": 1
+        "3f8ec5ebae5e94d016ca7adeef4fa7afbf5140437a84cdaf7adf16a8445313cb": 1
       }
     },
     {
       "path": "src/tests/cirnetrules.rs",
       "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
       "matches": {
+        "11de3070c9259667b80767ac60a54c04e9f96f562c87097e7791cfbc4b50d2e1": 1,
         "2c19388bd7d57ff064843bba8225b6232f79702d77e8a1a5fa72f5e7d67dba25": 1,
+        "4415e84d7b0390aed1b92c0b16104a8f4faf477cb0be3382c43d866d9acdc0ce": 1,
+        "6c90e5fa92662868163daadb362f0326d0165a3eaf507bd4e3a379f59ff9a326": 1,
         "f7933aed709bb4f044b8cf4c039709b290555ebb2fd8d8f0bdb1fbe978fec9af": 1
       }
     },
@@ -460,9 +456,9 @@
       "matches": {
         "215c3bd6d2889ea9eec297dbfad91245a16953b15883c10435b7b1be260d2352": 1,
         "3e6398ffa88a45165ebbb2bf9ddc46da0f354d2ae33eb583f3ae920c7b3a2159": 1,
-        "e24e2c946557b479c65f996ff287951fba23bcd9a649cf5b791aa202f24ce93d": 1,
         "e5aa58fed41812671a2bb48e518b32c9127e302e77687a71ce706817b31cf2ba": 1,
-        "e715704cfe978f3871e1517294b17e5ec42ad316f7afc7a9fabb4c9c3e5678f2": 1
+        "e715704cfe978f3871e1517294b17e5ec42ad316f7afc7a9fabb4c9c3e5678f2": 1,
+        "f9d7d3519e86dc6512261c04d1aa7eab963d81ac9044a0e6a67934898b749dd6": 1
       }
     },
     {

@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-LOCAL -->
-<!-- revision: 2 -->
-<!-- source-sha256: 7fc8280233c9146810e98f36a5ea4544fe8ec7c5eb1886420a89f4d5609fbd0d -->
+<!-- revision: 3 -->
+<!-- source-sha256: 41f65aafbd434a78149823823cae553b5c3a2edc1f304e5014b1638713467154 -->
 <!-- translation-status: synchronized -->
 <a id="operator-workflow"></a>
 
@@ -63,6 +63,33 @@ phải dùng revision hiện tại.
    Chọn claude hoặc antigravity cho adapter còn lại. Dùng phiên ngoài repo
    chỉ chủ sở hữu có quyền ghi. Báo discovery native, thực thi hook và
    thực thi task riêng với việc chuẩn bị gói.
+
+<a id="recover-maintenance-task"></a>
+
+## Khôi phục task bảo trì
+
+Dừng các tiến trình cũ có quyền ghi và giữ kho tệp gốc. Dùng
+[cổng lưu trữ lịch sử](dashboard.md#legacy-archive) để lưu bằng chứng task
+và lease đã rà soát. Với từng task cần khôi phục, chuẩn bị descriptor mới
+dùng ID gốc, spec và plan tập trung hiện hành, chủ thể ủy quyền hiện hành,
+danh sách hành động rỗng và bỏ thời hạn. Rà soát riêng bằng chứng gốc.
+
+1. Dùng `task-create --descriptor descriptor.json --legacy-review preview`.
+   Đối chiếu đường dẫn nguồn, SHA-256, trạng thái và revision với descriptor
+   đề xuất cùng spec, plan và governance hiện hành mà nó tham chiếu.
+2. Chạy lại cùng lệnh với `review_sha256` trả về thay cho `preview`. Nếu
+   đầu vào thay đổi, rà soát bản xem trước mới. ID có trong nhiều kho cũ
+   hoặc trùng với bản ghi hiện hành khác sẽ chặn khôi phục. Khôi phục các
+   phụ thuộc trước task tham chiếu chúng.
+3. Dùng `task-show --task ID` để xác nhận `PROPOSED` và biên nhận nguồn.
+   Dùng `workspace-bind` để xác minh binding Git hiện hành và dựng lại
+   context từ nguồn hiện tại. Dùng `task-revise` để cấp quyền mới, rồi qua
+   các bước kiểm tra sẵn sàng và thực thi thông thường.
+
+Task gốc, phê duyệt, checkpoint, lease và bằng chứng vẫn nằm trong kho cũ
+và nằm ngoài phạm vi quyền hiện hành. Có thể lặp lại quy trình với từng
+task khác đã rà soát. Việc tạo task thông thường vẫn bị chặn khi checkout
+còn kho cũ.
 
 Để kiểm tra release, dùng descriptor RELEASE được ủy quyền tường minh và
 `release-check --task ID --actor ACTOR`. Lệnh `check-release` hiện có vẫn

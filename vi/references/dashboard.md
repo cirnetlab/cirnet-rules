@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
-<!-- revision: 13 -->
-<!-- source-sha256: cdd5b8c07f061ee3764f759b8cc32a93817bc86dd5e4a1db31ba356a364ea13a -->
+<!-- revision: 14 -->
+<!-- source-sha256: bbb8dac5c8465ceaf2afe53602e68902a6816100ebb22d1a5ab64eaa96de13d5 -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
@@ -117,6 +117,8 @@ Cấu hình hiển thị capability hiệu lực và nguồn thẩm quyền củ
 Thực thi native giữ HANDOFF_ONLY khi áp dụng. Bảng màu, phông giao diện,
 kích thước pixel và ngôn ngữ được lưu qua API tùy chọn cục bộ.
 Khôi phục mặc định áp dụng cho tùy chọn giao diện.
+
+<a id="legacy-archive"></a>
 
 Có thể xem trước và lưu trữ kho file CLI đã dừng bằng `legacy.preview`
 và `legacy.apply`. Áp dụng cần digest manifest đã rà và xác nhận tiến

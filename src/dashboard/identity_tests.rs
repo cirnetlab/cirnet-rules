@@ -127,6 +127,42 @@ fn resumes_after_activation_and_refuses_two_independent_databases() {
 }
 
 #[test]
+fn completed_receipt_without_separate_backup_digest_remains_readable() {
+    let root = fixture("identity-old-receipt");
+    let locations = Locations::new(root.path().to_path_buf(), false);
+    legacy(&locations.previous);
+    let source = lock_source(&locations.previous).unwrap();
+    let backup = Database::backup_from(&source, root.path()).unwrap();
+    drop(source);
+    let backup_name = backup["backup"].as_str().unwrap();
+    let backup_path = root.path().join("backups").join(backup_name);
+    fs::copy(&backup_path, &locations.active).unwrap();
+    ensure_directory(&locations.journal).unwrap();
+    let intent = locations.intent(Generation::Previous);
+    locations.write_json(STARTED, &intent).unwrap();
+    locations
+        .write_json(
+            RECEIPT,
+            &json!({
+                "intent": intent,
+                "snapshot_sha256": file_digest(&backup_path).unwrap(),
+                "source_schema": 6,
+                "backup": backup_name
+            }),
+        )
+        .unwrap();
+    locations.complete(Generation::Previous).unwrap();
+    let before = fs::read(locations.journal.join(RECEIPT)).unwrap();
+    let db = locations.open().unwrap();
+    verify(&db.conn).unwrap();
+    assert_eq!(
+        ensure_supported(&db.conn).unwrap(),
+        super::super::MIGRATIONS.len() as i64
+    );
+    assert_eq!(fs::read(locations.journal.join(RECEIPT)).unwrap(), before);
+}
+
+#[test]
 fn legacy_writer_blocks_migration_and_partial_stage_retries_safely() {
     let root = fixture("cirnetrules-identity-in-use");
     let locations = Locations::new(root.path().to_path_buf(), false);
@@ -182,7 +218,7 @@ fn previous_product_with_wal_preserves_governance_and_unmodified_payloads() {
     let locations = Locations::new(data.clone(), false);
     legacy(&locations.previous);
     let mut conn = Connection::open(&locations.previous).unwrap();
-    super::super::migrate(&mut conn, &data, &locations.previous).unwrap();
+    super::super::migrate(&mut conn, Some((&data, &locations.previous))).unwrap();
     conn.set_db_config(
         rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
         true,
@@ -331,4 +367,144 @@ fn cancellation_and_publish_failure_resume_without_a_blank_store() {
     assert_eq!(locations.preview().unwrap_err().code, "IDENTITY_INTEGRITY");
     assert!(locations.open().is_err());
     assert!(!locations.active.exists());
+}
+
+#[test]
+fn sql_upgrade_failure_leaves_source_and_verified_backup_for_retry() {
+    let root = fixture("identity-sql-failure");
+    let locations = Locations::new(root.path().to_path_buf(), false);
+    legacy(&locations.previous);
+    let source = Connection::open(&locations.previous).unwrap();
+    source
+        .execute_batch("CREATE TABLE governance_assets (conflicting INTEGER);")
+        .unwrap();
+    drop(source);
+
+    let failure = locations.migrate().unwrap_err();
+    assert_eq!(failure.code, "STORAGE_UNAVAILABLE");
+    assert!(failure.message.contains("upgrade the staged database"));
+    assert_eq!(locations.preview().unwrap()["status"], "RESUME");
+    assert!(!locations.active.exists());
+    assert!(!locations.journal.join(RECEIPT).exists());
+    let backup = fs::read_dir(root.path().join("backups"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let backup_hash = file_digest(&backup).unwrap();
+    let source = Connection::open(&locations.previous).unwrap();
+    assert_eq!(ensure_supported(&source).unwrap(), 6);
+    verify(&source).unwrap();
+    source
+        .execute_batch("DROP TABLE governance_assets;")
+        .unwrap();
+    drop(source);
+
+    assert_eq!(locations.migrate().unwrap()["status"], "READY");
+    let activated =
+        Connection::open_with_flags(&locations.active, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    assert_eq!(
+        ensure_supported(&activated).unwrap(),
+        super::super::MIGRATIONS.len() as i64
+    );
+    verify(&activated).unwrap();
+    assert_eq!(file_digest(&backup).unwrap(), backup_hash);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_acl_denial_retains_backup_and_resumes_same_journal() {
+    use std::{
+        process::Command,
+        sync::atomic::{AtomicBool, Ordering},
+    };
+
+    struct DenyCreate<'a> {
+        path: &'a Path,
+        trustee: String,
+    }
+    impl DenyCreate<'_> {
+        fn edit(&self, operation: &str, trustee: &str) -> io::Result<std::process::Output> {
+            Command::new("icacls.exe")
+                .arg(self.path)
+                .args([operation, trustee])
+                .output()
+        }
+    }
+    impl Drop for DenyCreate<'_> {
+        fn drop(&mut self) {
+            let _ = self.edit("/remove:d", &self.trustee);
+        }
+    }
+
+    let root = fixture("identity-acl");
+    let locations = Locations::new(root.path().to_path_buf(), false);
+    legacy(&locations.previous);
+    let cancellation = AtomicBool::new(false);
+    assert_eq!(
+        locations
+            .migrate_checked(&cancellation, |phase| {
+                if phase == "VERIFY" {
+                    cancellation.store(true, Ordering::Relaxed);
+                }
+            })
+            .unwrap_err()
+            .code,
+        "CANCELLED"
+    );
+    let dir = root.path().join("backups");
+    let backup = fs::read_dir(&dir).unwrap().next().unwrap().unwrap().path();
+    let backup_hash = file_digest(&backup).unwrap();
+    let started = fs::read(locations.journal.join(STARTED)).unwrap();
+
+    let whoami = Command::new("whoami.exe")
+        .args(["/user", "/fo", "csv", "/nh"])
+        .output()
+        .unwrap();
+    assert!(whoami.status.success());
+    let output = String::from_utf8_lossy(&whoami.stdout);
+    let sid = output.trim().rsplit(',').next().unwrap().trim_matches('"');
+    assert!(sid.starts_with("S-1-") && sid[4..].bytes().all(|b| b.is_ascii_digit() || b == b'-'));
+    let acl = DenyCreate {
+        path: &dir,
+        trustee: format!("*{sid}"),
+    };
+    let denial = acl.edit("/deny", &format!("{}:(WD)", acl.trustee)).unwrap();
+    assert!(
+        denial.status.success(),
+        "Could not deny fixture directory writes: {denial:?}"
+    );
+    let denied = fs::write(dir.join("denial-probe"), b"test").unwrap_err();
+    assert_eq!(denied.raw_os_error(), Some(5));
+
+    let failure = locations.migrate().unwrap_err();
+    assert_eq!(failure.code, "PERMISSION_DENIED");
+    assert!(failure.message.contains("backup"));
+    assert_eq!(locations.preview().unwrap()["status"], "RESUME");
+    assert!(locations.open().is_err());
+    assert!(!locations.active.exists());
+    assert_eq!(fs::read(locations.journal.join(STARTED)).unwrap(), started);
+    assert_eq!(file_digest(&backup).unwrap(), backup_hash);
+    let source = Connection::open(&locations.previous).unwrap();
+    assert_eq!(ensure_supported(&source).unwrap(), 6);
+    verify(&source).unwrap();
+    drop(source);
+
+    drop(acl);
+    fs::write(dir.join("recovery-probe"), b"test").unwrap();
+    assert_eq!(locations.migrate().unwrap()["status"], "READY");
+    let db = locations.open().unwrap();
+    assert_eq!(
+        db.conn
+            .query_row("SELECT count(*) FROM messages WHERE id=17", [], |row| row
+                .get::<_, i64>(
+                0
+            ))
+            .unwrap(),
+        1
+    );
+    assert_eq!(file_digest(&backup).unwrap(), backup_hash);
+    assert_eq!(fs::read(locations.journal.join(STARTED)).unwrap(), started);
+    assert_eq!(locations.migrate().unwrap()["status"], "READY");
 }
