@@ -62,6 +62,7 @@
 #include <QWindow>
 #include <algorithm>
 #include <cstdio>
+#include <tuple>
 
 namespace {
 QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
@@ -709,6 +710,35 @@ private slots:
             QVERIFY(captureWidget(window, "storage-maintenance"));
             window.resize(760, 680);
             QTRY_VERIFY(backup->mapTo(&window, QPoint(backup->width(), 0)).x() <= window.width());
+        });
+    }
+
+    void appearanceSwatchesPreviewHexEdits()
+    {
+        withDashboardFixture([](MainWindow &window) {
+            settingsSection(window, "appearance");
+            for (const auto &[name, hex, role] : {
+                     std::tuple{"appearanceBackground", "#25384C", QPalette::Window},
+                     std::tuple{"appearanceForeground", "#FFDCAE", QPalette::WindowText}}) {
+                auto *editor = window.findChild<QLineEdit *>(name);
+                auto *picker = window.findChild<QToolButton *>(QString::fromLatin1(name) + "Picker");
+                QVERIFY(editor && picker);
+                const auto swatch = [picker] {
+                    const auto image = picker->grab().toImage();
+                    return image.pixelColor(image.rect().center());
+                };
+                const auto initial = window.palette().color(role);
+                QCOMPARE(swatch(), initial);
+                editor->setFocus();
+                editor->selectAll();
+                QTest::keyClicks(editor, hex);
+                QCOMPARE(editor->text(), QString::fromLatin1(hex));
+                QCOMPARE(swatch(), QColor(hex));
+                QCOMPARE(window.palette().color(role), initial);
+                QTest::keyClick(editor, Qt::Key_Return);
+                QTRY_COMPARE(window.palette().color(role), QColor(hex));
+                QCOMPARE(swatch(), QColor(hex));
+            }
         });
     }
 

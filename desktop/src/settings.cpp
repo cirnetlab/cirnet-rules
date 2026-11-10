@@ -195,16 +195,17 @@ protected:
 private:
     static void drawPreview(QPainter &painter, const QRectF &area, bool light)
     {
-        const auto rail = light ? QColor("#dce3e0") : QColor("#303a37");
-        const auto text = light ? QColor("#7a8883") : QColor("#9daaa6");
-        const auto accent = light ? QColor("#007b69") : QColor("#70d7c6");
+        const auto rail = light ? QColor("#dce3e0") : QColor("#181818");
+        const auto text = light ? QColor("#7a8883") : QColor("#a3a3a3");
+        const auto accent = appearanceAccent("cirnet", light);
         const auto panelWidth = area.width() * 0.31;
         const auto x = area.left() + panelWidth + 6;
         const auto lineWidth = area.right() - x - 6;
-        painter.fillRect(area, light ? QColor("#edf1ef") : QColor("#1c2522"));
+        painter.fillRect(area, defaultAppearanceBackground(light));
         painter.fillRect(QRectF(area.topLeft(), QSizeF(panelWidth, area.height())), rail);
         painter.fillRect(QRectF(area.left() + 4, area.top() + 7, panelWidth - 8, 3), text);
-        painter.fillRect(QRectF(area.left() + 4, area.top() + 15, panelWidth - 8, 5), accent);
+        painter.fillRect(QRectF(area.left() + 4, area.top() + 15, panelWidth - 8, 5),
+                         light ? accent : QColor("#2a2a2a"));
         painter.fillRect(QRectF(x, area.top() + 8, lineWidth * .68, 3), text);
         painter.fillRect(QRectF(x, area.top() + 17, lineWidth, 2), text);
         painter.fillRect(QRectF(x, area.top() + 24, lineWidth * .78, 2), text);
@@ -414,6 +415,7 @@ public:
         setFocusProxy(value_);
         setFocusPolicy(Qt::StrongFocus);
         connect(dot_, &QToolButton::clicked, this, [this] { openPicker(); });
+        connect(value_, &QLineEdit::textChanged, this, [this] { refreshSwatch(); });
         connect(value_, &QLineEdit::editingFinished, this, [this] { commitText(); });
         refresh();
     }
@@ -432,7 +434,7 @@ public:
         const auto color = effectiveColor();
         if (force || (!value_->isModified() && value_->text() != color.name().toUpper()))
             value_->setText(color.name().toUpper());
-        dot_->setIcon(colorDot(color));
+        refreshSwatch();
         const QFontMetrics metrics(QApplication::font());
         int digitWidth = 0;
         for (const auto digit : QStringLiteral("0123456789ABCDEF"))
@@ -446,9 +448,23 @@ private:
         return stored_.isEmpty() ? QApplication::palette().color(role_) : QColor(stored_);
     }
 
+    QColor enteredColor() const
+    {
+        auto hex = value_->text();
+        if (!hex.startsWith(u'#'))
+            hex.prepend(u'#');
+        return hex.size() == 7 ? QColor(hex) : QColor{};
+    }
+
+    void refreshSwatch()
+    {
+        const auto entered = enteredColor();
+        dot_->setIcon(colorDot(entered.isValid() ? entered : effectiveColor()));
+    }
+
     void commitText()
     {
-        auto hex = value_->text().toUpper();
+        const auto hex = value_->text().toUpper();
         if (!value_->isModified() && hex == effectiveColor().name().toUpper()) {
             refresh(true);
             return;
@@ -457,10 +473,9 @@ private:
             setStored({});
             return;
         }
-        if (!hex.startsWith('#'))
-            hex.prepend('#');
-        if (hex.size() == 7 && QColor::isValidColorName(hex)) {
-            setStored(hex);
+        const auto entered = enteredColor();
+        if (entered.isValid()) {
+            setStored(entered.name().toUpper());
         } else {
             refresh(true);
             QToolTip::showText(value_->mapToGlobal(QPoint(0, value_->height())), value_->toolTip(), value_);

@@ -699,6 +699,11 @@ QIcon uiIcon(UiIcon symbol, const QColor &color)
     return QIcon(new VectorIcon(symbol, color));
 }
 
+QColor defaultAppearanceBackground(bool light)
+{
+    return QColor(light ? "#f5f8f6" : "#111111");
+}
+
 QColor appearanceAccent(const QString &accent, bool light, const QString &custom)
 {
     struct Preset { QLatin1StringView name; const char *dark; const char *light; };
@@ -771,7 +776,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
         dashboardStyle->setVerticalPadding(padding);
     const auto customBackground = hexColor(appearance.value("background").toString());
     const auto customForeground = hexColor(appearance.value("foreground").toString());
-    const auto canvas = customBackground.isValid() ? customBackground : QColor(light ? "#f5f8f6" : "#161918");
+    const auto canvas = customBackground.isValid() ? customBackground : defaultAppearanceBackground(light);
     const bool lightSurface = customBackground.isValid()
         ? appearanceColorContrast(canvas, Qt::black) >= appearanceColorContrast(canvas, Qt::white)
         : light;
@@ -779,30 +784,33 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
         return QColor(lightSurface ? bright : dark);
     };
     const auto neutral = tone("#ffffff", "#000000");
-    const auto layer = [&](const char *dark, const char *bright, double opacity) {
-        return customBackground.isValid() ? blend(canvas, neutral, opacity) : tone(dark, bright);
+    const auto layer = [&](const char *bright, double darkOpacity, double lightOpacity) {
+        if (!lightSurface)
+            return blend(canvas, neutral, darkOpacity);
+        return customBackground.isValid() ? blend(canvas, neutral, lightOpacity) : QColor(bright);
     };
-    const auto rail = layer("#1b201e", "#ecf2ef", 0.04);
+    const auto rail = layer("#ecf2ef", 0.03, 0.04);
     const auto surface = customBackground.isValid() && lightSurface ? blend(canvas, Qt::white, 0.24)
-                                                                   : layer("#212724", "#ffffff", 0.07);
+                                                                   : layer("#ffffff", 0.067, 0.07);
     const auto base = customBackground.isValid() && lightSurface ? blend(canvas, Qt::white, 0.17)
-                                                                : layer("#1d2220", "#ffffff", 0.045);
-    const auto alternateRow = layer("#222925", "#eff4f1", 0.075);
-    const auto border = layer("#39463f", "#c9d6cf", 0.19);
-    const auto control = layer("#778b80", "#687d72", 0.46);
-    const auto defaultText = tone("#edf5f0", "#192a23");
+                                                                : layer("#ffffff", 0.055, 0.045);
+    const auto composer = lightSurface ? base : blend(canvas, neutral, 0.12);
+    const auto alternateRow = layer("#eff4f1", 0.08, 0.075);
+    const auto border = layer("#c9d6cf", 0.13, 0.19);
+    const auto control = layer("#687d72", 0.42, 0.46);
+    const auto defaultText = tone("#f1f1f1", "#192a23");
     const auto text = customForeground.isValid() ? customForeground
         : appearanceColorContrast(canvas, defaultText) >= 4.5 ? defaultText : neutral;
-    const auto muted = (customBackground.isValid() || customForeground.isValid())
-        ? blend(canvas, text, 0.78) : tone("#a9bcb1", "#50665c");
-    const auto hover = layer("#2d3832", "#e4eee8", 0.11);
+    const auto muted = !lightSurface || customBackground.isValid() || customForeground.isValid()
+        ? blend(canvas, text, lightSurface ? 0.78 : 0.70) : QColor("#50665c");
+    const auto hover = layer("#e4eee8", 0.092, 0.11);
     const auto accentKey = appearance.value("accent").toString("cirnet");
     const auto accent = appearanceAccent(accentKey, lightSurface, appearance.value("custom_accent").toString());
     const auto onAccent = appearanceColorContrast(accent, Qt::black) >= appearanceColorContrast(accent, Qt::white)
         ? QColor(Qt::black) : QColor(Qt::white);
-    const auto selected = blend(canvas, accent, lightSurface ? 0.17 : 0.21);
-    const auto scrollThumb = accentKey == "cirnet" && !customBackground.isValid()
-        ? tone("#618675", "#638878") : blend(control, accent, 0.40);
+    const auto selected = lightSurface ? blend(canvas, accent, 0.17) : blend(canvas, neutral, 0.105);
+    const auto scrollThumb = !lightSurface ? blend(border, control, 0.45)
+        : accentKey == "cirnet" && !customBackground.isValid() ? QColor("#638878") : blend(control, accent, 0.40);
     const auto contrastAccent = appearanceColorContrast(canvas, accent) >= 3.0 ? accent : neutral;
     const auto danger = tone("#ffaaa3", "#9e2720");
     const auto warning = tone("#ebbf83", "#794908");
@@ -861,6 +869,7 @@ void ThemeManager::apply(const QString &theme, const QString &density, int textS
         };
         const QList<QPair<QString, QString>> tokens{
             {"CANVAS", canvas.name()}, {"RAIL", rail.name()}, {"SURFACE", surface.name()}, {"BASE", base.name()},
+            {"COMPOSER", composer.name()},
             {"ALTERNATE_ROW", alternateRow.name()}, {"BORDER", border.name()}, {"CONTROL", control.name()},
             {"TEXT", text.name()}, {"MUTED", muted.name()}, {"HOVER", hover.name()}, {"SELECTED", selected.name()},
             {"ACCENT", contrastAccent.name()}, {"PRIMARY", accent.name()}, {"ON_ACCENT", onAccent.name()},

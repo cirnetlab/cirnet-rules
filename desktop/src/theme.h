@@ -14,6 +14,7 @@ enum class UiIcon {
 };
 
 QIcon uiIcon(UiIcon symbol, const QColor &color = {});
+QColor defaultAppearanceBackground(bool light);
 QColor appearanceAccent(const QString &accent, bool light, const QString &custom = {});
 double appearanceColorContrast(const QColor &first, const QColor &second);
 inline QString uiStatusLabel(QString code) { return code.replace(u'_', u' '); }

@@ -9,7 +9,7 @@ QFrame#storageBackupActions, QFrame[role="settingsCard"] {
 }
 QFrame#settingsSeparator { border: 0; background: @BORDER@; }
 QFrame#appearanceSwatch { background: @BASE@; border: 1px solid @BORDER@; border-radius: 13px; }
-QSplitter::handle { background: @CANVAS@; border-left: 1px solid @SCROLL_THUMB@; }
+QSplitter::handle { background: @CANVAS@; border-left: 1px solid @BORDER@; }
 QSplitter::handle:hover, QSplitter::handle:pressed { background: @ACCENT@; }
 QLabel, QAbstractButton, QLineEdit, QPlainTextEdit, QComboBox, QAbstractItemView,
 QAbstractSpinBox, QMenu { color: @TEXT@; }
@@ -80,7 +80,7 @@ QPushButton::menu-indicator, QToolButton::menu-indicator {
 QToolButton#addRepository, QToolButton#repoActions { padding-right: 22px; }
 QLineEdit, QPlainTextEdit {
     border: 1px solid @BORDER@; border-radius: 9px; background: @BASE@;
-    padding: @VERTICAL_PAD@px; selection-background-color: @SELECTED@; selection-color: @TEXT@;
+    padding: @VERTICAL_PAD@px; selection-background-color: @PRIMARY@; selection-color: @ON_ACCENT@;
 }
 QLineEdit[clearButtonEnabled="true"], QLineEdit[searchField="true"] {
     border-color: transparent; background: @HOVER@;
@@ -94,10 +94,11 @@ QPushButton[keyboardFocusVisible="true"]:focus, QToolButton[keyboardFocusVisible
     border-color: @ACCENT@;
 }
 QAbstractSpinBox QLineEdit, QComboBox QLineEdit {
-    border: 0; padding: 0; background: transparent; selection-background-color: @SELECTED@; selection-color: @TEXT@;
+    border: 0; padding: 0; background: transparent; selection-background-color: @PRIMARY@; selection-color: @ON_ACCENT@;
 }
 QLineEdit QToolButton { padding: 0; }
-QPlainTextEdit#conversationTranscript { border-color: transparent; }
+QPlainTextEdit#conversationTranscript { background: @CANVAS@; border-color: transparent; }
+QPlainTextEdit#conversationComposer { background: @COMPOSER@; }
 QAbstractItemView#conversationTranscript, QPlainTextEdit#conversationTranscript,
 QPlainTextEdit#conversationComposer { font-size: @CONTENT_SIZE@px; }
 QPlainTextEdit[codeText="true"] { font-size: @CODE_SIZE@px; font-family: "@CODE_FAMILY@"; }
