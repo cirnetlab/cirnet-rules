@@ -31,10 +31,8 @@ pub(super) fn absolute(path: &Path) -> Result<PathBuf, String> {
             Component::ParentDir => {
                 return Err("Migration paths cannot contain parent traversal".into());
             }
-            Component::Normal(part) => {
-                if !part.to_str().is_some_and(portable_part) {
-                    return Err("Migration path has an unsupported filename".into());
-                }
+            Component::Normal(part) if !part.to_str().is_some_and(portable_part) => {
+                return Err("Migration path has an unsupported filename".into());
             }
             #[cfg(windows)]
             Component::Prefix(prefix) => {

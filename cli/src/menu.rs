@@ -89,13 +89,29 @@ const ENTRIES: &[Entry] = &[
     },
 ];
 
-const ART: [&str; 5] = [
-    " █████  ██   ██  ██████ ",
-    "██      ███  ██  ██   ██",
-    "██      ██ █ ██  ██████ ",
-    "██      ██  ███  ██  ██ ",
-    " █████  ██   ██  ██   ██",
+const ART: [&str; 8] = [
+    "██       ████ █████ ████  ██ ██ █████ █████    ████  ██ ██ ███   █████  ████",
+    " ██     ██░░█░ ███░░██░██ ███ █░██░░█░█░█░█░   ██░██ ██░██░ ██░  ██░░█░██░░█░",
+    "  ██    ██░  ░ ███░ ██░██░███░█░██░  ░ ░█░ ░   ██░██░██░██░ ██░  ██░  ░██░  ░",
+    "   ██   ██░    ███░ ████░░██░██░████    █░     ████░░██░██░ ██░  ████   ███",
+    "  ██░░  ██░    ███░ ███░░ █░███░██░░░   █░     ███░░ ██░██░ ██░  ██░░░   ░██",
+    " ██░░   ██░ █  ███░ ██░██ █░███░██░ █   █░     ██░██ ██░██░ ██░█ ██░ █ █  ██░",
+    "██░░     ████░█████ ██░██░██ ██░█████░ ███     ██░██░ ███░░█████░█████░████░░",
+    " ░░       ░░░░ ░░░░░ ░░ ░░ ░░ ░░ ░░░░░  ░░░     ░░ ░░  ░░░  ░░░░░ ░░░░░ ░░░░",
 ];
+
+fn banner_lines(enabled: bool, width: u16, height: u16) -> &'static [&'static str] {
+    if enabled
+        && height >= 20
+        && ART
+            .iter()
+            .all(|line| line.chars().count() < usize::from(width))
+    {
+        &ART
+    } else {
+        &["CIRNET RULES"]
+    }
+}
 
 struct Screen;
 
@@ -144,23 +160,21 @@ fn show(title: &str, color: bool, banner: bool, vi: bool) -> io::Result<Option<&
                 })
             )?;
         }
-        if banner && width >= 36 && height >= 18 {
-            for line in ART {
-                queue!(out, MoveTo(0, row), Print(line))?;
-                row += 1;
-            }
-        } else {
-            queue!(out, Print("CNR"))?;
-            row += 1;
+        let lines = banner_lines(banner, width, height);
+        for line in lines {
+            row = print_line(&mut out, row, width, line)?;
         }
         if color {
             queue!(out, ResetColor)?;
         }
+        if lines.len() > 1 {
+            row += 1;
+        }
         if height > row + 5 {
             let subtitle = if vi {
-                "CIRNET RULES — Runtime, SDK và công cụ phát triển"
+                "Runtime, SDK và công cụ phát triển"
             } else {
-                "CIRNET RULES — Runtime, SDK & Development Tools"
+                "Runtime, SDK & Development Tools"
             };
             row = print_line(&mut out, row, width, subtitle)?;
             row = print_line(&mut out, row, width, title)?;
@@ -410,7 +424,16 @@ pub fn run(flags: &ArgMatches, vi: bool) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::words;
+    use super::{ART, banner_lines, words};
+
+    #[test]
+    fn banner_falls_back_when_the_terminal_is_too_small_or_art_is_disabled() {
+        let compact = ["CIRNET RULES"];
+        assert_eq!(banner_lines(true, 78, 20), ART);
+        assert_eq!(banner_lines(true, 77, 20), compact);
+        assert_eq!(banner_lines(true, 78, 19), compact);
+        assert_eq!(banner_lines(false, 80, 24), compact);
+    }
 
     #[test]
     fn preserves_quoted_unicode_paths_and_empty_argv_values() {
