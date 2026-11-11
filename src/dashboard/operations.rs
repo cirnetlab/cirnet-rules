@@ -1,5 +1,8 @@
 //! Bounded storage jobs. Each job owns its SQLite connection on one worker.
-use super::dashboard::storage::{self, AppError, Empty, decode};
+use super::{
+    Diagnostics,
+    dashboard::storage::{self, AppError, Empty, decode},
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -36,7 +39,7 @@ pub(crate) struct JobControl {
     cancelled: AtomicBool,
     running: AtomicBool,
     progress: Mutex<Progress>,
-    deadline: Mutex<Option<Instant>>,
+    deadline: Instant,
 }
 
 impl JobControl {
@@ -49,12 +52,11 @@ impl JobControl {
                 completed: 0,
                 total: None,
             }),
-            deadline: Mutex::new(None),
+            deadline: Instant::now() + JOB_LIMIT,
         }
     }
 
     fn begin(&self) {
-        *self.deadline.lock().unwrap() = Some(Instant::now() + JOB_LIMIT);
         self.running.store(true, Ordering::Release);
     }
 
@@ -70,12 +72,7 @@ impl JobControl {
         if self.cancelled() {
             return Err(AppError::new("CANCELLED", "The operation was cancelled."));
         }
-        if self
-            .deadline
-            .lock()
-            .unwrap()
-            .is_some_and(|at| Instant::now() >= at)
-        {
+        if Instant::now() >= self.deadline {
             return Err(AppError::new(
                 "OPERATION_TIMEOUT",
                 "The storage job exceeded its time budget.",
@@ -212,10 +209,11 @@ pub(crate) struct Operations {
     thread: Option<JoinHandle<()>>,
     records: BTreeMap<u64, Record>,
     deferred: HashMap<u64, String>,
+    diagnostics: Diagnostics,
 }
 
 impl Operations {
-    pub(crate) fn new(data: PathBuf, nonce: &[u8]) -> io::Result<Self> {
+    pub(crate) fn new(data: PathBuf, nonce: &[u8], diagnostics: Diagnostics) -> io::Result<Self> {
         let (work, requests) = mpsc::sync_channel::<Work>(MAX_ACTIVE);
         let (results, completed) = mpsc::sync_channel(MAX_ACTIVE);
         let thread = thread::Builder::new()
@@ -243,6 +241,7 @@ impl Operations {
             thread: Some(thread),
             records: BTreeMap::new(),
             deferred: HashMap::new(),
+            diagnostics,
         })
     }
 
@@ -255,10 +254,6 @@ impl Operations {
             .values()
             .filter(|record| record.outcome.is_none())
             .count()
-    }
-
-    pub(crate) fn has_deferred(&self) -> bool {
-        !self.deferred.is_empty()
     }
 
     pub(crate) fn take_deferred(&mut self) -> impl Iterator<Item = String> {
@@ -384,6 +379,10 @@ impl Drop for Operations {
             }
             if thread.is_finished() {
                 let _ = thread.join();
+            } else {
+                self.diagnostics.line(format_args!(
+                    "Storage worker did not finish before process exit"
+                ));
             }
         }
     }
@@ -403,7 +402,12 @@ mod tests {
 
     #[test]
     fn active_operation_admission_is_bounded() {
-        let mut operations = Operations::new(PathBuf::from("not-a-storage-root"), &[1; 8]).unwrap();
+        let mut operations = Operations::new(
+            PathBuf::from("not-a-storage-root"),
+            &[1; 8],
+            Diagnostics::default(),
+        )
+        .unwrap();
         for _ in 0..MAX_ACTIVE {
             operations.start("storage.scan", json!({}), None).unwrap();
         }

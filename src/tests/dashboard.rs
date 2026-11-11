@@ -40,6 +40,12 @@ impl Runtime {
     fn request_wire(&mut self, version: u8, method: &str, params: Value) -> Value {
         self.request += 1;
         let id = self.request.to_string();
+        self.send(&id, version, method, params);
+        let response = self.receive();
+        assert_eq!(response["id"], id);
+        response
+    }
+    fn send(&mut self, id: &str, version: u8, method: &str, params: Value) {
         let input = self.input.as_mut().unwrap();
         serde_json::to_writer(
             &mut *input,
@@ -48,15 +54,15 @@ impl Runtime {
         .unwrap();
         input.write_all(b"\n").unwrap();
         input.flush().unwrap();
+    }
+    fn receive(&mut self) -> Value {
         let mut response = String::new();
         assert_ne!(
             self.output.read_line(&mut response).unwrap(),
             0,
-            "Runtime closed during {method}"
+            "Runtime closed before replying"
         );
-        let response: Value = serde_json::from_str(&response).unwrap();
-        assert_eq!(response["id"], id);
-        response
+        serde_json::from_str(&response).unwrap()
     }
     fn call(&mut self, method: &str, params: Value) -> Value {
         let response = self.request(3, method, params);
@@ -86,6 +92,89 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+#[test]
+fn interactive_read_and_control_run_while_writer_waits_for_sqlite() {
+    let fixture = Fixture::new();
+    let data = fixture.0.join("writer-wait");
+    let mut runtime = Runtime::open(&data);
+    runtime.call("runtime.info", json!({}));
+    let mut external = rusqlite::Connection::open(data.join("cirnetrules.sqlite3")).unwrap();
+    external.execute(
+        "INSERT INTO conversations VALUES(1,'fixture','digest','Before','handoff','ACTIVE','DASHBOARD',NULL,1,1,1)",
+        [],
+    ).unwrap();
+    let lock = external
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .unwrap();
+    runtime.send(
+        "writer",
+        3,
+        "cirnetrules.conversation.rename",
+        json!({"id":"1","revision":1,"title":"After"}),
+    );
+    runtime.send("read", 3, "cirnetrules.conversation.get", json!({"id":"1"}));
+    runtime.send("control", 3, "cirnetrules.runtime.info", json!({}));
+    runtime.send(
+        "cancel-writer",
+        3,
+        "cirnetrules.request.cancel",
+        json!({"id":"writer"}),
+    );
+    let mut replies = [runtime.receive(), runtime.receive(), runtime.receive()];
+    replies.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
+    assert_eq!(replies[0]["id"], "cancel-writer");
+    assert_eq!(replies[0]["result"]["state"], "NOT_PENDING");
+    assert_eq!(replies[1]["id"], "control");
+    assert_eq!(replies[1]["ok"], true);
+    assert_eq!(replies[2]["id"], "read");
+    assert_eq!(replies[2]["result"]["conversation"]["title"], "Before");
+    lock.commit().unwrap();
+    let writer = runtime.receive();
+    assert_eq!(writer["id"], "writer");
+    assert_eq!(writer["ok"], true, "{writer}");
+    assert_eq!(
+        runtime.call("conversation.get", json!({"id":"1"}))["conversation"]["title"],
+        "After"
+    );
+    runtime.close();
+}
+
+#[test]
+fn read_cancellation_is_negotiated_on_private_stdio() {
+    let fixture = Fixture::new();
+    let mut runtime = Runtime::open(&fixture.0.join("cancel"));
+    assert_eq!(
+        runtime.call("runtime.info", json!({}))["read_cancellation"],
+        true
+    );
+    assert_eq!(
+        runtime.call("request.cancel", json!({"id":"missing"}))["state"],
+        "NOT_PENDING"
+    );
+    assert_eq!(
+        runtime.request(3, "request.cancel", json!({"id":"missing","extra":1}))["error"]["code"],
+        "INVALID_INPUT"
+    );
+    runtime.close();
+}
+
+#[test]
+fn a_stdio_request_id_can_be_reused_after_its_response() {
+    let fixture = Fixture::new();
+    let mut runtime = Runtime::open(&fixture.0.join("reused-request-id"));
+    for _ in 0..64 {
+        runtime.send("same-id", 3, "cirnetrules.runtime.info", json!({}));
+        let info = runtime.receive();
+        assert_eq!(info["id"], "same-id");
+        assert_eq!(info["ok"], true);
+        runtime.send("same-id", 3, "cirnetrules.preferences.get", json!({}));
+        let preferences = runtime.receive();
+        assert_eq!(preferences["id"], "same-id");
+        assert_eq!(preferences["ok"], true);
+    }
+    runtime.close();
 }
 
 #[test]
@@ -679,6 +768,67 @@ fn closing_request_pipe_drains_accepted_replies() {
         })
         .collect();
     assert_eq!(ids, ["1", "2", "3", "4", "5", "6", "7", "8"]);
+}
+
+#[test]
+fn full_trace_pipe_does_not_hold_up_stalled_stdout_shutdown() {
+    let fixture = Fixture::new();
+    let data = fixture.0.join("blocked-pipes");
+    let mut initializer = Runtime::open(&data);
+    initializer.call("runtime.info", json!({}));
+    initializer.close();
+    {
+        let db = rusqlite::Connection::open(data.join("cirnetrules.sqlite3")).unwrap();
+        db.execute(
+            "INSERT INTO conversations VALUES(1,'fixture','digest','Pipes fixture','handoff','ACTIVE','DASHBOARD',NULL,1,1,1)",
+            [],
+        ).unwrap();
+        for id in 1..=4 {
+            db.execute(
+                "INSERT INTO messages VALUES(?1,1,?2,'digest',?1,'USER',?3,1)",
+                rusqlite::params![id, format!("message-{id}"), "x".repeat(16_000)],
+            )
+            .unwrap();
+        }
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_cirnetrules-runtime"))
+        .args(["--stdio", "--data-dir"])
+        .arg(data)
+        .env("CIRNETRULES_TRACE_IPC", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut runtime = Runtime {
+        input: child.stdin.take(),
+        output: BufReader::new(child.stdout.take().unwrap()),
+        child,
+        request: 0,
+    };
+    // Leave stderr unread while responses generate more trace bytes than the
+    // pipe can hold. Stdout is still read until the pipe-stall workload starts.
+    for _ in 0..1_000 {
+        runtime.call("runtime.info", json!({}));
+    }
+    for id in ["large-1", "large-2", "large-3"] {
+        runtime.send(id, 3, "cirnetrules.conversation.get", json!({"id":"1"}));
+    }
+    let until = Instant::now() + Duration::from_secs(8);
+    loop {
+        if let Some(status) = runtime.child.try_wait().unwrap() {
+            assert!(
+                !status.success(),
+                "Runtime accepted a permanently blocked stdout"
+            );
+            break;
+        }
+        assert!(
+            Instant::now() < until,
+            "Runtime did not exit after both stdout and trace stderr stopped draining"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 #[test]

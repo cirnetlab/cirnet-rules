@@ -121,8 +121,38 @@ const TARGET_TASKS: &str = "SELECT id FROM task_proposals WHERE conversation_id=
 const TARGET_RUNS: &str = "((?2 IS NULL AND conversation_id=?1) OR task_id IN
     (SELECT id FROM target_tasks))";
 
-pub(super) fn blockers(conn: &Connection, target: Target) -> Result<(i64, Vec<Blocker>), AppError> {
-    blockers_in_scope(conn, target, None)
+pub(super) fn conversation_blockers(
+    conn: &Connection,
+    conversation: i64,
+) -> Result<(i64, Vec<Blocker>), AppError> {
+    // Direct runs and runs linked by task are disjoint here. Visit cross-links once,
+    // and count the large direct sets without sorting all of their detail rows.
+    let mut statement = conn.prepare_cached(&format!(
+        "WITH linked_runs AS MATERIALIZED (
+            SELECT a.id,a.status,a.attempt,a.lease_expires_at
+            FROM task_proposals p CROSS JOIN automation_runs a ON a.task_id=p.id
+            WHERE p.conversation_id=?1 AND a.conversation_id IS NOT ?1 AND {ACTIVE_RUN}
+        ), direct_runs AS (
+            SELECT id,status,attempt,lease_expires_at FROM automation_runs
+            WHERE conversation_id=?1 AND {ACTIVE_RUN} ORDER BY id LIMIT 64
+        ), run_page AS (
+            SELECT 'run' AS kind,id,status AS state,attempt,lease_expires_at AS lease FROM direct_runs
+            UNION ALL
+            SELECT 'run',id,status,attempt,lease_expires_at FROM linked_runs ORDER BY id LIMIT 64
+        ), task_page AS (
+            SELECT 'task' AS kind,id,state,NULL AS attempt,NULL AS lease FROM task_proposals
+            WHERE conversation_id=?1 AND state!='CANCELLED' ORDER BY id LIMIT 64
+        ), page AS (
+            SELECT kind,id,state,attempt,lease FROM run_page
+            UNION ALL SELECT kind,id,state,attempt,lease FROM task_page ORDER BY kind,id LIMIT 64
+        )
+        SELECT kind,id,state,attempt,lease,
+            (SELECT count(*) FROM task_proposals WHERE conversation_id=?1 AND state!='CANCELLED')
+            + (SELECT count(*) FROM automation_runs WHERE conversation_id=?1 AND {ACTIVE_RUN})
+            + (SELECT count(*) FROM linked_runs)
+        FROM page ORDER BY kind,id"
+    ))?;
+    collect_blockers(&mut statement, [conversation])
 }
 
 fn blockers_in_scope(
@@ -140,26 +170,33 @@ fn blockers_in_scope(
         ) SELECT kind,id,state,attempt,lease,count(*) OVER () FROM blocked
             ORDER BY kind,id LIMIT 64"
     ))?;
+    collect_blockers(
+        &mut statement,
+        params![target.conversation, target.message, automation],
+    )
+}
+
+fn collect_blockers(
+    statement: &mut rusqlite::Statement<'_>,
+    params: impl rusqlite::Params,
+) -> Result<(i64, Vec<Blocker>), AppError> {
     let rows = statement
-        .query_map(
-            params![target.conversation, target.message, automation],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(5)?,
-                    Blocker {
-                        kind: if row.get::<_, String>(0)? == "task" {
-                            "task"
-                        } else {
-                            "run"
-                        },
-                        id: row.get::<_, i64>(1)?.to_string(),
-                        state: row.get(2)?,
-                        attempt: row.get(3)?,
-                        lease_expires_at: row.get(4)?,
+        .query_map(params, |row| {
+            Ok((
+                row.get::<_, i64>(5)?,
+                Blocker {
+                    kind: if row.get_ref(0)? == rusqlite::types::ValueRef::Text(b"task") {
+                        "task"
+                    } else {
+                        "run"
                     },
-                ))
-            },
-        )?
+                    id: row.get::<_, i64>(1)?.to_string(),
+                    state: row.get(2)?,
+                    attempt: row.get(3)?,
+                    lease_expires_at: row.get(4)?,
+                },
+            ))
+        })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok((
         rows.first().map_or(0, |row| row.0),

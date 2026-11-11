@@ -1,6 +1,6 @@
 //! Explicit, read-only migration of legacy file state into the local archive.
 use super::{
-    catalog,
+    catalog, request_budget,
     storage::{self, AppError, Database},
 };
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
@@ -447,6 +447,7 @@ fn ordinary_directory(path: PathBuf) -> Result<PathBuf, AppError> {
 }
 
 fn entries(dir: &Path, entries_remaining: &mut usize) -> Result<Vec<PathBuf>, AppError> {
+    request_budget::check()?;
     match fs::symlink_metadata(dir) {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Ok(meta) if meta.is_dir() && !storage::redirect(&meta) => {}
@@ -472,6 +473,7 @@ fn entries(dir: &Path, entries_remaining: &mut usize) -> Result<Vec<PathBuf>, Ap
 }
 
 fn read_record(path: &Path, remaining: &mut usize) -> Result<(Value, String), AppError> {
+    request_budget::check()?;
     let meta = fs::symlink_metadata(path)
         .map_err(|_| legacy_invalid("Cannot inspect a legacy record."))?;
     let limit = RECORD_LIMIT.min(*remaining);

@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-ARCHITECTURE -->
-<!-- revision: 8 -->
+<!-- revision: 9 -->
 <a id="authority"></a>
 
 # Dashboard architecture and authority
@@ -55,23 +55,31 @@ verified import into a separate database, compare IDs and digests, then
 switch the runtime in a maintenance window. Preserve the old store until
 the new database and recovery path are proven.
 
-Qt verifies the sibling executable on a cancellable worker and applies stdio
-frames on the GUI thread in slices of up to eight frames or five milliseconds
-between frame boundaries. The client drains complete replies before settling
-unanswered requests on process exit. One expiry timer tracks at most 32
-outstanding requests. Transcript queries return at most four messages. The active view
-applies new pages by ordinal and bounds the displayed transcript and sidebar.
+Qt verifies the sibling executable on a cancellable worker. The GUI thread
+owns the process transport and drains up to four frames or four milliseconds
+between callbacks. It drains complete replies before settling unanswered
+requests on exit. One expiry timer tracks up to 32 wire requests. Conversation
+detail and event polling each keep one latest intent and up to two wire credits.
+Superseded callbacks are released immediately. The runtime advertises
+`read_cancellation` for the optional `request.cancel` control. The view checks
+its visit and revision before applying a result. `event_watermark` is the last
+event visible in the same SQLite snapshot as the latest transcript page.
 
-Runtime ingress and egress have bounded channels. The dispatcher owns the
-interactive SQLite connection, and the scheduler owns its own connection.
-An independent storage worker uses one running lane, three active operation
-slots and a bounded history. The connection handshake starts a read-only
-`storage.chats` job that accounts for conversation text on a separate SQLite
-connection. The Dashboard polls its status independently of navigation.
-Backup, verification, database scan and compaction use the same worker.
-Operations report state and cooperate with cancellation. SQLite locks can still delay
-writes within their busy budget. Local Git and legacy import remain synchronous
-in the runtime dispatcher. The worker never owns UI objects.
+The dispatcher admits requests to a FIFO writer, an interactive SQLite reader,
+or a worker for slower reads including Git and filesystem work. The worker
+connections open after bootstrap and share the runtime's preview authority.
+The scheduler and existing storage worker retain separate connections.
+Bounded delivery hands one response at a time to stdout and closes a stalled
+pipe after its deadline. Running reads can be interrupted on their own
+connection. Writes retain their transaction guards and receipts, including
+when delivery fails. SQLite locks can delay writes within the busy budget.
+
+The handshake starts the read-only `storage.chats` operation. Storage status,
+backup, verification and compaction use the existing maintenance worker.
+Transcript queries return at most four messages subject to the page byte
+budget. The client inserts and trims by message boundaries and keeps a bounded
+display window. Full saved text remains available from the message menu.
+See [performance verification](../specs/cirnet-rules/desktop-performance/verification.md).
 
 The existing CLI still manages its historical task and evidence files.
 Dashboard intake does not elevate those records or confer write grants.

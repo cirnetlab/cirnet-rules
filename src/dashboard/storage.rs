@@ -159,29 +159,73 @@ pub struct Database {
     data_dir: PathBuf,
 }
 
+/// Opens worker-owned connections after the runtime has validated and migrated storage.
+#[derive(Clone)]
+pub struct ConnectionFactory {
+    data_dir: PathBuf,
+    machine_id: String,
+    preview_secret: Vec<u8>,
+}
+
+impl ConnectionFactory {
+    pub fn open_read(&self) -> Result<Database, AppError> {
+        self.open(OpenFlags::SQLITE_OPEN_READ_ONLY)
+    }
+
+    pub fn open_write(&self) -> Result<Database, AppError> {
+        self.open(OpenFlags::SQLITE_OPEN_READ_WRITE)
+    }
+
+    fn open(&self, mode: OpenFlags) -> Result<Database, AppError> {
+        check_ancestors(&self.data_dir, false)?;
+        check_database_files(&self.data_dir)?;
+        let conn = Connection::open_with_flags(
+            self.data_dir.join(DATABASE_FILE),
+            mode | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )?;
+        conn.busy_timeout(Duration::from_millis(200))?;
+        conn.pragma_update(None, "foreign_keys", true)?;
+        conn.pragma_update(None, "synchronous", "FULL")?;
+        if ensure_supported(&conn)? != MIGRATIONS.len() as i64 {
+            return Err(AppError::new(
+                "MIGRATION_REQUIRED",
+                "Local storage changed after runtime startup.",
+            ));
+        }
+        let journal: String = conn.pragma_query_value(None, "journal_mode", |row| row.get(0))?;
+        let machine_id: String = conn.query_row(
+            "SELECT value FROM catalog_settings WHERE key = 'machine_id'",
+            [],
+            |row| row.get(0),
+        )?;
+        if !journal.eq_ignore_ascii_case("wal") || machine_id != self.machine_id {
+            return Err(AppError::new(
+                "STORAGE_UNAVAILABLE",
+                "Local storage changed during worker initialization.",
+            ));
+        }
+        Ok(Database {
+            conn,
+            machine_id,
+            preview_secret: self.preview_secret.clone(),
+            data_dir: self.data_dir.clone(),
+        })
+    }
+}
+
+struct ReadProgress<'a>(&'a mut Database);
+
+impl Drop for ReadProgress<'_> {
+    fn drop(&mut self) {
+        self.0.conn.progress_handler(0, None::<fn() -> bool>);
+    }
+}
+
 impl Database {
     pub fn open(data_dir: &Path) -> Result<Self, AppError> {
         let data_dir = ensure_directory(data_dir)?;
         let path = data_dir.join(DATABASE_FILE);
-        for suffix in ["", "-wal", "-shm", "-journal"] {
-            let file = data_dir.join(format!("{DATABASE_FILE}{suffix}"));
-            match fs::symlink_metadata(&file) {
-                Ok(meta) if meta.is_file() && !redirect(&meta) => {}
-                Ok(_) => {
-                    return Err(AppError::new(
-                        "INVALID_PATH",
-                        "Database files must be ordinary files.",
-                    ));
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(_) => {
-                    return Err(AppError::new(
-                        "STORAGE_UNAVAILABLE",
-                        "Cannot inspect local database files.",
-                    ));
-                }
-            }
-        }
+        check_database_files(&data_dir)?;
         let mut conn = Connection::open_with_flags(
             &path,
             OpenFlags::SQLITE_OPEN_READ_WRITE
@@ -213,6 +257,24 @@ impl Database {
             preview_secret,
             data_dir,
         })
+    }
+
+    pub fn connection_factory(&self) -> ConnectionFactory {
+        ConnectionFactory {
+            data_dir: self.data_dir.clone(),
+            machine_id: self.machine_id.clone(),
+            preview_secret: self.preview_secret.clone(),
+        }
+    }
+
+    pub fn with_read_cancel<T>(
+        &mut self,
+        should_cancel: impl FnMut() -> bool + Send + 'static,
+        operation: impl FnOnce(&mut Self) -> Result<T, AppError>,
+    ) -> Result<T, AppError> {
+        self.conn.progress_handler(1000, Some(should_cancel));
+        let progress = ReadProgress(self);
+        operation(progress.0)
     }
 
     pub(super) fn backup(&self) -> Result<Value, AppError> {
@@ -419,6 +481,29 @@ fn ensure_supported(conn: &Connection) -> Result<i64, AppError> {
         ));
     }
     Ok(current)
+}
+
+fn check_database_files(data_dir: &Path) -> Result<(), AppError> {
+    for suffix in ["", "-wal", "-shm", "-journal"] {
+        let file = data_dir.join(format!("{DATABASE_FILE}{suffix}"));
+        match fs::symlink_metadata(&file) {
+            Ok(meta) if meta.is_file() && !redirect(&meta) => {}
+            Ok(_) => {
+                return Err(AppError::new(
+                    "INVALID_PATH",
+                    "Database files must be ordinary files.",
+                ));
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => {
+                return Err(AppError::new(
+                    "STORAGE_UNAVAILABLE",
+                    "Cannot inspect local database files.",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn migrate(conn: &mut Connection, backup: Option<(&Path, &Path)>) -> Result<(), AppError> {

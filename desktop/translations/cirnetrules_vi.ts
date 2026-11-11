@@ -335,6 +335,8 @@ Nguồn: bộ thực thi cục bộ</translation></message>
     <message><source>Load older messages</source><translation>Tải tin nhắn cũ hơn</translation></message>
     <message><source>Latest messages</source><translation>Tin nhắn mới nhất</translation></message>
     <message><source>Display shortened.</source><translation>Nội dung hiển thị đã rút gọn.</translation></message>
+    <message><source>View full message</source><translation>Xem toàn bộ tin nhắn</translation></message>
+    <message><source>Full message</source><translation>Toàn bộ tin nhắn</translation></message>
     <message><source>Delete submitted message…</source><translation>Xóa tin nhắn đã gửi…</translation></message>
     <message><source>Clear draft</source><translation>Xóa bản nháp</translation></message>
     <message><source>Undo clear</source><translation>Hoàn tác xóa nháp</translation></message>
@@ -432,6 +434,9 @@ Xóa %3 tin nhắn cục bộ và %4 hồ sơ nhiệm vụ? Bản sao lưu hiệ
     <message><source>The runtime request exceeds the size limit.</source><translation>Yêu cầu runtime vượt giới hạn kích thước.</translation></message>
     <message><source>The runtime request queue is full.</source><translation>Hàng đợi yêu cầu runtime đã đầy.</translation></message>
     <message><source>The runtime request timed out. Check the saved state before retrying.</source><translation>Yêu cầu runtime đã hết thời gian. Kiểm tra trạng thái đã lưu trước khi thử lại.</translation></message>
+    <message><source>The runtime read timed out.</source><translation>Yêu cầu đọc từ runtime đã hết thời gian.</translation></message>
+    <message><source>The read request was superseded.</source><translation>Yêu cầu đọc đã được thay thế.</translation></message>
+    <message><source>The runtime response queue exceeds the size limit.</source><translation>Hàng đợi phản hồi của runtime vượt giới hạn kích thước.</translation></message>
     <message><source>The runtime response exceeds the size limit.</source><translation>Phản hồi runtime vượt giới hạn kích thước.</translation></message>
     <message><source>The runtime sent an invalid response.</source><translation>Runtime gửi phản hồi không hợp lệ.</translation></message>
     <message><source>The runtime stopped.</source><translation>Runtime đã dừng.</translation></message>

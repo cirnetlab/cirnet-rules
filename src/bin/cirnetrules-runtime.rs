@@ -3,6 +3,8 @@
 mod application_identity;
 #[path = "../dashboard/mod.rs"]
 mod dashboard;
+#[path = "runtime/dispatcher.rs"]
+mod dispatcher;
 #[path = "../dashboard/operations.rs"]
 mod operations;
 #[cfg(test)]
@@ -17,11 +19,12 @@ use dashboard::{
     automations, catalog, integrations, preferences, sessions,
     storage::{self, AppError, Database},
 };
-use operations::Operations;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
-    env,
+    borrow::Cow,
+    env, fmt,
     io::{self, BufRead, Read, Write},
     path::PathBuf,
     process::ExitCode,
@@ -56,13 +59,13 @@ fn info() -> Value {
         "execution_enforcement":{"READ_ONLY_BUILTIN":"AVAILABLE","TRUSTED_LOCAL_PROCESS":"LIMITED",
             "ISOLATED_EXECUTION":"BLOCKED","authenticated_independent_review":"BLOCKED"},
         "scheduler":"runtime while running; manual --scheduler supports a separate foreground process",
-        "storage_jobs":operations::limits()
+        "storage_jobs":operations::limits(),
+        "read_cancellation":true, "conversation_event_watermark":true
     })
 }
 
 fn dispatch(db: &mut Database, method: &str, params: Value) -> Result<Value, AppError> {
     match method.split_once('.').map(|(kind, _)| kind) {
-        Some("runtime") if method == "runtime.info" => Ok(info()),
         Some("repo") => catalog::dispatch(db, method, params),
         Some("storage") => storage::dispatch(db, method, params),
         Some("preferences") => preferences::dispatch(db, method, params),
@@ -86,135 +89,73 @@ fn valid_id(value: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
 }
 
-fn envelope(id: &str, outcome: Result<Value, AppError>) -> Value {
-    match outcome {
-        Ok(result) => json!({"v":PROTOCOL,"id":id,"ok":true,"result":result}),
-        Err(issue) => json!({"v":PROTOCOL,"id":id,"ok":false,"error":issue.wire()}),
-    }
-}
+#[derive(Clone, Default)]
+pub(crate) struct Diagnostics(Option<mpsc::SyncSender<String>>);
 
-struct Trace {
-    remaining: usize,
-    lines: Option<mpsc::SyncSender<String>>,
-}
-
-impl Trace {
-    fn new() -> Self {
-        let enabled =
-            env::var_os(application_identity::TRACE_IPC_ENV).is_some_and(|value| value == "1");
-        let lines = if enabled {
-            let (sender, receiver) = mpsc::sync_channel::<String>(64);
-            thread::spawn(move || {
+impl Diagnostics {
+    fn start() -> Self {
+        let (sender, receiver) = mpsc::sync_channel::<String>(64);
+        // The inherited stderr pipe may never drain. Only this thread can
+        // wait on that pipe, and stdio shutdown does not join it.
+        let worker = thread::Builder::new()
+            .name("cirnetrules-stderr".into())
+            .spawn(move || {
                 for line in receiver {
                     if writeln!(io::stderr().lock(), "{line}").is_err() {
                         break;
                     }
                 }
             });
-            Some(sender)
-        } else {
-            None
-        };
-        Self {
-            remaining: 2048,
-            lines,
-        }
+        Self(worker.ok().map(|_| sender))
     }
 
-    fn request(
-        &mut self,
-        id: &str,
-        method: &str,
-        queued: Duration,
-        execution: Duration,
-        pending: usize,
-    ) {
-        if let Some(lines) = &self.lines
-            && self.remaining > 0
-        {
-            self.remaining -= 1;
-            let _ = lines.try_send(format!(
-                "cirnetrules-ipc id={id} method={method} queued_us={} dispatch_us={} storage_pending={pending}",
-                queued.as_micros(), execution.as_micros(),
-            ));
+    fn line(&self, message: fmt::Arguments<'_>) {
+        if let Some(sender) = &self.0 {
+            let mut line = message.to_string();
+            line.truncate(line.floor_char_boundary(512));
+            let _ = sender.try_send(line);
         }
     }
 }
 
-fn reply(
-    db: &mut Database,
-    operations: &mut Operations,
-    probes: &mut integrations::ProbeQueue,
-    trace: &mut Trace,
-    bytes: &[u8],
-    enqueued: Instant,
-) -> Option<Value> {
-    let started = Instant::now();
-    let error =
-        |id: &str, code, message: &str| Some(envelope(id, Err(AppError::new(code, message))));
-    let Ok(request) = serde_json::from_slice::<Request>(bytes) else {
-        return error(
-            "",
-            "INVALID_REQUEST",
-            "Expected one valid JSON request frame",
-        );
-    };
-    if !valid_id(&request.id) {
-        return error("", "INVALID_REQUEST", "Request id is invalid");
-    }
-    if request.v != PROTOCOL {
-        return error(
-            &request.id,
-            "PROTOCOL_VERSION",
-            "Unsupported local protocol version",
-        );
-    }
-    if !valid_id(&request.method) || !request.params.is_object() {
-        return error(
-            &request.id,
-            "INVALID_REQUEST",
-            "Expected a method and object parameters",
-        );
-    }
-    let Request {
-        id, method, params, ..
-    } = request;
-    let Some(method) = method.strip_prefix(API_NAMESPACE) else {
-        return error(
-            &id,
-            "METHOD_NOT_FOUND",
-            "Unexpected local runtime method namespace",
-        );
-    };
-    let legacy = matches!(method, "storage.backup" | "storage.verify");
-    let deferred = legacy || method == "integration.probe";
-    let outcome = match method {
-        "integration.probe" => probes.submit(&id, params).map(|()| Value::Null),
-        "storage.chats"
-        | "storage.scan"
-        | "storage.backup"
-        | "storage.verify"
-        | "storage.backup.start"
-        | "storage.verify.start"
-        | "storage.compact.start" => {
-            operations.start(method, params, legacy.then_some(id.as_str()))
+struct Trace {
+    remaining: usize,
+    diagnostics: Diagnostics,
+}
+
+impl Trace {
+    fn new(diagnostics: Diagnostics) -> Self {
+        let enabled =
+            env::var_os(application_identity::TRACE_IPC_ENV).is_some_and(|value| value == "1");
+        Self {
+            remaining: if enabled { 2048 } else { 0 },
+            diagnostics,
         }
-        "operation.get" | "operation.cancel" => {
-            operations.inspect(params, method == "operation.cancel")
+    }
+
+    fn request(&mut self, id: &str, timing: dispatcher::Timing, egress: Duration, size: usize) {
+        if self.remaining > 0 {
+            self.remaining -= 1;
+            // The Dashboard generates UUIDs. Pseudonymize arbitrary caller IDs
+            // while retaining a stable identifier for local correlation.
+            let id = if id.len() == 36
+                && id.bytes().enumerate().all(|(index, byte)| {
+                    if matches!(index, 8 | 13 | 18 | 23) {
+                        byte == b'-'
+                    } else {
+                        byte.is_ascii_hexdigit()
+                    }
+                }) {
+                Cow::Borrowed(id)
+            } else {
+                Cow::Owned(format!("{:x}", Sha256::digest(id.as_bytes()))[..16].to_owned())
+            };
+            self.diagnostics.line(format_args!(
+                "cirnetrules-ipc id={id} method={} queued_us={} dispatch_us={} storage_pending={} serialize_us={} egress_us={} response_bytes={size}",
+                timing.method, timing.queued.as_micros(), timing.execution.as_micros(), timing.storage_pending,
+                timing.serialization.as_micros(), egress.as_micros(),
+            ));
         }
-        _ => dispatch(db, method, params),
-    };
-    trace.request(
-        &id,
-        method,
-        started.duration_since(enqueued),
-        started.elapsed(),
-        operations.pending(),
-    );
-    if deferred && outcome.is_ok() {
-        None
-    } else {
-        Some(envelope(&id, outcome))
     }
 }
 
@@ -248,155 +189,21 @@ fn frame(reader: &mut impl BufRead) -> io::Result<Option<Vec<u8>>> {
     }
 }
 
-fn stdio(db: &mut Database) -> io::Result<()> {
-    let nonce = db.operation_nonce().map_err(io::Error::other)?;
-    let mut operations = Operations::new(db.data_dir().to_owned(), &nonce)?;
-    let mut probes = integrations::ProbeQueue::new()?;
-    let scheduler = LocalScheduler::start(db.data_dir().to_owned())?;
-    let mut trace = Trace::new();
-    let (sender, requests) = mpsc::sync_channel(16);
-    thread::spawn(move || {
-        let stdin = io::stdin();
-        let mut input = stdin.lock();
-        loop {
-            match frame(&mut input) {
-                Ok(Some(bytes)) => {
-                    if sender.send(Ok((Instant::now(), bytes))).is_err() {
-                        break;
-                    }
-                }
-                Ok(None) => break,
-                Err(issue) => {
-                    let _ = sender.send(Err(issue));
-                    break;
-                }
-            }
-        }
-    });
-    let (responses, outgoing) = mpsc::sync_channel::<Vec<u8>>(8);
-    let (report, delivery) = mpsc::channel();
-    thread::spawn(move || {
-        let stdout = io::stdout();
-        let mut output = stdout.lock();
-        let result = (|| -> io::Result<()> {
-            for bytes in outgoing {
-                output.write_all(&bytes)?;
-                output.flush()?;
-            }
-            Ok(())
-        })();
-        let _ = report.send(result);
-    });
-    loop {
-        if let Ok(result) = delivery.try_recv() {
-            return result;
-        }
-        for (id, outcome) in operations.reap() {
-            send(&responses, envelope(&id, outcome))?;
-        }
-        if let Some((id, outcome)) = probes.reap() {
-            send(&responses, envelope(&id, outcome))?;
-        }
-        let interval = if operations.busy() || probes.busy() {
-            Duration::from_millis(5)
-        } else {
-            TICK
-        };
-        match requests.recv_timeout(interval) {
-            Ok(Ok((enqueued, bytes))) => {
-                if let Some(response) = reply(
-                    db,
-                    &mut operations,
-                    &mut probes,
-                    &mut trace,
-                    &bytes,
-                    enqueued,
-                ) {
-                    send(&responses, response)?;
-                }
-            }
-            Ok(Err(issue)) => return Err(issue),
-            Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                // A one-shot stdio caller may close stdin before reading its legacy response.
-                let until = Instant::now() + Duration::from_secs(2);
-                while (operations.has_deferred() || probes.busy()) && Instant::now() < until {
-                    for (id, outcome) in operations.reap() {
-                        send(&responses, envelope(&id, outcome))?;
-                    }
-                    if let Some((id, outcome)) = probes.reap() {
-                        send(&responses, envelope(&id, outcome))?;
-                    }
-                    if operations.has_deferred() || probes.busy() {
-                        thread::sleep(Duration::from_millis(5));
-                    }
-                }
-                for id in operations.take_deferred() {
-                    send(
-                        &responses,
-                        envelope(
-                            &id,
-                            Err(AppError::new(
-                                "OPERATION_OUTCOME_UNKNOWN",
-                                "The operator channel closed before the storage outcome was confirmed.",
-                            )),
-                        ),
-                    )?;
-                }
-                drop(operations);
-                drop(probes);
-                drop(scheduler);
-                drop(responses);
-                return delivery.recv_timeout(Duration::from_secs(2)).map_err(
-                    |error| match error {
-                        mpsc::RecvTimeoutError::Timeout => io::Error::new(
-                            io::ErrorKind::TimedOut,
-                            "Operator response drain exceeded its deadline",
-                        ),
-                        mpsc::RecvTimeoutError::Disconnected => io::Error::new(
-                            io::ErrorKind::BrokenPipe,
-                            "Operator response writer stopped",
-                        ),
-                    },
-                )?;
-            }
-        }
-    }
-}
-
-fn send(responses: &mpsc::SyncSender<Vec<u8>>, response: Value) -> io::Result<()> {
-    let mut serialized = serde_json::to_vec(&response)?;
-    if serialized.len() > MAX_FRAME {
-        serialized = serde_json::to_vec(&json!({"v":PROTOCOL,"id":response["id"],"ok":false,
-            "error":{"code":"RESPONSE_LIMIT","message":"Use pagination or a narrower request"}}))?;
-    }
-    serialized.push(b'\n');
-    // A slow reader applies backpressure through both bounded queues.
-    responses
-        .send(serialized)
-        .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "Operator channel closed"))
-}
-
 struct LocalScheduler {
     stop: mpsc::Sender<()>,
     worker: Option<thread::JoinHandle<()>>,
+    diagnostics: Diagnostics,
 }
 
 impl LocalScheduler {
-    fn start(data_dir: PathBuf) -> io::Result<Self> {
+    fn start(mut db: Database, diagnostics: Diagnostics) -> io::Result<Self> {
         let (stop, stopped) = mpsc::channel();
+        let worker_diagnostics = diagnostics.clone();
         let worker = thread::Builder::new()
             .name("cirnetrules-scheduler".into())
             .spawn(move || {
-                let mut db = match Database::open(&data_dir) {
-                    Ok(db) => db,
-                    Err(error) => {
-                        eprintln!("Scheduler initialization failed: {}", error.code);
-                        return;
-                    }
-                };
                 loop {
-                    tick(&mut db);
+                    tick(&mut db, Some(&worker_diagnostics));
                     if stopped.recv_timeout(TICK) != Err(mpsc::RecvTimeoutError::Timeout) {
                         break;
                     }
@@ -405,6 +212,7 @@ impl LocalScheduler {
         Ok(Self {
             stop,
             worker: Some(worker),
+            diagnostics,
         })
     }
 }
@@ -419,18 +227,26 @@ impl Drop for LocalScheduler {
             }
             if worker.is_finished() {
                 let _ = worker.join();
+            } else {
+                self.diagnostics.line(format_args!(
+                    "Scheduler shutdown did not finish before process exit"
+                ));
             }
         }
     }
 }
 
-fn tick(db: &mut Database) {
+fn tick(db: &mut Database, diagnostics: Option<&Diagnostics>) {
     if let Err(error) = automations::tick(db) {
-        eprintln!("Scheduler tick deferred: {}", error.code);
+        if let Some(diagnostics) = diagnostics {
+            diagnostics.line(format_args!("Scheduler tick deferred: {}", error.code));
+        } else {
+            eprintln!("Scheduler tick deferred: {}", error.code);
+        }
     }
 }
 
-fn run() -> Result<(), String> {
+fn run() -> Result<ExitCode, String> {
     let mut args = env::args_os().skip(1);
     let mode = args
         .next()
@@ -440,7 +256,7 @@ fn run() -> Result<(), String> {
             "{}",
             serde_json::to_string(&info()).map_err(|error| error.to_string())?
         );
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
     let (path, use_default) = match args.next() {
         Some(flag) if flag == "--data-dir" => {
@@ -488,21 +304,22 @@ fn run() -> Result<(), String> {
             result["protocol"] = json!(PROTOCOL);
             result
         });
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
-    let mut db = locations.open().map_err(|error| error.to_string())?;
+    let db = locations.open().map_err(|error| error.to_string())?;
     if mode == "--stdio" {
-        return stdio(&mut db).map_err(|error| error.to_string());
+        return Ok(dispatcher::stdio(db));
     }
+    let mut db = db;
     loop {
-        tick(&mut db);
+        tick(&mut db, None);
         thread::sleep(TICK);
     }
 }
 
 fn main() -> ExitCode {
     match run() {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(error) => {
             eprintln!("{error}");
             ExitCode::FAILURE

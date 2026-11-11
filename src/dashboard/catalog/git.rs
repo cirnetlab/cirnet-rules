@@ -1,12 +1,6 @@
 use super::*;
-use std::{
-    io::Read,
-    path::Component,
-    process::{Command, Stdio},
-    sync::mpsc,
-    thread,
-    time::{Duration, Instant},
-};
+use crate::dashboard::request_budget;
+use std::{io::Read, path::Component, process::Command, time::Duration};
 
 const MAX_MARKER: u64 = 4096;
 
@@ -26,6 +20,7 @@ pub(super) struct Checkout {
 }
 
 pub(super) fn inspect(path: &Path) -> Result<Checkout, AppError> {
+    request_budget::check()?;
     storage::validate_local(path)?;
     if path
         .components()
@@ -292,61 +287,39 @@ fn run_git(executable: &Path, root: &Path, args: &[&str]) -> Result<Option<Strin
             "-c",
             "core.fsmonitor=false",
         ])
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .args(args);
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
         for name in ["SystemRoot", "WINDIR"] {
             if let Some(value) = std::env::var_os(name) {
                 cmd.env(name, value);
             }
         }
     }
-    let mut child = cmd.spawn().map_err(|_| {
+    let timeout = request_budget::remaining(Duration::from_secs(4))?;
+    let result = cirnetrules::execution::run_quiet_native(&mut cmd, timeout, || {
+        request_budget::check().is_err()
+    })
+    .map_err(|_| {
         AppError::new(
             "GIT_UNAVAILABLE",
-            "Cannot start the local Git metadata check.",
+            "Cannot complete the contained local Git metadata check.",
         )
     })?;
-    let stdout = child.stdout.take().ok_or_else(invalid_metadata)?;
-    let (sender, receiver) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let mut output = Vec::new();
-        let result = stdout
-            .take(128 * 1024 + 1)
-            .read_to_end(&mut output)
-            .map(|_| output);
-        let _ = sender.send(result);
-    });
-    let limit = Instant::now() + Duration::from_secs(4);
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) if Instant::now() < limit => thread::sleep(Duration::from_millis(10)),
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(AppError::new(
-                    "GIT_TIMEOUT",
-                    "Local Git metadata verification could not finish.",
-                ));
-            }
-        }
-    };
-    let output = receiver
-        .recv_timeout(limit.saturating_duration_since(Instant::now()))
-        .map_err(|_| AppError::new("GIT_TIMEOUT", "Local Git metadata output did not finish."))?
-        .map_err(|_| invalid_metadata())?;
-    if output.len() > 128 * 1024 {
+    request_budget::check()?;
+    if result.timed_out || result.cancelled {
+        return Err(AppError::new(
+            "GIT_TIMEOUT",
+            "Local Git metadata verification could not finish.",
+        ));
+    }
+    if result.output_truncated {
         return Err(invalid_metadata());
     }
-    if !status.success() {
+    if !result.success() {
         return Ok(None);
     }
+    let output = result.output;
     String::from_utf8(output)
         .map(Some)
         .map_err(|_| invalid_metadata())

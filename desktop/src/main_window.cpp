@@ -236,7 +236,7 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
         refreshRepositories();
         refreshConversations();
         refreshAutomations();
-        if (!currentConversation_.isEmpty())
+        if (!currentConversation_.isEmpty() && pages_->currentWidget() == conversationsPage_)
             openConversation(currentConversation_);
     };
     connect(&client_, &RuntimeClient::ready, this, runtimeReady);
@@ -270,6 +270,12 @@ MainWindow::MainWindow(RuntimeClient &client, QWidget *parent,
 
 void MainWindow::setConnection(bool ready, const QString &status)
 {
+    if (online_ && !ready) {
+        suspendConversationReads();
+        conversationReads_.refreshOnReturn = !currentConversation_.isEmpty();
+        conversationReads_.confirmed = false;
+        conversationReads_.cursor = 0;
+    }
     online_ = ready;
     connectionStatus_ = status;
     updateShellIcons();
@@ -352,6 +358,8 @@ void MainWindow::showPage(QWidget *page)
     auto *previous = pages_->currentWidget();
     if (previous != page) {
         ++navigationRevision_;
+        if (previous == conversationsPage_)
+            suspendConversationReads();
         pages_->setCurrentWidget(page);
         if (previous == settingsPage_ || page == settingsPage_)
             updateSidebarLayout();
@@ -360,6 +368,9 @@ void MainWindow::showPage(QWidget *page)
     automationsButton_->setChecked(page == automationsPage_);
     settingsButton_->setChecked(page == settingsPage_);
     updateConversationSelection();
+    if (page == conversationsPage_ && conversationReads_.refreshOnReturn
+        && !currentConversation_.isEmpty())
+        openConversation(currentConversation_);
 }
 
 void MainWindow::call(const QString &method, QJsonObject params, RuntimeClient::Reply reply)
@@ -367,6 +378,16 @@ void MainWindow::call(const QString &method, QJsonObject params, RuntimeClient::
     const QPointer<MainWindow> owner(this);
     client_.request(method, std::move(params), [owner, reply = std::move(reply)](
                                                const QJsonObject &result, const QString &error) {
+        if (owner && reply)
+            reply(result, error);
+    });
+}
+
+void MainWindow::readLatest(RuntimeClient::ViewRead purpose, QJsonObject params, RuntimeClient::Reply reply)
+{
+    const QPointer<MainWindow> owner(this);
+    client_.latestRead(purpose, std::move(params), [owner, reply = std::move(reply)](
+                                                      const QJsonObject &result, const QString &error) {
         if (owner && reply)
             reply(result, error);
     });

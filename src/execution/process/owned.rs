@@ -22,7 +22,7 @@ mod platform {
                 QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
             },
             Threading::{
-                CREATE_SUSPENDED, GetProcessIdOfThread, OpenThread, ResumeThread,
+                CREATE_NO_WINDOW, CREATE_SUSPENDED, GetProcessIdOfThread, OpenThread, ResumeThread,
                 THREAD_QUERY_LIMITED_INFORMATION, THREAD_SUSPEND_RESUME,
             },
         },
@@ -173,10 +173,12 @@ mod platform {
 
     pub(in crate::execution::process) fn spawn(
         command: &mut Command,
+        hide_window: bool,
     ) -> Result<(Child, Tree), String> {
         let tree = Tree::new()?;
+        let flags = CREATE_SUSPENDED | if hide_window { CREATE_NO_WINDOW } else { 0 };
         let mut child = command
-            .creation_flags(CREATE_SUSPENDED)
+            .creation_flags(flags)
             .spawn()
             .map_err(|_| "Unable to start the approved executable")?;
         if let Err(error) = tree.assign(&child).and_then(|_| resume(&child)) {
@@ -241,6 +243,7 @@ mod platform {
 
     pub(in crate::execution::process) fn spawn(
         command: &mut Command,
+        _hide_window: bool,
     ) -> Result<(Child, Tree), String> {
         let mut child = command
             .process_group(0)

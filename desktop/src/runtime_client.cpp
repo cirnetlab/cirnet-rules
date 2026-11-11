@@ -3,23 +3,49 @@
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
-#include <QScopedValueRollback>
+#include <QPointer>
+#include <QRegularExpression>
+#include <QScopeGuard>
 #include <QThread>
 #include <QUuid>
+#include <algorithm>
 #include <utility>
 
 namespace {
 constexpr qsizetype frameLimit = 256 * 1024;
 constexpr qsizetype pendingLimit = 32;
+constexpr qsizetype viewReadReserve = 4;
+constexpr qsizetype readsPerPurpose = 2;
 constexpr qsizetype writeLimit = 2 * frameLimit;
-constexpr int framesPerSlice = 8;
-constexpr qint64 drainBudgetMs = 5;
+constexpr qsizetype receiveLimit = (pendingLimit + viewReadReserve) * (frameLimit + 1);
+constexpr int framesPerSlice = 4;
+constexpr qint64 drainBudgetMs = 4;
 constexpr qint64 requestTimeoutMs = 15000;
+constexpr qsizetype traceLimit = 256 * 1024;
+
+QByteArray traceVariable()
+{
+    return QByteArray(CIRNETRULES_PRODUCT_ID).toUpper() + "_TRACE_IPC";
+}
+
+QByteArray encodeRequest(const QString &id, const QString &method, QJsonObject params)
+{
+    return QJsonDocument(QJsonObject{
+        {"v", CIRNETRULES_IPC_PROTOCOL}, {"id", id}, {"method", QStringLiteral(CIRNETRULES_API_NAMESPACE) + method},
+        {"params", std::move(params)}
+    }).toJson(QJsonDocument::Compact) + '\n';
+}
+
+QString requestId()
+{
+    return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
 
 QString checkExecutable(const QString &path, bool requirePin, const std::atomic_bool *cancelled = nullptr)
 {
@@ -53,13 +79,27 @@ QString checkExecutable(const QString &path, bool requirePin, const std::atomic_
 }
 
 RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject *parent)
-    : QObject(parent), executable_(std::move(executable)), arguments_(std::move(arguments))
+    : QObject(parent), executable_(std::move(executable)), arguments_(std::move(arguments)),
+      process_(new QProcess(this))
 {
-    process_.setProcessChannelMode(QProcess::SeparateChannels);
-    process_.setStandardErrorFile(QProcess::nullDevice());
+    process_->setProcessChannelMode(QProcess::SeparateChannels);
+    if (qgetenv(traceVariable().constData()) == "1") {
+        traceBudget_ = traceLimit;
+        connect(process_, &QProcess::readyReadStandardError, this, &RuntimeClient::readRuntimeTrace);
+    } else {
+        process_->setStandardErrorFile(QProcess::nullDevice());
+    }
     expiry_.setInterval(250);
     connect(&expiry_, &QTimer::timeout, this, &RuntimeClient::expireRequests);
-    connect(&process_, &QProcess::started, this, [this] {
+    readDispatch_.setSingleShot(true);
+    connect(&readDispatch_, &QTimer::timeout, this, &RuntimeClient::dispatchReads);
+    connect(process_, &QProcess::bytesWritten, this, [this] {
+        if (hasQueuedRead() || std::ranges::any_of(pending_, [](const Pending &entry) {
+                return entry.obsolete && !entry.cancelSent;
+            }))
+            scheduleReads();
+    });
+    connect(process_, &QProcess::started, this, [this] {
         request("runtime.info", {}, [this](const auto &info, const auto &error) {
             if (closing_ || disconnected_)
                 return;
@@ -71,9 +111,9 @@ RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject 
             emit ready();
         });
     });
-    connect(&process_, &QProcess::readyReadStandardOutput, this, &RuntimeClient::receive);
-    connect(&process_, &QProcess::finished, this, &RuntimeClient::processFinished);
-    connect(&process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+    connect(process_, &QProcess::readyReadStandardOutput, this, &RuntimeClient::receive);
+    connect(process_, &QProcess::finished, this, &RuntimeClient::processFinished);
+    connect(process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart)
             rejectConnection(tr("The runtime could not start."));
         else if (error == QProcess::ReadError || error == QProcess::WriteError)
@@ -83,11 +123,20 @@ RuntimeClient::RuntimeClient(QString executable, QStringList arguments, QObject 
 
 RuntimeClient::~RuntimeClient()
 {
-    process_.disconnect(this);
+    process_->disconnect(this);
     if (cancelValidation_)
         cancelValidation_->store(true, std::memory_order_relaxed);
-    if (process_.state() != QProcess::NotRunning)
-        process_.kill();
+    if (process_->state() == QProcess::NotRunning)
+        return;
+    // Let Qt reap an active child asynchronously when its view is destroyed.
+    if (auto *application = QCoreApplication::instance(); application && !QCoreApplication::closingDown()) {
+        process_->setParent(application);
+        connect(process_, &QProcess::stateChanged, process_, [process = process_](QProcess::ProcessState state) {
+            if (state == QProcess::NotRunning)
+                process->deleteLater();
+        });
+    }
+    process_->kill();
 }
 
 QString RuntimeClient::siblingExecutable()
@@ -106,7 +155,7 @@ QString RuntimeClient::validateExecutable(const QString &path, bool requirePin)
 
 bool RuntimeClient::isRunning() const
 {
-    return validation_ || processExited_ || process_.state() != QProcess::NotRunning;
+    return validation_ || processExited_ || process_->state() != QProcess::NotRunning;
 }
 
 void RuntimeClient::start()
@@ -117,6 +166,7 @@ void RuntimeClient::start()
     closing_ = false;
     disconnected_ = false;
     buffered_.clear();
+    traceBuffer_.clear();
     runtimeInfo_ = {};
     drainScheduled_ = false;
     const bool isAppRuntime = executable_ == siblingExecutable();
@@ -145,8 +195,8 @@ void RuntimeClient::start()
             rejectConnection(outcome->error);
             return;
         }
-        process_.setWorkingDirectory(outcome->directory);
-        process_.start(outcome->program, arguments_);
+        process_->setWorkingDirectory(outcome->directory);
+        process_->start(outcome->program, arguments_);
     });
     connect(validation_, &QThread::finished, validation_, &QObject::deleteLater);
     validation_->start();
@@ -161,65 +211,189 @@ void RuntimeClient::stop()
     if (closing_)
         return;
     closing_ = true;
+    readDispatch_.stop();
     if (cancelValidation_) {
         cancelValidation_->store(true, std::memory_order_relaxed);
         return;
     }
     if (processExited_)
         return;
-    process_.closeWriteChannel();
+    process_->closeWriteChannel();
     const auto generation = generation_;
     QTimer::singleShot(1800, this, [this, generation] {
         if (generation == generation_ && isRunning())
-            process_.terminate();
+            process_->terminate();
     });
     QTimer::singleShot(2600, this, [this, generation] {
         if (generation == generation_ && isRunning())
-            process_.kill();
+            process_->kill();
     });
 }
 
 void RuntimeClient::request(const QString &method, QJsonObject params, Reply reply)
 {
-    const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    const auto request = QJsonDocument(QJsonObject{
-        {"v", CIRNETRULES_IPC_PROTOCOL}, {"id", id}, {"method", QStringLiteral(CIRNETRULES_API_NAMESPACE) + method}, {"params", std::move(params)}
-    }).toJson(QJsonDocument::Compact) + '\n';
+    submit(method, std::move(params), Pending{std::move(reply), QDeadlineTimer(requestTimeoutMs), {}, {}});
+}
+
+void RuntimeClient::submit(const QString &method, QJsonObject params, Pending pending, qint64 queueUs)
+{
+    const auto id = requestId();
+    const auto request = encodeRequest(id, method, std::move(params));
+    const bool reserve = pending.purpose.has_value() || method == "runtime.info" || method == "operation.cancel";
     QString error;
-    if (process_.state() != QProcess::Running || closing_ || disconnected_)
+    if (process_->state() != QProcess::Running || closing_ || disconnected_)
         error = tr("The runtime is disconnected.");
     else if (runtimeInfo_.isEmpty() && method != "runtime.info")
         error = tr("Wait for runtime identity verification before sending operations.");
-    else if (pending_.size() >= pendingLimit || process_.bytesToWrite() > writeLimit)
-        error = tr("The runtime request queue is full.");
     else if (request.size() > frameLimit)
         error = tr("The runtime request exceeds the size limit.");
+    else if (pending_.size() >= (reserve ? pendingLimit : pendingLimit - viewReadReserve)
+             || process_->bytesToWrite() + request.size() > writeLimit)
+        error = tr("The runtime request queue is full.");
     if (!error.isEmpty()) {
-        if (reply)
-            reply({}, error);
+        if (pending.callback)
+            pending.callback({}, error);
         return;
     }
-    pending_.insert(id, Pending{std::move(reply), QDeadlineTimer(requestTimeoutMs)});
+    auto entry = pending_.insert(id, std::move(pending));
+    if (traceBudget_ > 0) {
+        entry->submitted.start();
+        traceLine("qt_ipc sent id=" + id.toLatin1() + " method=" + method.toLatin1()
+                  + " bytes=" + QByteArray::number(request.size())
+                  + " pending=" + QByteArray::number(pending_.size())
+                  + " broker_us=" + QByteArray::number(queueUs));
+    }
     if (!expiry_.isActive())
         expiry_.start();
-    if (process_.write(request) != request.size()) {
+    if (process_->write(request) != request.size()) {
         rejectConnection(tr("The runtime transport failed."));
         return;
     }
 }
 
+void RuntimeClient::latestRead(ViewRead purpose, QJsonObject params, Reply reply)
+{
+    if (closing_ || disconnected_ || runtimeInfo_.isEmpty()) {
+        if (reply)
+            reply({}, tr("The runtime is disconnected."));
+        return;
+    }
+    ReadIntent intent{std::move(params), std::move(reply), QDeadlineTimer(requestTimeoutMs), {}};
+    if (traceBudget_ > 0)
+        intent.enqueued.start();
+    replaceRead(purpose, std::move(intent));
+}
+
+void RuntimeClient::cancelLatestRead(ViewRead purpose)
+{
+    replaceRead(purpose, {});
+}
+
+void RuntimeClient::replaceRead(ViewRead purpose, std::optional<ReadIntent> next)
+{
+    auto &slot = queuedReads_[static_cast<size_t>(purpose)];
+    auto previous = std::exchange(slot, std::move(next));
+    QList<Reply> cancelled;
+    if (previous)
+        cancelled.append(std::move(previous->callback));
+    for (auto &entry : pending_) {
+        if (entry.purpose == purpose && !entry.obsolete) {
+            entry.obsolete = true;
+            cancelled.append(std::exchange(entry.callback, {}));
+        }
+    }
+    if (slot || !cancelled.isEmpty())
+        scheduleReads();
+    if (slot && !expiry_.isActive())
+        expiry_.start();
+    if (traceBudget_ > 0 && !cancelled.isEmpty())
+        traceLine("qt_ipc superseded=" + QByteArray::number(cancelled.size())
+                  + " pending=" + QByteArray::number(pending_.size()));
+    for (auto &callback : cancelled)
+        if (callback)
+            callback({{"code", "REQUEST_CANCELLED"}}, tr("The read request was superseded."));
+}
+
+bool RuntimeClient::hasQueuedRead() const
+{
+    return std::ranges::any_of(queuedReads_, [](const auto &slot) { return slot.has_value(); });
+}
+
+void RuntimeClient::scheduleReads()
+{
+    if (!closing_ && !disconnected_ && !readDispatch_.isActive())
+        readDispatch_.start();
+}
+
+void RuntimeClient::dispatchReads()
+{
+    if (closing_ || disconnected_ || process_->state() != QProcess::Running)
+        return;
+    const QPointer<RuntimeClient> owner(this);
+    if (runtimeInfo_.value("read_cancellation").toBool()) {
+        for (auto entry = pending_.begin(); entry != pending_.end(); ++entry) {
+            if (!entry->obsolete || entry->cancelSent)
+                continue;
+            const auto frame = encodeRequest(requestId(), QStringLiteral("request.cancel"), {{"id", entry.key()}});
+            if (process_->bytesToWrite() + frame.size() > writeLimit)
+                break;
+            entry->cancelSent = true;
+            if (process_->write(frame) != frame.size()) {
+                rejectConnection(tr("The runtime transport failed."));
+                return;
+            }
+        }
+    }
+    for (const auto purpose : {ViewRead::ConversationDetail, ViewRead::ConversationEvents}) {
+        auto &slot = queuedReads_[static_cast<size_t>(purpose)];
+        if (!slot || pending_.size() >= pendingLimit || process_->bytesToWrite() > writeLimit - frameLimit)
+            continue;
+        const auto outstanding = std::ranges::count_if(pending_, [purpose](const Pending &entry) {
+            return entry.purpose == purpose;
+        });
+        // Retain credit for an obsolete frame until its reply or deadline. Keep
+        // one extra credit for the new selection while cancellation is pending.
+        if (outstanding >= readsPerPurpose)
+            continue;
+        auto intent = std::exchange(slot, {});
+        if (intent->deadline.hasExpired()) {
+            if (intent->callback)
+                intent->callback({}, tr("The runtime read timed out."));
+            if (!owner)
+                return;
+            continue;
+        }
+        const auto method = purpose == ViewRead::ConversationDetail
+            ? QStringLiteral("conversation.get") : QStringLiteral("conversation.events");
+        const auto queued = intent->enqueued.isValid() ? intent->enqueued.nsecsElapsed() / 1000 : 0;
+        submit(method, std::move(intent->params),
+               Pending{std::move(intent->callback), intent->deadline, {}, purpose}, queued);
+        if (!owner)
+            return;
+    }
+}
+
 void RuntimeClient::receive()
 {
+    if (process_->bytesAvailable() + buffered_.size() > receiveLimit) {
+        rejectConnection(tr("The runtime response queue exceeds the size limit."));
+        return;
+    }
     if (drainScheduled_ || draining_)
         return;
-    const QScopedValueRollback guard(draining_, true);
+    draining_ = true;
+    const QPointer<RuntimeClient> owner(this);
+    const auto guard = qScopeGuard([owner] {
+        if (owner)
+            owner->draining_ = false;
+    });
     QElapsedTimer elapsed;
     elapsed.start();
     int frames = 0;
     while (!disconnected_ && frames < framesPerSlice && elapsed.elapsed() < drainBudgetMs) {
         auto newline = buffered_.indexOf('\n');
-        if (newline < 0 && process_.bytesAvailable() > 0) {
-            buffered_.append(process_.read(32768));
+        if (newline < 0 && process_->bytesAvailable() > 0) {
+            buffered_.append(process_->read(32768));
             newline = buffered_.indexOf('\n');
         }
         if (newline < 0) {
@@ -227,7 +401,7 @@ void RuntimeClient::receive()
                 rejectConnection(tr("The runtime response exceeds the size limit."));
                 return;
             }
-            if (process_.bytesAvailable() == 0)
+            if (process_->bytesAvailable() == 0)
                 break;
             continue;
         }
@@ -238,6 +412,7 @@ void RuntimeClient::receive()
         }
         const auto bytes = buffered_.left(newline);
         buffered_.remove(0, newline + 1);
+        const auto parseStart = elapsed.nsecsElapsed();
         QJsonParseError parse;
         const auto document = QJsonDocument::fromJson(bytes, &parse);
         const auto response = document.object();
@@ -256,13 +431,17 @@ void RuntimeClient::receive()
             rejectConnection(tr("The runtime sent an invalid response."));
             return;
         }
+        const auto parseUs = (elapsed.nsecsElapsed() - parseStart) / 1000;
         auto entry = pending_.find(id);
         if (entry == pending_.end())
             continue;
         auto callback = std::move(entry.value().callback);
+        const auto submitted = entry->submitted;
         pending_.erase(entry);
-        if (pending_.isEmpty())
+        if (pending_.isEmpty() && !hasQueuedRead())
             expiry_.stop();
+        if (hasQueuedRead())
+            scheduleReads();
         if (callback) {
             QString message;
             auto payload = result.toObject();
@@ -274,10 +453,20 @@ void RuntimeClient::receive()
                 if (message.isEmpty())
                     message = tr("The runtime rejected the operation.");
             }
+            const auto applyStart = elapsed.nsecsElapsed();
+            const auto roundTripUs = submitted.isValid() ? submitted.nsecsElapsed() / 1000 : 0;
             callback(payload, message);
+            if (!owner)
+                return;
+            if (submitted.isValid() && traceBudget_ > 0)
+                traceLine("qt_ipc reply id=" + id.toLatin1()
+                          + " roundtrip_us=" + QByteArray::number(roundTripUs)
+                          + " parse_us=" + QByteArray::number(parseUs)
+                          + " callback_us=" + QByteArray::number((elapsed.nsecsElapsed() - applyStart) / 1000)
+                          + " bytes=" + QByteArray::number(bytes.size()));
         }
     }
-    if (!disconnected_ && (process_.bytesAvailable() > 0 || buffered_.contains('\n'))) {
+    if (!disconnected_ && (process_->bytesAvailable() > 0 || buffered_.contains('\n'))) {
         drainScheduled_ = true;
         const auto generation = generation_;
         QTimer::singleShot(0, this, [this, generation] {
@@ -291,6 +480,39 @@ void RuntimeClient::receive()
     }
 }
 
+void RuntimeClient::traceLine(QByteArray line)
+{
+    if (line.size() + 1 > traceBudget_) {
+        traceBudget_ = 0;
+        return;
+    }
+    traceBudget_ -= line.size() + 1;
+    qInfo().noquote() << QString::fromLatin1(line);
+}
+
+void RuntimeClient::readRuntimeTrace()
+{
+    const auto chunk = process_->readAllStandardError();
+    if (traceBudget_ == 0)
+        return;
+    // Relay only correlated numeric records. Runtime diagnostics may contain paths.
+    static const QRegularExpression record(
+        QStringLiteral("^cirnetrules-ipc id=[a-f0-9-]{36} method=[a-z_.]{1,64}"
+                       "(?: [a-z_]{1,32}=[0-9]{1,20}){1,12}$"));
+    traceBuffer_.append(chunk);
+    while (traceBudget_ > 0) {
+        const auto end = traceBuffer_.indexOf('\n');
+        if (end < 0)
+            break;
+        const auto line = traceBuffer_.left(end).trimmed();
+        traceBuffer_.remove(0, end + 1);
+        if (line.size() <= 512 && record.match(QString::fromLatin1(line)).hasMatch())
+            traceLine(line);
+    }
+    if (traceBuffer_.size() > 512 || traceBudget_ == 0)
+        traceBuffer_.clear();
+}
+
 void RuntimeClient::expireRequests()
 {
     QList<Reply> expired;
@@ -302,7 +524,15 @@ void RuntimeClient::expireRequests()
             ++it;
         }
     }
-    if (pending_.isEmpty())
+    for (auto &slot : queuedReads_) {
+        if (slot && slot->deadline.hasExpired()) {
+            expired.append(std::move(slot->callback));
+            slot.reset();
+        }
+    }
+    if (hasQueuedRead())
+        scheduleReads();
+    else if (pending_.isEmpty())
         expiry_.stop();
     for (auto &callback : expired)
         if (callback)
@@ -315,23 +545,31 @@ void RuntimeClient::rejectConnection(const QString &reason)
         return;
     disconnected_ = true;
     buffered_.clear();
+    const QPointer<RuntimeClient> owner(this);
     failPending(reason);
-    if (process_.state() != QProcess::NotRunning)
-        process_.kill();
+    if (!owner)
+        return;
+    if (process_->state() != QProcess::NotRunning)
+        process_->kill();
     if (!closing_)
         emit disconnected(reason);
-    if (processExited_)
+    if (owner && processExited_)
         finishProcess();
 }
 
 void RuntimeClient::failPending(const QString &reason)
 {
     auto queued = std::exchange(pending_, {});
+    auto reads = std::exchange(queuedReads_, {});
     expiry_.stop();
+    readDispatch_.stop();
     for (auto &reply : queued) {
         if (reply.callback)
             reply.callback({}, reason);
     }
+    for (auto &slot : reads)
+        if (slot && slot->callback)
+            slot->callback({}, reason);
 }
 
 void RuntimeClient::processFinished()
@@ -344,8 +582,10 @@ void RuntimeClient::finishProcess()
 {
     processExited_ = false;
     if (closing_) {
+        const QPointer<RuntimeClient> owner(this);
         failPending(tr("The runtime stopped."));
-        emit stopped();
+        if (owner)
+            emit stopped();
     } else {
         rejectConnection(tr("The runtime stopped. Reconnect to restore saved state."));
     }

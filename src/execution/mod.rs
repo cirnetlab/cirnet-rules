@@ -42,6 +42,20 @@ impl NativeResult {
     }
 }
 
+impl From<process::ResultRecord> for NativeResult {
+    fn from(record: process::ResultRecord) -> Self {
+        Self {
+            exit_code: record.exit.code(),
+            elapsed_ms: record.elapsed_ms,
+            timed_out: record.timed_out,
+            cancelled: record.cancelled,
+            output_truncated: record.output.truncated || record.error.truncated,
+            output: record.output.prefix,
+            error: record.error.prefix,
+        }
+    }
+}
+
 pub fn run_native(command: &mut Command, timeout_ms: u64) -> Result<NativeResult, String> {
     if !(1..=MAX_TIMEOUT_MS).contains(&timeout_ms) {
         return Err("Timeout must be between 1 and 1800000 milliseconds".into());
@@ -51,21 +65,31 @@ pub fn run_native(command: &mut Command, timeout_ms: u64) -> Result<NativeResult
     }
     resolve::executable(Path::new(command.get_program()))?;
     let cancellation = cancel::Cancellation::begin()?;
-    let record = process::run_process_with(
+    process::run_process_with(
         command,
         Duration::from_millis(timeout_ms),
         OUTPUT_LIMIT,
         || cancellation.requested(),
-    )?;
-    Ok(NativeResult {
-        exit_code: record.exit.code(),
-        elapsed_ms: record.elapsed_ms,
-        timed_out: record.timed_out,
-        cancelled: record.cancelled,
-        output_truncated: record.output.truncated || record.error.truncated,
-        output: record.output.prefix,
-        error: record.error.prefix,
-    })
+    )
+    .map(NativeResult::from)
+}
+
+/// Capture a bounded local metadata command with an owned process tree.
+pub fn run_quiet_native(
+    command: &mut Command,
+    timeout: Duration,
+    is_cancelled: impl Fn() -> bool,
+) -> Result<NativeResult, String> {
+    if timeout.is_zero() || timeout.as_millis() > u128::from(MAX_TIMEOUT_MS) {
+        return Err("Metadata command timeout is outside the supported range".into());
+    }
+    let path = Path::new(command.get_program());
+    if !path.is_absolute() {
+        return Err("Native process requires an absolute executable".into());
+    }
+    resolve::executable(path)?;
+    process::run_process_captured(command, timeout, OUTPUT_LIMIT, true, is_cancelled)
+        .map(NativeResult::from)
 }
 
 pub fn dispatch(

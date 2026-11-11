@@ -16,6 +16,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -38,8 +39,10 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -55,6 +58,7 @@
 #include <QTableView>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextDocumentFragment>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -62,20 +66,27 @@
 #include <QWindow>
 #include <algorithm>
 #include <cstdio>
+#include <memory>
 #include <tuple>
+
+#include "async_performance_bench.h"
 
 namespace {
 QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
                           const QJsonArray &methods, const QString &mode)
 {
-    if (method == "runtime.info")
-        return {{"product_generation", QStringLiteral(CIRNETRULES_PRODUCT_SYMBOL)},
+    if (method == "runtime.info") {
+        QJsonObject info{{"product_generation", QStringLiteral(CIRNETRULES_PRODUCT_SYMBOL)},
                 {"product_id", mode == "wrong-product" ? QStringLiteral("previous-product") : QStringLiteral(CIRNETRULES_PRODUCT_ID)},
                 {"protocol", CIRNETRULES_IPC_PROTOCOL},
                 {"version", QStringLiteral(CIRNETRULES_APP_VERSION)},
                 {"release_name", QStringLiteral(CIRNETRULES_RELEASE_NAME)},
                 {"native_agent", QJsonObject{{"codex", "HANDOFF_ONLY"}}},
                 {"execution_enforcement", QJsonObject{{"ISOLATED_EXECUTION", "BLOCKED"}}}};
+        if (mode == "event-snapshot")
+            info.insert("read_cancellation", true);
+        return info;
+    }
     if (method == "preferences.get") {
         QJsonObject settings{{"theme", "dark"}, {"density", "comfortable"},
                 {"text_scale", 100}, {"sidebar_width", 260}, {"sidebar_collapsed", false},
@@ -88,6 +99,22 @@ QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
         return {{"revision", params.value("expected_revision").toInteger() + 1}, {"settings", params.value("settings")}};
     if (method == "test.methods")
         return {{"items", methods}};
+    const bool asyncFixture = mode == "async-performance" || mode == "async-typical" || mode == "async-coalescing";
+    if (asyncFixture && method == "conversation.list") {
+        QJsonArray items;
+        for (int index = 0; index < 24; ++index) {
+            const auto id = QStringLiteral("perf-%1").arg(index);
+            items.append(QJsonObject{{"id", id}, {"title", QStringLiteral("Performance fixture %1").arg(id)},
+                                    {"state", "ACTIVE"}, {"revision", 1}});
+        }
+        return {{"items", items}};
+    }
+    if (asyncFixture && method == "conversation.get") {
+        const int bytes = mode == "async-performance" ? 64 * 1024 : mode == "async-typical" ? 8 * 1024 : 0;
+        return async_performance::fixtureDetail(params.value("id").toString(), bytes);
+    }
+    if (asyncFixture && method == "test.pid")
+        return {{"pid", QCoreApplication::applicationPid()}};
     if (mode == "paged" && method == "repo.list") {
         const bool second = params.value("after") == "fixture-page-2";
         QJsonArray items;
@@ -146,6 +173,31 @@ QJsonObject fixtureResult(const QString &method, const QJsonObject &params,
     }
     if (mode == "transcript-paged" && method == "conversation.events")
         return {{"next_after", "1"}, {"items", QJsonArray{QJsonObject{{"type", "MESSAGE_SAVED"}}}}};
+    if (mode == "event-snapshot" && method == "conversation.get") {
+        const auto id = params.value("id").toString();
+        const bool newer = !params.value("after").isUndefined();
+        return {{"conversation", QJsonObject{{"id", id}, {"title", id}, {"state", "ACTIVE"},
+                                               {"revision", newer ? 2 : 1}}},
+                {"messages", QJsonArray{QJsonObject{{"id", newer ? "2" : "1"}, {"ordinal", newer ? 2 : 1},
+                                                   {"role", "USER"}, {"content", newer ? "New event message" : id}}}},
+                {"event_watermark", newer ? "42" : id == "chat-1" ? "41" : "70"}};
+    }
+    if (mode == "event-snapshot" && method == "request.cancel")
+        return {{"state", "CANCELLATION_REQUESTED"}};
+    if (mode == "transcript-trim" && method == "conversation.get") {
+        const auto before = params.value("before").toString().toInt();
+        const int first = before ? qMax(1, before - 4) : params.contains("after") ? 49 : 45;
+        const int last = before ? before - 1 : params.contains("after") ? 49 : 48;
+        QJsonArray messages;
+        for (int i = first; i <= last; ++i)
+            messages.append(QJsonObject{{"id", QString::number(i)}, {"ordinal", i}, {"role", "USER"},
+                                        {"content", QString("Message %1").arg(i)}});
+        return {{"conversation", QJsonObject{{"id", "chat-1"}, {"title", "Fixture chat"},
+                                               {"state", "ACTIVE"}, {"revision", 1}}},
+                {"messages", messages}, {"next_before", first > 1 ? QJsonValue(QString::number(first)) : QJsonValue()}};
+    }
+    if (mode == "transcript-trim" && method == "conversation.events")
+        return {{"next_after", "1"}, {"items", QJsonArray{QJsonObject{{"type", "MESSAGE_SAVED"}}}}};
     if (mode == "automation-cascade" && method == "conversation.delete.preview")
         return {{"title", "Fixture chat"}, {"revision", 1}, {"token", "fixture-preview"},
                 {"automation_count", 1}, {"automations", QJsonArray{QJsonObject{
@@ -183,6 +235,7 @@ int runFixture(const QString &mode)
 {
     char line[65536];
     QJsonArray methods;
+    QJsonArray eventQueries;
     QJsonObject lastRepoSelection;
     QList<QByteArray> heldReplies;
     bool firstPreferenceWrite = true;
@@ -204,6 +257,8 @@ int runFixture(const QString &mode)
         if (method == "test.slow")
             QTest::qSleep(2300);
         const auto params = request.value("params").toObject();
+        if (mode == "event-snapshot" && method == "conversation.events")
+            eventQueries.append(params);
         if (method == "repo.select")
             lastRepoSelection = params;
         if (method == "test.holdAutomationList")
@@ -220,10 +275,23 @@ int runFixture(const QString &mode)
             responseObject.insert("error", QJsonObject{{"code", "INVALID_REQUEST"}, {"message", "Wrong automation scope"}});
         } else {
             responseObject.insert("ok", true);
-            responseObject.insert("result", method == "test.lastSelection" ? lastRepoSelection :
-                                  fixtureResult(method, params, methods, mode));
+            if (mode == "event-snapshot" && method == "conversation.events") {
+                const auto first = eventQueries.size() == 1;
+                responseObject.insert("result", QJsonObject{
+                    {"next_after", first ? "99" : "42"},
+                    {"items", QJsonArray{QJsonObject{{"type", first ? "MESSAGE_DELETED" : "MESSAGE_SAVED"}}}}});
+            } else if (method == "test.eventQueries") {
+                responseObject.insert("result", QJsonObject{{"items", eventQueries}});
+            } else {
+                responseObject.insert("result", method == "test.lastSelection" ? lastRepoSelection :
+                                      fixtureResult(method, params, methods, mode));
+            }
         }
         const auto response = QJsonDocument(responseObject).toJson(QJsonDocument::Compact) + '\n';
+        if (mode == "event-snapshot" && method == "conversation.events" && eventQueries.size() == 1) {
+            heldReplies.append(response);
+            continue;
+        }
         if (method == "automation.list" && holdAutomationList) {
             holdAutomationList = false;
             heldReplies.append(response);
@@ -528,6 +596,72 @@ private slots:
         QTRY_VERIFY(!client.isRunning());
     }
 
+    void snapshotPollIgnoresAnOldVisitToTheSameConversation()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "event-snapshot"});
+        MainWindow window(client);
+        window.show();
+        client.start();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *transcript = window.findChild<QPlainTextEdit *>("conversationTranscript");
+        auto *poll = window.findChild<QTimer *>("conversationEventPoll");
+        QVERIFY(history && transcript && poll);
+        poll->stop();
+        QTRY_COMPARE(history->count(), 2);
+        const auto open = [&](int index, const QString &id) {
+            QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier,
+                              history->visualItemRect(history->item(index)).center());
+            QTRY_VERIFY(transcript->toPlainText().endsWith(id));
+        };
+        open(0, "chat-1");
+        QVERIFY(QMetaObject::invokeMethod(poll, "timeout"));
+        QJsonArray queries;
+        QTRY_VERIFY((queries = invoke(client, "test.eventQueries").value("items").toArray()).size() == 1);
+        QCOMPARE(queries.first().toObject().value("after").toString(), QStringLiteral("41"));
+        open(1, "chat-2");
+        open(0, "chat-1");
+        invoke(client, "test.releaseNavigation");
+        QVERIFY(invoke(client, "test.methods").value("items").toArray().contains("request.cancel"));
+        QVERIFY(QMetaObject::invokeMethod(poll, "timeout"));
+        QTRY_VERIFY(transcript->toPlainText().endsWith("New event message"));
+        queries = invoke(client, "test.eventQueries").value("items").toArray();
+        QCOMPARE(queries.size(), 2);
+        QCOMPARE(queries.last().toObject().value("after").toString(), QStringLiteral("41"));
+        client.stop();
+        QTRY_VERIFY(!client.isRunning());
+    }
+
+    void transcriptTrimKeepsSelectionOnRetainedMessages()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "transcript-trim"});
+        MainWindow window(client);
+        window.show();
+        client.start();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *transcript = window.findChild<QPlainTextEdit *>("conversationTranscript");
+        auto *older = window.findChild<QPushButton *>("loadOlderMessages");
+        auto *poll = window.findChild<QTimer *>("conversationEventPoll");
+        QVERIFY(history && transcript && older && poll);
+        poll->stop();
+        QTRY_VERIFY(history->count() > 0);
+        QTest::mouseClick(history->viewport(), Qt::LeftButton, Qt::NoModifier,
+                          history->visualItemRect(history->item(0)).center());
+        QTRY_VERIFY(transcript->toPlainText().endsWith("Message 48"));
+        for (int first = 41; first >= 1; first -= 4) {
+            QTRY_VERIFY(older->isEnabled());
+            older->click();
+            QTRY_VERIFY(transcript->toPlainText().startsWith(QString("You\nMessage %1\n").arg(first)));
+        }
+        transcript->moveCursor(QTextCursor::Start);
+        QVERIFY(transcript->find("Message 33"));
+        QVERIFY(QMetaObject::invokeMethod(poll, "timeout"));
+        QTRY_VERIFY(transcript->toPlainText().endsWith("Message 49"));
+        QVERIFY(transcript->toPlainText().startsWith("You\nMessage 2\n"));
+        QCOMPARE(transcript->textCursor().selectedText(), QStringLiteral("Message 33"));
+        client.stop();
+        QTRY_VERIFY(!client.isRunning());
+    }
+
     void desktopRouteLoad()
     {
         RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
@@ -604,6 +738,263 @@ private slots:
         QVERIFY(samples.last() <= 250);
         client.stop();
         QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
+    void asyncConversationPerformance()
+    {
+        using namespace async_performance;
+        if (!qEnvironmentVariableIsSet("CIRNETRULES_ASYNC_BENCH"))
+            QSKIP("Set CIRNETRULES_ASYNC_BENCH=1 to run the conversation performance workload.");
+        const auto mode = qEnvironmentVariableIsSet("CIRNETRULES_ASYNC_BENCH_TYPICAL") ? "async-typical" : "async-performance";
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", mode});
+        MainWindow window(client);
+        window.resize(1200, 700);
+        interaction_cases::pinToPrimary(window);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        client.start();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *transcript = window.findChild<QPlainTextEdit *>("conversationTranscript");
+        auto *composer = window.findChild<QPlainTextEdit *>("conversationComposer");
+        auto *automations = window.findChild<QPushButton *>("navAutomations");
+        auto *settings = window.findChild<QToolButton *>("navSettings");
+        auto *back = window.findChild<QPushButton *>("settingsBack");
+        QVERIFY(history && transcript && composer && automations && settings && back);
+        QTRY_COMPARE(history->count(), 24);
+        const auto rowMarker = [history](int index) {
+            return marker(history->item(index)->data(Qt::UserRole).toString());
+        };
+        QVERIFY(!history->item(0)->data(Qt::UserRole).toString().isEmpty());
+        qInfo() << "async_perf fixture" << mode << "platform" << QGuiApplication::platformName() << "Qt" << qVersion()
+                << "logical_window" << window.size() << "DPR" << window.devicePixelRatioF()
+                << "display_hz" << window.screen()->refreshRate();
+        const auto fixturePid = invoke(client, "test.pid").value("pid").toInteger();
+        QElapsedTimer clock;
+        clock.start();
+        PaintProbe paint(transcript, clock);
+        const ScopedProbe probe(paint);
+        QList<double> heartbeat;
+        constexpr qint64 heartbeatNs = 16'000'000;
+        qint64 previous = clock.nsecsElapsed();
+        QTimer timer;
+        timer.setTimerType(Qt::PreciseTimer);
+        connect(&timer, &QTimer::timeout, &window, [&] {
+            const auto now = clock.nsecsElapsed();
+            heartbeat.append(qMax<qint64>(0, now - previous - heartbeatNs) / 1.0e6);
+            previous = now;
+        });
+        timer.start(16);
+        QList<double> firstPaint;
+        for (int index = 0; index < 60; ++index) {
+            paint.arm(rowMarker(index % 6));
+            clickRow(history, index % 6);
+            QTRY_VERIFY_WITH_TIMEOUT(paint.ms() >= 0, 4000);
+            if (index == 0)
+                summarize("first_selection_paint", {paint.ms()});
+            else if (index >= 10)
+                firstPaint.append(paint.ms());
+        }
+        summarize("warm_sequential_selection_paint", firstPaint);
+        summarize("sequential_heartbeat_delay", heartbeat);
+        const auto reportResources = [&window, &client, fixturePid](const char *phase) {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            qInfo() << "async_perf Qt" << phase << "objects widgets timers"
+                    << window.findChildren<QObject *>().size() << window.findChildren<QWidget *>().size()
+                    << (window.findChildren<QTimer *>().size() + client.findChildren<QTimer *>().size());
+            processSnapshot(phase, fixturePid);
+        };
+        reportResources("warm");
+        const auto beforeBurst = detailCount(invoke(client, "test.methods").value("items").toArray());
+        heartbeat.clear();
+
+        // Keep an unrelated request outstanding while the test drives navigation and draft input.
+        bool slowDone = false;
+        QString slowError;
+        client.request("test.slow", {}, [&](const QJsonObject &, const QString &error) {
+            slowError = error;
+            slowDone = true;
+        });
+        composer->setFocus();
+        const auto typed = clock.nsecsElapsed();
+        QTest::keyClicks(composer, "draft while backend is delayed");
+        qInfo() << "async_perf draft_typing_ms" << (clock.nsecsElapsed() - typed) / 1.0e6
+                << "accepted" << (composer->toPlainText() == QStringLiteral("draft while backend is delayed"))
+                << "slow_request_pending" << !slowDone;
+        QList<double> routes;
+        QList<double> rapidSelection;
+        for (int index = 0; index < 100; ++index) {
+            const int row = index % 6;
+            const auto started = clock.nsecsElapsed();
+            if (index % 10 == 0) {
+                settings->click();
+                QVERIFY(back->isVisible());
+                back->click();
+                automations->click();
+                QVERIFY(automations->isChecked());
+            }
+            if (index == 99)
+                paint.arm(rowMarker(row));
+            clickRow(history, row);
+            routes.append((clock.nsecsElapsed() - started) / 1.0e6);
+            QTest::qWait(1);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(slowDone, 8000);
+        QVERIFY2(slowError.isEmpty(), qPrintable(slowError));
+        QTest::qWait(5000);
+        if (paint.ms() >= 0)
+            rapidSelection.append(paint.ms());
+        summarize("mixed_selection_input_dispatch", routes);
+        summarize("mixed_heartbeat_delay", heartbeat);
+        summarize("rapid_final_selection_paint", rapidSelection);
+        qInfo() << "async_perf rapid_final_selection_painted" << (paint.ms() >= 0) << "burst_detail_requests"
+                << (detailCount(invoke(client, "test.methods").value("items").toArray()) - beforeBurst);
+        reportResources("after_burst");
+
+        if (qEnvironmentVariableIsSet("CIRNETRULES_ASYNC_BENCH_SOAK")) {
+            heartbeat.clear();
+            for (int cycle = 0; cycle < 10; ++cycle) {
+                for (int index = 0; index < 100; ++index) {
+                    clickRow(history, (cycle + index) % 6);
+                    QTest::qWait(1);
+                }
+                QTest::qWait(1000);
+                if (cycle == 4)
+                    reportResources("soak_500");
+            }
+            QTest::qWait(2000);
+            summarize("soak_heartbeat_delay", heartbeat);
+            reportResources("soak_1000");
+        }
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
+    void asyncConversationCoalescesRapidSelection()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "async-coalescing"});
+        MainWindow window(client);
+        window.resize(1200, 700);
+        window.show();
+        client.start();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *transcript = window.findChild<QPlainTextEdit *>("conversationTranscript");
+        QVERIFY(history && transcript);
+        QTRY_COMPARE(history->count(), 24);
+        const auto markerAt = [history](int row) {
+            return async_performance::marker(history->item(row)->data(Qt::UserRole).toString());
+        };
+        async_performance::clickRow(history, 0);
+        QTRY_COMPARE(transcript->document()->lastBlock().text(), markerAt(0));
+        const auto detailCount = [&client] {
+            return async_performance::detailCount(invoke(client, "test.methods").value("items").toArray());
+        };
+        const int before = detailCount();
+        QVERIFY(before > 0);
+        // Deliver one turn of selection signals without allowing IPC responses between clicks.
+        history->itemClicked(history->item(1));
+        QVERIFY(history->selectionModel()->isSelected(history->model()->index(1, 0)));
+        for (int index = 1; index < 99; ++index)
+            history->itemClicked(history->item(1 + (index % 2)));
+        history->itemClicked(history->item(0));
+        QVERIFY(history->selectionModel()->isSelected(history->model()->index(0, 0)));
+        QTRY_COMPARE_WITH_TIMEOUT(transcript->document()->lastBlock().text(), markerAt(0), 3000);
+        const int sent = detailCount() - before;
+        QVERIFY2(sent >= 0 && sent <= 2, qPrintable(QStringLiteral("Burst sent %1 detail requests").arg(sent)));
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
+    void oversizedTranscriptCanCopyTheFullOriginalMessages()
+    {
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "async-performance"});
+        MainWindow window(client);
+        window.resize(1200, 700);
+        window.show();
+        client.start();
+        auto *history = window.findChild<QListWidget *>("conversationList");
+        auto *transcript = window.findChild<QPlainTextEdit *>("conversationTranscript");
+        QVERIFY(history && transcript);
+        QTRY_COMPARE(history->count(), 24);
+        async_performance::clickRow(history, 0);
+        QTRY_COMPARE(transcript->document()->lastBlock().text(), async_performance::marker("perf-0"));
+        const QString longLine(64 * 1024, u'w');
+        QVERIFY(transcript->document()->findBlockByNumber(1).text().size() < longLine.size());
+        const QStringList originals{longLine, async_performance::multilineFixtureBody()};
+        for (const auto &original : originals) {
+            auto cursor = transcript->document()->find(original.left(24));
+            QVERIFY(!cursor.isNull());
+            cursor.setPosition(cursor.selectionStart());
+            transcript->setTextCursor(cursor);
+            transcript->ensureCursorVisible();
+            const auto position = transcript->cursorRect(cursor).center();
+            QVERIFY(transcript->viewport()->rect().contains(position));
+            emit transcript->customContextMenuRequested(position);
+            auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+            QVERIFY(menu);
+            auto *view = menu->findChild<QAction *>("viewFullMessage");
+            QVERIFY(view && menu->findChild<QAction *>("deleteSubmittedMessage"));
+            view->trigger();
+            menu->close();
+            auto *body = window.findChild<QPlainTextEdit *>("fullMessageBody");
+            QVERIFY(body && body->isReadOnly());
+            body->selectAll();
+            QCOMPARE(body->textCursor().selection().toPlainText(), original);
+            if (QGuiApplication::platformName() == "offscreen") {
+                body->copy();
+                QCOMPARE(QGuiApplication::clipboard()->text(), original);
+            }
+            body->window()->close();
+            QTRY_VERIFY(!window.findChild<QPlainTextEdit *>("fullMessageBody"));
+        }
+        client.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!client.isRunning(), 6000);
+    }
+
+    void asyncRuntimeReconnectSoak()
+    {
+        if (!qEnvironmentVariableIsSet("CIRNETRULES_ASYNC_BENCH_RECONNECT"))
+            QSKIP("Set CIRNETRULES_ASYNC_BENCH_RECONNECT=1 to run 100 reconnect and cancellation cycles.");
+        QElapsedTimer clock;
+        QList<double> starts, stops;
+        int completions = 0, cancelled = 0, stopFailures = 0;
+        RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture", "navigation-delayed"});
+        connect(&client, &RuntimeClient::ready, &client, [&] { starts.append(clock.nsecsElapsed() / 1.0e6); });
+        connect(&client, &RuntimeClient::stopped, &client, [&] { stops.append(clock.nsecsElapsed() / 1.0e6); });
+        const auto idleSnapshot = [&](const char *phase) {
+            QTest::qWait(2800); // Drain the transport's graceful-stop timeout callbacks before sampling.
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            qInfo() << "async_perf Qt" << phase << "client_objects" << client.findChildren<QObject *>().size();
+            async_performance::processSnapshot(phase, 0);
+        };
+        const QJsonObject held{{"id", "chat-1"}};
+        for (int cycle = 1; cycle <= 100; ++cycle) {
+            clock.start();
+            client.start();
+            QTRY_COMPARE(starts.size(), cycle);
+            client.latestRead(RuntimeClient::ViewRead::ConversationDetail, held,
+                              [&](const QJsonObject &result, const QString &error) {
+                ++completions;
+                cancelled += result.value("code") == "REQUEST_CANCELLED" && !error.isEmpty();
+            });
+            QTRY_VERIFY(invoke(client, "test.methods").value("items").toArray().contains("conversation.get"));
+            client.cancelLatestRead(RuntimeClient::ViewRead::ConversationDetail);
+            QCOMPARE(cancelled, cycle);
+            client.request("conversation.get", held, [&](const QJsonObject &, const QString &error) {
+                ++completions;
+                stopFailures += !error.isEmpty();
+            });
+            clock.start();
+            client.stop();
+            QTRY_COMPARE(stops.size(), cycle);
+            QCOMPARE(stopFailures, cycle);
+            QCOMPARE(completions, cycle * 2);
+            if (cycle == 10)
+                idleSnapshot("reconnect_10");
+        }
+        idleSnapshot("reconnect_100");
+        QCOMPARE(completions, 200);
+        async_performance::summarize("reconnect_ready", starts);
+        async_performance::summarize("reconnect_stop", stops);
     }
 
     void iconStyles() { interaction_cases::iconStyles(); }
@@ -1071,15 +1462,39 @@ private slots:
 
     void activeRuntimeTeardownDropsOutstandingReply()
     {
+        QTest::failOnWarning(QRegularExpression("QProcess: Destroyed while process.*"));
         bool called = false;
+        QPointer<QProcess> child;
         {
             RuntimeClient client(QCoreApplication::applicationFilePath(), {"--fixture"});
             QSignalSpy ready(&client, &RuntimeClient::ready);
             client.start();
             QTRY_COMPARE(ready.size(), 1);
+            child = client.findChild<QProcess *>();
+            QVERIFY(child && child->state() == QProcess::Running);
             client.request("repo.list", {}, [&called](const QJsonObject &, const QString &) { called = true; });
         }
+        QTRY_VERIFY(child.isNull());
         QVERIFY(!called);
+    }
+
+    void rejectedReadCanDestroyRuntimeClient()
+    {
+        auto client = std::make_unique<RuntimeClient>(QCoreApplication::applicationFilePath(),
+                                                      QStringList{"--fixture"});
+        QSignalSpy ready(client.get(), &RuntimeClient::ready);
+        client->start();
+        QTRY_COMPARE(ready.size(), 1);
+        bool rejected = false, obsoleteCallback = false;
+        client->latestRead(RuntimeClient::ViewRead::ConversationDetail, {{"id", QString(256 * 1024, u'a')}},
+                           [&](const QJsonObject &, const QString &error) {
+            rejected = !error.isEmpty();
+            client.reset();
+        });
+        client->latestRead(RuntimeClient::ViewRead::ConversationEvents, {{"id", "chat-1"}},
+                           [&](const QJsonObject &, const QString &) { obsoleteCallback = true; });
+        QTRY_VERIFY(rejected && !client);
+        QVERIFY(!obsoleteCallback);
     }
 
     void emptyAutomationAndPreferenceFailure()
@@ -1217,9 +1632,13 @@ private slots:
         QTest::qWait(5600);
         QVERIFY(card && card->isVisible());
 
+        host.activateWindow();
+        QTRY_VERIFY(host.isActiveWindow());
         editor->setFocus(Qt::TabFocusReason);
+        QTRY_VERIFY(editor->hasFocus());
         QTRY_VERIFY_WITH_TIMEOUT(!card || !card->isVisible(), 6800);
-        QVERIFY(editor->hasFocus());
+        // Windows can deactivate the host during the expiry wait.
+        QCOMPARE(host.focusWidget(), editor);
     }
 
     void reducedMotionAndLongToast()
@@ -1703,7 +2122,7 @@ int main(int argc, char **argv)
     if (argc >= 2 && QByteArray(argv[1]) == "--fixture")
         return runFixture(argc == 3 ? QString::fromLatin1(argv[2]) : QString{});
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
-    QApplication app(argc, argv);
+    async_performance::Application app(argc, argv);
     auto fontPath = qEnvironmentVariable("CIRNETRULES_TEST_FONT");
 #ifdef Q_OS_WIN
     if (fontPath.isEmpty() && QGuiApplication::platformName() == "offscreen") {

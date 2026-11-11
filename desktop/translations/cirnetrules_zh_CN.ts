@@ -136,6 +136,8 @@
     <message><source>Saved messages and task outcomes appear here.</source><translation>已保存的消息和任务结果显示在此处。</translation></message>
     <message><source>You</source><translation>你</translation></message>
     <message><source>Display shortened.</source><translation>显示内容已缩短。</translation></message>
+    <message><source>View full message</source><translation>查看完整消息</translation></message>
+    <message><source>Full message</source><translation>完整消息</translation></message>
     <message><source>Delete submitted message…</source><translation>删除已发送的消息…</translation></message>
     <message><source>Message</source><translation>消息</translation></message>
     <message><source>Describe a scoped task…</source><translation>描述一个范围明确的任务…</translation></message>
@@ -445,6 +447,9 @@ Release %3
     <message><source>The runtime sent an invalid response.</source><translation>运行时发送了无效响应。</translation></message>
     <message><source>The runtime rejected the operation.</source><translation>运行时拒绝了此操作。</translation></message>
     <message><source>The runtime request timed out. Check the saved state before retrying.</source><translation>运行时请求超时。请先检查保存的状态，再重试。</translation></message>
+    <message><source>The runtime read timed out.</source><translation>运行时读取请求超时。</translation></message>
+    <message><source>The read request was superseded.</source><translation>读取请求已被替换。</translation></message>
+    <message><source>The runtime response queue exceeds the size limit.</source><translation>运行时响应队列超过大小限制。</translation></message>
     <message><source>The runtime stopped.</source><translation>运行时已停止。</translation></message>
     <message><source>The runtime stopped. Reconnect to restore saved state.</source><translation>运行时已停止。重新连接可恢复已保存状态。</translation></message>
       <message><source>Dashboard and runtime identities differ.</source><translation>桌面应用与运行时的标识不一致。</translation></message>

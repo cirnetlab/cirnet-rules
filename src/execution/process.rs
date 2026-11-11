@@ -108,12 +108,22 @@ pub(super) fn run_process_with(
     limit: usize,
     is_cancelled: impl Fn() -> bool,
 ) -> Result<ResultRecord, String> {
+    run_process_captured(command, timeout, limit, false, is_cancelled)
+}
+
+pub(super) fn run_process_captured(
+    command: &mut Command,
+    timeout: Duration,
+    limit: usize,
+    hide_window: bool,
+    is_cancelled: impl Fn() -> bool,
+) -> Result<ResultRecord, String> {
     let start = Instant::now();
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let (mut child, tree) = owned::spawn(command)?;
+    let (mut child, tree) = owned::spawn(command, hide_window)?;
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
     let output = start_capture(stdout, limit);

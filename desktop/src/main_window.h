@@ -78,6 +78,7 @@ private:
     QJsonObject preferenceSettings() const;
     void stopRuntimeAndClose();
     void call(const QString &method, QJsonObject params, RuntimeClient::Reply reply);
+    void readLatest(RuntimeClient::ViewRead purpose, QJsonObject params, RuntimeClient::Reply reply);
     void showStatus(const QString &text, bool error = false);
     void showError(const QString &text);
 
@@ -107,7 +108,9 @@ private:
     bool canLoadMoreConversations() const;
     void refreshConversations(bool append = false);
     void newConversation(const QString &preselected = {});
-    void openConversation(const QString &id, TranscriptPage page = TranscriptPage::Latest);
+    void openConversation(const QString &id, TranscriptPage page = TranscriptPage::Latest,
+                          quint64 acknowledgedEvents = 0);
+    void suspendConversationReads();
     void editConversation(bool archive, const QJsonObject &record = {});
     void deleteConversationData(const QString &id, const QString &messageId = {}, std::function<void(bool)> onComplete = {});
     void forgetConversation(const QString &id, bool deleted);
@@ -249,12 +252,20 @@ private:
     QJsonArray conversationTasks_;
     QJsonArray conversationBindings_;
     QJsonArray conversationBlockers_;
-    QList<QJsonObject> transcriptRows_;
+    struct TranscriptMessage {
+        QString id, role, content, displayed;
+        qint64 ordinal = 0;
+        qsizetype blocks = 0;
+        bool shortened = false;
+
+        bool sameIdentity(const TranscriptMessage &other) const;
+        qsizetype retainedBytes() const;
+        void format(const QString &you, const QString &abbreviated);
+    };
+    QList<TranscriptMessage> transcriptRows_;
     QJsonValue transcriptBefore_;
     qint64 transcriptNewest_ = 0;
-    bool transcriptLoading_ = false;
     bool transcriptDetached_ = false;
-    bool transcriptRefreshQueued_ = false;
     QJsonValue conversationCursor_;
     bool conversationLoading_ = false;
     bool conversationListInFlight_ = false;
@@ -264,11 +275,18 @@ private:
     QHash<QString, QString> clearedDrafts_;
     QSet<QString> conversationDeletes_;
     QSet<QString> conversationSending_;
-    bool eventRequestPending_ = false;
     quint64 conversationRequest_ = 0;
     quint64 navigationRevision_ = 0;
-    quint64 detailRequest_ = 0;
-    quint64 eventCursor_ = 0;
+    struct ConversationReads {
+        quint64 visit = 0;
+        quint64 detail = 0;
+        quint64 cursor = 0;
+        bool loading = false;
+        bool polling = false;
+        bool newerQueued = false;
+        bool refreshOnReturn = false;
+        bool confirmed = false;
+    } conversationReads_;
 
     QLineEdit *automationSearch_ = nullptr;
     QComboBox *automationFilter_ = nullptr;

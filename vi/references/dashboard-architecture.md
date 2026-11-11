@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-ARCHITECTURE -->
-<!-- revision: 8 -->
-<!-- source-sha256: f4ec1e0abe85b5fd84e21dbbec713fb916d7545d59a125560a6de58890d8560e -->
+<!-- revision: 9 -->
+<!-- source-sha256: 1ec642f675b368df6a84a06cd5e9d21994f779b792b88825037b6beb6637cec7 -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 
@@ -54,23 +54,29 @@ Xuất offline rồi nhập có kiểm chứng vào database riêng, đối chi�
 digest, sau đó chuyển runtime trong cửa sổ bảo trì. Giữ kho cũ đến khi
 xác minh database mới và quy trình phục hồi.
 
-Qt xác minh executable cùng thư mục trên worker có thể hủy, rồi áp dụng
-frame stdio trên GUI theo lát tối đa tám frame hoặc năm mili giây giữa các
-ranh giới frame. Client xử lý các phản hồi hoàn chỉnh trước khi kết thúc
+Qt xác minh executable cùng thư mục trên worker có thể hủy. Luồng GUI
+sở hữu transport tiến trình và xử lý tối đa bốn frame hoặc bốn mili giây
+giữa các callback. Client đọc hết phản hồi hoàn chỉnh trước khi kết thúc
 yêu cầu chưa có phản hồi lúc tiến trình thoát. Một timer theo dõi tối đa
-32 yêu cầu đang chờ. Mỗi trang
-transcript có tối đa bốn tin. View áp dụng trang mới theo ordinal và giới
-hạn dữ liệu hiển thị của transcript và sidebar.
+32 yêu cầu đã gửi. Lượt đọc chi tiết và lượt đọc sự kiện mỗi loại giữ một
+ý định mới nhất và tối đa hai suất gửi. Callback lỗi thời được giải phóng ngay.
+Runtime công bố `read_cancellation` để dùng lệnh tùy chọn `request.cancel`.
+View kiểm tra lượt mở và revision trước khi áp dụng kết quả.
+`event_watermark` là sự kiện cuối trong cùng snapshot SQLite với trang mới nhất.
 
-Runtime dùng kênh vào và ra có giới hạn. Dispatcher sở hữu kết nối SQLite
-tương tác và scheduler dùng kết nối riêng. Worker lưu trữ có một luồng
-chạy, ba vị trí thao tác đang hoạt động và lịch sử có giới hạn. Khi kết nối,
-Dashboard khởi tạo tác vụ chỉ đọc `storage.chats` để tính dung lượng nội dung
-hội thoại trên kết nối SQLite riêng. Dashboard theo dõi trạng thái tác vụ độc lập
-với điều hướng. Cùng worker thực hiện sao lưu, kiểm tra, quét cơ sở dữ liệu
-và thu gọn. Các thao tác báo trạng thái và hỗ trợ hủy cộng tác. Khóa SQLite
-vẫn có thể làm chậm thao tác ghi trong ngân sách chờ. Git local và nhập
-dữ liệu cũ còn chạy đồng bộ trong dispatcher. Worker không sở hữu widget.
+Dispatcher phân yêu cầu vào writer FIFO, lượt đọc SQLite tương tác hoặc
+worker đọc chậm cho Git và hệ thống tệp. Kết nối worker mở sau bootstrap và
+dùng chung thẩm quyền cấp preview của runtime. Scheduler và worker lưu trữ
+hiện có giữ kết nối riêng. Đường phản hồi chuyển từng frame cho stdout và đóng
+pipe bị nghẽn khi quá hạn. Lượt đọc đang chạy có thể bị ngắt trên kết nối riêng.
+Thao tác ghi giữ các kiểm tra giao dịch và biên nhận, kể cả khi gửi phản hồi lỗi.
+Khóa SQLite có thể làm chậm thao tác ghi trong ngân sách chờ.
+
+Handshake khởi động thao tác chỉ đọc `storage.chats`. Trạng thái lưu trữ, sao lưu,
+kiểm tra và thu gọn dùng worker bảo trì hiện có. Truy vấn transcript trả tối đa
+bốn tin trong giới hạn byte của trang. Client chèn và cắt theo ranh giới tin nhắn,
+đồng thời giới hạn cửa sổ hiển thị. Có thể xem toàn bộ nội dung đã lưu từ menu
+tin nhắn. Xem [kiểm chứng hiệu năng](../specs/cirnet-rules/desktop-performance/verification.md).
 
 CLI hiện có vẫn quản lý file task và evidence lịch sử. Intake Dashboard
 không nâng mức tin cậy của các record đó hoặc cấp quyền ghi. Dashboard ban

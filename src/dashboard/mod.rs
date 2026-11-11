@@ -4,5 +4,6 @@ pub mod governance;
 pub mod integrations;
 pub mod legacy;
 pub mod preferences;
+pub(crate) mod request_budget;
 pub mod sessions;
 pub mod storage;

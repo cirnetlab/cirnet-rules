@@ -2,6 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CIRNETRULES local stdio protocol",
   "$defs": {
+    "requestId": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,96}$"},
+    "readCancellation": {
+      "description": "The result of a request.cancel response. The target read also completes once on its original ID.",
+      "type": "object", "additionalProperties": false, "required": ["state"],
+      "properties": {
+        "state": {"enum": ["CANCELLED", "CANCELLATION_REQUESTED", "NOT_PENDING"]}
+      }
+    },
     "recordId": {"type": "string", "pattern": "^[1-9][0-9]{0,18}$"},
     "pageCursor": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,18})$"},
     "mutationKey": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,80}$"},
@@ -429,7 +437,7 @@
           "then": {"properties": {"params": {"required": ["revision"]}}}
         },
         {
-          "if": {"properties": {"method": {"const": "cirnetrules.conversation.get"}}},
+          "if": {"properties": {"method": {"enum": ["cirnetrules.conversation.get", "cirnetrules.conversation.resume"]}}},
           "then": {"properties": {"params": {
             "type": "object",
             "required": ["id"],
@@ -450,6 +458,13 @@
               "id": {"$ref": "#/$defs/recordId"},
               "revision": {"type": "integer", "minimum": 1}
             }
+          }}}
+        },
+        {
+          "if": {"properties": {"method": {"const": "cirnetrules.request.cancel"}}},
+          "then": {"required": ["params"], "properties": {"params": {
+            "type": "object", "required": ["id"], "additionalProperties": false,
+            "properties": {"id": {"$ref": "#/$defs/requestId"}}
           }}}
         },
         {
@@ -486,10 +501,7 @@
         "v": {
           "const": 3
         },
-        "id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_.-]{1,96}$"
-        },
+        "id": {"$ref": "#/$defs/requestId"},
         "method": {
           "type": "string",
           "pattern": "^cirnetrules\\.[A-Za-z0-9_.-]{1,84}$"
@@ -520,7 +532,22 @@
         "ok": {
           "const": true
         },
-        "result": {}
+        "result": {
+          "properties": {
+            "read_cancellation": {
+              "description": "runtime.info capability for request.cancel on this connection.",
+              "const": true
+            },
+            "conversation_event_watermark": {
+              "description": "runtime.info capability for the event watermark on a conversation snapshot.",
+              "const": true
+            },
+            "event_watermark": {
+              "description": "Event cursor captured in the same SQLite snapshot as conversation.get or conversation.resume.",
+              "$ref": "#/$defs/pageCursor"
+            }
+          }
+        }
       }
     },
     {

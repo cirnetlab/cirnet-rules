@@ -721,6 +721,58 @@ fn cancel(db: &mut Database, request: Cancel) -> Result<Value, AppError> {
     Ok(result)
 }
 
+// Leave room in the 256 KiB IPC frame for correlation and response metadata.
+const MESSAGE_PAGE_BYTES: usize = 192 * 1024;
+
+fn message_page_limit() -> AppError {
+    AppError::new(
+        "RESPONSE_LIMIT",
+        "A stored conversation record exceeds the page budget",
+    )
+}
+
+struct MessagePageRow {
+    message: Value,
+    task: Option<Value>,
+    bytes: usize,
+}
+
+fn message_with_task(
+    row: &rusqlite::Row<'_>,
+    remaining: usize,
+) -> Result<Option<MessagePageRow>, AppError> {
+    let raw_size = [3, 9].into_iter().try_fold(0usize, |total, column| {
+        let size = match row.get_ref(column)? {
+            rusqlite::types::ValueRef::Text(value) => value.len(),
+            _ => 0,
+        };
+        Ok::<_, rusqlite::Error>(total.saturating_add(size))
+    })?;
+    if raw_size > remaining {
+        return Ok(None);
+    }
+    let message = message_row(row)?;
+    let task = if let Some(id) = row.get::<_, Option<i64>>(5)? {
+        Some(json!({
+            "id":id.to_string(),"message_id":message["id"],
+            "state":row.get::<_, String>(6)?,
+            "mode":row.get::<_, String>(7)?,
+            "risk":row.get::<_, String>(8)?,
+            "route":stored_json(row.get(9)?)?,
+        }))
+    } else {
+        None
+    };
+    // Include two potential array separators in each row's serialized size.
+    let bytes =
+        2 + message.to_string().len() + task.as_ref().map_or(0, |task| task.to_string().len());
+    Ok((bytes <= remaining).then_some(MessagePageRow {
+        message,
+        task,
+        bytes,
+    }))
+}
+
 fn get(db: &Database, method: &str, params: &Value) -> Result<Value, AppError> {
     let id = id(params["id"].as_str().unwrap_or(""))?;
     let after = !params["after"].is_null();
@@ -735,7 +787,7 @@ fn get(db: &Database, method: &str, params: &Value) -> Result<Value, AppError> {
     } else {
         cursor(&params["before"], i64::MAX)?
     };
-    let limit = limit(&params["limit"])?.min(4);
+    let limit = limit(&params["limit"])?.min(4) as usize;
     let predicate = if after {
         ">?2 ORDER BY m.ordinal ASC"
     } else {
@@ -743,84 +795,99 @@ fn get(db: &Database, method: &str, params: &Value) -> Result<Value, AppError> {
     };
     let tx = db.conn.unchecked_transaction()?;
     let conversation = conversation(&tx, id)?;
-    let mut rows = {
-        let mut statement = tx.prepare(&format!(
+    let event_watermark: i64 = tx.query_row(
+        "SELECT coalesce(max(sequence),0) FROM session_events WHERE conversation_id=?1",
+        [id],
+        |row| row.get(0),
+    )?;
+    let bindings = bound(&tx, id)?;
+    let selections: Vec<_> = bindings
+        .iter()
+        .map(|(binding, revision)| json!({"binding_id":binding,"revision":revision}))
+        .collect();
+    let (blocker_count, blockers) = sqlite::conversation_blockers(&tx, id)?;
+    let mut result = json!({
+        "conversation":conversation,"event_watermark":event_watermark.to_string(),
+        "next_before":null,"next_after":"0","has_more":false,"messages":[],"tasks":[],
+        "bindings":selections,"blockers":blockers,"blocker_count":blocker_count,
+    });
+    // Both decimal cursors fit in this reserve, including JSON quotes.
+    let mut remaining = MESSAGE_PAGE_BYTES
+        .checked_sub(result.to_string().len() + 48)
+        .ok_or_else(message_page_limit)?;
+    let mut messages = Vec::with_capacity(limit);
+    let mut tasks = Vec::with_capacity(limit);
+    let mut has_more = false;
+    {
+        let mut statement = tx.prepare_cached(&format!(
             "SELECT m.id,m.ordinal,m.role,m.content,m.created_at,t.id,t.state,t.mode,t.risk,t.route_json
             FROM messages m LEFT JOIN task_proposals t ON t.message_id=m.id
             WHERE m.conversation_id=?1 AND m.ordinal{predicate} LIMIT ?3"
         ))?;
-        statement
-            .query_map(params![id, cursor, limit + 1], |row| {
-                let task = row
-                    .get::<_, Option<i64>>(5)?
-                    .map(|id| -> rusqlite::Result<_> {
-                        Ok((
-                            id.to_string(),
-                            row.get::<_, String>(6)?,
-                            row.get::<_, String>(7)?,
-                            row.get::<_, String>(8)?,
-                            row.get::<_, String>(9)?,
-                        ))
-                    })
-                    .transpose()?;
-                Ok((message_row(row)?, task))
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?
-    };
-    let has_more = rows.len() as i64 > limit;
-    if has_more {
-        rows.pop();
+        let mut rows = statement.query(params![id, cursor, limit + 1])?;
+        while let Some(row) = rows.next()? {
+            if messages.len() == limit {
+                has_more = true;
+                break;
+            }
+            let Some(page_row) = message_with_task(row, remaining)? else {
+                if messages.is_empty() {
+                    return Err(message_page_limit());
+                }
+                has_more = true;
+                break;
+            };
+            remaining -= page_row.bytes;
+            messages.push(page_row.message);
+            if let Some(task) = page_row.task {
+                tasks.push(task);
+            }
+        }
     }
     if !after {
-        rows.reverse();
+        messages.reverse();
+    } else {
+        tasks.reverse();
     }
-    let mut messages = Vec::with_capacity(rows.len());
-    let mut tasks = Vec::with_capacity(rows.len());
-    for (message, task) in rows {
-        if let Some((task_id, state, mode, risk, route)) = task {
-            tasks.push(
-                json!({"id":task_id,"message_id":message["id"],"state":state,
-                "mode":mode,"risk":risk,"route":stored_json(route)?}),
-            );
-        }
-        messages.push(message);
-    }
-    tasks.reverse();
-    let bindings = bound(&tx, id)?;
-    let (blocker_count, blockers) = sqlite::blockers(
-        &tx,
-        lifecycle::Target {
-            conversation: id,
-            message: None,
-        },
-    )?;
     tx.commit()?;
     if method == "conversation.resume" {
         for (binding, revision) in &bindings {
             catalog::resolve_binding(db, binding, Some(*revision))?;
         }
     }
-    let selections: Vec<_> = bindings
-        .into_iter()
-        .map(|(binding, revision)| json!({"binding_id":binding,"revision":revision}))
-        .collect();
     let next_after = messages
         .last()
         .and_then(|row| row["ordinal"].as_i64())
         .or(after.then_some(cursor))
         .unwrap_or(0)
         .to_string();
-    Ok(
-        json!({"conversation":conversation,"next_before":messages.first().and_then(|row|row["ordinal"].as_i64()).map(|n|n.to_string()),
-        "next_after":next_after,"has_more":has_more,"messages":messages,"tasks":tasks,"bindings":selections,
-        "blockers":blockers,"blocker_count":blocker_count}),
-    )
+    result["next_before"] = json!(
+        messages
+            .first()
+            .and_then(|row| row["ordinal"].as_i64())
+            .map(|n| n.to_string())
+    );
+    result["next_after"] = Value::String(next_after);
+    result["has_more"] = Value::Bool(has_more);
+    result["messages"] = Value::Array(messages);
+    result["tasks"] = Value::Array(tasks);
+    Ok(result)
 }
 
 fn events(db: &Database, params: &Value) -> Result<Value, AppError> {
     let cid = id(params["id"].as_str().unwrap_or(""))?;
-    conversation(&db.conn, cid)?;
-    replay(&db.conn, Some(cid), None, params)
+    let tx = db.conn.unchecked_transaction()?;
+    let exists: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?1)",
+        [cid],
+        |row| row.get(0),
+    )?;
+    if !exists {
+        return Err(missing("Conversation does not exist"));
+    }
+    let events = replay(&tx, Some(cid), None, params)?;
+    tx.commit()?;
+    Ok(events)
 }
 
 pub(super) fn replay(
@@ -867,6 +934,211 @@ pub(super) fn replay(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+    use std::path::PathBuf;
+
+    struct Fixture(PathBuf);
+
+    impl Fixture {
+        fn new() -> Self {
+            Self(crate::test_support::temporary_directory("cirnetrules-session-page").unwrap())
+        }
+
+        fn open(&self) -> Database {
+            Database::open(&self.0).unwrap()
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn worker_connections_share_authority_without_waiting_for_a_writer() {
+        let fixture = Fixture::new();
+        let db = fixture.open();
+        let factory = db.connection_factory();
+        let mut writer = factory.open_write().unwrap();
+        assert_eq!(writer.machine_id, db.machine_id);
+        assert_eq!(writer.preview_secret, db.preview_secret);
+        let tx = writer
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+
+        let reader = factory.open_read().unwrap();
+        assert_eq!(reader.machine_id, db.machine_id);
+        assert_eq!(reader.preview_secret, db.preview_secret);
+        assert_eq!(
+            reader
+                .conn
+                .pragma_query_value(None, "foreign_keys", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        let error = reader
+            .conn
+            .execute("DELETE FROM catalog_settings", [])
+            .unwrap_err();
+        assert_eq!(AppError::from(error).code, "PERMISSION_DENIED");
+        tx.commit().unwrap();
+    }
+
+    #[test]
+    fn interrupted_read_releases_transaction_and_progress_handler() {
+        const SUM: &str = "WITH RECURSIVE numbers(n) AS (
+            VALUES(0) UNION ALL SELECT n+1 FROM numbers WHERE n<10000
+        ) SELECT sum(n) FROM numbers";
+        let fixture = Fixture::new();
+        let db = fixture.open();
+        let mut reader = db.connection_factory().open_read().unwrap();
+        let error = reader
+            .with_read_cancel(
+                || true,
+                |reader| {
+                    let tx = reader.conn.unchecked_transaction()?;
+                    let sum = tx.query_row(SUM, [], |row| row.get::<_, i64>(0))?;
+                    tx.commit()?;
+                    Ok(sum)
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.code, "SQLITE_INTERRUPTED");
+        let tx = reader.conn.unchecked_transaction().unwrap();
+        assert_eq!(
+            tx.query_row(SUM, [], |row| row.get::<_, i64>(0)).unwrap(),
+            50_005_000
+        );
+        tx.commit().unwrap();
+    }
+
+    #[test]
+    fn conversation_event_snapshot_has_no_gap() {
+        let fixture = Fixture::new();
+        let mut reader = fixture.open();
+        let mut writer = fixture.open();
+        let id = insert_conversation(
+            &writer.conn,
+            "fixture",
+            "hash",
+            "First",
+            "DASHBOARD",
+            &[],
+            1,
+        )
+        .unwrap();
+        event(
+            &writer.conn,
+            (Some(id), None, None, None),
+            "fixture",
+            "CONVERSATION_CREATED",
+            &json!({}),
+            1,
+        )
+        .unwrap();
+        let mut committed = false;
+        reader
+            .conn
+            .authorizer(Some(move |context: AuthContext<'_>| {
+                if !committed
+                    && matches!(
+                        context.action,
+                        AuthAction::Read {
+                            table_name: "session_events",
+                            column_name: "sequence"
+                        }
+                    )
+                {
+                    let tx = writer.conn.transaction().unwrap();
+                    tx.execute("UPDATE conversations SET revision=2 WHERE id=?1", [id])
+                        .unwrap();
+                    event(
+                        &tx,
+                        (Some(id), None, None, None),
+                        "fixture",
+                        "CONVERSATION_RENAMED",
+                        &json!({}),
+                        2,
+                    )
+                    .unwrap();
+                    tx.commit().unwrap();
+                    committed = true;
+                }
+                Authorization::Allow
+            }));
+
+        let id = id.to_string();
+        let snapshot = dispatch(&mut reader, "conversation.get", json!({"id":id})).unwrap();
+        assert_eq!(snapshot["conversation"]["revision"], 1);
+        assert_eq!(snapshot["event_watermark"], "1");
+        let replay = dispatch(
+            &mut reader,
+            "conversation.events",
+            json!({"id":id,"after":snapshot["event_watermark"]}),
+        )
+        .unwrap();
+        assert_eq!(replay["items"].as_array().unwrap().len(), 1);
+        assert_eq!(replay["items"][0]["sequence"], "2");
+    }
+
+    #[test]
+    fn byte_limited_conversation_pages_keep_keyset_rows() {
+        let fixture = Fixture::new();
+        let mut db = fixture.open();
+        let id =
+            insert_conversation(&db.conn, "fixture", "hash", "First", "DASHBOARD", &[], 1).unwrap();
+        let content = "\\".repeat(16_384);
+        let route = json!({"bindings":[{"read_hints":vec!["x".repeat(512); 32]}]});
+        let intake = Intake {
+            content: &content,
+            route: &route,
+            mode: "WORK",
+            risk: "SCOPED",
+            time: 1,
+        };
+        for index in 1..=4 {
+            insert_turn(
+                &db.conn,
+                id,
+                &format!("turn-{index}"),
+                "hash",
+                &intake,
+                None,
+            )
+            .unwrap();
+        }
+        let id = id.to_string();
+        let latest = dispatch(&mut db, "conversation.get", json!({"id":id})).unwrap();
+        assert_eq!(latest["next_before"], "2");
+        assert_eq!(latest["next_after"], "4");
+        assert_eq!(latest["has_more"], true);
+        assert_eq!(latest["messages"].as_array().unwrap().len(), 3);
+        assert_eq!(latest["messages"][0]["content"], content);
+        assert_eq!(latest["tasks"][0]["message_id"], "4");
+
+        let older = dispatch(
+            &mut db,
+            "conversation.get",
+            json!({"id":id,"before":latest["next_before"]}),
+        )
+        .unwrap();
+        assert_eq!(older["messages"][0]["id"], "1");
+        assert_eq!(older["has_more"], false);
+
+        let forward = dispatch(&mut db, "conversation.get", json!({"id":id,"after":"0"})).unwrap();
+        assert_eq!(forward["next_after"], "3");
+        assert_eq!(forward["has_more"], true);
+        let tail = dispatch(
+            &mut db,
+            "conversation.get",
+            json!({"id":id,"after":forward["next_after"]}),
+        )
+        .unwrap();
+        assert_eq!(tail["messages"][0]["id"], "4");
+        assert_eq!(tail["has_more"], false);
+    }
 
     #[test]
     fn protected_or_escaping_paths_cannot_be_proposed() {
