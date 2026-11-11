@@ -1,7 +1,7 @@
 use super::*;
 use rusqlite::{Connection, params};
 use sha2::{Digest, Sha256};
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, process::Command};
 
 const SCHEMA: &[(&str, &str)] = &[
     (
@@ -132,12 +132,49 @@ fn add_revision(db: &Connection, id: &str, number: i64, en: &str, prior: Option<
 
 #[test]
 fn migration_backup_reads_committed_wal_and_preserves_every_governance_layer() {
+    const READER_FIXTURE: &str = "CNR_TEST_MIGRATION_WAL_READER_FIXTURE";
+    if let Some(root) = std::env::var_os(READER_FIXTURE) {
+        let root = PathBuf::from(root);
+        let source = root
+            .join("source.sqlite")
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let destination = root.join("archive").into_os_string().into_string().unwrap();
+        let source_arg = ("source".to_owned(), source);
+        let inspect = run(&root, "inspect", &[source_arg.clone()].into()).unwrap();
+        assert_eq!(inspect["counts"]["governance_assets"], 4);
+        assert_eq!(inspect["counts"]["governance_revisions"], 3);
+
+        let exported = run(
+            &root,
+            "export",
+            &[source_arg, ("destination".to_owned(), destination.clone())].into(),
+        )
+        .unwrap();
+        assert_eq!(exported["status"], "PASS");
+        assert_eq!(exported["counts"]["governance_session_snapshots"], 1);
+        assert_eq!(exported["counts"]["governance_run_snapshots"], 1);
+        assert_eq!(exported["counts"]["governance_assignments"], 1);
+        assert_eq!(exported["counts"]["governance_defaults"], 1);
+        assert!(!exported.to_string().contains("private"));
+
+        let validated = run(
+            &root,
+            "validate",
+            &[("archive".to_owned(), destination)].into(),
+        )
+        .unwrap();
+        assert_eq!(validated["snapshot_sha256"], exported["snapshot_sha256"]);
+        assert_eq!(validated["export_sha256"], exported["export_sha256"]);
+        return;
+    }
+
     let fixture = Fixture::new();
     let db = fixture.db("source.sqlite");
     db.pragma_update(None, "journal_mode", "WAL").unwrap();
     db.pragma_update(None, "wal_autocheckpoint", 0).unwrap();
     let source = fixture.path("source.sqlite");
-    let destination = fixture.path("archive");
     let before = fs::read(&source).unwrap();
     add_asset(&db, RULE, "example", None);
     add_asset(
@@ -174,29 +211,34 @@ fn migration_backup_reads_committed_wal_and_preserves_every_governance_layer() {
     let shm = fs::read(format!("{source}-shm")).unwrap();
     assert_eq!(fs::read(&source).unwrap(), before);
 
-    let inspect = fixture.command("inspect", &[("source", &source)]).unwrap();
-    assert_eq!(inspect["counts"]["governance_assets"], 4);
-    assert_eq!(inspect["counts"]["governance_revisions"], 3);
-    let exported = fixture
-        .command(
-            "export",
-            &[("source", &source), ("destination", &destination)],
-        )
+    // A separate reader process mirrors the CLI. Unix SQLite can otherwise
+    // reuse the writer's writable WAL-index mapping, even with readonly_shm.
+    let reader = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "migration::tests::migration_backup_reads_committed_wal_and_preserves_every_governance_layer",
+        ])
+        .env(READER_FIXTURE, &fixture.0)
+        .output()
         .unwrap();
-    assert_eq!(exported["status"], "PASS");
-    assert_eq!(exported["counts"]["governance_session_snapshots"], 1);
-    assert_eq!(exported["counts"]["governance_run_snapshots"], 1);
-    assert_eq!(exported["counts"]["governance_assignments"], 1);
-    assert_eq!(exported["counts"]["governance_defaults"], 1);
-    assert!(!exported.to_string().contains("private"));
-    assert_eq!(fs::read(&source).unwrap(), before);
-    assert_eq!(fs::read(format!("{source}-wal")).unwrap(), wal);
-    assert_eq!(fs::read(format!("{source}-shm")).unwrap(), shm);
-    let validated = fixture
-        .command("validate", &[("archive", &destination)])
-        .unwrap();
-    assert_eq!(validated["snapshot_sha256"], exported["snapshot_sha256"]);
-    assert_eq!(validated["export_sha256"], exported["export_sha256"]);
+    assert!(
+        reader.status.success(),
+        "WAL reader failed: {}\n{}",
+        String::from_utf8_lossy(&reader.stdout),
+        String::from_utf8_lossy(&reader.stderr)
+    );
+    assert!(
+        fs::read(&source).unwrap() == before,
+        "source database bytes changed"
+    );
+    assert!(
+        fs::read(format!("{source}-wal")).unwrap() == wal,
+        "source WAL bytes changed"
+    );
+    assert!(
+        fs::read(format!("{source}-shm")).unwrap() == shm,
+        "source SHM bytes changed"
+    );
     let archived = Connection::open(fixture.0.join("archive/snapshot.sqlite")).unwrap();
     let transcript: String = archived
         .query_row("SELECT content FROM messages", [], |r| r.get(0))
