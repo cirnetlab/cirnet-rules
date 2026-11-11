@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 3 -->
+<!-- revision: 4 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
@@ -13,12 +13,18 @@ cargo build --locked --bin cnr
 ./target/debug/cnr --project . env plan --json
 ~~~
 
-On Windows use `target/debug/cnr.exe`. Run `cnr` or `cnr tui` from an
-interactive terminal. Use the arrow keys, Enter, slash for search, and Esc
-or Ctrl+C to leave. `--lang vi` selects Vietnamese terminal labels and
-command summaries. `--no-banner` selects the compact header and `NO_COLOR`
-removes color. A noninteractive launch prints help. The version, help and
-catalog can run independently of a project.
+On Windows use `target/debug/cnr.exe`. Run `cnr` or `cnr tui` in an
+interactive terminal. The wide layout shows the selected command beside
+the list. `/` opens search and `?` reveals contextual help above the
+workspace status. When a command accepts input, the example appears there
+and a blank entry uses it. The keyboard can move through the list, select
+a command, close the active field or exit.
+
+`--lang vi` selects Vietnamese terminal labels and command summaries.
+`--no-banner` selects the compact title and `NO_COLOR` removes color. A
+noninteractive launch prints help. The version, help and catalog can run
+independently of a project. The executable source lives under `src/cli/`
+and its integration tests live in `src/tests/cnr.rs`.
 
 <a id="environment"></a>
 

@@ -260,12 +260,10 @@ pub(crate) fn execute_at(
             )?;
             if tracked.split('\0').any(|path| {
                 path.ends_with(".rs")
-                    && !["src/", "cli/src/", "cli/tests/"]
-                        .iter()
-                        .any(|prefix| path.starts_with(prefix))
+                    && !path.starts_with("src/")
                     && root.join(Path::new(path)).is_file()
             }) {
-                return Err("Rust is limited to src/, cli/src/ and cli/tests/".into());
+                return Err("Rust is limited to src/".into());
             }
             let paths = docs::verify(root)?;
             Ok(json!({"status":"PASS","paired_documents":paths}))

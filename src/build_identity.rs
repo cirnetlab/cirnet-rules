@@ -34,7 +34,7 @@ fn main() {
     assert!(
         cargo["bin"].as_array().unwrap().iter().any(|target| {
             target["name"].as_str() == Some(cli)
-                && target["path"].as_str() == Some("cli/src/main.rs")
+                && target["path"].as_str() == Some("src/cli/main.rs")
         }),
         "Cargo CLI target must match application identity"
     );

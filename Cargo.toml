@@ -13,11 +13,11 @@ path = "src/main.rs"
 
 [[bin]]
 name = "cnr"
-path = "cli/src/main.rs"
+path = "src/cli/main.rs"
 
 [[test]]
 name = "cnr"
-path = "cli/tests/cnr.rs"
+path = "src/tests/cnr.rs"
 
 [[test]]
 name = "cli"
@@ -44,6 +44,7 @@ sha2 = "=0.10.9"
 toml = "=0.9.8"
 tokio = { version = "=1.54.1", default-features = false, features = ["macros", "rt", "sync", "time"] }
 tokio-util = { version = "=0.7.18", default-features = false, features = ["codec", "rt"] }
+unicode-width = { version = "=0.2.2", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
 libc = "=0.2.191"
