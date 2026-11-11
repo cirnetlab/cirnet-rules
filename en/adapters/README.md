@@ -1,6 +1,5 @@
 <!-- doc-id: adapters -->
-<!-- revision: 4 -->
-
+<!-- revision: 5 -->
 # Agent bootstrap adapters
 
 [Tiếng Việt](../../vi/adapters/README.md)
@@ -85,19 +84,13 @@ the Agent load the instructions and skills in the target worktree. Neither a
 bundle nor a portable handoff changes native permissions or registers hooks.
 
 <a id="adapter-support"></a>
-## Surface support and verification
+## Native client verification
 
-Official surface documentation was checked on 2026-11-08. The portable Rust
-adapter covers generation, dry-run, install, rollback and restoration for
-all three entry filenames. Native instruction discovery, live skills, hooks
-and model sessions were **NOT_RUN**. Local capability observations are
-separate from product verification.
-
-| Surface | Documented discovery and practical handoff | Local observation |
-| --- | --- | --- |
-| Codex CLI and desktop | Codex discovers scoped `AGENTS.md` files. Skills and hooks have separate discovery and trust rules. Supply the generated `AGENTS.md` and context explicitly. For CLI audit sessions use a read-only sandbox. The documented `--add-dir` grants extra write scope, so keep it out of this audit flow. | CLI `0.167.0-alpha.3.2` reported its version. The probe encountered sandbox-denied temporary alias preparation. Native session loading was **NOT_RUN**. |
-| Claude Code | Native `CLAUDE.md`, skills and hooks have distinct settings and discovery. `--add-dir` exposes additional paths and loading their instructions is separately controlled. Supply the generated `CLAUDE.md` and context explicitly. In a compatible CLI use the documented `--append-system-prompt-file` flag with the generated entry and confirm file permissions. | CLI executable unavailable on `PATH`. Native loading was **NOT_RUN**. |
-| Antigravity Desktop, IDE and CLI | Google documents workspace rules in `AGENTS.md` or `GEMINI.md`, skills and hooks by surface. Explicitly supply the generated `GEMINI.md` and context in the relevant session. Current CLI docs describe `agy` and `--add-dir`. Review permissions before adding a directory. | Installed Desktop binary reports `1.23.2`. The `antigravity` launcher is the Electron editor CLI and `agy` was unavailable on `PATH`. Native loading was **NOT_RUN**. |
+Open the selected worktree in Codex Desktop, Claude Code or Antigravity.
+Confirm in the client which instructions and skills it loads before starting
+work. Use the generated entry and context explicitly for portable sessions.
+Record native instruction, skill or hook behavior only after observing it in
+the installed client.
 
 Codex references. [Instructions](https://learn.chatgpt.com/docs/agent-configuration/agents-md) ·
 [Skills](https://learn.chatgpt.com/docs/build-skills) · [Hooks](https://learn.chatgpt.com/docs/hooks) ·

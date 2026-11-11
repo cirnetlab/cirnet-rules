@@ -1,14 +1,16 @@
 <!-- doc-id: TESTS -->
-<!-- revision: 1 -->
-<!-- source-sha256: e2de0dc00e6c4368607a4a8eac39b512017bad504d303e46cfe9294a1fe13168 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 24c4fd466bffc25ea8d902b1dbfea255edf0ee2ce9a2fb4e4669fc04a6fd408f -->
 <!-- translation-status: synchronized -->
-
 <a id="verification"></a>
 
 # Kiểm thử governance
 
-Chạy cargo test với lockfile. Test Rust bao phủ digest bản dịch, định danh
-máy, đầu vào sai, gate release ứng viên và thao tác adapter cô lập. CI cũng
-chạy validation CLI và kiểm tra workspace sản phẩm bị thiếu cho trạng thái
-bị chặn. Test sản phẩm chạy tại repo sở hữu.
-[Quy tắc bằng chứng](../rules/testing.md)
+Chạy [các lệnh kiểm chứng cục bộ](../references/verification.md) từ thư mục
+gốc governance. Bộ test Rust kiểm tra chính sách và bản dịch, quyền của task,
+định danh binding, kiểm soát lease, độ mới của bằng chứng, xuất cấu hình theo
+phạm vi và MCP STDIO. Cổng CI có
+[quy trình duyệt bằng chứng ứng viên](../references/shared-task-coordination.md) riêng.
+
+Dùng fixture dùng một lần cho các thao tác ghi khi test và tuân theo
+[quy tắc kiểm thử](../rules/testing.md) khi ghi kết quả.

@@ -1,6 +1,6 @@
 <!-- doc-id: adapters -->
-<!-- revision: 4 -->
-<!-- source-sha256: e697f50692d505a0b1ab99623dbf7e0650091ebaa9b102384c5dc8cfa5f82c46 -->
+<!-- revision: 5 -->
+<!-- source-sha256: 0dd74a1179a8aea7f9691f1a64fa0955ad0f780f859c780b9d20b860cfb998a2 -->
 <!-- translation-status: synchronized -->
 
 # Adapter khởi tạo ngữ cảnh Agent
@@ -86,19 +86,13 @@ nạp chỉ dẫn và skill tại worktree đích. Bundle và gói bàn giao đ�
 quyền native và không đăng ký hook.
 
 <a id="adapter-support"></a>
-## Hỗ trợ từng môi trường và kiểm chứng
+## Kiểm chứng trong client
 
-Đã kiểm tra tài liệu chính thức ngày 2026-11-08. Adapter Rust kiểm tra việc
-tạo gói, dry-run, cài, hoàn tác và phục hồi với cả ba tên tệp đầu vào.
-Khả năng tự nạp chỉ dẫn, dùng skill trực tiếp, chạy hook và phiên mô hình ở
-trạng thái **NOT_RUN**. Kết quả quan sát công cụ cục bộ tách riêng với
-kiểm chứng sản phẩm.
-
-| Môi trường | Cơ chế nạp theo tài liệu và cách bàn giao | Quan sát cục bộ |
-| --- | --- | --- |
-| Codex CLI và desktop | Codex tự tìm tệp `AGENTS.md` theo phạm vi. Skills và hooks có cơ chế tìm kiếm và tin cậy riêng. Cung cấp rõ tệp `AGENTS.md` và ngữ cảnh đã tạo. Với audit trên CLI, dùng sandbox chỉ đọc. Theo tài liệu, `--add-dir` cấp thêm quyền ghi nên nằm ngoài quy trình audit này. | CLI `0.167.0-alpha.3.2` trả phiên bản. Phép dò gặp giới hạn sandbox khi chuẩn bị bí danh tạm. Tự nạp trong phiên native ở trạng thái **NOT_RUN**. |
-| Claude Code | `CLAUDE.md`, skills và hooks có cấu hình và cơ chế tìm kiếm riêng. `--add-dir` mở thêm đường dẫn và việc nạp chỉ dẫn từ đó được điều khiển riêng. Cung cấp rõ `CLAUDE.md` và ngữ cảnh đã tạo. Với CLI hỗ trợ, dùng cờ `--append-system-prompt-file` cho tệp đầu vào và kiểm tra quyền truy cập. | Không tìm thấy CLI trên `PATH`. Tự nạp native ở trạng thái **NOT_RUN**. |
-| Antigravity Desktop, IDE và CLI | Google mô tả quy tắc workspace trong `AGENTS.md` hoặc `GEMINI.md`, cùng skills và hooks theo từng môi trường. Cung cấp rõ `GEMINI.md` và ngữ cảnh đã tạo trong phiên cần dùng. Tài liệu CLI hiện mô tả `agy` và `--add-dir`. Rà soát quyền trước khi thêm thư mục. | Binary Desktop đã cài ghi phiên bản `1.23.2`. Lệnh `antigravity` là CLI trình soạn thảo Electron và `agy` không có trên `PATH`. Tự nạp native ở trạng thái **NOT_RUN**. |
+Mở worktree đã chọn trong Codex Desktop, Claude Code hoặc Antigravity. Xác
+nhận ngay trong client những chỉ dẫn và kỹ năng được nạp trước khi làm việc.
+Với phiên di động, cung cấp rõ tệp đầu vào và ngữ cảnh đã tạo. Chỉ ghi nhận
+việc nạp chỉ dẫn, dùng kỹ năng hoặc chạy hook sau khi quan sát trong client
+đã cài.
 
 Tài liệu Codex. [Chỉ dẫn](https://learn.chatgpt.com/docs/agent-configuration/agents-md) ·
 [Skills](https://learn.chatgpt.com/docs/build-skills) · [Hooks](https://learn.chatgpt.com/docs/hooks) ·

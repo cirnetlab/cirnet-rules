@@ -1,37 +1,34 @@
 <!-- doc-id: HANDOFF -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="decision"></a>
 
-# Governance and product handoff
+# Handoff between operator and coding agent
 
-**GOVERNANCE_IMPLEMENTATION** covers the registry, paired docs, executable
-checks and portable adapters in this checkout. See [verification evidence](verification.md).
-
-**PRODUCT_0.2.4_CUTOVER_READINESS** is blocked. The [read-only audit](product-audit.md)
-records the six exact snapshots, selected published inputs and unresolved gates.
-The published combination remains separate from the proposed native train.
-
-Order the work after product authorization.
-
-1. Agree on contract family, reviewed representations and negative cases. Freeze the reviewed Remote API export and rebuild the Contracts SDK before selecting Interface inputs.
-2. Build the bounded C++ Simulator worker and FPGA source scaffold with immutable receipts. Join Hardware to the exact Contracts and worker inputs and verify fail-closed lifecycle behavior.
-3. Build Interface with the matching SDK. Verify the Remote runtime, clean system install, browser, Stop and rollback. Keep physical HIL separate.
-4. Record the exact owner-side selection, verify evidence, then request explicit publication and activation approval.
-
-Use [adapter guidance](../adapters/README.md) for scoped bootstrap, and the
-[tools guide](../tools/README.md) for release and drift checks.
+1. Confirm the repository, branch, worktree binding and task revision. Read
+   the selected English instructions and review the exact read and write
+   scope in `cnr task context --task ID --session TOKEN`.
+2. Open the bound worktree in Codex Desktop, Claude Code or Antigravity.
+   Use the [repository instructions and skills](../adapters/README.md) or the
+   approved portable session. To connect the client to the shared task store,
+   review the [MCP launcher](mcp.md) and the selected access mode.
+3. For a coordinated task, use the prepared session to claim the lease and
+   submit the structured report. Hand off the task ID and relevant receipt
+   references through the [shared coordination workflow](shared-task-coordination.md).
+   Keep the session file private.
+4. The verifier checks the bound diff and evidence, then records the result
+   through the [operator workflow](cirnetrules-local.md). The next agent reads
+   the current task status and context before taking over.
 
 <a id="record-templates"></a>
 
-## Shared record templates
+## Handoff records
 
-| Record | Fields to complete before handoff |
+| Record | Fields to include |
 | --- | --- |
-| Design decision | ID, problem, constraints, alternatives, selected proposal, rationale, affected paths and contracts, owner, approval reference, rollback. |
-| Product task | Requirement or ADR, task ID, owner, repo and paths, dependency task IDs, planned revision and artifact, acceptance check, evidence identity, release gate, next action. |
-| Scoped exception proposal | Rule ID, precise scope and expiry, rationale, compensating evidence, owner, approver and actual approval reference. See the closed initial policy. |
-| Verification evidence | Source and governance commits, command, tool versions, platform, UTC time, exit code, evidence kind, result path and digest, limits. |
+| Design decision | Task ID, constraints, decision, rationale, affected scope, owner and approval reference. |
+| Task handoff | Task ID and revision, repository and binding, expected result, dependency task IDs, current status, outstanding work and next action. |
+| Verification evidence | Source and governance revisions, command, tool versions, platform, time, exit code, receipt digest and limits. |
+| Scope change proposal | Requested files or actions, reason, owner, expiry and approval reference once granted. |
 
-Keep proposal, implementation and verification states separate. Follow the
-[policy](../policies/governance.md) for approvals and the
-[evidence formats](../schemas/release-evidence.md) for machine input.
+Use the [governance policy](../policies/governance.md) for scope changes and
+the [verification guide](verification.md) when recording results.

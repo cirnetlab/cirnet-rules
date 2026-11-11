@@ -1,30 +1,32 @@
 <!-- doc-id: CIRNETRULES-ROUTING -->
-<!-- revision: 2 -->
-<!-- source-sha256: 97ec3aec084a3139903636032c0e436649b4f5cd9de1c2a861e4fa1f763457a1 -->
+<!-- revision: 3 -->
+<!-- source-sha256: 57df030f27ee1fb53c31eaa79af4973677384cff6d33ed9455b510becdafc2a0 -->
 <!-- translation-status: synchronized -->
 <a id="routing"></a>
 
-# Workspace local và định tuyến
+# Workspace cục bộ và định tuyến repository
 
-CNR cung cấp các thao tác bảo trì qua [lệnh workspace và task](../references/cnr.md#execution).
+Chạy `cnr workspace discover` để tìm checkout từ metadata giới hạn của
+workspace. Kiểm tra ID repository đã đăng ký rồi bind checkout bằng
+`cnr workspace bind --repo REPO --path WORKTREE --actor OPERATOR`.
+Binding ghi Git root, thư mục admin, thư mục common và commit mốc. Thay
+binding cần định danh trước đó. Dùng `cnr workspace health --repo REPO`
+để kiểm tra.
 
-`workspace-discover` đọc metadata trong giới hạn của workspace và đề xuất
-ứng viên. Dùng `workspace-bind` với ID repo đã đăng ký, đường dẫn tương đối
-và nhãn người thao tác. Lệnh kiểm tra Git root, thư mục quản trị, thư mục
-dùng chung và commit mốc. Thay liên kết cần cung cấp định danh trước đó.
-`workspace-health` kiểm tra một liên kết. URL remote là tùy chọn trong luồng
-này. Khi thêm repo, rà profile, ownership, phân loại và quan hệ có kiểu
-trong registry, sau đó liên kết với worktree local thực tế.
+Để làm song song trên cùng repository, dùng
+[quy trình worktree có tên](../references/shared-task-coordination.md).
+Chọn binding trong descriptor của task trước khi duyệt. Kiểm tra binding
+khi bàn giao. Đổi binding cần revision mới của task và duyệt lại.
 
-Dùng đường dẫn file chính xác cho phạm vi task. Thẻ module và quan hệ trực
-tiếp giải thích tác động có thể có. Phạm vi đọc tường minh giới hạn nguồn
-được mở. Quyền ghi được kiểm tra riêng. CLI gắn nhãn tài liệu sản phẩm và
-task là dữ liệu. Nguồn thẩm quyền nằm trong các mục chỉ dẫn governance.
-Task UI nhỏ chỉ tra repo liên quan. WORK tách khỏi validator release.
+Dùng danh sách tệp chính xác cho phạm vi đọc và ghi. Hồ sơ module và phụ
+thuộc trực tiếp mô tả ảnh hưởng. Bộ phân giải trả về tệp sản phẩm và hồ sơ
+task dưới dạng dữ liệu, rồi nạp chỉ dẫn từ các mục governance tiếng Anh.
+Khi thêm repository, kiểm tra quyền sở hữu, phân loại và quan hệ có kiểu
+trong [registry](../../governance.yaml) trước.
 
-`task-context` cấp entrypoint tiếng Anh, mini-spec, mini-plan, skill và
-nguồn sản phẩm đã chọn. Token phiên ổn định yêu cầu delta. Đổi token khi
-bắt đầu phiên mới hoặc sau compaction. File dirty, thiếu và untracked trong
-phạm vi được kiểm tra theo nội dung. Cache lưu digest, có hạn lưu và có
-thể dọn bằng `context-prune`. Context báo số byte nguồn, file, repo, cache
-hit và thời gian.
+`cnr task context --task ID --session TOKEN` phân giải điểm vào, spec, plan,
+kỹ năng và source sản phẩm đã chọn. Dùng lại token để lấy phần thay đổi.
+Tạo token mới cho phiên mới hoặc sau khi rút gọn ngữ cảnh. Bộ phân giải
+kiểm tra các đường dẫn đã sửa, bị thiếu hoặc chưa được Git theo dõi trong
+phạm vi đã chọn, rồi ghi số lượng đầu vào và cache. Xem
+[tham chiếu CLI](../references/cnr.md#execution) để quản lý cache.

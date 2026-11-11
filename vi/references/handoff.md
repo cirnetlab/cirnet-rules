@@ -1,39 +1,36 @@
 <!-- doc-id: HANDOFF -->
-<!-- revision: 2 -->
-<!-- source-sha256: 9fe2815061eb2ae47c6c8dcf0044eef3a8f7f44a1045debac0e7d25884425b21 -->
+<!-- revision: 3 -->
+<!-- source-sha256: 9ffd1d4bd9e6fa4629d43d0d9154efaecc24cef4dd7c864d9b84e495de777150 -->
 <!-- translation-status: synchronized -->
-
 <a id="decision"></a>
 
-# Bàn giao governance và sản phẩm
+# Bàn giao giữa người vận hành và coding agent
 
-**GOVERNANCE_IMPLEMENTATION** bao gồm registry, tài liệu cặp, kiểm tra chạy
-được và adapter di động trong checkout. Xem [bằng chứng kiểm chứng](verification.md).
-
-**PRODUCT_0.2.4_CUTOVER_READINESS** bị chặn. [Audit chỉ đọc](product-audit.md)
-ghi sáu snapshot chính xác, đầu vào đã phát hành và các gate còn mở.
-Tổ hợp đã phát hành tách khỏi train native đề xuất.
-
-Xếp thứ tự sau khi được phép sửa sản phẩm.
-
-1. Thống nhất family contract, biểu diễn đã rà và ca từ chối. Đóng băng bản xuất API Remote đã duyệt và dựng lại SDK Contracts trước khi chọn đầu vào Interface.
-2. Dựng worker C++ giới hạn và scaffold FPGA mã nguồn với receipt bất biến. Ghép Hardware với Contracts và worker chính xác, kiểm chứng vòng đời fail-closed.
-3. Dựng Interface với SDK khớp. Kiểm chứng runtime Remote, cài sạch, trình duyệt, Stop và rollback. Tách HIL vật lý.
-4. Ghi tổ hợp chính xác ở repo sở hữu, xác minh bằng chứng rồi xin phê duyệt phát hành và kích hoạt tường minh.
-
-Dùng [hướng dẫn adapter](../adapters/README.md) để bootstrap theo phạm vi và
-[hướng dẫn công cụ](../tools/README.md) cho kiểm tra release và drift.
+1. Xác nhận repository, branch, binding của worktree và revision của task.
+   Đọc chỉ dẫn tiếng Anh được chọn và rà soát phạm vi đọc, ghi chính xác trong
+   `cnr task context --task ID --session TOKEN`.
+2. Mở worktree đã bind trong Codex Desktop, Claude Code hoặc Antigravity.
+   Dùng [chỉ dẫn và kỹ năng của repository](../adapters/README.md) hoặc phiên
+   di động đã được duyệt. Để kết nối client với kho task dùng chung, kiểm tra
+   [cấu hình khởi chạy MCP](mcp.md) và chế độ truy cập đã chọn.
+3. Với task phối hợp, dùng phiên đã chuẩn bị để nhận lease và gửi báo cáo
+   có cấu trúc. Bàn giao ID task và các tham chiếu biên nhận liên quan theo
+   [quy trình phối hợp dùng chung](shared-task-coordination.md). Giữ tệp phiên
+   ở chế độ riêng tư.
+4. Người kiểm chứng đối chiếu diff và bằng chứng trên binding đã chốt, rồi
+   ghi kết quả theo [quy trình vận hành](cirnetrules-local.md). Agent tiếp theo
+   đọc trạng thái và ngữ cảnh hiện tại trước khi nhận việc.
 
 <a id="record-templates"></a>
 
-## Mẫu hồ sơ dùng chung
+## Hồ sơ bàn giao
 
-| Hồ sơ | Các trường cần điền trước khi bàn giao |
+| Hồ sơ | Trường cần ghi |
 | --- | --- |
-| Quyết định thiết kế | ID, vấn đề, ràng buộc, phương án, đề xuất chọn, lý do, đường dẫn và contract bị ảnh hưởng, chủ sở hữu, tham chiếu phê duyệt, rollback. |
-| Công việc sản phẩm | Yêu cầu hoặc ADR, ID công việc, chủ sở hữu, repo và đường dẫn, ID công việc phụ thuộc, revision và artifact dự kiến, kiểm tra nghiệm thu, định danh bằng chứng, gate release, bước tiếp theo. |
-| Đề xuất ngoại lệ có phạm vi | ID quy tắc, phạm vi và hạn chính xác, lý do, bằng chứng bù trừ, chủ sở hữu, người duyệt và tham chiếu phê duyệt thực. Xem chính sách đóng ngoại lệ ban đầu. |
-| Bằng chứng kiểm chứng | Commit nguồn và governance, lệnh, phiên bản công cụ, nền tảng, thời điểm UTC, mã thoát, loại bằng chứng, đường dẫn kết quả và digest, giới hạn. |
+| Quyết định thiết kế | ID task, ràng buộc, quyết định, lý do, phạm vi ảnh hưởng, người phụ trách và tham chiếu phê duyệt. |
+| Bàn giao task | ID và revision, repository và binding, kết quả mong đợi, ID task phụ thuộc, trạng thái, việc còn lại và bước tiếp theo. |
+| Bằng chứng kiểm chứng | Revision source và governance, lệnh, phiên bản công cụ, nền tảng, thời điểm, mã thoát, digest của biên nhận và giới hạn. |
+| Đề xuất đổi phạm vi | Tệp hoặc hành động cần cấp quyền, lý do, người phụ trách, thời hạn và tham chiếu phê duyệt sau khi được cấp. |
 
-Tách trạng thái đề xuất, triển khai và kiểm chứng. Dùng [chính sách](../policies/governance.md)
-cho phê duyệt và [định dạng bằng chứng](../schemas/release-evidence.md) cho đầu vào máy.
+Dùng [chính sách governance](../policies/governance.md) khi thay đổi phạm vi
+và [hướng dẫn kiểm chứng](verification.md) khi ghi kết quả.

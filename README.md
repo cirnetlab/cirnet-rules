@@ -2,9 +2,10 @@
 
 [English](en/README.md) · [Tiếng Việt](vi/README.md)
 
-**cirnetrules** is a Rust governance core and CLI for CIRNET repositories.
-Write prompts in Codex, Claude Code or Antigravity. Use `cnr` to bind the
-checkout, resolve the authorized context, verify changes and record evidence.
+**CIRNETRULES** provides a Rust governance core, the CNR CLI and an MCP server over
+STDIO. Run coding sessions independently in Codex Desktop, Claude Code or
+Antigravity. Use CNR to bind the worktree, resolve the authorized task context,
+verify changes and record evidence.
 
 ```sh
 cargo build --locked --bins

@@ -1,11 +1,14 @@
 <!-- doc-id: TESTS -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="verification"></a>
 
 # Governance tests
 
-Run cargo test with the lockfile. Rust tests cover translation digests,
-machine identifiers, malformed input, candidate release gates and isolated
-adapter operations. CI also executes CLI validation and checks that a missing
-product workspace is blocked. Product tests are run in their own repositories.
-[Evidence rule](../rules/testing.md)
+Run the [local verification commands](../references/verification.md) from
+the governance root. The Rust suite covers policy and translation validation,
+task grants, binding identity, lease fencing, evidence freshness, scoped
+configuration export and MCP STDIO. The CI gate has a separate reviewed
+[candidate evidence procedure](../references/shared-task-coordination.md).
+
+Use disposable fixtures for test writes and follow the
+[testing rule](../rules/testing.md) when recording results.

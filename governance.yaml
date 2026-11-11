@@ -380,15 +380,7 @@
         "id": "HANDOFF",
         "kind": "reference",
         "path": "en/references/handoff.md",
-        "revision": 2,
-        "status": "ACTIVE",
-        "depends_on": []
-      },
-      {
-        "id": "MIGRATION-MAP",
-        "kind": "reference",
-        "path": "en/references/migration.md",
-        "revision": 2,
+        "revision": 3,
         "status": "ACTIVE",
         "depends_on": []
       },
@@ -404,7 +396,7 @@
         "id": "VERIFY-LOCAL",
         "kind": "reference",
         "path": "en/references/verification.md",
-        "revision": 1,
+        "revision": 2,
         "status": "ACTIVE",
         "depends_on": []
       },
@@ -412,7 +404,7 @@
         "id": "CIRNETRULES-ROUTING",
         "kind": "reference",
         "path": "en/routing/README.md",
-        "revision": 2,
+        "revision": 3,
         "status": "ACTIVE",
         "depends_on": []
       },
@@ -676,162 +668,6 @@
     }
   ],
   "document_states": {
-    "en/plans/cirnet-rules/conversation-automation-deletion/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/dashboard-restore-ci/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/dashboard-ux/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/dashboard/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-appearance-customization/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-interaction/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-launch/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-live-appearance-storage/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-performance-lifecycle/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-performance/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-row-hover-toast/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-settings-refinement/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/desktop-status-visuals/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/identity-cutover/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/openrules-governance/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/plans/cirnet-rules/sidebar-footer/plan.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/references/adapter-capabilities.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/references/dashboard-architecture.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/references/dashboard-release.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/references/dashboard.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/references/desktop-interaction.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/references/governance-workspace.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/conversation-automation-deletion/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/dashboard-restore-ci/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/dashboard-ux/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/dashboard/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-appearance-customization/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-interaction/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-launch/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-live-appearance-storage/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-performance-lifecycle/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-performance/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-performance/verification.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-row-hover-toast/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-settings-refinement/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/desktop-status-visuals/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/identity-cutover/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/openrules-governance/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
-    "en/specs/cirnet-rules/sidebar-footer/spec.md": {
-      "state": "RETIRED",
-      "review": "Retired by the CLI-only refactor; historical review data"
-    },
     "en/references/adr-0001.md": {
       "state": "DRAFT",
       "review": "CIRNETLAB owner approval required before adopting additional proposals"
