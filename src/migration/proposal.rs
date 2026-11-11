@@ -939,3 +939,135 @@ pub(super) fn audit(root: &Path, digest: &str) -> Result<Value, String> {
         "time_unix_seconds": receipt.time_unix_seconds,
     }))
 }
+
+pub(super) fn adoption(
+    root: &Path,
+    digest: &str,
+    approved_commit: &str,
+    actor: &str,
+) -> Result<Value, String> {
+    if actor.is_empty()
+        || actor.len() > 96
+        || !actor
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_@.".contains(&byte))
+        || workspace::contains_known_secrets(actor)
+    {
+        return Err("Adoption requires a bounded operator label".into());
+    }
+    let root = files::directory(root)?;
+    let directory = state_dir(&root, digest, false)?;
+    let _lock = files::lock(&directory.join(".lock"))?;
+    if files::ordinary_file(&directory.join(ROLLBACK_INTENT))? {
+        return Err("Migration proposal was rolled back or has a pending rollback".into());
+    }
+    let (receipt, receipt_sha256) = receipt(&directory, digest)?;
+    let proposal = directory.join(PROPOSAL);
+    verify_receipted_proposal(&proposal, digest, &receipt)?;
+    let (commit, clean) = policy::checkout(&root)?;
+    if !clean
+        || commit != approved_commit
+        || commit == receipt.target_commit
+        || !policy::governance_origin_matches(&root)?
+        || policy::git(
+            &root,
+            &[
+                "merge-base",
+                "--is-ancestor",
+                &receipt.target_commit,
+                &commit,
+            ],
+        )
+        .is_err()
+    {
+        return Err("Adoption receipt requires the explicit clean reviewed authority commit descending from staging".into());
+    }
+    let registry = policy::registry(&root)?;
+    policy::validate(&root, &registry)?;
+    crate::docs::verify(&root)?;
+    let data: Value = serde_json::from_slice(&files::read(&proposal, PLAN_LIMIT)?)
+        .map_err(|_| "Invalid receipted migration proposal")?;
+    let candidates = data["candidates"]
+        .as_array()
+        .ok_or("Missing migration candidates")?;
+    let entries = registry["assets"]["entries"]
+        .as_array()
+        .ok_or("Missing authority asset catalog")?;
+    let mut adopted = Vec::new();
+    for candidate in candidates {
+        let asset = &candidate["asset"];
+        let entry = entries.iter().find(|entry| {
+            ["id", "kind", "path", "provenance"]
+                .iter()
+                .all(|field| entry[*field] == asset[*field])
+        });
+        let Some(entry) = entry else {
+            continue;
+        };
+        let Some(proposed_files) = candidate["files"]
+            .as_array()
+            .filter(|rows| !rows.is_empty())
+        else {
+            continue;
+        };
+        let mut matches = true;
+        for file in proposed_files {
+            let relative = file["path"]
+                .as_str()
+                .ok_or("Invalid receipted asset path")?;
+            let path = policy::safe_path(&root, relative)?;
+            matches &= files::ordinary_file(&path)?
+                && files::digest_file(&path)? == file["sha256"]
+                && policy::git(
+                    &root,
+                    &[
+                        "--literal-pathspecs",
+                        "ls-files",
+                        "--error-unmatch",
+                        "--",
+                        relative,
+                    ],
+                )
+                .is_ok();
+        }
+        if matches {
+            adopted.push(json!({"id":asset["id"],"status":entry["status"]}));
+        }
+    }
+    if adopted.is_empty() {
+        return Ok(
+            json!({"status":"BLOCKED","state":"PROPOSAL_STAGED","reason":"No reviewed proposal candidate matches the committed authority bytes and provenance"}),
+        );
+    }
+    let authority = policy::read(&policy::safe_path(&root, "governance.yaml")?)?;
+    let mut result = json!({
+        "schema":1,"status":"PASS","state":if adopted.len() == candidates.len() {"ADOPTED_IN_GIT"} else {"PARTIALLY_ADOPTED"},
+        "proposal_sha256":digest,"staging_receipt_sha256":receipt_sha256,
+        "authority_commit":commit,"authority_sha256":sha256(authority.as_bytes()),
+        "actor":actor,"adopted":adopted,"pending":candidates.len()-adopted.len(),
+        "trust":"local operator assertion with verified committed bytes"
+    });
+    let destination = directory.join(format!("adoption-{commit}.json"));
+    if files::ordinary_file(&destination)? {
+        let bytes = files::read(&destination, RECEIPT_LIMIT)?;
+        let mut previous: Value =
+            serde_json::from_slice(&bytes).map_err(|_| "Invalid adoption receipt")?;
+        let time = previous
+            .as_object_mut()
+            .and_then(|obj| obj.remove("time_unix_seconds"));
+        if previous != result || time.as_ref().and_then(Value::as_u64).is_none() {
+            return Err("Existing adoption receipt conflicts with this confirmation".into());
+        }
+        result["time_unix_seconds"] = time.unwrap();
+        result["receipt_sha256"] = json!(sha256(&bytes));
+        return Ok(result);
+    }
+    if policy::checkout(&root)? != (commit, true) {
+        return Err("Authority checkout changed before receipt publication".into());
+    }
+    result["time_unix_seconds"] = json!(now()?);
+    let bytes = encode(&result)?;
+    files::publish(&destination, &bytes)?;
+    result["receipt_sha256"] = json!(sha256(&bytes));
+    Ok(result)
+}

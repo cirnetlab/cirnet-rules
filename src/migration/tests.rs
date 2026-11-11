@@ -540,3 +540,42 @@ fn migration_proposal_resumes_and_rollback_preserves_other_files() {
     assert!(!state.join("proposal.json").exists());
     assert!(state.join("receipt.json").is_file());
 }
+
+#[test]
+fn migration_007_accepts_only_observed_checksums_and_verifies_table_schema() {
+    const LF: &str = "43481e81aadc4791aba0e34e9ac18afd5f3ec85425f87a36093b5e79da726f36";
+    const WINDOWS: &str = "3b0f5974923ef09b5f05ae70035ce1d08c05d1bbe220c893563ae85280ca7b6b";
+    let fixture = Fixture::new();
+    let db = fixture.db("variants.sqlite");
+    let source = fixture.path("variants.sqlite");
+    for checksum in [LF, WINDOWS] {
+        db.execute(
+            "UPDATE schema_migrations SET checksum=?1 WHERE revision=7",
+            [checksum],
+        )
+        .unwrap();
+        assert_eq!(
+            fixture.command("inspect", &[("source", &source)]).unwrap()["schema"],
+            7
+        );
+    }
+    db.execute(
+        "UPDATE schema_migrations SET checksum=?1 WHERE revision=7",
+        ["a".repeat(64)],
+    )
+    .unwrap();
+    assert!(
+        fixture
+            .command("inspect", &[("source", &source)])
+            .unwrap_err()
+            .contains("checksum")
+    );
+    db.execute(
+        "UPDATE schema_migrations SET checksum=?1 WHERE revision=7",
+        [LF],
+    )
+    .unwrap();
+    db.execute_batch("ALTER TABLE governance_assets ADD COLUMN unexpected TEXT")
+        .unwrap();
+    assert!(fixture.command("inspect", &[("source", &source)]).is_err());
+}

@@ -358,3 +358,18 @@ fn initiative_cannot_close_while_a_required_child_is_pending() {
     .unwrap();
     assert!(ensure_children_closed(&f.0, &parent).is_ok());
 }
+
+#[test]
+fn committed_creation_and_revision_are_in_same_record_as_audit_events() {
+    let f = Fixture::new();
+    let task = f.create(f.descriptor("ui", "toolbar"));
+    assert_eq!(task["task_schema"], 2);
+    assert_eq!(task["coordination"]["events"][0]["operation"], "create");
+    let result = update(&f.0, "toolbar", 1, |next| {
+        next["checkpoint"] = json!({"next_action":"continue"});
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(result["coordination"]["events"][1]["revision"], 2);
+    assert_eq!(result, load(&f.0, "toolbar").unwrap());
+}

@@ -1,4 +1,4 @@
-use crate::{docs, policy, runner, tasks, workspace};
+use crate::{coordination, docs, policy, runner, tasks, workspace};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -36,6 +36,7 @@ pub fn run(
     tasks::authorize(&task, "read")?;
     if command == "review-context" {
         let snapshot = runner::snapshot(root, &task, registry, work)?;
+        coordination::check_evidence(root, work, registry, &task, &snapshot)?;
         let mut packet = workspace::run("task-context", root, options, registry)?;
         if packet["status"] != "PASS" {
             return Ok(packet);
@@ -106,6 +107,7 @@ pub fn run(
                 true,
             )?;
             let snapshot = runner::snapshot(root, &task, registry, work)?;
+            coordination::check_evidence(root, work, registry, &task, &snapshot)?;
             if !fresh(&task, &snapshot) {
                 return Ok(blocked("Verification is absent, failed, or stale"));
             }
@@ -122,28 +124,50 @@ pub fn run(
                     .flatten()
                 {
                     let repo = target["repo"].as_str().ok_or("Invalid docs repository")?;
-                    if let Ok(binding) = workspace::resolve(root, work, repo, registry) {
-                        bindings.insert(repo, binding.identity);
+                    match workspace::resolve_task(root, work, repo, registry, &task) {
+                        Ok(binding) => {
+                            bindings.insert(repo, binding.identity);
+                        }
+                        Err(reason)
+                            if task["execution_bindings"].get(repo).is_some()
+                                || task["descriptor"]["bindings"].get(repo).is_some() =>
+                        {
+                            return Ok(blocked(&reason));
+                        }
+                        Err(_) => {}
                     }
                 }
             }
-            let result = tasks::update(root, id, revision, |next| match command {
-                "task-review" => record_review(next, actor, options, &snapshot),
-                "task-accept" => accept(next, actor, &snapshot, &bindings),
-                _ => {
-                    authorizes(next, actor, "accept", true)?;
-                    tasks::ensure_children_closed(root, next)?;
-                    let report = docs_check(root, registry, work, next)?;
-                    if report["status"] != "PASS" {
-                        return Err("Documentation is pending or changed since sync".into());
+            let result =
+                tasks::update_operation(root, id, revision, command, Some(actor), |next| {
+                    let current = runner::snapshot(root, next, registry, work)?;
+                    coordination::check_evidence(root, work, registry, next, &current)?;
+                    if current["status"] != "PASS"
+                        || current["sha256"] != snapshot["sha256"]
+                        || current["violations"] != snapshot["violations"]
+                    {
+                        return Err(
+                            "Verification inputs changed before the lifecycle mutation".into()
+                        );
                     }
-                    if !matches!(next["state"].as_str(), Some("ACCEPTED" | "DOCS_SYNCED")) {
-                        return Err("Only an accepted task can close".into());
+                    match command {
+                        "task-review" => record_review(next, actor, options, &snapshot),
+                        "task-accept" => accept(next, actor, &snapshot, &bindings),
+                        _ => {
+                            authorizes(next, actor, "accept", true)?;
+                            tasks::ensure_children_closed(root, next)?;
+                            let report = docs_check(root, registry, work, next)?;
+                            if report["status"] != "PASS" {
+                                return Err("Documentation is pending or changed since sync".into());
+                            }
+                            if !matches!(next["state"].as_str(), Some("ACCEPTED" | "DOCS_SYNCED")) {
+                                return Err("Only an accepted task can close".into());
+                            }
+                            next["state"] = json!("CLOSED");
+                            Ok(())
+                        }
                     }
-                    next["state"] = json!("CLOSED");
-                    Ok(())
-                }
-            })?;
+                })?;
             Ok(
                 json!({"status":"PASS","task":id,"revision":result["revision"],"state":result["state"]}),
             )
@@ -151,32 +175,49 @@ pub fn run(
         "docs-apply" => {
             authorizes(&task, actor, "docs", false)?;
             let snapshot = runner::snapshot(root, &task, registry, work)?;
+            coordination::check_evidence(root, work, registry, &task, &snapshot)?;
             if !fresh(&task, &snapshot) {
                 return Ok(blocked("Accepted verification became stale"));
             }
             let proposal = load_proposal(root, options)?;
             let mut report = Value::Null;
-            let result = tasks::update(root, id, revision, |next| {
-                let (value, progress) = sync(root, registry, work, next, &proposal, true)?;
-                next["docs"] = progress;
-                report = value;
-                if report["status"] == "PASS" {
-                    match docs_check(root, registry, work, next) {
-                        Ok(check) if check["status"] == "PASS" => {
-                            next["state"] = json!("DOCS_SYNCED")
-                        }
-                        _ => {
-                            report["status"] = json!("BLOCKED");
-                            report["reason"] = json!(
-                                "One or more applied documents require conflict or translation review"
-                            );
-                            report["locally_applied"] = json!(false);
-                            next["state"] = json!("ACCEPTED");
+            let result = tasks::update_operation(
+                root,
+                id,
+                revision,
+                command,
+                Some(actor),
+                |next| {
+                    let current = runner::snapshot(root, next, registry, work)?;
+                    coordination::check_evidence(root, work, registry, next, &current)?;
+                    if current["status"] != "PASS"
+                        || current["sha256"] != snapshot["sha256"]
+                        || current["violations"] != snapshot["violations"]
+                    {
+                        return Err("Verification inputs changed before documentation sync".into());
+                    }
+                    coordination::check_documentation_writer(root, work, registry, next)?;
+                    let (value, progress) = sync(root, registry, work, next, &proposal, true)?;
+                    next["docs"] = progress;
+                    report = value;
+                    if report["status"] == "PASS" {
+                        match docs_check(root, registry, work, next) {
+                            Ok(check) if check["status"] == "PASS" => {
+                                next["state"] = json!("DOCS_SYNCED")
+                            }
+                            _ => {
+                                report["status"] = json!("BLOCKED");
+                                report["reason"] = json!(
+                                    "One or more applied documents require conflict or translation review"
+                                );
+                                report["locally_applied"] = json!(false);
+                                next["state"] = json!("ACCEPTED");
+                            }
                         }
                     }
-                }
-                Ok(())
-            })?;
+                    Ok(())
+                },
+            )?;
             report["revision"] = result["revision"].clone();
             report["state"] = result["state"].clone();
             Ok(report)
@@ -247,6 +288,9 @@ fn fresh(task: &Value, snapshot: &Value) -> bool {
             && value["policy_sha256"] == task["policy_sha256"]
             && value["plan_sha256"] == task["plan_sha256"]
             && value["approval_epoch"] == task["approval_epoch"]
+            && value["submission_id"] == task["coordination"]["submission"]["submission_id"]
+            && value["dependency_sha256"]
+                == task["coordination"]["submission"]["dependencies_sha256"]
     }) && snapshot["violations"].as_array().is_some_and(Vec::is_empty)
 }
 
@@ -265,6 +309,7 @@ fn verify(
     let implementer = task["descriptor"]["owner"] == actor;
     authorizes(task, actor, "verify", !implementer)?;
     let snapshot = runner::snapshot(root, task, registry, work)?;
+    coordination::check_evidence(root, work, registry, task, &snapshot)?;
     if !snapshot["violations"].as_array().is_some_and(Vec::is_empty) {
         return Ok(
             json!({"status":"BLOCKED","reason":"Diff exceeds the current grant","violations":snapshot["violations"]}),
@@ -290,11 +335,13 @@ fn verify(
         }
     }
     let after = runner::snapshot(root, task, registry, work)?;
+    coordination::check_evidence(root, work, registry, task, &after)?;
+    let consumption = coordination::check_dependency_step_inputs(task, &results);
     let status = if snapshot["sha256"] != after["sha256"]
         || !after["violations"].as_array().is_some_and(Vec::is_empty)
     {
         "BLOCKED"
-    } else if results.iter().all(|result| result["status"] == "PASS") {
+    } else if consumption.is_ok() && results.iter().all(|result| result["status"] == "PASS") {
         "PASS"
     } else if results.iter().any(|result| result["status"] == "FAIL") {
         "FAIL"
@@ -305,16 +352,28 @@ fn verify(
         "result":status, "snapshot_sha256":snapshot["sha256"], "observed_after_sha256":after["sha256"],
         "spec_sha256":task["spec_sha256"], "policy_sha256":task["policy_sha256"],
         "plan_sha256":task["plan_sha256"], "approval_epoch":task["approval_epoch"], "task_revision":revision,
+        "submission_id":task["coordination"]["submission"]["submission_id"],
+        "dependency_sha256":task["coordination"]["submission"]["dependencies_sha256"],
         "actor":actor, "verification_kind":if implementer {"self_check"} else {"tool_verification"},
         "producer":"cirnetrules-controlled-runner", "time_unix_seconds":now(),
         "platform":format!("{}-{}",std::env::consts::OS,std::env::consts::ARCH),
         "governance_version":env!("CARGO_PKG_VERSION"), "steps":results,
+        "dependency_consumption":if consumption.is_ok() {"PASS"} else {"BLOCKED"},
         "requires_review":elevated(task,&after), "limitations":"local integrity; actor identity and sandbox enforcement are external"
     });
     receipt["receipt_sha256"] = json!(docs::sha256(
         &serde_json::to_vec(&receipt).map_err(|e| e.to_string())?
     ));
-    let state = tasks::update(root, id, revision, |next| {
+    let state = tasks::update_operation(root, id, revision, "task-verify", Some(actor), |next| {
+        let current = runner::snapshot(root, next, registry, work)?;
+        coordination::check_evidence(root, work, registry, next, &current)?;
+        if current["sha256"] != after["sha256"]
+            || current["violations"] != after["violations"]
+            || (status == "PASS" && current["status"] != "PASS")
+        {
+            return Err("Verification inputs changed before evidence was recorded".into());
+        }
+        coordination::commit_evidence_dependencies(root, work, registry, next, &current)?;
         let evidence = next["evidence"]
             .as_array_mut()
             .ok_or("Invalid evidence store")?;
@@ -543,7 +602,7 @@ fn sync(
         let content = item["content"].as_str().unwrap();
         let base_hash = item["base_sha256"].as_str().unwrap();
         let result = (|| -> Result<Value,String> {
-            let binding = workspace::resolve(root, work, repo, registry)?;
+            let binding = workspace::resolve_task(root, work, repo, registry, task)?;
             if task["acceptance"]["docs_bindings"][repo] != binding.identity {
                 return Err("Documentation worktree is outside the accepted binding".into());
             }
@@ -562,8 +621,8 @@ fn sync(
                 return Ok(json!({"state":"PENDING","patch":{"path":path,"section":item["section"],
                     "base_sha256":base_hash,"replacement":content},"sha256":sha256}));
             }
-            let rechecked = workspace::resolve(root,work,repo,registry)?;
-            if binding.identity != rechecked.identity || target_path(&rechecked.path,repo,path,locale)? != file {
+            let rechecked = workspace::resolve_task(root,work,repo,registry,task)?;
+            if binding.identity != rechecked.identity || binding.commit != rechecked.commit || target_path(&rechecked.path,repo,path,locale)? != file {
                 return Err("Documentation worktree binding changed".into());
             }
             replace_document(&file,&current_hash,&rendered)?;
@@ -650,7 +709,7 @@ fn docs_check(
         let identity = key(target)?;
         let repo = target["repo"].as_str().unwrap();
         let path = target["path"].as_str().unwrap();
-        let binding = workspace::resolve(root, work, repo, registry)?;
+        let binding = workspace::resolve_task(root, work, repo, registry, task)?;
         if task["acceptance"]["docs_bindings"][repo] != binding.identity {
             return Ok(blocked(
                 "Documentation worktree is outside the accepted binding",

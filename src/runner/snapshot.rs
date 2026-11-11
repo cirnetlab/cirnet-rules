@@ -281,6 +281,66 @@ pub(super) fn git_state(governance: &Path, checkout: &Path) -> Result<GitState, 
     })
 }
 
+pub(crate) fn bounded_git_info(root: &Path, args: &[&str]) -> Result<String, String> {
+    let mut command = git_command(root, root)?;
+    let bytes = metadata(command.args(args))?;
+    String::from_utf8(bytes).map_err(|_| "Required Git identity is not UTF-8".into())
+}
+
+pub(crate) fn committed_blob(
+    governance: &Path,
+    checkout: &Path,
+    oid: &str,
+    byte_limit: usize,
+) -> Result<Vec<u8>, String> {
+    if !matches!(oid.len(), 40 | 64)
+        || !oid
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        || byte_limit == 0
+        || byte_limit > FILE_BYTES as usize
+    {
+        return Err("Invalid committed blob identity or budget".into());
+    }
+    let mut command = git_command(governance, checkout)?;
+    command.args(["cat-file", "blob", oid]);
+    let outcome = run_process(&mut command, Duration::from_secs(5), byte_limit, None)?;
+    if !outcome.exit.success() || outcome.timed_out || outcome.output.truncated {
+        return Err("Committed blob is unavailable or exceeds the resource bound".into());
+    }
+    Ok(outcome.output.prefix)
+}
+
+pub(crate) fn committed_diff_check(
+    governance: &Path,
+    checkout: &Path,
+    commits: (&str, &str),
+    paths: &[&str],
+    timeout: Duration,
+    max_output_bytes: usize,
+) -> Result<Option<bool>, String> {
+    let mut command = git_command(governance, checkout)?;
+    command.args([
+        "diff",
+        "--check",
+        "--no-ext-diff",
+        "--no-textconv",
+        commits.0,
+        commits.1,
+        "--",
+    ]);
+    command.args(paths);
+    let output = run_process(&mut command, timeout, max_output_bytes, None)?;
+    if output.timed_out || output.output.truncated {
+        return Ok(None);
+    }
+    Ok(Some(output.exit.success()))
+}
+
+pub(crate) fn guarded_git_clean(governance: &Path, checkout: &Path) -> Result<bool, String> {
+    Ok(git_state(governance, checkout)?.dirty.is_empty())
+}
+
 pub(super) fn load_input(checkout: &Path, path: &str) -> Result<Option<Vec<u8>>, String> {
     if !safe_relative(path) || sensitive(path) {
         return Err("Source path is unsafe or protected".into());
@@ -335,7 +395,7 @@ pub(super) fn capture(
     let mut content_bytes = 0_u64;
     let mut content_files = 0_usize;
     for (repo, paths) in selected {
-        let binding = workspace::resolve(root, workspace, repo, registry)?;
+        let binding = workspace::resolve_task(root, workspace, repo, registry, task)?;
         let metadata = git_state(root, &binding.path)?;
         let mut staged = BTreeMap::<&str, Vec<&str>>::new();
         for entry in std::str::from_utf8(&metadata.index)

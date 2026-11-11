@@ -1,6 +1,6 @@
 <!-- doc-id: adapters -->
-<!-- revision: 3 -->
-<!-- source-sha256: 9576c47190bc93da838af607930a3dcb283ccbb833fa70d914bde8b1ea802a5f -->
+<!-- revision: 4 -->
+<!-- source-sha256: e697f50692d505a0b1ab99623dbf7e0650091ebaa9b102384c5dc8cfa5f82c46 -->
 <!-- translation-status: synchronized -->
 
 # Adapter khởi tạo ngữ cảnh Agent
@@ -117,3 +117,10 @@ Với phiên cloud, cấp checkout nguồn đã duyệt trong môi trường t�
 phân giải ngữ cảnh ngay tại đó. Đường dẫn cục bộ chỉ nhận dạng máy đã tạo
 ngữ cảnh. Cấu hình và hook cấp người dùng cần đợt triển khai được phê duyệt
 riêng cùng kiểm thử cơ chế tự nạp trong môi trường cô lập.
+
+<a id="mcp-launch"></a>
+
+## Mẫu khởi chạy MCP
+
+[Lệnh xuất MCP](../references/mcp.md) riêng tạo mẫu khởi chạy để review.
+Sync chỉ dẫn và skill giữ hợp đồng quyền sở hữu hiện hành.

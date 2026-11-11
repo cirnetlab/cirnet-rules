@@ -347,8 +347,19 @@ impl<'a> Operation<'a> {
         Ok(operation)
     }
 
-    fn bind(&self, repository: &str) -> Result<workspace::Binding, String> {
-        let binding = workspace::resolve(self.root, self.work, repository, self.registry)?;
+    fn bind(
+        &self,
+        repository: &str,
+        fallback_task: Option<&str>,
+    ) -> Result<workspace::Binding, String> {
+        let task = self.args.get("task").map(String::as_str).or(fallback_task);
+        let binding = if let Some(task) = task {
+            let state = tasks::load_current(self.root, task)?;
+            tasks::authorize(&state, "read")?;
+            workspace::resolve_task(self.root, self.work, repository, self.registry, &state)?
+        } else {
+            workspace::resolve(self.root, self.work, repository, self.registry)?
+        };
         if binding.path != self.target {
             return Err(
                 "Requested target does not match the exact confirmed worktree binding".into(),
@@ -396,7 +407,7 @@ impl<'a> Operation<'a> {
         path: &str,
     ) -> Result<u64, String> {
         let (task, actor) = self.identity()?;
-        let checked = self.bind(repository)?;
+        let checked = self.bind(repository, None)?;
         if checked.identity != binding.identity || checked.commit != binding.commit {
             return Err("Bound worktree changed during agent configuration apply".into());
         }
@@ -545,7 +556,7 @@ pub(super) fn sync(
     let input = Path::new(args.get("bundle").ok_or("--bundle is required")?);
     let bundle = checked(root, work, registry, input)?;
     let repository = bundle.manifest.repository.as_str();
-    let binding = operation.bind(repository)?;
+    let binding = operation.bind(repository, bundle.manifest.task.as_deref())?;
     if bundle.manifest.binding.as_deref() != Some(&binding.identity) {
         return Err("Export the bundle again for this confirmed worktree binding".into());
     }
@@ -579,7 +590,7 @@ pub(super) fn sync(
     operation.review(&preview_digest)?;
     let _lock = operation.lock(&binding.identity)?;
     let rechecked = checked(root, work, registry, input)?;
-    let confirmed = operation.bind(repository)?;
+    let confirmed = operation.bind(repository, bundle.manifest.task.as_deref())?;
     let plan = plan(
         &rechecked,
         &confirmed,
@@ -811,7 +822,7 @@ pub(super) fn rollback(
     let dir = receipt_dir(id)?;
     let (journal, mut progress) = load_journal(root, id)?;
     let repository = journal.plan.repository.as_str();
-    let binding = operation.bind(repository)?;
+    let binding = operation.bind(repository, Some(&journal.task))?;
     if binding.identity != journal.plan.binding {
         return Err("Agent configuration journal refers to a different worktree binding".into());
     }

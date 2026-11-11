@@ -209,7 +209,7 @@ pub fn execute_step(
     if baseline.is_null() {
         return Ok(blocked("Task has no approved start snapshot"));
     }
-    let binding = workspace::resolve(root, workspace, step.repo, registry)?;
+    let binding = workspace::resolve_task(root, workspace, step.repo, registry, task)?;
     if !rows(baseline).any(|row| {
         row["repo"] == step.repo
             && row["identity"] == binding.identity
@@ -226,6 +226,7 @@ pub fn execute_step(
         actor,
         step.timeout_ms,
     )?;
+    crate::coordination::check_run(root, task, step.mode == "WORK")?;
     let tool_identity;
     let mut result = if step.program == "git" {
         tool_identity = git_version(root, &binding.path)?;
@@ -309,7 +310,10 @@ fn path_grant(
     {
         return Ok(blocked("File changes require the declared owner"));
     }
-    let binding = workspace::resolve(root, workspace, repo, registry)?;
+    if matches!(action, "write" | "docs") {
+        crate::coordination::check_run(root, task, action == "write")?;
+    }
+    let binding = workspace::resolve_task(root, workspace, repo, registry, task)?;
     workspace::scoped_path(&binding.path, path)?;
     if action == "write" {
         if task["state"] != "IN_PROGRESS"
@@ -385,7 +389,8 @@ pub fn run(
                 Err(reason) => return Ok(blocked(&reason)),
             };
             if dry_run {
-                let binding = workspace::resolve(root, workspace, prepared.repo, registry)?;
+                let binding =
+                    workspace::resolve_task(root, workspace, prepared.repo, registry, &task)?;
                 let baseline = &task["baseline"];
                 if !baseline.is_null()
                     && !rows(baseline).any(|row| {

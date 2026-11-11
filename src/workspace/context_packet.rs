@@ -140,7 +140,7 @@ pub(super) fn context(
     }
     let mut repos = BTreeMap::new();
     for (repo, selected) in &route {
-        let binding = match resolve(root, workspace, repo, registry) {
+        let binding = match resolve_task(root, workspace, repo, registry, state) {
             Ok(binding) => binding,
             Err(error) => {
                 return Ok(blocked(
@@ -265,6 +265,21 @@ pub(super) fn context(
             rows.push(row);
         }
         stamps.insert(key, stamp);
+    }
+    for (repo, expected) in &repos {
+        let current = resolve_task(root, workspace, repo, registry, state);
+        if !current.is_ok_and(|binding| {
+            binding.identity == expected.identity && binding.commit == expected.commit
+        }) {
+            return Ok(blocked(
+                started,
+                "Task binding changed while resolving context",
+                raw_bytes,
+                files_read,
+                product_files_read,
+                repos.len(),
+            ));
+        }
     }
     let cached = if let Some(key) = key {
         let dir = local_directory(root, CACHE)?;

@@ -619,9 +619,19 @@ fn resolve_with_manual(
                 .map_err(|_| "Cannot encode manual export references")?;
         docs::sha256(&input)
     };
-    let binding = (repository != "_workspace")
-        .then(|| workspace::resolve(root, workspace.as_deref(), repository, registry).ok())
-        .flatten();
+    let binding = if repository == "_workspace" {
+        None
+    } else if let Some(state) = &state {
+        Some(workspace::resolve_task(
+            root,
+            workspace.as_deref(),
+            repository,
+            registry,
+            state,
+        )?)
+    } else {
+        workspace::resolve(root, workspace.as_deref(), repository, registry).ok()
+    };
     confirm_sources(root, snapshot.included.iter().chain(&manual))?;
     let (current_commit, current_clean) = policy::checkout(root)?;
     if commit != current_commit
@@ -635,6 +645,15 @@ fn resolve_with_manual(
         tasks::authorize(&latest, "read")?;
         if TaskProvenance::from_current(&latest)? != *expected {
             return Err("Task approval changed while resolving authority. Resolve again.".into());
+        }
+    }
+    if let Some(expected) = binding.as_ref()
+        && let Some(state) = state.as_ref()
+    {
+        let current =
+            workspace::resolve_task(root, workspace.as_deref(), repository, registry, state)?;
+        if current.identity != expected.identity || current.commit != expected.commit {
+            return Err("Task binding changed while resolving authority".into());
         }
     }
     Ok(Resolved {
@@ -701,12 +720,29 @@ pub(crate) fn run(
                 args.get("profile").map(String::as_str),
             )?;
             let limits = default_limits(&registry)?;
+            let included = resolved
+                .included
+                .iter()
+                .map(|source| {
+                    let mut metadata = serde_json::to_value(source)
+                        .map_err(|_| "Cannot encode authority metadata")?;
+                    if let Some(rule) = registry["rules"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .find(|rule| rule["id"] == source.id && rule["path"] == source.path)
+                    {
+                        metadata["enforcement_class"] = rule["severity"].clone();
+                    }
+                    Ok::<_, String>(metadata)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(
                 json!({"status":"PASS","schema":1,"repository":resolved.repository,"task":resolved.task,
                 "task_provenance":resolved.task_provenance,
                 "profile":resolved.profile,"authority_sha256":resolved.digest,"commit":resolved.commit,"dirty":resolved.dirty,
                 "binding":resolved.binding.map(|binding| json!({"identity":binding.identity,"commit":binding.commit})),
-                "included":resolved.included,"deferred":resolved.deferred,"excluded":resolved.excluded,
+                "included":included,"deferred":resolved.deferred,"excluded":resolved.excluded,
                 "limits":{"context_bytes":limits.0,"context_files":limits.1},
                 "capabilities":{"manual_procedures":"REFERENCE_ONLY","native_profiles":"UNSUPPORTED","native_discovery":"NOT_RUN"}}),
             )

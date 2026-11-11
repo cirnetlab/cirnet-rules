@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 2 -->
-<!-- source-sha256: afe7d9c31b30eca530566eba3cf2f94e2c40965b4c03720c4fa5f8485b09ab65 -->
+<!-- revision: 3 -->
+<!-- source-sha256: ea32a68ba25a380352450c0d57c8f568e902fb75b4b5b804e4e4249d4b74e1a4 -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
@@ -100,3 +100,11 @@ giới hạn và được gửi riêng vào stderr. Mã thoát 0 là thành côn
 và 2 là bị chặn hoặc chưa chạy. Mã 130 là đã hủy. `child_exit_code` báo
 mã của tiến trình con riêng. `cnr completion SHELL` xuất hoàn thành lệnh cho Bash, Zsh,
 Fish hoặc PowerShell.
+
+<a id="mcp-coordination"></a>
+
+## MCP và phối hợp chung
+
+Xem [MCP STDIO](mcp.md) để cấu hình Agent và chọn profile tool.
+[Quy trình phối hợp](shared-task-coordination.md) mô tả binding có tên, lease,
+báo cáo, audit local và gate candidate có thể di chuyển.

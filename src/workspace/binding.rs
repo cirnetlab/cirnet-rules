@@ -1,9 +1,14 @@
+mod named;
+
 use super::*;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Write},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+pub(in crate::workspace) use named::run as run_named;
+pub(crate) use named::{freeze_task_bindings, resolve_task, validate_task_bindings};
 
 #[derive(Debug)]
 pub struct Binding {
@@ -19,6 +24,7 @@ struct GitIdentity {
     common: PathBuf,
     commit: String,
     linked_worktree: bool,
+    branch: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -37,45 +43,66 @@ pub fn resolve(
     repo: &str,
     registry: &Value,
 ) -> Result<Binding, String> {
+    resolve_default(root, workspace, repo, registry).map(|(git, identity)| git.binding(identity))
+}
+
+fn resolve_default(
+    root: &Path,
+    workspace: Option<&Path>,
+    repo: &str,
+    registry: &Value,
+) -> Result<(GitIdentity, String), String> {
     repository(registry, repo)?;
     if repo == "cirnet-rules" {
         let git = inspect_git(root)?;
-        // The governance root is the operator-selected invocation root. Its
-        // physical identity does not change merely because local source is dirty.
         let identity = fingerprint(&git, "")?;
-        return Ok(Binding {
-            path: git.path,
-            identity,
-            commit: git.commit,
-        });
+        return Ok((git, identity));
     }
     let workspace = workspace_path(root, workspace)?;
     let relative = record_path(&workspace, repo)?;
     let file = scoped_path(root, &relative)?;
-    let row: Record = read_local(&file)
-        .map_err(|_| format!("Repository {repo} has no readable confirmed local binding"))?;
-    if row.schema != 1 || !valid_hash(&row.identity) || !git_id(&row.anchor) {
-        return Err(format!("Invalid local binding for {repo}"));
-    }
+    let row = read_default(&file, repo)?;
     let path = scoped_path(&workspace, &row.relative)?;
     let git = inspect_git(&path)?;
     if git.path != path
         || fingerprint(&git, &row.anchor)? != row.identity
-        || crate::policy::git(&path, &["cat-file", "-t", &row.anchor])
-            .ok()
-            .as_deref()
-            .map(str::trim)
-            != Some("commit")
+        || !contains_commit(&path, &row.anchor)
     {
         return Err(format!(
             "Repository {repo} worktree identity changed; rebind explicitly"
         ));
     }
-    Ok(Binding {
-        path: git.path,
-        identity: row.identity,
-        commit: git.commit,
-    })
+    Ok((git, row.identity))
+}
+
+fn read_default(file: &Path, repo: &str) -> Result<Record, String> {
+    let row: Record = read_local(file)
+        .map_err(|_| format!("Repository {repo} has no readable confirmed local binding"))?;
+    if row.schema != 1 || !valid_hash(&row.identity) || !git_id(&row.anchor) {
+        return Err(format!("Invalid local binding for {repo}"));
+    }
+    validate_relative(&row.relative)?;
+    validate_actor(&row.actor)?;
+    Ok(row)
+}
+
+fn contains_commit(path: &Path, anchor: &str) -> bool {
+    git_id(anchor)
+        && crate::policy::git(path, &["cat-file", "-t", anchor])
+            .ok()
+            .as_deref()
+            .map(str::trim)
+            == Some("commit")
+}
+
+impl GitIdentity {
+    fn binding(self, identity: String) -> Binding {
+        Binding {
+            path: self.path,
+            identity,
+            commit: self.commit,
+        }
+    }
 }
 
 pub(super) fn bind(
@@ -91,14 +118,7 @@ pub(super) fn bind(
     if repo == "cirnet-rules" {
         return Err("The invocation root already binds cirnet-rules".into());
     }
-    if actor.is_empty()
-        || actor.len() > 96
-        || !actor
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"-_.@".contains(&b))
-    {
-        return Err("Invalid local binding actor label".into());
-    }
+    validate_actor(actor)?;
     let workspace = workspace_path(root, workspace)?;
     let path = scoped_path(&workspace, relative)?;
     let git = inspect_git(&path)?;
@@ -106,12 +126,7 @@ pub(super) fn bind(
         return Err("Selected path is not an independent checkout root".into());
     }
     if let Some(anchor) = registry["repositories"][repo]["snapshot"]["commit"].as_str()
-        && (!git_id(anchor)
-            || crate::policy::git(&path, &["cat-file", "-t", anchor])
-                .ok()
-                .as_deref()
-                .map(str::trim)
-                != Some("commit"))
+        && !contains_commit(&path, anchor)
     {
         return Err("Checkout does not contain the reviewed registry Git anchor".into());
     }
@@ -119,6 +134,7 @@ pub(super) fn bind(
     let parent = record_path.rsplit_once('/').unwrap().0;
     local_directory(root, parent)?;
     let file = scoped_path(root, &record_path)?;
+    let _coordinator = crate::tasks::lock(root, "_coordination")?;
     let _lock = LocalLock::acquire(file.parent().unwrap().join(".workspace.lock"))?;
     let prior: Option<Record> = if file
         .try_exists()
@@ -144,40 +160,7 @@ pub(super) fn bind(
         );
     }
     let identity = fingerprint(&git, &git.commit)?;
-    // Two different repository IDs must not be allowed to route to the
-    // same exact active worktree in a workspace namespace.
-    let records = file.parent().unwrap();
-    let registered = registry["repositories"]
-        .as_object()
-        .ok_or("Missing repository registry")?;
-    for (index, item) in fs::read_dir(records)
-        .map_err(|_| "Cannot list local binding records")?
-        .enumerate()
-    {
-        if index >= 1024 {
-            return Err("Local binding metadata exceeds scan limit".into());
-        }
-        let item = item.map_err(|_| "Cannot inspect local binding record")?;
-        if item.path() == file || item.path().extension().and_then(|x| x.to_str()) != Some("json") {
-            continue;
-        }
-        if item
-            .path()
-            .file_stem()
-            .and_then(|x| x.to_str())
-            .is_some_and(|name| registered.contains_key(name))
-        {
-            let other: Record = read_local(&item.path())?;
-            if scoped_path(&workspace, &other.relative)?
-                .canonicalize()
-                .ok()
-                .as_ref()
-                == Some(&path)
-            {
-                return Err("This worktree is already bound to another repository ID".into());
-            }
-        }
-    }
+    named::check_repository_path(root, &workspace, registry, repo, &git)?;
     let record = Record {
         schema: 1,
         relative: relative.to_owned(),
@@ -193,6 +176,18 @@ pub(super) fn bind(
     }))
 }
 
+fn validate_actor(actor: &str) -> Result<(), String> {
+    if actor.is_empty()
+        || actor.len() > 96
+        || !actor
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_.@".contains(&b))
+    {
+        return Err("Invalid local binding actor label".into());
+    }
+    Ok(())
+}
+
 pub(super) fn discover(
     root: &Path,
     workspace: Option<&Path>,
@@ -200,6 +195,17 @@ pub(super) fn discover(
 ) -> Result<Value, String> {
     let workspace = workspace_path(root, workspace)?;
     let max = configuration(registry, "discovery_entries", 128, 1024)? as usize;
+    let repositories: Vec<_> = registry["repositories"]
+        .as_object()
+        .into_iter()
+        .flat_map(|repositories| repositories.iter())
+        .map(|(id, definition)| {
+            json!({
+                "id":id,"classification":definition["classification"].as_str().unwrap_or("active"),
+                "profile":definition["profile"]
+            })
+        })
+        .collect();
     let mut examined = 0;
     let mut truncated = false;
     let mut candidates = BTreeMap::new();
@@ -239,7 +245,7 @@ pub(super) fn discover(
     }
     Ok(json!({
         "status":if truncated {"BLOCKED"} else {"PASS"},
-        "candidates":candidates.into_values().collect::<Vec<_>>(),
+        "repositories":repositories,"candidates":candidates.into_values().collect::<Vec<_>>(),
         "entries_examined":examined,"truncated":truncated,"max_depth":1,
         "inspection":"Local directory and Git marker metadata only; bind validates checkout identity",
         "release_checked":false,"network_used":false
@@ -251,6 +257,7 @@ pub(crate) fn workspace_path(root: &Path, workspace: Option<&Path>) -> Result<Pa
         .or_else(|| root.parent())
         .ok_or("Local workspace root unavailable")?;
     local_drive(selected)?;
+    ordinary_ancestors(selected)?;
     let canonical = selected
         .canonicalize()
         .map_err(|_| "Local workspace root unavailable")?;
@@ -326,12 +333,38 @@ fn inspect_git(path: &Path) -> Result<GitIdentity, String> {
     if !git_id(commit) || values.next().is_some() {
         return Err("Git checkout has no valid commit".into());
     }
+    if admin != common {
+        let backlink = marker_text(&admin.join("gitdir"))?;
+        let backlink = Path::new(&backlink);
+        local_drive(backlink)?;
+        let backlink = admin.join(backlink);
+        ordinary_ancestors(&backlink)?;
+        let matches = match (backlink.canonicalize(), marker.canonicalize()) {
+            (Ok(actual), Ok(expected)) => actual == expected,
+            _ => false,
+        };
+        if !matches {
+            return Err("Git administrative directory points to a different worktree".into());
+        }
+    }
+    let head = marker_text(&admin.join("HEAD"))?;
+    let branch = if let Some(reference) = head.strip_prefix("ref: refs/heads/") {
+        if reference.is_empty() {
+            return Err("Git checkout has no valid branch reference".into());
+        }
+        Some(reference.to_owned())
+    } else if head == commit {
+        None
+    } else {
+        return Err("Git HEAD identity changed or is outside the local branch policy".into());
+    };
     Ok(GitIdentity {
         path: actual,
         admin,
         common,
         commit: commit.to_owned(),
         linked_worktree: metadata.is_file(),
+        branch,
     })
 }
 

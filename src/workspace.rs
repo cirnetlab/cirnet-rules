@@ -11,8 +11,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) use binding::workspace_path;
 pub use binding::{Binding, resolve};
+pub(crate) use binding::{
+    freeze_task_bindings, resolve_task, validate_task_bindings, workspace_path,
+};
 pub(crate) use context_packet::contains_known_secrets;
 
 pub fn run(
@@ -24,7 +26,11 @@ pub fn run(
     let allowed: &[&str] = match command {
         "workspace-discover" => &["workspace"],
         "workspace-bind" => &["workspace", "repo", "path", "actor", "replace"],
-        "workspace-health" => &["workspace", "repo"],
+        "workspace-health" | "workspace-binding-list" => &["workspace", "repo"],
+        "workspace-binding-add" => &["workspace", "repo", "binding", "path", "actor"],
+        "workspace-binding-show" | "workspace-binding-validate" => {
+            &["workspace", "repo", "binding"]
+        }
         "route" => &["workspace", "id", "task"],
         "task-context" => &["workspace", "id", "task", "session"],
         "context-prune" => &[],
@@ -51,6 +57,10 @@ pub fn run(
             option("actor")?,
             options.get("replace").map(String::as_str),
         ),
+        "workspace-binding-list"
+        | "workspace-binding-add"
+        | "workspace-binding-show"
+        | "workspace-binding-validate" => binding::run_named(command, root, options, registry),
         "workspace-health" => {
             let repo = option("repo")?;
             match resolve(root, workspace, repo, registry) {
@@ -70,7 +80,10 @@ pub fn run(
                 .or_else(|| options.get("task"))
                 .ok_or("--task is required")?;
             if command == "route" {
-                let state = crate::tasks::load(root, id)?;
+                let state = match crate::tasks::load_current(root, id) {
+                    Ok(state) => state,
+                    Err(reason) => return Ok(json!({"status":"BLOCKED","reason":reason})),
+                };
                 if let Err(reason) = crate::tasks::authorize(&state, "read") {
                     return Ok(json!({"status":"BLOCKED","reason":reason}));
                 }
@@ -97,7 +110,7 @@ pub fn run(
                 let readiness: BTreeMap<_, _> = route
                     .keys()
                     .map(|repo| {
-                        let selected: Result<Binding, _> = resolve(root, workspace, repo, registry);
+                        let selected = resolve_task(root, workspace, repo, registry, &state);
                         let row = match selected {
                             Ok(binding) => json!({"status":"PASS","binding":binding.identity}),
                             Err(reason) => json!({"status":"BLOCKED","reason":reason}),
@@ -184,9 +197,15 @@ fn validate_relative(relative: &str) -> Result<(), String> {
                 stem.as_str(),
                 "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
             )
-            || (stem.len() == 4
-                && (stem.starts_with("COM") || stem.starts_with("LPT"))
-                && stem.as_bytes()[3].is_ascii_digit())
+            || stem
+                .strip_prefix("COM")
+                .or_else(|| stem.strip_prefix("LPT"))
+                .is_some_and(|suffix| {
+                    matches!(
+                        suffix,
+                        "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                    )
+                })
         {
             return Err("Unsafe relative path component".into());
         }

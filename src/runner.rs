@@ -2,7 +2,9 @@ mod execution;
 mod snapshot;
 
 pub use execution::{execute_step, run};
-pub(crate) use snapshot::git_executable;
+pub(crate) use snapshot::{
+    bounded_git_info, committed_blob, committed_diff_check, git_executable, guarded_git_clean,
+};
 
 use crate::execution::process;
 use crate::{docs, tasks};
@@ -230,7 +232,7 @@ pub fn review_diff(
             review.push(json!({"repository":repo,"paths":paths,"status":"BLOCKED","reason":"Review diff budget exhausted"}));
             continue;
         }
-        let binding = crate::workspace::resolve(root, workspace_root, repo, registry)?;
+        let binding = crate::workspace::resolve_task(root, workspace_root, repo, registry, task)?;
         if row["identity"] != binding.identity || row["commit"] != binding.commit {
             return Err("Review inputs moved to a different worktree".into());
         }
@@ -295,16 +297,7 @@ fn step<'a>(
         return Err("A valid local operator identity is required".into());
     }
     let descriptor = &task["descriptor"];
-    if !descriptor["commands"]
-        .as_array()
-        .is_some_and(|steps| steps.iter().any(|candidate| candidate == id))
-    {
-        return Err("Step is outside the approved task command set".into());
-    }
-    let selected = registry["control_plane"]["commands"]
-        .get(id)
-        .ok_or("Step is outside the command registry")?;
-    let mode = text(&selected["mode"], "Step mode is missing")?;
+    let (selected, mode) = approved_step(descriptor, registry, id)?;
     let allowed_state = match mode {
         "WORK" => {
             tasks::authorize(task, "run")?;
@@ -327,6 +320,46 @@ fn step<'a>(
     if !(allowed_state || dry_run && task["state"] == "READY") {
         return Err("Task state does not permit the requested step".into());
     }
+    configured_step(descriptor, registry, id, selected, mode)
+}
+
+pub(crate) fn evidence_step_plan(
+    descriptor: &Value,
+    registry: &Value,
+    id: &str,
+) -> Result<Value, String> {
+    let (selected, mode) = approved_step(descriptor, registry, id)?;
+    if mode != "VERIFY" {
+        return Err("Portable evidence requires a trusted VERIFY step".into());
+    }
+    Ok(configured_step(descriptor, registry, id, selected, mode)?.plan())
+}
+
+fn approved_step<'a>(
+    descriptor: &'a Value,
+    registry: &'a Value,
+    id: &'a str,
+) -> Result<(&'a Value, &'a str), String> {
+    if !descriptor["commands"]
+        .as_array()
+        .is_some_and(|steps| steps.iter().any(|candidate| candidate == id))
+    {
+        return Err("Step is outside the approved task command set".into());
+    }
+    let selected = registry["control_plane"]["commands"]
+        .get(id)
+        .ok_or("Step is outside the command registry")?;
+    let mode = text(&selected["mode"], "Step mode is missing")?;
+    Ok((selected, mode))
+}
+
+fn configured_step<'a>(
+    descriptor: &'a Value,
+    registry: &'a Value,
+    id: &'a str,
+    selected: &'a Value,
+    mode: &'a str,
+) -> Result<Step<'a>, String> {
     let repo = text(&selected["repository"], "Step repository is missing")?;
     let program = text(&selected["program"], "Step executable is missing")?;
     let args: Vec<&str> = selected["args"]

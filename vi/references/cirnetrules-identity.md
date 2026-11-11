@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-IDENTITY -->
-<!-- revision: 4 -->
-<!-- source-sha256: 434904d837544b04cd16d7808b238de0b3d8e513dbdeb781c181fb77a35306de -->
+<!-- revision: 5 -->
+<!-- source-sha256: 624325b265eda7624a2e681b5ba91d172d7368c1874c55140ede3544e365317b -->
 <!-- translation-status: synchronized -->
 <a id="identity-cutover"></a>
 
@@ -64,3 +64,19 @@ Với task trong kho tệp đời trước, giữ kho gốc và theo
 
 [Kiểm kê danh tính](../../identity-legacy-allowlist.json) liệt kê ngoại lệ chính
 xác cho khôi phục, guard, fixture và provenance lịch sử.
+
+<a id="adoption"></a>
+
+## Xác nhận tiếp nhận trong Git
+
+Archive bảo toàn byte đời trước và đề xuất staging ghi ánh xạ đã review.
+Áp dụng tệp và mục catalog đã duyệt qua thay đổi Git có ủy quyền riêng.
+Kiểm tra authority sau thay đổi và ghi commit đã review.
+
+```sh
+cnr governance migrate adoption --expected-digest PROPOSAL_DIGEST --authority-commit REVIEWED_COMMIT --actor OPERATOR --json
+```
+
+Biên nhận tiếp nhận kiểm tra nội dung tracked và provenance catalog.
+Đề xuất staging và đề xuất tiếp nhận một phần có trạng thái riêng.
+Lệnh ghi biên nhận local và giữ grant cùng tệp authority hiện hành.

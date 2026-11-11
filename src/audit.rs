@@ -13,10 +13,11 @@ pub(crate) fn task(root: &Path, id: &str) -> Result<Value, String> {
         .as_array()
         .ok_or("Invalid task evidence store")?;
     let repository = public_label(&task["descriptor"]["primary_repo"]);
-    let events: Vec<_> = records
+    let mut events: Vec<_> = records
         .iter()
         .map(|record| event(record, id, repository))
         .collect();
+    events.extend(crate::coordination::audit_events(&task)?);
     let status = if events.iter().any(|event| event["integrity"] != "PASS") {
         "FAIL"
     } else if events.is_empty() {
@@ -25,8 +26,8 @@ pub(crate) fn task(root: &Path, id: &str) -> Result<Value, String> {
         "PASS"
     };
     Ok(json!({
-        "schema":1, "status":status, "task":id, "state":task["state"], "authority":authority,
-        "events":events, "limitations":"Historical verification records; digest integrity and local actor assertions only."
+        "schema":1, "status":status, "task":id, "state":task["state"], "revision":task["revision"], "authority":authority,
+        "events":events, "limitations":"Committed task and verification receipts. Digest integrity and local capability provenance do not authenticate an independent reviewer."
     }))
 }
 

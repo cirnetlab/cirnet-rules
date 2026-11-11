@@ -86,6 +86,7 @@ pub(super) fn recover(
     }
     let id = text(&record["id"]).to_owned();
     let key = id.to_ascii_lowercase();
+    let _coordinator = lock(root, "_coordination")?;
     let _lock = lock(root, &key)?;
     let mut checked = preview(root, record, registry)?;
     if checked["review_sha256"] != review {
@@ -104,6 +105,7 @@ pub(super) fn recover(
     }
     let mut proposal = checked["proposal"].take();
     proposal["recovery"] = json!({"source": checked["source"], "review_sha256": review});
+    crate::coordination::record_event(&mut proposal, "recover-legacy", None, None)?;
     persist(root, &id, &proposal)?;
     Ok(json!({"status": "PASS", "task": proposal}))
 }

@@ -1,6 +1,6 @@
 use crate::{
-    adapter, agent_config, application_identity, audit, authority, docs, lifecycle, migration,
-    policy, release, runner, tasks, workspace,
+    adapter, agent_config, application_identity, audit, authority, ci, coordination, docs,
+    lifecycle, migration, policy, release, runner, tasks, workspace,
 };
 use serde_json::{Value, json};
 use std::{
@@ -94,28 +94,42 @@ fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
 
 fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, String> {
     let root = governance_root(args.remove("governance"))?;
+    crate::service::GovernanceService::cli(root, command, args)
+}
+
+pub(crate) fn execute_at(
+    root: &Path,
+    command: &str,
+    mut args: BTreeMap<String, String>,
+) -> Result<Value, String> {
     if let Some(action) = command.strip_prefix("authority-") {
-        return authority::run(&root, action, &args);
+        return authority::run(root, action, &args);
+    }
+    if let Some(action) = command.strip_prefix("agent-mcp-config-") {
+        return agent_config::mcp_config::run(root, action, &args);
     }
     if let Some(action) = command.strip_prefix("agent-") {
-        return agent_config::run(&root, action, &args);
+        return agent_config::run(root, action, &args);
     }
     if let Some(action) = command.strip_prefix("migration-") {
         if matches!(action, "apply" | "rollback") && args.remove("yes").as_deref() != Some("true") {
             return Err(format!("Migration {action} requires --yes"));
         }
-        return migration::run(&root, action, &args);
+        return migration::run(root, action, &args);
     }
     if let Some(source) = command.strip_prefix("audit-") {
         let record = match source {
-            "task" => audit::task(&root, one_option(&args, "task")?),
-            "agent" => agent_config::audit(&root, one_option(&args, "receipt")?),
-            "migration" => migration::audit(&root, one_option(&args, "receipt")?),
+            "task" => audit::task(root, one_option(&args, "task")?),
+            "agent" => agent_config::audit(root, one_option(&args, "receipt")?),
+            "migration" => migration::audit(root, one_option(&args, "receipt")?),
             _ => return Err("Unknown audit source".into()),
         }?;
         return Ok(json!({"schema":1,"status":record["status"],"source":source,"record":record}));
     }
-    let mut registry = policy::registry(&root)?;
+    let mut registry = policy::registry(root)?;
+    if let Some(action) = command.strip_prefix("ci-") {
+        return ci::run(root, &registry, action, &args);
+    }
     if !matches!(
         command,
         "validate"
@@ -126,24 +140,37 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
             | "check-drift"
             | "bootstrap"
             | "doctor"
-    ) && tasks::legacy_operation_blocked(command, &root, &args)?
+    ) && tasks::legacy_operation_blocked(command, root, &args)?
     {
         return Ok(json!({"status":"BLOCKED",
             "reason":"Existing legacy maintenance state requires reviewed migration before local task operations."}));
     }
+    if let Some(action) = command.strip_prefix("coordination-") {
+        return coordination::run(
+            root,
+            args.get("workspace").map(|path| Path::new(path.as_str())),
+            &registry,
+            action,
+            &args,
+        );
+    }
     match command {
+        "workspace-binding-list"
+        | "workspace-binding-add"
+        | "workspace-binding-show"
+        | "workspace-binding-validate" => return workspace::run(command, root, &args, &registry),
         "workspace-discover" | "workspace-bind" | "workspace-health" | "route" | "task-context"
-        | "context-prune" => return workspace::run(command, &root, &args, &registry),
+        | "context-prune" => return workspace::run(command, root, &args, &registry),
         "task-create" | "task-show" | "task-resume" | "task-checkpoint" | "task-transition"
-        | "task-revise" => return tasks::run(command, &root, &args, &registry),
+        | "task-revise" => return tasks::run(command, root, &args, &registry),
         "grant-evaluate" | "run-step" | "cancel-step" | "diff-check" => {
-            return runner::run(command, &root, &args, &registry);
+            return runner::run(command, root, &args, &registry);
         }
         "task-verify" | "review-context" | "task-review" | "task-accept" | "task-close"
         | "docs-preview" | "docs-apply" | "docs-check" => {
-            return lifecycle::run(command, &root, &args, &registry);
+            return lifecycle::run(command, root, &args, &registry);
         }
-        "task-bootstrap" => return task_bootstrap(&root, args, &registry),
+        "task-bootstrap" => return task_bootstrap(root, args, &registry),
         "release-check" => {
             if args
                 .keys()
@@ -151,7 +178,7 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
             {
                 return Err("Unexpected release-check option".into());
             }
-            let task = tasks::load_current(&root, args.get("task").ok_or("Missing --task")?)?;
+            let task = tasks::load_current(root, args.get("task").ok_or("Missing --task")?)?;
             let descriptor = &task["descriptor"];
             if descriptor["mode"] != "RELEASE"
                 || !matches!(
@@ -178,7 +205,7 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
                 .map(PathBuf::from)
                 .or_else(|| root.parent().map(Path::to_path_buf))
                 .ok_or("Product workspace unavailable")?;
-            prepare_release_registry(&root, &mut registry)?;
+            prepare_release_registry(root, &mut registry)?;
             registry["_cirnetrules_release_governance"] = json!(root);
             return release::check_release(&workspace, &registry);
         }
@@ -188,7 +215,7 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
             }
             let paths: Vec<String> = args["paths"].split(',').map(str::to_owned).collect();
             return Ok(
-                json!({"status":"PASS","paired_documents":docs::verify_paths(&root,&paths)?}),
+                json!({"status":"PASS","paired_documents":docs::verify_paths(root,&paths)?}),
             );
         }
         _ => {}
@@ -220,9 +247,9 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
     let action = args.remove("action").unwrap_or_else(|| "dry-run".into());
     match command {
         "validate" => {
-            policy::validate(&root, &registry)?;
+            policy::validate(root, &registry)?;
             let tracked = policy::git(
-                &root,
+                root,
                 &[
                     "ls-files",
                     "-z",
@@ -240,19 +267,17 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
             }) {
                 return Err("Rust is limited to src/, cli/src/ and cli/tests/".into());
             }
-            let paths = docs::verify(&root)?;
+            let paths = docs::verify(root)?;
             Ok(json!({"status":"PASS","paired_documents":paths}))
         }
-        "check-translations" => {
-            Ok(json!({"status":"PASS","paired_documents":docs::verify(&root)?}))
-        }
+        "check-translations" => Ok(json!({"status":"PASS","paired_documents":docs::verify(root)?})),
         "context" | "bootstrap" => {
             let (Some(workspace), Some(repository)) = (workspace, repository) else {
                 return Ok(
                     json!({"status":"BLOCKED","reason":"--workspace and --repo are required"}),
                 );
             };
-            let context = policy::context(&root, &workspace, &registry, &repository, &task, &risk)?;
+            let context = policy::context(root, &workspace, &registry, &repository, &task, &risk)?;
             if command == "context" {
                 return Ok(json!({"status":"PASS","manifest":context}));
             }
@@ -276,11 +301,11 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
                 return Ok(json!({"status":"BLOCKED","reason":"Product workspace unavailable"}));
             }
             if command == "check-drift" {
-                policy::validate(&root, &registry)?;
-                docs::verify(&root)?;
+                policy::validate(root, &registry)?;
+                docs::verify(root)?;
             }
             if command == "check-release" {
-                prepare_release_registry(&root, &mut registry)?;
+                prepare_release_registry(root, &mut registry)?;
             }
             match command {
                 "check-versions" => release::check_versions(&workspace, &registry),
@@ -288,7 +313,7 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
                 _ => release::check_release(&workspace, &registry),
             }
         }
-        "doctor" => policy::doctor(&root, workspace.as_deref(), &registry),
+        "doctor" => policy::doctor(root, workspace.as_deref(), &registry),
         _ => Err("Unknown command".into()),
     }
 }
@@ -340,7 +365,13 @@ fn task_bootstrap(
     let repo = descriptor["primary_repo"]
         .as_str()
         .ok_or("Missing primary repo")?;
-    let binding = workspace::resolve(root, args.get("workspace").map(Path::new), repo, registry)?;
+    let binding = workspace::resolve_task(
+        root,
+        args.get("workspace").map(Path::new),
+        repo,
+        registry,
+        &state,
+    )?;
     let mut packet = workspace::run("task-context", root, &args, registry)?;
     if packet["status"] != "PASS" {
         return Ok(packet);
@@ -443,6 +474,10 @@ pub fn maintenance_main() -> ExitCode {
 
 pub fn run(command: &str, argv: impl IntoIterator<Item = String>) -> (u8, Value) {
     let result = if COMMANDS.contains(&command)
+        || command.starts_with("coordination-")
+        || command.starts_with("workspace-binding-")
+        || command.starts_with("ci-")
+        || command.starts_with("agent-mcp-config-")
         || matches!(
             command,
             "migration-inspect"
@@ -451,6 +486,7 @@ pub fn run(command: &str, argv: impl IntoIterator<Item = String>) -> (u8, Value)
                 | "migration-preview"
                 | "migration-apply"
                 | "migration-rollback"
+                | "migration-adoption"
                 | "audit-task"
                 | "authority-inspect"
                 | "authority-context"

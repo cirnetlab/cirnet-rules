@@ -1,3 +1,4 @@
+pub(crate) mod mcp_config;
 mod paths;
 mod render;
 mod sync;

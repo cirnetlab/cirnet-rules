@@ -22,3 +22,5 @@ On Windows the executable is `cnr.exe`.
 [Agent configuration](en/adapters/README.md) ·
 [Legacy data recovery](en/references/cirnetrules-identity.md) ·
 [Governance registry](governance.yaml)
+
+[MCP STDIO](en/references/mcp.md) · [Shared task coordination](en/references/shared-task-coordination.md) · [Phối hợp task dùng chung](vi/references/shared-task-coordination.md)

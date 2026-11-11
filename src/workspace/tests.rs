@@ -351,3 +351,243 @@ fn english_context_hash_uses_the_same_lf_view_as_adapter() {
     assert_eq!(entry["content"], "first\nsecond\n");
     assert_eq!(entry["sha256"], crate::docs::sha256(b"first\nsecond\n"));
 }
+
+fn named_binding(repo: &str, id: &str, path: &str) -> BTreeMap<String, String> {
+    let mut options = binding_options(repo, path);
+    options.insert("binding".into(), id.into());
+    options
+}
+
+#[test]
+fn named_bindings_keep_tasks_in_distinct_worktrees_of_one_repo() {
+    let f = Fixture::new();
+    let gov = f.0.join("rules");
+    let primary = f.0.join("main checkout");
+    let first = f.0.join("first task");
+    let second = f.0.join("second task");
+    fs::create_dir(&gov).unwrap();
+    repo(&primary);
+    git(
+        &primary,
+        &["worktree", "add", "-qb", "first", "../first task"],
+    );
+    git(
+        &primary,
+        &["worktree", "add", "-qb", "second", "../second task"],
+    );
+    let reg = config();
+    let default = run(
+        "workspace-bind",
+        &gov,
+        &binding_options("web", "main checkout"),
+        &reg,
+    )
+    .unwrap();
+    for (id, path) in [("first", "first task"), ("second", "second task")] {
+        let args = named_binding("web", id, path);
+        let added = run("workspace-binding-add", &gov, &args, &reg).unwrap();
+        assert_eq!(added["status"], "PASS");
+        assert_eq!(
+            run("workspace-binding-add", &gov, &args, &reg).unwrap()["state"],
+            "UNCHANGED"
+        );
+    }
+    assert!(
+        run(
+            "workspace-binding-add",
+            &gov,
+            &named_binding("web", "alias", "first task"),
+            &reg
+        )
+        .is_err()
+    );
+    assert!(
+        run(
+            "workspace-binding-add",
+            &gov,
+            &named_binding("web", "first", "second task"),
+            &reg
+        )
+        .is_err()
+    );
+    assert!(
+        run(
+            "workspace-bind",
+            &gov,
+            &binding_options("api", "first task"),
+            &reg
+        )
+        .is_err()
+    );
+    #[cfg(windows)]
+    assert!(
+        run(
+            "workspace-binding-add",
+            &gov,
+            &named_binding("web", "case-alias", "FIRST TASK"),
+            &reg,
+        )
+        .is_err()
+    );
+    assert_eq!(
+        resolve(&gov, None, "web", &reg).unwrap().identity,
+        default["binding"]
+    );
+
+    let reg_args = BTreeMap::from([("repo".into(), "web".into())]);
+    let listed = run("workspace-binding-list", &gov, &reg_args, &reg).unwrap();
+    assert_eq!(listed["bindings"].as_array().unwrap().len(), 3);
+    english(&gov);
+    let mut bindings = Vec::new();
+    for (id, path) in [("first", &first), ("second", &second)] {
+        fs::write(path.join("entry.txt"), id).unwrap();
+        let mut task = descriptor("entry.txt");
+        task["descriptor"]["read_scope"] = json!({"web":["entry.txt"]});
+        task["descriptor"]["bindings"] = json!({"web":id});
+        let frozen = freeze_task_bindings(&gov, None, &reg, &task).unwrap();
+        bindings.push(frozen["web"].physical_identity.clone());
+        task["execution_bindings"] = serde_json::to_value(frozen).unwrap();
+        assert_eq!(
+            resolve_task(&gov, None, "web", &reg, &task).unwrap().path,
+            *path
+        );
+        let packet = context(&gov, None, &reg, &task, None).unwrap();
+        assert_eq!(packet["status"], "PASS");
+        assert!(packet["sources"].as_array().unwrap().iter().any(|source| {
+            source["repository"] == "web"
+                && source["path"] == "entry.txt"
+                && source["content"] == id
+        }));
+    }
+    assert_ne!(bindings[0], bindings[1]);
+    git(&first, &["checkout", "-qb", "first-revised"]);
+    assert_eq!(
+        run(
+            "workspace-binding-add",
+            &gov,
+            &named_binding("web", "first-revised", "first task"),
+            &reg,
+        )
+        .unwrap()["state"],
+        "CONFIRMED_LOCAL"
+    );
+}
+
+#[test]
+fn pinned_tasks_detect_default_replacement_and_branch_drift() {
+    let f = Fixture::new();
+    let gov = f.0.join("rules");
+    let primary = f.0.join("main");
+    let named = f.0.join("named");
+    let replacement = f.0.join("replacement");
+    fs::create_dir(&gov).unwrap();
+    repo(&primary);
+    repo(&replacement);
+    git(&primary, &["worktree", "add", "-qb", "named", "../named"]);
+    let reg = config();
+    let old = run(
+        "workspace-bind",
+        &gov,
+        &binding_options("web", "main"),
+        &reg,
+    )
+    .unwrap();
+    run(
+        "workspace-binding-add",
+        &gov,
+        &named_binding("web", "named", "named"),
+        &reg,
+    )
+    .unwrap();
+
+    let mut default_task =
+        json!({"descriptor":{"primary_repo":"web","read_scope":{"web":["entry.txt"]}}});
+    let mut named_task = default_task.clone();
+    named_task["descriptor"]["bindings"] = json!({"web":"named"});
+    for task in [&mut default_task, &mut named_task] {
+        task["execution_bindings"] =
+            serde_json::to_value(freeze_task_bindings(&gov, None, &reg, task).unwrap()).unwrap();
+    }
+
+    let mut args = binding_options("web", "replacement");
+    args.insert("replace".into(), old["binding"].as_str().unwrap().into());
+    run("workspace-bind", &gov, &args, &reg).unwrap();
+    assert!(resolve_task(&gov, None, "web", &reg, &default_task).is_err());
+    assert_eq!(
+        resolve_task(&gov, None, "web", &reg, &named_task)
+            .unwrap()
+            .path,
+        named
+    );
+
+    git(&named, &["checkout", "-qb", "same-commit-other-branch"]);
+    assert!(resolve_task(&gov, None, "web", &reg, &named_task).is_err());
+    assert!(
+        run(
+            "workspace-binding-add",
+            &gov,
+            &named_binding("web", "named", "named"),
+            &reg,
+        )
+        .is_err()
+    );
+    let named_args = BTreeMap::from([
+        ("repo".into(), "web".into()),
+        ("binding".into(), "named".into()),
+    ]);
+    assert_eq!(
+        run("workspace-binding-show", &gov, &named_args, &reg).unwrap()["status"],
+        "PASS"
+    );
+    assert_eq!(
+        run("workspace-binding-validate", &gov, &named_args, &reg).unwrap()["status"],
+        "BLOCKED"
+    );
+}
+
+#[test]
+fn named_binding_rejects_unrelated_and_redirected_paths() {
+    let f = Fixture::new();
+    let gov = f.0.join("rules");
+    let primary = f.0.join("main");
+    let unrelated = f.0.join("unrelated");
+    fs::create_dir(&gov).unwrap();
+    repo(&primary);
+    repo(&unrelated);
+    let reg = config();
+    run(
+        "workspace-bind",
+        &gov,
+        &binding_options("web", "main"),
+        &reg,
+    )
+    .unwrap();
+    git(&primary, &["worktree", "add", "-qb", "api", "../api"]);
+    run("workspace-bind", &gov, &binding_options("api", "api"), &reg).unwrap();
+    for path in ["unrelated", "../main", "main/.git", "NUL", "COM¹", "api"] {
+        assert!(
+            run(
+                "workspace-binding-add",
+                &gov,
+                &named_binding("web", "review", path),
+                &reg
+            )
+            .is_err()
+        );
+    }
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&primary, f.0.join("alias")).unwrap();
+        assert!(
+            run(
+                "workspace-binding-add",
+                &gov,
+                &named_binding("web", "review", "alias"),
+                &reg
+            )
+            .is_err()
+        );
+        assert!(workspace_path(&gov, Some(&f.0.join("alias"))).is_err());
+    }
+}

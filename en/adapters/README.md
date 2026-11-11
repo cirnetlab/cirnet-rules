@@ -1,5 +1,5 @@
 <!-- doc-id: adapters -->
-<!-- revision: 3 -->
+<!-- revision: 4 -->
 
 # Agent bootstrap adapters
 
@@ -116,3 +116,10 @@ For cloud sessions provision the approved source checkouts in the remote
 environment and resolve context there. Local paths identify only the machine
 that generated them. Managed user-wide rules and hook installations require
 a separate authorized rollout and an isolated native discovery test.
+
+<a id="mcp-launch"></a>
+
+## MCP launch templates
+
+The separate [MCP export](../references/mcp.md) produces reviewable launcher
+templates. Instruction and skill sync keeps its existing ownership contract.

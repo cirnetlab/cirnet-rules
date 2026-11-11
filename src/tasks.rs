@@ -49,7 +49,7 @@ fn items(value: &Value) -> impl Iterator<Item = &Value> {
     value.as_array().into_iter().flatten()
 }
 
-fn parse_json(content: &str) -> Result<Value, String> {
+pub(crate) fn parse_json(content: &str) -> Result<Value, String> {
     let parsed: Value = serde_json::from_str(content).map_err(|_| "Invalid task JSON")?;
     let unambiguous: serde_yaml::Value =
         serde_yaml::from_str(content).map_err(|_| "Invalid or duplicate task JSON keys")?;
@@ -59,7 +59,7 @@ fn parse_json(content: &str) -> Result<Value, String> {
     Ok(parsed)
 }
 
-fn valid_id(id: &str) -> Result<(), String> {
+pub(crate) fn valid_id(id: &str) -> Result<(), String> {
     if id.is_empty()
         || id.len() > 64
         || !id.as_bytes()[0].is_ascii_alphanumeric()
@@ -187,6 +187,8 @@ fn descriptor(root: &Path, record: &Value, registry: &Value) -> Result<(), Strin
             }
         }
     }
+    crate::workspace::validate_task_bindings(record)?;
+    crate::coordination::validate_selection(record)?;
     if record["mode"] != "WORK" && !record["write_scope"].as_object().unwrap().is_empty() {
         return Err("Code write scope requires WORK mode".into());
     }
@@ -282,7 +284,7 @@ fn policy_input(path: &str, registry: &Value) -> bool {
             })
 }
 
-fn reject_credentials(value: &Value) -> Result<(), String> {
+pub(crate) fn reject_credentials(value: &Value) -> Result<(), String> {
     fn obvious_credential(value: &Value) -> bool {
         match value {
             Value::Object(values) => values.values().any(obvious_credential),
@@ -328,7 +330,7 @@ fn validate_dependencies(root: &Path, record: &Value) -> Result<(), String> {
         if dependency.eq_ignore_ascii_case(id) {
             return Err("Task dependencies or required children form a cycle".into());
         }
-        if !visited.insert(dependency.clone()) {
+        if !visited.insert(dependency.to_ascii_lowercase()) {
             continue;
         }
         if visited.len() > TASK_LIMIT {
@@ -380,7 +382,7 @@ fn authority_hashes(
     ])
 }
 
-fn directory(root: &Path, relative: &str, create: bool) -> Result<PathBuf, String> {
+pub(crate) fn directory(root: &Path, relative: &str, create: bool) -> Result<PathBuf, String> {
     let mut path = root.to_path_buf();
     for part in relative.split('/') {
         path.push(part);
@@ -407,7 +409,7 @@ fn directory(root: &Path, relative: &str, create: bool) -> Result<PathBuf, Strin
     Ok(path)
 }
 
-struct TaskLock(File);
+pub(crate) struct TaskLock(File);
 
 impl Drop for TaskLock {
     fn drop(&mut self) {
@@ -417,7 +419,7 @@ impl Drop for TaskLock {
     }
 }
 
-fn lock(root: &Path, id: &str) -> Result<TaskLock, String> {
+pub(crate) fn lock(root: &Path, id: &str) -> Result<TaskLock, String> {
     let dir = directory(root, STORE, true)?;
     let path = dir.join(format!("{id}.lock"));
     if let Ok(meta) = fs::symlink_metadata(&path)
@@ -425,19 +427,36 @@ fn lock(root: &Path, id: &str) -> Result<TaskLock, String> {
     {
         return Err("Unsafe local task lock".into());
     }
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true).truncate(false);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    let file = options
         .open(path)
         .map_err(|_| "Cannot open local task lock")?;
+    if !file
+        .metadata()
+        .is_ok_and(|meta| meta.is_file() && !policy::is_link(&meta))
+    {
+        return Err("Unsafe local task lock".into());
+    }
     file.try_lock()
         .map_err(|_| "Task state is busy; resume with the current revision")?;
     Ok(TaskLock(file))
 }
 
-fn persist(root: &Path, id: &str, value: &Value) -> Result<(), String> {
+pub(crate) fn persist(root: &Path, id: &str, value: &Value) -> Result<(), String> {
     let directory = directory(root, STORE, false)?;
     let key = id.to_ascii_lowercase();
     let bytes = serde_json::to_vec_pretty(value).map_err(|_| "Cannot encode task state")?;
@@ -454,22 +473,58 @@ fn persist(root: &Path, id: &str, value: &Value) -> Result<(), String> {
         .create_new(true)
         .open(&stage)
         .map_err(|_| "Cannot create task state stage")?;
-    output
-        .write_all(&bytes)
-        .and_then(|_| output.sync_all())
-        .map_err(|_| "Cannot persist staged task state")?;
+    let write = output.write_all(&bytes).and_then(|_| output.sync_all());
     drop(output);
+    if write.is_err() {
+        let _ = fs::remove_file(&stage);
+        return Err("Cannot persist staged task state".into());
+    }
     let target = directory.join(format!("{key}.json"));
     if let Ok(meta) = fs::symlink_metadata(&target)
         && (!meta.is_file() || policy::is_link(&meta))
     {
+        let _ = fs::remove_file(&stage);
         return Err("Unsafe local task state target".into());
     }
     let validated_directory = self::directory(root, STORE, false)?;
     if validated_directory != directory {
         return Err("Local task store changed during the update".into());
     }
-    fs::rename(stage, target).map_err(|_| "Cannot atomically replace local task state".into())
+    if publish(&stage, &target).is_err() {
+        let _ = fs::remove_file(stage);
+        return Err("Cannot atomically replace local task state".into());
+    }
+    #[cfg(unix)]
+    File::open(&directory).and_then(|file| file.sync_all())
+        .map_err(|_| "Task record was published but its directory could not be synced; inspect before retrying")?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn publish(stage: &Path, target: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+    };
+    let stage: Vec<u16> = stage.as_os_str().encode_wide().chain([0]).collect();
+    let target: Vec<u16> = target.as_os_str().encode_wide().chain([0]).collect();
+    // Both paths are NUL-terminated UTF-16 and stay allocated for the call.
+    if unsafe {
+        MoveFileExW(
+            stage.as_ptr(),
+            target.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    } == 0
+    {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn publish(stage: &Path, target: &Path) -> std::io::Result<()> {
+    fs::rename(stage, target)
 }
 
 pub fn load(root: &Path, id: &str) -> Result<Value, String> {
@@ -482,10 +537,11 @@ pub fn load(root: &Path, id: &str) -> Result<Value, String> {
     {
         return Err("Task state identity or revision is invalid".into());
     }
+    crate::coordination::validate_record(root, &record)?;
     Ok(record)
 }
 
-fn current(root: &Path, record: &Value) -> Result<(), String> {
+pub(crate) fn current(root: &Path, record: &Value) -> Result<(), String> {
     if record["descriptor_sha256"] != descriptor_hash(&record["descriptor"])? {
         return Err("Task authorization descriptor is stale; request explicit revision".into());
     }
@@ -527,19 +583,32 @@ fn update_impl(
     id: &str,
     revision: u64,
     check_current: bool,
+    operation: &str,
+    actor: Option<&str>,
     apply: impl FnOnce(&mut Value) -> Result<(), String>,
 ) -> Result<Value, String> {
     valid_id(id)?;
+    let _coordinator = lock(root, "_coordination")?;
     let _lock = lock(root, &id.to_ascii_lowercase())?;
     let mut record = load(root, id)?;
     if record["revision"] != revision {
         return Err("Task revision conflict; reload and resume".into());
     }
+    if record["task_schema"] != 2 && matches!(operation, "revise" | "reopen") {
+        return Err("Task schema requires explicit migration before revising its grant".into());
+    }
+    if matches!(
+        operation,
+        "start" | "revise" | "reopen" | "cancel" | "supersede" | "block" | "task-close"
+    ) {
+        crate::coordination::ensure_quiescent(root, id)?;
+    }
+    let previous_digest = crate::coordination::record_digest(&record)?;
+    crate::coordination::guard_update(&mut record, operation)?;
     if check_current {
         current(root, &record)?;
     }
     let before = authority_fields(&record);
-    let old_state = text(&record["state"]).to_owned();
     apply(&mut record)?;
     if check_current && before != authority_fields(&record) {
         return Err("A task update cannot revise its authorization or acceptance criteria".into());
@@ -548,34 +617,47 @@ fn update_impl(
     if !STATES.contains(&state) {
         return Err("Invalid new task state".into());
     }
-    let _coordinator;
-    if state == "CLOSED" && old_state != "CLOSED" {
-        _coordinator = lock(root, "_coordination")?;
+    if state == "CLOSED" {
         ensure_children_closed(root, &record)?;
     }
     if check_current {
         current(root, &record)?;
     }
     record["revision"] = json!(revision.checked_add(1).ok_or("Task revision exhausted")?);
+    crate::coordination::record_event(&mut record, operation, actor, Some(previous_digest))?;
     persist(root, id, &record)?;
     Ok(record)
 }
 
+#[cfg(test)]
 pub fn update(
     root: &Path,
     id: &str,
     revision: u64,
     apply: impl FnOnce(&mut Value) -> Result<(), String>,
 ) -> Result<Value, String> {
-    update_impl(root, id, revision, true, apply)
+    update_operation(root, id, revision, "update", None, apply)
 }
 
-fn new_record(root: &Path, record: Value, registry: &Value) -> Result<Value, String> {
+pub(crate) fn update_operation(
+    root: &Path,
+    id: &str,
+    revision: u64,
+    operation: &str,
+    actor: Option<&str>,
+    apply: impl FnOnce(&mut Value) -> Result<(), String>,
+) -> Result<Value, String> {
+    update_impl(root, id, revision, true, operation, actor, apply)
+}
+
+pub(crate) fn new_record(root: &Path, record: Value, registry: &Value) -> Result<Value, String> {
     let [spec, plan, policy] = authority_hashes(root, &record, Some(registry))?;
     let descriptor = descriptor_hash(&record)?;
     Ok(json!({
         "descriptor": record,
-        "revision": 1, "approval_epoch": 1, "state": "PROPOSED",
+        "revision": 1, "approval_epoch": 1, "state": "PROPOSED", "task_schema": 2,
+        "coordination": crate::coordination::empty_record()?,
+        "store_identity": crate::coordination::store_identity(root)?,
         "spec_sha256": spec, "plan_sha256": plan, "policy_sha256": policy, "descriptor_sha256":descriptor,
         "checkpoint": null, "baseline": null, "evidence": [], "docs": {},
         "review": null, "acceptance": null, "blockers": [], "history": []
@@ -583,6 +665,7 @@ fn new_record(root: &Path, record: Value, registry: &Value) -> Result<Value, Str
 }
 
 fn create(root: &Path, record: Value, registry: &Value) -> Result<Value, String> {
+    let _coordinator = lock(root, "_coordination")?;
     descriptor(root, &record, registry)?;
     let id = text(&record["id"]).to_owned();
     let id_key = id.to_ascii_lowercase();
@@ -593,7 +676,9 @@ fn create(root: &Path, record: Value, registry: &Value) -> Result<Value, String>
         Err(error) if error.kind() == ErrorKind::NotFound => {}
         Err(_) => return Err("Cannot inspect task ID".into()),
     }
-    let value = new_record(root, record, registry)?;
+    let actor = text(&record["authorization"]["owner"]).to_owned();
+    let mut value = new_record(root, record, registry)?;
+    crate::coordination::record_event(&mut value, "create", Some(&actor), None)?;
     persist(root, &id, &value)?;
     Ok(value)
 }
@@ -642,7 +727,7 @@ pub fn ensure_children_closed(root: &Path, task: &Value) -> Result<(), String> {
     Ok(())
 }
 
-fn ready(root: &Path, task: &Value, registry: &Value) -> Result<(), String> {
+pub(crate) fn ready(root: &Path, task: &Value, registry: &Value) -> Result<(), String> {
     let descriptor = &task["descriptor"];
     check_expiry(&descriptor["authorization"])?;
     if !task["recovery"].is_null()
@@ -681,9 +766,62 @@ fn ready(root: &Path, task: &Value, registry: &Value) -> Result<(), String> {
     Ok(())
 }
 
-fn overlapping(root: &Path, task: &Value) -> Result<(), String> {
-    let dir = directory(root, STORE, false)?;
+pub(crate) fn overlapping(root: &Path, task: &Value) -> Result<(), String> {
     let own = &task["descriptor"];
+    let own_reservations = crate::coordination::reservations(task)?;
+    for other in inventory(root)? {
+        if own["id"] == other["descriptor"]["id"] {
+            continue;
+        }
+        if !crate::coordination::reserves(&other)? {
+            continue;
+        }
+        let other_reservations = crate::coordination::reservations(&other)?;
+        if !own_reservations.is_disjoint(&other_reservations) {
+            return Err(format!(
+                "Physical worktree is reserved by task {}",
+                text(&other["descriptor"]["id"])
+            ));
+        }
+        let claims = ["write_scope", "documentation_scope"];
+        for scope in claims {
+            for (repo, paths) in own[scope].as_object().unwrap() {
+                let ours = task["execution_bindings"][repo]["physical_identity"].as_str();
+                let theirs = other["execution_bindings"][repo]["physical_identity"].as_str();
+                if ours.is_some() && theirs.is_some() {
+                    continue;
+                }
+                if ours.is_some()
+                    && claims
+                        .iter()
+                        .any(|scope| items(&other["descriptor"][scope][repo]).next().is_some())
+                {
+                    return Err(format!(
+                        "Task repository overlaps a legacy reservation with no physical identity: {}",
+                        text(&other["descriptor"]["id"])
+                    ));
+                }
+                let selected = claims
+                    .into_iter()
+                    .flat_map(|scope| items(&other["descriptor"][scope][repo]))
+                    .map(text)
+                    .map(key)
+                    .collect::<BTreeSet<_>>();
+                if items(paths).any(|path| selected.contains(&key(text(path)))) {
+                    return Err(format!(
+                        "Task scope overlaps active task {}",
+                        text(&other["descriptor"]["id"])
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn inventory(root: &Path) -> Result<Vec<Value>, String> {
+    let dir = directory(root, STORE, false)?;
+    let mut tasks = Vec::new();
     let count = fs::read_dir(dir).map_err(|_| "Cannot inspect active task claims")?;
     let mut bytes = 0_u64;
     for (index, entry) in count.enumerate() {
@@ -706,33 +844,10 @@ fn overlapping(root: &Path, task: &Value) -> Result<(), String> {
             return Err("Task claim scan byte budget exceeded; review local records".into());
         }
         let other = parse_json(&policy::read(&entry.path())?)?;
-        if own["id"] == other["descriptor"]["id"]
-            || !matches!(
-                text(&other["state"]),
-                "IN_PROGRESS" | "IMPLEMENTED" | "VERIFIED" | "ACCEPTED" | "DOCS_SYNCED"
-            )
-        {
-            continue;
-        }
-        let claims = ["write_scope", "documentation_scope"];
-        for scope in claims {
-            for (repo, paths) in own[scope].as_object().unwrap() {
-                let selected = claims
-                    .into_iter()
-                    .flat_map(|scope| items(&other["descriptor"][scope][repo]))
-                    .map(text)
-                    .map(key)
-                    .collect::<BTreeSet<_>>();
-                if items(paths).any(|path| selected.contains(&key(text(path)))) {
-                    return Err(format!(
-                        "Task scope overlaps active task {}",
-                        text(&other["descriptor"]["id"])
-                    ));
-                }
-            }
-        }
+        crate::coordination::validate_record(root, &other)?;
+        tasks.push(other);
     }
-    Ok(())
+    Ok(tasks)
 }
 
 fn required<'a>(options: &'a BTreeMap<String, String>, key: &str) -> Result<&'a str, String> {
@@ -747,7 +862,12 @@ fn input(root: &Path, path: &str) -> Result<Value, String> {
     parse_json(&read_authority(root, path)?)
 }
 
-fn reset(root: &Path, task: &mut Value, descriptor: Value, registry: &Value) -> Result<(), String> {
+pub(crate) fn reset(
+    root: &Path,
+    task: &mut Value,
+    descriptor: Value,
+    registry: &Value,
+) -> Result<(), String> {
     if let Some(parent) = task["descriptor"]["parent"].as_str() {
         let parent = load(root, parent)?;
         if parent["state"] == "CLOSED"
@@ -784,11 +904,12 @@ fn reset(root: &Path, task: &mut Value, descriptor: Value, registry: &Value) -> 
     if let Some(recovery) = task.get("recovery") {
         replacement["recovery"] = recovery.clone();
     }
+    crate::coordination::reset(task, &mut replacement)?;
     *task = replacement;
     Ok(())
 }
 
-fn actor_is(task: &Value, actor: &str, authority: bool) -> Result<(), String> {
+pub(crate) fn actor_is(task: &Value, actor: &str, authority: bool) -> Result<(), String> {
     valid_id(actor)?;
     let expected = if authority {
         &task["descriptor"]["authorization"]["owner"]
@@ -892,9 +1013,8 @@ pub fn run(
     let task = match command {
         "task-revise" => {
             let proposed = input(root, required(options, "descriptor")?)?;
-            descriptor(root, &proposed, registry)?;
-            let _coordinator = lock(root, "_coordination")?;
-            update_impl(root, id, revision, false, |task| {
+            update_impl(root, id, revision, false, "revise", Some(actor), |task| {
+                descriptor(root, &proposed, registry)?;
                 actor_is(task, actor, true)?;
                 if task["state"] == "IN_PROGRESS" {
                     return Err(
@@ -917,7 +1037,7 @@ pub fn run(
         }
         "task-checkpoint" => {
             let record = checkpoint(input(root, required(options, "checkpoint")?)?)?;
-            update(root, id, revision, |task| {
+            update_operation(root, id, revision, "checkpoint", Some(actor), |task| {
                 actor_is(task, actor, false)?;
                 if !matches!(
                     text(&task["state"]),
@@ -931,75 +1051,90 @@ pub fn run(
         }
         "task-transition" => {
             let next = required(options, "to")?;
-            let _coordinator;
-            if matches!(next, "IN_PROGRESS" | "REOPEN") {
-                _coordinator = lock(root, "_coordination")?;
-            }
             let uses_active_grant =
                 !matches!(next, "REOPEN" | "CANCELLED" | "SUPERSEDED" | "BLOCKED");
-            update_impl(root, id, revision, uses_active_grant, |task| {
-                let previous = text(&task["state"]);
-                match (previous, next) {
-                    ("PROPOSED", "READY") => {
-                        actor_is(task, actor, true)?;
-                        ready(root, task, registry)?;
-                    }
-                    ("READY", "IN_PROGRESS") => {
-                        actor_is(task, actor, false)?;
-                        ready(root, task, registry)?;
-                        overlapping(root, task)?;
-                        task["baseline"] = crate::runner::capture_baseline(
-                            root,
-                            task,
-                            registry,
-                            options.get("workspace").map(Path::new),
-                        )?;
-                    }
-                    ("IN_PROGRESS", "IMPLEMENTED") => actor_is(task, actor, false)?,
-                    (
-                        "PROPOSED" | "READY" | "IN_PROGRESS" | "IMPLEMENTED" | "VERIFIED"
-                        | "ACCEPTED",
-                        "BLOCKED",
-                    ) => {
-                        if actor_is(task, actor, false).is_err() {
+            let work = options.get("workspace").map(Path::new);
+            let prepared = crate::coordination::prepare_legacy_transition(
+                root, work, registry, id, revision, next,
+            )?;
+            let operation = match next {
+                "READY" => "ready",
+                "IN_PROGRESS" => "start",
+                "IMPLEMENTED" => "implement",
+                "BLOCKED" => "block",
+                "CANCELLED" => "cancel",
+                "SUPERSEDED" => "supersede",
+                "REOPEN" => "reopen",
+                _ => "transition",
+            };
+            update_impl(
+                root,
+                id,
+                revision,
+                uses_active_grant,
+                operation,
+                Some(actor),
+                |task| {
+                    let previous = text(&task["state"]);
+                    match (previous, next) {
+                        ("PROPOSED", "READY") => {
                             actor_is(task, actor, true)?;
+                            ready(root, task, registry)?;
+                            crate::coordination::apply_prepared(root, task, prepared)?;
                         }
-                        let reason = required(options, "reason")?;
-                        if reason.trim().is_empty() || reason.len() > 512 {
-                            return Err("A bounded blocker reason is required".into());
+                        ("READY", "IN_PROGRESS") => {
+                            actor_is(task, actor, false)?;
+                            ready(root, task, registry)?;
+                            crate::coordination::apply_prepared(root, task, prepared)?;
+                            crate::coordination::validate_bindings(root, work, registry, task)?;
+                            overlapping(root, task)?;
                         }
-                        task["blockers"] = json!([reason]);
-                    }
-                    (
-                        "PROPOSED" | "READY" | "IN_PROGRESS" | "IMPLEMENTED" | "VERIFIED"
-                        | "ACCEPTED" | "BLOCKED",
-                        "CANCELLED" | "SUPERSEDED",
-                    ) => {
-                        actor_is(task, actor, true)?;
-                        let reason = required(options, "reason")?;
-                        if reason.trim().is_empty() || reason.len() > 512 {
-                            return Err("A bounded disposition reason is required".into());
+                        ("IN_PROGRESS", "IMPLEMENTED") => actor_is(task, actor, false)?,
+                        (
+                            "PROPOSED" | "READY" | "IN_PROGRESS" | "IMPLEMENTED" | "VERIFIED"
+                            | "ACCEPTED",
+                            "BLOCKED",
+                        ) => {
+                            if actor_is(task, actor, false).is_err() {
+                                actor_is(task, actor, true)?;
+                            }
+                            let reason = required(options, "reason")?;
+                            if reason.trim().is_empty() || reason.len() > 512 {
+                                return Err("A bounded blocker reason is required".into());
+                            }
+                            task["blockers"] = json!([reason]);
                         }
-                        task["blockers"] = json!([reason]);
+                        (
+                            "PROPOSED" | "READY" | "IN_PROGRESS" | "IMPLEMENTED" | "VERIFIED"
+                            | "ACCEPTED" | "BLOCKED",
+                            "CANCELLED" | "SUPERSEDED",
+                        ) => {
+                            actor_is(task, actor, true)?;
+                            let reason = required(options, "reason")?;
+                            if reason.trim().is_empty() || reason.len() > 512 {
+                                return Err("A bounded disposition reason is required".into());
+                            }
+                            task["blockers"] = json!([reason]);
+                        }
+                        ("BLOCKED" | "CANCELLED" | "SUPERSEDED" | "CLOSED", "REOPEN") => {
+                            actor_is(task, actor, true)?;
+                            current(root, task)?;
+                            let descriptor = task["descriptor"].clone();
+                            return reset(root, task, descriptor, registry);
+                        }
+                        (_, "VERIFIED" | "ACCEPTED" | "DOCS_SYNCED" | "CLOSED") => {
+                            return Err("Use the dedicated evidence, acceptance, documentation or closure command".into());
+                        }
+                        _ => {
+                            return Err(format!(
+                                "Task transition {previous} → {next} is unavailable"
+                            ));
+                        }
                     }
-                    ("BLOCKED" | "CANCELLED" | "SUPERSEDED" | "CLOSED", "REOPEN") => {
-                        actor_is(task, actor, true)?;
-                        current(root, task)?;
-                        let descriptor = task["descriptor"].clone();
-                        return reset(root, task, descriptor, registry);
-                    }
-                    (_, "VERIFIED" | "ACCEPTED" | "DOCS_SYNCED" | "CLOSED") => {
-                        return Err("Use the dedicated evidence, acceptance, documentation or closure command".into());
-                    }
-                    _ => {
-                        return Err(format!(
-                            "Task transition {previous} → {next} is unavailable"
-                        ));
-                    }
-                }
-                task["state"] = json!(next);
-                Ok(())
-            })?
+                    task["state"] = json!(next);
+                    Ok(())
+                },
+            )?
         }
         _ => return Err("Unknown task command".into()),
     };

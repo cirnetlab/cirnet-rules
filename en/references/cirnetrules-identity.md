@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-IDENTITY -->
-<!-- revision: 4 -->
+<!-- revision: 5 -->
 <a id="identity-cutover"></a>
 
 # Identity and legacy data recovery
@@ -63,3 +63,19 @@ For legacy filesystem tasks, keep the original store and follow the
 
 The [identity inventory](../../identity-legacy-allowlist.json) lists exact
 exceptions for recovery, guards, fixtures and historical provenance.
+
+<a id="adoption"></a>
+
+## Confirm adoption in Git
+
+The archive preserves legacy bytes and the staged proposal records reviewed
+mapping. Apply approved files and catalog entries in a separately authorized
+Git change. Validate the resulting authority and record the reviewed commit.
+
+```sh
+cnr governance migrate adoption --expected-digest PROPOSAL_DIGEST --authority-commit REVIEWED_COMMIT --actor OPERATOR --json
+```
+
+The adoption receipt checks tracked content and catalog provenance. A staged
+proposal and a partially adopted proposal have distinct states. The command
+writes the local receipt and keeps existing grants and authority files intact.

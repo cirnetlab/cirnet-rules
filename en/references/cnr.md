@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
@@ -99,3 +99,11 @@ bounded and sent separately to stderr. Exit 0 means success, 1 means
 failure, 2 means blocked or unrun, and 130 means cancelled.
 `child_exit_code` reports the child separately. `cnr completion SHELL` emits completion for
 Bash, Zsh, Fish or PowerShell.
+
+<a id="mcp-coordination"></a>
+
+## MCP and shared coordination
+
+Use [MCP STDIO](mcp.md) for Agent configuration and the tool profiles.
+The [coordination workflow](shared-task-coordination.md) covers named
+bindings, leases, reports, local audit and the portable candidate gate.

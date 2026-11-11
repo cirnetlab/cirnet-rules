@@ -216,3 +216,70 @@ fn governance_native_flags_reject_unknown_and_duplicate_options() {
         assert_eq!(json(&fixture.run(&args), 1)["status"], "FAIL");
     }
 }
+
+#[test]
+fn mcp_config_is_review_only_and_preserves_unicode_argv() {
+    let fixture = Fixture::new();
+    let root = env!("CARGO_MANIFEST_DIR");
+    let local = fixture.0.join("MCP workspace 组");
+    fs::create_dir(&local).unwrap();
+    let executable = local.join(format!("cnr{}", std::env::consts::EXE_SUFFIX));
+    fs::write(&executable, b"fixture executable bytes").unwrap();
+    let output = fixture.0.join("mcp-config");
+    let exported = fixture.run(&[
+        "agent",
+        "mcp-config",
+        "export",
+        "--governance-root",
+        root,
+        "--workspace",
+        local.to_str().unwrap(),
+        "--binary",
+        executable.to_str().unwrap(),
+        "--output",
+        output.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(
+        json(&exported, 0)["result"]["static_config"],
+        "STATIC_CONFIG_VALIDATED"
+    );
+    let codex: toml::Value =
+        toml::from_str(&fs::read_to_string(output.join("codex.toml")).unwrap()).unwrap();
+    let codex_args = codex["mcp_servers"]["cirnetrules"]["args"]
+        .as_array()
+        .unwrap();
+    assert_eq!(codex_args[0].as_str(), Some("mcp"));
+    assert!(
+        codex_args[5]
+            .as_str()
+            .unwrap()
+            .ends_with("MCP workspace 组")
+    );
+    assert_eq!(codex_args[7].as_str(), Some("read-only"));
+    let claude: Value =
+        serde_json::from_slice(&fs::read(output.join("claude.mcp.json")).unwrap()).unwrap();
+    let google: Value =
+        serde_json::from_slice(&fs::read(output.join("antigravity.mcp_config.json")).unwrap())
+            .unwrap();
+    assert_eq!(claude["mcpServers"]["cirnetrules"]["type"], "stdio");
+    assert_eq!(
+        claude["mcpServers"]["cirnetrules"]["args"],
+        google["mcpServers"]["cirnetrules"]["args"]
+    );
+    let check = || {
+        fixture.run(&[
+            "agent",
+            "mcp-config",
+            "check",
+            "--governance-root",
+            root,
+            "--bundle",
+            output.to_str().unwrap(),
+            "--json",
+        ])
+    };
+    assert_eq!(json(&check(), 0)["result"]["native_client"], "NOT_RUN");
+    fs::write(output.join("codex.toml"), b"changed").unwrap();
+    assert_eq!(json(&check(), 1)["status"], "FAIL");
+}

@@ -1,0 +1,86 @@
+name: Portable CIRNETRULES candidate gate
+
+on:
+  workflow_call:
+    inputs:
+      authority_commit:
+        type: string
+        required: true
+      candidate_repository:
+        type: string
+        required: true
+      candidate_commit:
+        type: string
+        required: true
+      evidence_repository:
+        type: string
+        required: true
+      evidence_commit:
+        type: string
+        required: true
+      evidence_path:
+        type: string
+        required: true
+      approved_bundle_sha256:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CNR_AUTHORITY: ${{ inputs.authority_commit }}
+      CNR_CANDIDATE: ${{ inputs.candidate_commit }}
+      CNR_EVIDENCE: ${{ inputs.evidence_commit }}
+      CNR_BUNDLE_PATH: ${{ inputs.evidence_path }}
+      CNR_APPROVED_DIGEST: ${{ inputs.approved_bundle_sha256 }}
+      CNR_CANDIDATE_REPOSITORY: ${{ inputs.candidate_repository }}
+      CNR_EVIDENCE_REPOSITORY: ${{ inputs.evidence_repository }}
+    steps:
+      - name: Validate immutable selectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          for revision in "$CNR_AUTHORITY" "$CNR_CANDIDATE" "$CNR_EVIDENCE"; do
+            [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          done
+          [[ "$CNR_APPROVED_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$CNR_CANDIDATE_REPOSITORY" =~ ^cirnetlab/cirnet-[a-z0-9-]+$ ]]
+          [[ "$CNR_EVIDENCE_REPOSITORY" =~ ^cirnetlab/[a-zA-Z0-9_.-]+$ ]]
+          [[ "$CNR_BUNDLE_PATH" =~ ^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_-]+)*\.json$ ]]
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: cirnetlab/cirnet-rules
+          ref: ${{ inputs.authority_commit }}
+          path: authority
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ inputs.candidate_repository }}
+          ref: ${{ inputs.candidate_commit }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ inputs.evidence_repository }}
+          ref: ${{ inputs.evidence_commit }}
+          path: evidence
+          persist-credentials: false
+      - name: Build the verifier from trusted source
+        working-directory: authority
+        run: cargo build --locked --bin cnr
+      - name: Evaluate reviewed candidate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C candidate rev-parse HEAD)" == "$CNR_CANDIDATE" ]]
+          [[ "$(git -C evidence rev-parse HEAD)" == "$CNR_EVIDENCE" ]]
+          authority/target/debug/cnr ci verify --json \
+            --governance-root "$PWD/authority" --authority-commit "$CNR_AUTHORITY" \
+            --bundle "$PWD/evidence/$CNR_BUNDLE_PATH" --expected-digest "$CNR_APPROVED_DIGEST" \
+            --target "$PWD/candidate"

@@ -26,6 +26,7 @@ pub(crate) fn run(
             "expected-digest",
         ],
         "rollback" => &["expected-digest"],
+        "adoption" => &["expected-digest", "authority-commit", "actor"],
         _ => return Err("Unknown legacy migration action".into()),
     };
     if let Some(key) = args.keys().find(|key| !allowed.contains(&key.as_str())) {
@@ -59,6 +60,12 @@ pub(crate) fn run(
             }
         }
         "rollback" => proposal::rollback(root, value("expected-digest")?),
+        "adoption" => proposal::adoption(
+            root,
+            value("expected-digest")?,
+            value("authority-commit")?,
+            value("actor")?,
+        ),
         _ => unreachable!("Legacy migration action was checked"),
     }
 }

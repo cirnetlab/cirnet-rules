@@ -1,6 +1,6 @@
 mod menu;
 
-use cirnetrules::{environment, execution, governance, tooling};
+use cirnetrules::{environment, execution, governance, mcp, tooling};
 use clap::{Arg, ArgAction, ArgMatches, Command, error::ErrorKind, value_parser};
 use serde_json::{Value, json};
 use std::{
@@ -118,6 +118,11 @@ const COMMANDS: &[(&str, &str, &str)] = &[
         "Xem biên nhận task, migration, Agent và công cụ",
     ),
     (
+        "ci",
+        "Verify a portable task candidate",
+        "Xác minh candidate task có thể di chuyển",
+    ),
+    (
         "completion",
         "Generate bash, zsh, fish or PowerShell completion",
         "Tạo hoàn thành lệnh cho bash, zsh, fish hoặc PowerShell",
@@ -161,6 +166,17 @@ const GOVERNANCE_OPTIONS: &[&str] = &[
     "replace",
     "decision",
     "basis",
+    "binding",
+    "request-id",
+    "generation",
+    "ttl",
+    "report",
+    "session-file",
+    "binary",
+    "authority-commit",
+    "candidate",
+    "confirm",
+    "stopped",
 ];
 
 fn parser(vi: bool) -> Command {
@@ -237,7 +253,7 @@ fn parser(vi: bool) -> Command {
             .arg(Arg::new("words").value_name("ARGS").num_args(0..));
         if matches!(
             *name,
-            "workspace" | "task" | "governance" | "agent" | "audit"
+            "workspace" | "task" | "governance" | "agent" | "audit" | "ci"
         ) {
             for option in GOVERNANCE_OPTIONS {
                 sub = sub.arg(
@@ -250,7 +266,30 @@ fn parser(vi: bool) -> Command {
         }
         command = command.subcommand(sub);
     }
-    command
+    let mut serve = Command::new("serve").about("Serve CIRNETRULES MCP over stdin and stdout");
+    for (key, help) in [
+        ("governance-root", "Absolute CIRNETRULES authority checkout"),
+        ("workspace", "Absolute workspace containing bound checkouts"),
+        ("access", "read-only or coordinated"),
+        (
+            "session-file",
+            "Operator-prepared capability file for coordinated access",
+        ),
+    ] {
+        serve = serve.arg(
+            Arg::new(key)
+                .long(key)
+                .value_name("VALUE")
+                .help(help)
+                .required(matches!(key, "governance-root" | "workspace")),
+        );
+    }
+    command.subcommand(
+        Command::new("mcp")
+            .about("Model Context Protocol (STDIO)")
+            .subcommand_required(true)
+            .subcommand(serve),
+    )
 }
 
 fn usage_notes(name: &str, vi: bool) -> &'static str {
@@ -268,19 +307,22 @@ fn usage_notes(name: &str, vi: bool) -> &'static str {
         "exec" => "-- PROGRAM [ARG...]",
         "package" => "[rust|node|python] list|add|remove|sync|outdated [ARG...]",
         "workspace" => {
-            "discover | bind --repo NAME --path PATH --actor NAME | health\n--project selects the maintenance workspace. --governance-root selects the authority checkout."
+            "discover | bind --repo NAME --path PATH --actor NAME | health\nbinding list | add | show | validate [--repo NAME] [--binding ID]\n--project selects the maintenance workspace. --governance-root selects the authority checkout."
         }
         "task" => {
-            "create | show | resume | revise | context | bootstrap | diff-check | verify | review | accept | close\nMaintenance options may also follow --."
+            "create | show | resume | revise | context | bootstrap | diff-check | verify | review | accept | close\nclaim | renew | release | report | status | recover | session-prepare\ndependency check | evidence export | evidence inspect\nMaintenance options may also follow --."
         }
         "governance" => {
             "validate | inspect | context --repo NAME [--task ID] [--profile ID]\nmigrate inspect --source FILE | export --source FILE --destination DIR | validate --archive DIR\nmigrate import --archive DIR --dry-run [--preview-out DIR] | --yes --expected-digest DIGEST\nmigrate rollback --expected-digest DIGEST --yes"
         }
         "agent" => {
-            "list | export --repo NAME --agents codex,claude,antigravity --output DIR | check --bundle DIR\nsync --bundle DIR --target WORKTREE --dry-run | --yes --expect DIGEST --task ID --actor NAME\nrollback --target WORKTREE --receipt ID --dry-run | --yes --expect DIGEST --task ID --actor NAME"
+            "list | export --repo NAME --agents codex,claude,antigravity --output DIR | check --bundle DIR\nmcp-config export --binary PATH --workspace PATH --output DIR | mcp-config check --bundle DIR\nsync --bundle DIR --target WORKTREE --dry-run | --yes --expect DIGEST --task ID --actor NAME\nrollback --target WORKTREE --receipt ID --dry-run | --yes --expect DIGEST --task ID --actor NAME"
         }
         "audit" => {
             "tooling [--project PATH] | task --task ID | migration --receipt DIGEST | agent --receipt ID\nThe existing audit list form keeps its tooling output."
+        }
+        "ci" => {
+            "verify --bundle FILE --target CHECKOUT --expected-digest SHA256 --authority-commit COMMIT --governance-root PATH"
         }
         "completion" => "bash | zsh | fish | powershell",
         _ => "",
@@ -305,6 +347,7 @@ fn run(args: &[String]) -> ExitCode {
         .unwrap_or(args.len());
     let (flags, trailing) = args.split_at(boundary);
     let json_mode = flags.iter().any(|arg| arg == "--json");
+    let mcp_stdio = flags.windows(2).any(|pair| pair == ["mcp", "serve"]);
     let vi = flags.windows(2).any(|pair| pair == ["--lang", "vi"])
         || flags.iter().any(|arg| arg == "--lang=vi");
     let command = parser(vi);
@@ -331,9 +374,16 @@ fn run(args: &[String]) -> ExitCode {
             }
             return ExitCode::SUCCESS;
         }
+        Err(problem) if mcp_stdio => {
+            eprint!("{problem}");
+            return ExitCode::FAILURE;
+        }
         Err(problem) => return emit("cnr", error(&problem.to_string()), json_mode),
     };
     let (name, sub) = matched.subcommand().unwrap_or(("tui", &matched));
+    if name == "mcp" {
+        return mcp_command(&matched, sub, trailing);
+    }
     let words: Vec<_> = sub
         .try_get_many::<String>("words")
         .ok()
@@ -366,7 +416,7 @@ fn run(args: &[String]) -> ExitCode {
         }
         return menu::run(context, vi);
     }
-    let governance_group = matches!(name, "workspace" | "task" | "governance" | "agent")
+    let governance_group = matches!(name, "workspace" | "task" | "governance" | "agent" | "ci")
         || name == "audit"
             && words
                 .first()
@@ -668,6 +718,50 @@ fn sync(
     Ok(json!({"status":"PASS","applied":true,"steps":applied}))
 }
 
+fn mcp_command(flags: &ArgMatches, group: &ArgMatches, trailing: &[String]) -> ExitCode {
+    let Some(("serve", options)) = group.subcommand() else {
+        eprintln!("Use cnr mcp serve");
+        return ExitCode::FAILURE;
+    };
+    if !trailing.is_empty()
+        || flags.get_one::<PathBuf>("project").is_some()
+        || [
+            "json",
+            "dry-run",
+            "yes",
+            "locked",
+            "offline",
+            "installed",
+            "available",
+            "all",
+        ]
+        .iter()
+        .any(|key| flags.get_flag(key))
+        || ["scope", "type", "timeout-ms"]
+            .iter()
+            .any(|key| flags.value_source(key) == Some(clap::parser::ValueSource::CommandLine))
+    {
+        eprintln!("MCP STDIO requires explicit roots and only the serve options");
+        return ExitCode::FAILURE;
+    }
+    let value = |key| options.get_one::<String>(key).map(String::as_str);
+    let root = std::path::Path::new(value("governance-root").expect("required root"));
+    let work = std::path::Path::new(value("workspace").expect("required workspace"));
+    let access = value("access").unwrap_or("read-only");
+    let session_file = value("session-file").map(std::path::Path::new);
+    if access == "coordinated" && session_file.is_none() {
+        eprintln!("MCP coordinated access requires an operator-prepared session file");
+        return ExitCode::from(2);
+    }
+    match mcp::serve(root, work, access, session_file) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(reason) => {
+            eprintln!("MCP: {reason}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn governance_command(
     group: &str,
     words: &[String],
@@ -690,7 +784,7 @@ fn governance_command(
             "governance",
             [
                 "migrate",
-                action @ ("inspect" | "export" | "validate" | "rollback"),
+                action @ ("inspect" | "export" | "validate" | "rollback" | "adoption"),
             ],
         ) => {
             format!("migration-{action}")
@@ -701,6 +795,27 @@ fn governance_command(
             "migration-apply"
         }
         .into(),
+        ("workspace", ["binding", action @ ("list" | "add" | "show" | "validate")]) => {
+            format!("workspace-binding-{action}")
+        }
+        (
+            "task",
+            [
+                action @ ("claim" | "renew" | "release" | "report" | "status" | "recover"
+                | "session-prepare"),
+            ],
+        ) => {
+            format!("coordination-{action}")
+        }
+        ("task", ["coordination", "migrate"]) => "coordination-migrate".into(),
+        ("task", ["dependency", "check"]) => "coordination-dependency-check".into(),
+        ("task", ["evidence", action @ ("export" | "inspect")]) => format!("ci-evidence-{action}"),
+        ("agent", ["mcp-config", action @ ("export" | "check")]) => {
+            format!("agent-mcp-config-{action}")
+        }
+        ("ci", ["verify"]) if sub.get_one::<String>("governance-root").is_some() => {
+            "ci-verify".into()
+        }
         (group @ ("agent" | "audit"), [action]) => format!("{group}-{action}"),
         ("governance", ["inspect"]) => "authority-inspect".into(),
         ("governance", ["context"]) if trailing.is_empty() => "authority-context".into(),
