@@ -7,6 +7,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const NAME: &str = "CIRNET RULES";
 const WORDMARK_WIDTH: usize = 90;
+const BANNER_WIDTH: usize = WORDMARK_WIDTH + 1;
 // Each letter uses the same seven-pixel width and nine-pixel height.
 // Half blocks keep the pixels proportional in a terminal cell.
 const WORDMARK: [&str; 5] = [
@@ -103,7 +104,17 @@ fn wrap(value: &str, width: usize) -> Vec<String> {
     rows
 }
 
-pub(super) fn frame(menu: &mut Menu, size: (u16, u16), status: &str, banner: bool) -> Frame {
+pub(super) fn frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
+    frame_with_status(menu, size, "", banner, color)
+}
+
+fn frame_with_status(
+    menu: &mut Menu,
+    size: (u16, u16),
+    status: &str,
+    banner: bool,
+    color: bool,
+) -> Frame {
     let mut frame = Frame::new(size);
     let columns = usize::from(size.0.saturating_sub(1)).min(108);
     let height = size.1;
@@ -113,10 +124,33 @@ pub(super) fn frame(menu: &mut Menu, size: (u16, u16), status: &str, banner: boo
     let margin = if columns >= 24 { 2 } else { 0 };
     let width = columns - 2 * margin;
     let mut row = u16::from(height >= 16);
-    if banner && columns >= WORDMARK_WIDTH && height >= 22 {
-        let inset = if width >= WORDMARK_WIDTH { margin } else { 0 };
-        for line in WORDMARK {
-            label(&mut frame, row, inset, WORDMARK_WIDTH, Tone::Accent, line);
+    if banner && columns >= BANNER_WIDTH && height >= 22 {
+        let inset = if width >= BANNER_WIDTH { margin } else { 0 };
+        let art: Vec<Vec<char>> = WORDMARK.iter().map(|line| line.chars().collect()).collect();
+        for y in 0..=art.len() {
+            let mut line = indented(inset);
+            for x in 0..BANNER_WIDTH {
+                let face = x
+                    .checked_sub(1)
+                    .and_then(|x| art.get(y).and_then(|line| line.get(x)))
+                    .copied()
+                    .unwrap_or(' ');
+                let shadow = y
+                    .checked_sub(1)
+                    .and_then(|y| art.get(y).and_then(|line| line.get(x)))
+                    .is_some_and(|ch| *ch != ' ');
+                if face != ' ' {
+                    line.push(
+                        Tone::Banner((x.saturating_sub(1) * 4 / WORDMARK_WIDTH).min(3)),
+                        face.to_string(),
+                    );
+                } else if shadow && color {
+                    line.push(Tone::Shadow, "░");
+                } else {
+                    line.push(Tone::Plain, " ");
+                }
+            }
+            frame.rows[usize::from(row)] = line;
             row += 1;
         }
         row += 1;
@@ -271,11 +305,34 @@ mod tests {
     }
 
     #[test]
+    fn wide_banner_has_a_visible_offset_shadow() {
+        let mut menu = Menu::new(false);
+        let art = frame_with_status(&mut menu, (100, 25), STATUS, true, true);
+        let lines = rows(&art);
+        assert!(lines.iter().any(|line| line.contains('█')));
+        assert!(lines.iter().any(|line| line.contains('░')));
+    }
+
+    #[test]
+    fn monochrome_banner_keeps_letter_faces_without_shadow_noise() {
+        let mut menu = Menu::new(false);
+        let color = frame(&mut menu, (100, 25), true, true);
+        let monochrome = frame(&mut menu, (100, 25), true, false);
+        let colored_rows = rows(&color);
+        let plain_rows = rows(&monochrome);
+        assert!(colored_rows.iter().any(|line| line.contains('░')));
+        assert!(plain_rows.iter().all(|line| !line.contains('░')));
+        for (colored, plain) in colored_rows.iter().zip(&plain_rows) {
+            assert_eq!(colored.replace('░', " "), *plain);
+        }
+    }
+
+    #[test]
     fn navigation_changes_only_the_affected_rows() {
         let mut menu = Menu::new(false);
-        let first = frame(&mut menu, (80, 25), STATUS, true);
+        let first = frame_with_status(&mut menu, (80, 25), STATUS, true, true);
         assert!(matches!(press(&mut menu, KeyCode::Down), Effect::Redraw));
-        let next = frame(&mut menu, (80, 25), STATUS, true);
+        let next = frame_with_status(&mut menu, (80, 25), STATUS, true, true);
         let changed: Vec<_> = next
             .changed_rows(Some(&first))
             .map(|(_, line)| line.text())
@@ -283,9 +340,9 @@ mod tests {
         assert_eq!(changed, ["    Tool inventory", "  › Search tools"]);
         assert_eq!(next.changed_rows(Some(&next)).count(), 0);
 
-        let wide = frame(&mut menu, (110, 30), STATUS, true);
+        let wide = frame_with_status(&mut menu, (110, 30), STATUS, true, true);
         assert!(matches!(press(&mut menu, KeyCode::Down), Effect::Redraw));
-        let next = frame(&mut menu, (110, 30), STATUS, true);
+        let next = frame_with_status(&mut menu, (110, 30), STATUS, true, true);
         for (_, line) in next.changed_rows(Some(&wide)) {
             assert!(!line.text().contains('█'));
             assert!(!line.text().contains(STATUS));
@@ -299,7 +356,7 @@ mod tests {
     #[test]
     fn help_and_search_are_at_the_bottom_only_when_active() {
         let mut menu = Menu::new(true);
-        let initial = frame(&mut menu, (78, 24), STATUS, true);
+        let initial = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
         assert!(
             rows(&initial)
                 .iter()
@@ -307,7 +364,7 @@ mod tests {
         );
         assert_eq!(initial.cursor, None);
         press(&mut menu, KeyCode::Char('?'));
-        let help = frame(&mut menu, (78, 24), STATUS, true);
+        let help = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
         assert!(help.rows[21].text().contains("cnr --help"));
         assert!(help.rows[22].text().contains(STATUS));
 
@@ -315,7 +372,7 @@ mod tests {
         for ch in "chẩn đoán".chars() {
             press(&mut menu, KeyCode::Char(ch));
         }
-        let search = frame(&mut menu, (78, 24), STATUS, true);
+        let search = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
         assert!(search.rows[21].text().contains("Tìm kiếm  › chẩn đoán"));
         assert_eq!(search.cursor.map(|(_, y)| y), Some(21));
         assert!(
@@ -324,7 +381,7 @@ mod tests {
                 .any(|line| line.contains("› Chẩn đoán"))
         );
         press(&mut menu, KeyCode::Esc);
-        let closed = frame(&mut menu, (78, 24), STATUS, true);
+        let closed = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
         assert!(closed.rows[21].text().is_empty());
         assert!(closed.changed_rows(Some(&search)).any(|(row, _)| row == 21));
     }
@@ -336,15 +393,15 @@ mod tests {
             WORDMARK.iter().map(|row| row.width()).max(),
             Some(WORDMARK_WIDTH)
         );
-        let art = frame(&mut menu, (91, 22), "Dự án 東京", true);
+        let art = frame_with_status(&mut menu, (92, 22), "Dự án 東京", true, true);
         assert!(art.rows[1].text().contains('█'));
-        for (size, banner) in [((90, 22), true), ((91, 21), true), ((110, 25), false)] {
-            let compact = frame(&mut menu, size, STATUS, banner);
+        for (size, banner) in [((91, 22), true), ((91, 21), true), ((110, 25), false)] {
+            let compact = frame_with_status(&mut menu, size, STATUS, banner, true);
             assert!(rows(&compact).iter().any(|line| line.trim() == NAME));
             assert!(compact.changed_rows(Some(&art)).count() > 2);
         }
         for size in [(0, 0), (1, 1), (2, 2), (10, 4), (26, 8)] {
-            let small = frame(&mut menu, size, "Dự án 東京\u{1b}[31m", true);
+            let small = frame_with_status(&mut menu, size, "Dự án 東京\u{1b}[31m", true, true);
             for line in rows(&small) {
                 assert!(line.width() < usize::from(size.0).max(1));
                 assert!(!line.contains('\u{1b}'));

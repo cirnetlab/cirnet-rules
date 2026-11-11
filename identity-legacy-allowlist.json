@@ -10,15 +10,6 @@
       }
     },
     {
-      "path": "en/references/cirnetrules-identity.md",
-      "reason": "Recovery guide identifies predecessor data generations.",
-      "matches": {
-        "2342575dfc8a7a491e787dff420197183b6af7098922f8b1c475ff7d16bba1a5": 1,
-        "26d274fe8111d1464035dd0990622cda02fc55f79c0eb03fed2e0bb43dad0a24": 1,
-        "6734261db91aaa6a8a5043bfad2a05844c1b3e4d04ed894d054ae4ea9bcadf12": 1
-      }
-    },
-    {
       "path": "src/agent_config/tests.rs",
       "reason": "Fixture verifies that an unrecovered legacy task store blocks Agent configuration writes.",
       "matches": {
@@ -57,15 +48,6 @@
       "matches": {
         "a8bd7407c6fc532bd0f0bd26100f9e51fca37f83ca77cc2badf1e349ccaec3f9": 1,
         "feace77dd34d91a445d1d397c33b316a639e54dee15ef024a316a632a8109dac": 1
-      }
-    },
-    {
-      "path": "vi/references/cirnetrules-identity.md",
-      "reason": "Recovery guide identifies predecessor data generations.",
-      "matches": {
-        "2342575dfc8a7a491e787dff420197183b6af7098922f8b1c475ff7d16bba1a5": 1,
-        "26d274fe8111d1464035dd0990622cda02fc55f79c0eb03fed2e0bb43dad0a24": 1,
-        "c259d1a53870c8c40d090a761e3fad73bed3ec0cf189abc8e19c76d20cc82dc2": 1
       }
     }
   ]

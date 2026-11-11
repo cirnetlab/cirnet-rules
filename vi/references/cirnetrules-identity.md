@@ -1,27 +1,21 @@
 <!-- doc-id: CIRNETRULES-IDENTITY -->
-<!-- revision: 5 -->
-<!-- source-sha256: 624325b265eda7624a2e681b5ba91d172d7368c1874c55140ede3544e365317b -->
+<!-- revision: 6 -->
+<!-- source-sha256: 4b48fdff6a83e40ce1c44f375e4f0efba74c6284aeb6315ed74b3ee374201855 -->
 <!-- translation-status: synchronized -->
 <a id="identity-cutover"></a>
 
-# Danh tính và khôi phục dữ liệu cũ
+# Định danh CIRNETRULES và khôi phục dữ liệu
 
 [Metadata ứng dụng](../../application-identity.json) quy định package, tên
-hiển thị, tổ chức và repository. Bản build Rust đã pin kiểm tra phiên bản và
-danh tính executable công khai. Source và hướng dẫn vận hành cũ nằm trên
-[nhánh lưu trữ](https://github.com/cirnetlab/cirnet-rules/tree/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c).
+hiển thị, tổ chức và repository. Bản build Rust đã ghim kiểm tra phiên bản
+và định danh executable công khai.
 
-Trên Windows, kiểm tra tệp database trong thư mục dữ liệu local của hệ điều
-hành dưới CIRNETLAB hoặc dùng đường dẫn database từ thư mục dữ liệu tùy chỉnh
-ban đầu. Kiểm tra riêng các đời CIRNETRULES, OPENRULES và CGACP. Giữ nguyên
-database gốc, WAL và các backup trước đó. Đóng tiến trình ghi cũ trước khi khôi
-phục hoặc di chuyển dữ liệu gốc.
-
-```text
-%LOCALAPPDATA%\CIRNETLAB\CIRNETRULES\cirnetrules.sqlite3
-%LOCALAPPDATA%\CIRNETLAB\OPENRULES\openrules.sqlite3
-%LOCALAPPDATA%\CIRNETLAB\CGACP\cgacp.sqlite3
-```
+Đường dẫn database CIRNETRULES mặc định trên Windows là
+`%LOCALAPPDATA%\CIRNETLAB\CIRNETRULES\cirnetrules.sqlite3`. Với bản cài
+đặt trước đây hoặc thư mục dữ liệu tùy chỉnh, truyền đường dẫn database
+gốc qua `--source`. [Hướng dẫn khôi phục lưu trữ](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/vi/references/cirnetrules-identity.md#identity-cutover)
+ghi các đường dẫn mặc định trước đây. Giữ database gốc, WAL và các bản
+sao lưu. Dừng tiến trình ghi trước khi di chuyển hoặc khôi phục dữ liệu gốc.
 
 ```sh
 cnr governance migrate inspect --source PATH_TO_DATABASE --json
@@ -42,7 +36,7 @@ truy cập được WAL sẽ chặn thao tác.
 Giữ archive trong thư mục cha riêng tư ngoài Git hoặc vùng local bị ignore.
 Archive bảo toàn toàn bộ database, gồm hồ sơ riêng. Archive schema 7 chứa
 các dòng governance và lịch sử. Có thể bảo toàn schema 1 đến 6 đã kiểm tra
-để khôi phục, với dữ liệu không có đề xuất governance. Schema chưa hỗ trợ
+để khôi phục. Lưu đề xuất vào staging cần schema 7. Schema chưa hỗ trợ
 hoặc lỗi kiểm tra toàn vẹn sẽ chặn xuất. Giữ nguyên các nguồn đó để khôi phục
 bằng ứng dụng gốc.
 

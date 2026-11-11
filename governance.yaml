@@ -372,7 +372,7 @@
         "id": "CNR-OPERATOR",
         "kind": "reference",
         "path": "en/references/cnr.md",
-        "revision": 5,
+        "revision": 6,
         "status": "ACTIVE",
         "depends_on": []
       },
@@ -412,7 +412,7 @@
         "id": "ADR-0001",
         "kind": "reference",
         "path": "en/references/adr-0001.md",
-        "revision": 1,
+        "revision": 2,
         "status": "DRAFT",
         "depends_on": []
       },

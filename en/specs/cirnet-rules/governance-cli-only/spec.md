@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-CLI-ONLY-SPEC -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="scope"></a>
 
 # CLI-only governance scope
@@ -10,4 +10,4 @@ Legacy SQLite is opened read-only for inspection and consistent backup. The arch
 
 Resolve eligible sources within the registry and task scope. Bind relevant source bytes to task freshness and output provenance. A changed source must be reviewed before old evidence can support acceptance.
 
-Render repository instructions and eligible skills for Codex, Claude Code and Antigravity. Sync requires a current Git binding and explicit task scope. Preview and rollback verify expected bytes and protect user files. Hooks and native permissions remain outside activation. Static checks and native discovery are separate evidence.
+Render repository instructions and eligible skills for Codex Desktop, Claude Code and Antigravity. Sync requires a current Git binding and explicit task scope. Preview and rollback verify expected bytes and protect user files. Hooks and native permissions remain outside activation. Static checks and native discovery are separate evidence.

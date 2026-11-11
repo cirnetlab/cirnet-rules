@@ -1,7 +1,7 @@
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     execute, queue,
-    style::{Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
+    style::{Attribute, Color, Print, SetAttribute, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::io::{self, Write};
@@ -13,10 +13,33 @@ const ORANGE: Color = Color::Rgb {
 };
 
 const SHADOW: Color = Color::Rgb {
-    r: 91,
-    g: 51,
-    b: 43,
+    r: 73,
+    g: 50,
+    b: 49,
 };
+
+const BANNER_COLORS: [Color; 4] = [
+    Color::Rgb {
+        r: 225,
+        g: 158,
+        b: 119,
+    },
+    Color::Rgb {
+        r: 219,
+        g: 145,
+        b: 110,
+    },
+    Color::Rgb {
+        r: 211,
+        g: 133,
+        b: 103,
+    },
+    Color::Rgb {
+        r: 200,
+        g: 119,
+        b: 101,
+    },
+];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Tone {
@@ -25,7 +48,7 @@ pub(super) enum Tone {
     Heading,
     Accent,
     Shadow,
-    AccentOnShadow,
+    Banner(usize),
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -105,8 +128,8 @@ impl Painter {
                         Tone::Heading => queue!(out, SetAttribute(Attribute::Bold))?,
                         Tone::Accent => queue!(out, SetForegroundColor(ORANGE))?,
                         Tone::Shadow => queue!(out, SetForegroundColor(SHADOW))?,
-                        Tone::AccentOnShadow => {
-                            queue!(out, SetForegroundColor(ORANGE), SetBackgroundColor(SHADOW))?
+                        Tone::Banner(index) => {
+                            queue!(out, SetForegroundColor(BANNER_COLORS[*index]))?
                         }
                     }
                     active = *tone;

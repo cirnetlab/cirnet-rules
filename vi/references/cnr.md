@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 5 -->
-<!-- source-sha256: c972b2fb9400682b934de79b202f21615f8004b0b9d9e9c5d69ba86222f26b38 -->
+<!-- revision: 6 -->
+<!-- source-sha256: 0f2361222c5e443244de1c78add2776e3d121cd814a2ab140750b32484b58203 -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
@@ -66,8 +66,7 @@ Rust, Python và Node lần lượt dùng `rustup`, `uv` hoặc `fnm` native
 đang hoạt động. Thay đổi phạm vi người dùng hoặc hệ thống cần installer
 được cấp quyền riêng.
 
-CMake, Ninja, Qt, MSVC, Windows SDK và các công cụ khác có phát hiện và
-trạng thái hỗ trợ. Dùng installer được phê duyệt nếu thao tác ghi native
+Danh mục báo kết quả phát hiện cục bộ và trạng thái hỗ trợ. Dùng installer được phê duyệt nếu thao tác ghi native
 chưa khả dụng. `--offline` giới hạn cài đặt vào thao tác đã thỏa mãn.
 Dùng `cache` và `audit` để xem trạng thái và biên nhận cục bộ. Installer
 ngoài có thể để lại bản ghi phục hồi khi lỗi. Chạy lại thao tác đã duyệt

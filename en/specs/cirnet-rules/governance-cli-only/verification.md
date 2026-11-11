@@ -1,24 +1,16 @@
 <!-- doc-id: CNR-CLI-ONLY-VERIFICATION -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="verification"></a>
 
 # CLI-only verification
 
-## Baseline
+## Verification scope
 
-The archive and implementation branches began at 52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c. Windows x64 MSVC reported rustc 1.99.1 (58cf8f9c3) and cargo 1.99.1 (5f94df478). Baseline cargo test exited 1 after three legacy integration loopback failures and one legacy Windows ACL expectation in the private runtime. Tests later in that run were unobserved. The ignored zip and output directories were excluded from source changes. The current and two predecessor default SQLite database paths and their sidecars were absent. Custom data locations were not inventoried.
-
-## Replaced tests
-
-| Prior runtime fixture | Coverage in the CLI-only architecture |
-| --- | --- |
-| Draft/restart/publish/rollback, interrupted SQL publication | Lossless archive preserves revisions and drafts; staging and approval digest guard proposal application. Git retains approved source history. |
-| Traversal, stale writes, dependencies, structured content and elevated publish | Catalog validation, content freshness, migration archive checks and the unchanged scoped task gates. |
-| Profile and binding pinning for conversations | Archive preserves pinned snapshots for review; active resolution validates the Git binding and current task scope. |
-| Published export and exact import preview | Archive inventories every revision and the import compares the reviewed digest. |
-| Attachment aliases and executable attachments | Legacy review reports unsafe assets; Agent bundles guard managed paths and executable metadata. |
-| Private wire schema and desktop interaction | These interfaces are retired with the runtime. Existing CLI compatibility tests retain the maintenance envelope. |
-| Engine probes, conversation and scheduling, preferences, UI and IPC | Removed with their associated services. The immutable archive preserves the prior implementations and tests. |
+This record covers the CLI-only implementation on Windows x64 MSVC with
+Rust and Cargo 1.99.1. The implementation baseline was
+`52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c`. Test counts and receipts below
+describe that run. Use the [current verification guide](../../../references/verification.md)
+for the active checklist.
 
 ## Windows results
 
@@ -53,12 +45,7 @@ bound Git fixtures with per-file task grants.
 
 ## Evidence limits
 
-The three default database locations were `NOT_FOUND`. Custom locations
-remain unknown. Real migration was `NOT_RUN`, so there is no real backup
-or import receipt. The archive Git ref still points to the baseline.
-
-Version probes observed Codex `0.167.0-alpha.3.2` and Antigravity IDE launcher
-`1.107.0`. Claude Code was unavailable on PATH. Native discovery, hook
-execution, authenticated acceptance and release activation were `NOT_RUN`.
-Local Linux testing was unavailable due to `Wsl/E_ACCESSDENIED`. Hosted CI,
-Unix symlink fixtures and live Windows junction tests were `NOT_RUN`.
+Migration used disposable SQLite and Git fixtures. Real data migration,
+native agent discovery, hook execution, authenticated acceptance and release
+activation were `NOT_RUN`. Hosted CI, local Linux, Unix symlink fixtures and
+live Windows junction checks were `NOT_RUN` during this run.

@@ -1,25 +1,19 @@
 <!-- doc-id: CIRNETRULES-IDENTITY -->
-<!-- revision: 5 -->
+<!-- revision: 6 -->
 <a id="identity-cutover"></a>
 
-# Identity and legacy data recovery
+# CIRNETRULES identity and data recovery
 
 [Application metadata](../../application-identity.json) defines the package,
 display name, organization and repository. The pinned Rust build checks the
-version and public executable identity. Old application source and operator
-instructions are available in the [archive branch](https://github.com/cirnetlab/cirnet-rules/tree/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c).
+version and public executable identity.
 
-On Windows, inspect the database file in the OS local data directory beneath
-CIRNETLAB, or use the database path from the original custom data directory.
-Check the CIRNETRULES, OPENRULES and CGACP generations separately. Keep the
-original database, WAL and earlier backups in place. Close old writers before
-restoring or moving the original data.
-
-```text
-%LOCALAPPDATA%\CIRNETLAB\CIRNETRULES\cirnetrules.sqlite3
-%LOCALAPPDATA%\CIRNETLAB\OPENRULES\openrules.sqlite3
-%LOCALAPPDATA%\CIRNETLAB\CGACP\cgacp.sqlite3
-```
+The default CIRNETRULES database path on Windows is
+`%LOCALAPPDATA%\CIRNETLAB\CIRNETRULES\cirnetrules.sqlite3`. For an earlier
+installation or a custom data directory, pass the original database path
+to `--source`. The [archived recovery guide](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/references/cirnetrules-identity.md#identity-cutover)
+records the earlier default paths. Keep the original database, WAL and
+backups. Stop writers before moving or restoring the original data.
 
 ```sh
 cnr governance migrate inspect --source PATH_TO_DATABASE --json
@@ -37,11 +31,11 @@ and both sidecars are absent, export verifies a staged byte copy. Inspect
 directs the operator to export for this case. An incomplete sidecar pair
 or inaccessible WAL view blocks the operation.
 
-Keep
-the archive in a private parent outside Git or in ignored local state. It
-preserves the complete database, including private records. Schema 7 archives include governance rows and history. Verified
-schemas 1 through 6 can be preserved for recovery and have no governance
-proposal. Unsupported schemas or failed integrity checks block export. Keep such
+Keep the archive in a private parent outside Git or in ignored local state.
+It preserves the complete database, including private records. Schema 7
+archives include governance rows and history. Verified schemas 1 through 6
+can be archived for recovery. Staging a proposal requires schema 7.
+Unsupported schemas or failed integrity checks block export. Keep such
 sources in place for recovery with the original application.
 
 The optional `--preview-out` saves the reviewable proposal in a new private

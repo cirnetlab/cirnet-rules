@@ -1,26 +1,18 @@
 <!-- doc-id: CNR-CLI-ONLY-VERIFICATION -->
-<!-- revision: 1 -->
-<!-- source-sha256: 010d2f7414699a2a1e3b07c39705e833ed87666e9e59b4b5682d6f54545a9117 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 2c3933e8d2676e485ae4ba6a94963859f3de0ab749795be129f4e9d22d1a0f31 -->
 <!-- translation-status: synchronized -->
 <a id="verification"></a>
 
 # Kiểm chứng CLI-only
 
-## Baseline
+## Phạm vi kiểm chứng
 
-Nhánh lưu trữ và nhánh triển khai ban đầu ở 52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c. Windows x64 MSVC báo rustc 1.99.1 (58cf8f9c3) và cargo 1.99.1 (5f94df478). Lượt cargo test baseline thoát mã 1 sau ba lỗi probe loopback tích hợp cũ và một lỗi kỳ vọng ACL Windows của runtime riêng. Các test sau đó chưa được quan sát trong lượt này. Tệp zip bị ignore và thư mục build nằm ngoài thay đổi source. Không tìm thấy database SQLite và tệp phụ trợ của đời hiện tại và hai đời trước tại vị trí mặc định. Chưa kiểm kê vị trí dữ liệu tùy chỉnh.
-
-## Các test được thay thế
-
-| Fixture runtime trước đây | Độ phủ trong kiến trúc CLI-only |
-| --- | --- |
-| Draft, khởi động lại, công bố, rollback và gián đoạn ghi SQL | Archive giữ các revision và bản nháp. Staging và digest đã review kiểm soát việc lưu đề xuất. Git giữ lịch sử nguồn đã duyệt. |
-| Traversal, ghi stale, dependency, nội dung có cấu trúc và công bố nâng quyền | Kiểm tra catalog, freshness nội dung, archive migration và các cổng phạm vi task hiện có. |
-| Ghim profile và binding cho hội thoại | Archive giữ snapshot đã ghim để review. Phân giải hiện hành kiểm tra Git binding và phạm vi task. |
-| Xuất revision đã công bố và preview nhập chính xác | Archive kiểm kê mọi revision và bước nhập so digest đã review. |
-| Alias và tệp đính kèm thực thi | Review legacy báo tài nguyên không an toàn. Bundle Agent bảo vệ đường dẫn có quản lý và metadata thực thi. |
-| Schema giao tiếp riêng và tương tác desktop | Các giao diện này ngừng cùng runtime. Test tương thích CLI giữ envelope bảo trì. |
-| Probe engine, hội thoại và lịch chạy, tùy chọn, UI và IPC | Gỡ cùng các dịch vụ tương ứng. Nhánh lưu trữ giữ phần triển khai và test cũ. |
+Hồ sơ ghi lượt kiểm chứng triển khai CLI-only trên Windows x64 MSVC với
+Rust và Cargo 1.99.1. Commit gốc của đợt triển khai là
+`52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c`. Số lượng test và biên nhận bên
+dưới thuộc lượt chạy đó. Xem [hướng dẫn kiểm chứng hiện hành](../../../references/verification.md)
+để chạy các bước hiện tại.
 
 ## Kết quả Windows
 
@@ -55,12 +47,7 @@ với grant task theo từng tệp.
 
 ## Giới hạn bằng chứng
 
-Ba vị trí database mặc định ở trạng thái `NOT_FOUND`. Chưa biết vị trí tùy
-chỉnh. Migration thật ở trạng thái `NOT_RUN`, nên chưa có backup hay biên nhận
-nhập thật. Ref Git lưu trữ vẫn trỏ tới baseline.
-
-Kiểm tra phiên bản ghi nhận Codex `0.167.0-alpha.3.2` và launcher Antigravity IDE
-`1.107.0`. Claude Code không có trên PATH. Native discovery, chạy hook, chấp
-nhận có xác thực và kích hoạt release ở trạng thái `NOT_RUN`. Kiểm thử Linux
-local bị chặn bởi `Wsl/E_ACCESSDENIED`. Hosted CI, fixture symlink Unix và
-kiểm thử junction thật trên Windows ở trạng thái `NOT_RUN`.
+Kiểm thử migration dùng SQLite và Git fixture dùng một lần. Migration trên
+dữ liệu thật, nạp cấu hình trong agent, chạy hook, chấp nhận có xác thực và
+kích hoạt release ở trạng thái `NOT_RUN`. Lượt này ghi `NOT_RUN` cho CI từ
+xa, Linux cục bộ, fixture symlink Unix và kiểm tra junction thật trên Windows.

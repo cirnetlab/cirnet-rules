@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 5 -->
+<!-- revision: 6 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
@@ -66,8 +66,7 @@ the exact versions in the current environment. `remove TOOL[@VERSION]`
 checks ownership, project references and active use. User and system scope
 changes require a separately authorized installer.
 
-CMake, Ninja, Qt, MSVC, Windows SDK and the other catalog tools expose
-discovery and capability status. Use their approved installers when a native
+Catalog entries report local discovery and capability status. Use their approved installers when a native
 mutation is unavailable. `--offline` limits managed installations to
 already satisfied operations. Use `cache` and `audit` for local state and
 receipts. A failed external installer may leave a recovery record; rerun

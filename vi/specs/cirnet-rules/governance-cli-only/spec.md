@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-CLI-ONLY-SPEC -->
-<!-- revision: 1 -->
-<!-- source-sha256: 0bba21104e06ff952797b50561f55d0d0910959faf24d23e1712798c6c735190 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 1d26ab9933177b717b0eb5094f63f04bdc74c557d215f3df3b30f04673c76645 -->
 <!-- translation-status: synchronized -->
 <a id="scope"></a>
 
@@ -12,4 +12,4 @@ SQLite đời trước được mở chỉ đọc để kiểm tra và sao lưu 
 
 Chọn nguồn đủ điều kiện trong phạm vi registry và task. Dùng byte nguồn liên quan để kiểm tra freshness của task và ghi provenance của đầu ra. Nguồn đã đổi cần review trước khi dùng lại bằng chứng để chấp nhận.
 
-Xuất chỉ dẫn repository và skill đủ điều kiện cho Codex, Claude Code và Antigravity. Sync cần binding Git hiện hành và phạm vi task tường minh. Preview và rollback xác minh byte dự kiến để bảo vệ tệp người dùng. Hook và quyền native không được kích hoạt. Kiểm tra tĩnh và native discovery là hai loại bằng chứng riêng.
+Xuất chỉ dẫn repository và skill đủ điều kiện cho Codex Desktop, Claude Code và Antigravity. Sync cần binding Git hiện hành và phạm vi task tường minh. Preview và rollback xác minh byte dự kiến để bảo vệ tệp người dùng. Hook và quyền native không được kích hoạt. Kiểm tra tĩnh và native discovery là hai loại bằng chứng riêng.
