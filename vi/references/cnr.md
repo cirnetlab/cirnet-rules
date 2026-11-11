@@ -1,12 +1,12 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 1 -->
-<!-- source-sha256: 0879631a3e3dbf448557e7abcf794013de9ed50337b7fc3146d8d79a57a073fb -->
+<!-- revision: 2 -->
+<!-- source-sha256: afe7d9c31b30eca530566eba3cf2f94e2c40965b4c03720c4fa5f8485b09ab65 -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
 # Hướng dẫn vận hành CNR
 
-CNR là terminal CIRNET RULES quản lý runtime, SDK và công cụ phát triển.
+CNR là CLI CIRNET RULES cho governance, môi trường và công cụ phát triển.
 Build bằng Rust và Cargo đã ghim của repository:
 
 ~~~sh
@@ -20,7 +20,7 @@ terminal tương tác. Dùng phím mũi tên, Enter, dấu gạch chéo để t�
 hoặc Ctrl+C để thoát. `--lang vi` chọn nhãn terminal và mô tả lệnh tiếng
 Việt. `--no-banner` dùng tiêu đề gọn và `NO_COLOR` tắt màu. Lượt chạy
 phi tương tác in trợ giúp. Phiên bản, trợ giúp và danh mục chạy được khi
-chưa có dự án hoặc tiến trình Desktop.
+chưa có dự án.
 
 <a id="environment"></a>
 
@@ -88,11 +88,12 @@ thực thi chúng. Build hook, script vòng đời package và lệnh tường m
 có thể hành động với quyền của tiến trình local. Bộ quản lý tiến trình
 giới hạn output thu được, quản lý hủy và dọn dẹp.
 
-Dùng `cnr workspace discover` và `cnr task show -- --task ID` cho
-các thao tác governance hiện có. Tùy chọn sau dấu phân cách theo
-[quy trình bảo trì](cirnetrules-local.md). CNR giữ envelope lệnh bảo trì,
-grant của task và thẩm quyền IPC Dashboard. Quy trình release hiện có
-được cấp quyền riêng.
+Dùng `cnr workspace discover` và `cnr task show --task ID` để vận hành governance.
+`--governance-root PATH` chọn checkout authority. Dấu phân cách tương thích
+vẫn nhận tùy chọn bảo trì như `cnr task show -- --task ID`.
+Với lệnh bảo trì, `--project PATH` chọn workspace sản phẩm.
+Xem [quy trình vận hành](cirnetrules-local.md) về cấp quyền và kiểm chứng.
+Release cần ủy quyền riêng.
 
 `--json` trả một tài liệu JSON trên stdout. Output tiến trình native có
 giới hạn và được gửi riêng vào stderr. Mã thoát 0 là thành công, 1 là lỗi

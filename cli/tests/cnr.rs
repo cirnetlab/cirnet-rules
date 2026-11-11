@@ -165,4 +165,54 @@ fn governance_bridge_retains_the_maintenance_envelope() {
         .output()
         .unwrap();
     assert_eq!(json(&bridge, 0), json(&old, 0));
+    let workspace = fixture.0.to_str().unwrap();
+    let direct = fixture.run(&[
+        "--project",
+        workspace,
+        "governance",
+        "validate",
+        "--governance-root",
+        root,
+        "--json",
+    ]);
+    let old = Command::new(env!("CARGO_BIN_EXE_cirnet-governance"))
+        .current_dir(workspace)
+        .args(["validate", "--governance", root, "--workspace", workspace])
+        .output()
+        .unwrap();
+    assert_eq!(json(&direct, 0), json(&old, 0));
+}
+
+#[test]
+fn governance_native_flags_reject_unknown_and_duplicate_options() {
+    let fixture = Fixture::new();
+    let root = env!("CARGO_MANIFEST_DIR");
+    let inspection = fixture.run(&["governance", "inspect", "--governance-root", root, "--json"]);
+    assert!(inspection.stderr.is_empty());
+    assert_eq!(json(&inspection, 0)["status"], "PASS");
+    let agents = fixture.run(&["agent", "list", "--governance-root", root, "--json"]);
+    assert_eq!(json(&agents, 0)["status"], "PASS");
+    let missing = fixture.0.join("missing-legacy.sqlite3");
+    let migration = fixture.run(&[
+        "governance",
+        "migrate",
+        "inspect",
+        "--source",
+        missing.to_str().unwrap(),
+        "--governance-root",
+        root,
+        "--json",
+    ]);
+    assert_eq!(json(&migration, 2)["result"]["status"], "NOT_FOUND");
+
+    for extra in [
+        vec!["--unknown"],
+        vec!["--governance-root", root],
+        vec!["--", "--governance", root],
+        vec!["--yes"],
+    ] {
+        let mut args = vec!["governance", "inspect", "--governance-root", root, "--json"];
+        args.extend(extra);
+        assert_eq!(json(&fixture.run(&args), 1)["status"], "FAIL");
+    }
 }

@@ -1,6 +1,6 @@
 <!-- doc-id: CGACP-DESKTOP-INTERACTION-SPEC -->
-<!-- revision: 1 -->
-<!-- source-sha256: 66c69dc85e45642fdc17a8abec5d9ac968bd6fb618836482ba770f63457c392a -->
+<!-- revision: 2 -->
+<!-- source-sha256: 5d97506cc57b274795d45c27a796bd55fe21f3d409b4d5210228f01e5aa751a9 -->
 <!-- translation-status: synchronized -->
 <a id="acceptance"></a>
 
@@ -24,7 +24,7 @@ Bản Windows ở Git revision 37808be mở CGACP v1 và khởi tạo fixture SQ
 
 ## UX-01 đến UX-40
 
-PASS ghi bằng chứng cho kiểm tra được nêu. NOT_RUN ghi phần chưa thao tác và không tính đạt. Ảnh dùng dữ liệu tạm. Xem [hướng dẫn trạng thái](../../../references/desktop-interaction.md) và [test Qt](../../../../desktop/tests/desktop_test.cpp).
+PASS ghi bằng chứng cho kiểm tra được nêu. NOT_RUN ghi phần chưa thao tác và không tính đạt. Ảnh dùng dữ liệu tạm. Xem [hướng dẫn trạng thái](../../../references/desktop-interaction.md) và [test Qt](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/desktop/tests/desktop_test.cpp).
 
 | ID | Kết quả | Bằng chứng |
 | --- | --- | --- |

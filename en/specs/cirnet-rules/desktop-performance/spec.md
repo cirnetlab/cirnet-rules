@@ -1,5 +1,5 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-ASYNC-SPEC -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="acceptance"></a>
 
 # Desktop request scheduling and performance
@@ -15,6 +15,6 @@ The runtime admits interactive reads separately from work that can wait on Git, 
 - [x] Verify cancellation, slow work isolation, SQLite paging and preservation of write receipts.
 - [x] Measure resources after warm-up and record the bounds and cleanup paths.
 - [x] Run the pinned build, Rust and Qt suites, CLI and governance checks. Record skipped cases separately.
-- [x] Meet the mixed-load heartbeat and apply targets on the verification workload.
+- [ ] Meet the mixed-load heartbeat and apply targets on the verification workload.
 
 [Verification and remaining evidence](verification.md)

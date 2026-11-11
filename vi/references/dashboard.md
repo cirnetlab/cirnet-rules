@@ -1,10 +1,12 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
-<!-- revision: 15 -->
-<!-- source-sha256: fe1555da83fc82762a00024a8f2f73963a71e5b67e6f9d61f42dc038e6fd391d -->
+<!-- revision: 16 -->
+<!-- source-sha256: 5f812401c7b8bc10216904cc6f0674df039592f623292c6890d774c7354f3d47 -->
 <!-- translation-status: synchronized -->
 <a id="operator"></a>
 
 # Dashboard CIRNET RULES
+
+> Hồ sơ lịch sử cho [source lưu trữ](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/vi/references/dashboard.md). Xem [quy trình CLI hiện hành](cirnetrules-local.md) để vận hành.
 
 Phiên bản ứng dụng lấy từ Cargo.
 Tên release ứng viên local là `cirnet-rules-0.1.0`. Rà soát release tách

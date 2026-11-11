@@ -165,6 +165,98 @@ fn changing_plan_makes_existing_grant_stale() {
 }
 
 #[test]
+fn changing_authority_during_an_update_prevents_recording_evidence() {
+    let f = Fixture::new();
+    let descriptor = f.descriptor("ui", "toolbar");
+    let plan = f.0.join(descriptor["plan"].as_str().unwrap());
+    f.create(descriptor);
+    let error = update(&f.0, "toolbar", 1, |record| {
+        fs::write(&plan, "# Revised during verification\n").unwrap();
+        record["evidence"] = json!([{"result":"PASS"}]);
+        Ok(())
+    })
+    .unwrap_err();
+    assert!(error.contains("stale"));
+    let previous = load(&f.0, "toolbar").unwrap();
+    assert_eq!(previous["revision"], 1);
+    assert_eq!(previous["evidence"], json!([]));
+}
+
+#[test]
+fn selected_rule_skill_and_reference_bytes_invalidate_task_authority() {
+    let f = Fixture::new();
+    let mut policy = registry();
+    let inputs = [
+        ("AGENT-ENTRY", "policy", "en/AGENTS.md", json!(["QA-01"])),
+        ("QA-01", "rule", "en/rules/testing.md", json!([])),
+        (
+            "SKILL-work",
+            "skill",
+            "en/skills/work/SKILL.md",
+            json!(["WORK-REF"]),
+        ),
+        ("WORK-REF", "reference", "en/references/work.md", json!([])),
+        (
+            "OTHER-REF",
+            "reference",
+            "en/references/other.md",
+            json!([]),
+        ),
+    ];
+    policy["assets"] = json!({"schema":1,"entries":inputs.iter().map(|(id,kind,path,deps)| {
+        let file = f.0.join(path);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, "reviewed authority\n").unwrap();
+        json!({"id":id,"kind":kind,"path":path,"revision":1,"status":"ACTIVE","depends_on":deps})
+    }).collect::<Vec<_>>()});
+    policy["control_plane"]["entrypoint"] = json!("en/AGENTS.md");
+    policy["control_plane"]["skills"]["WORK"] = json!("en/skills/work/SKILL.md");
+    let bytes = serde_json::to_vec(&policy).unwrap();
+    fs::write(f.0.join("governance.yaml"), &bytes).unwrap();
+    for args in [
+        &["init", "-q"][..],
+        &["add", "--", "en", "governance.yaml"][..],
+    ] {
+        assert!(
+            std::process::Command::new("git")
+                .current_dir(&f.0)
+                .args(["-c", "core.autocrlf=false"])
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    let descriptor = f.descriptor("ui", "toolbar");
+    let mut stale_policy = policy.clone();
+    stale_policy["governance"]["registry_revision"] = json!(2);
+    let error = create(&f.0, descriptor.clone(), &stale_policy).unwrap_err();
+    assert!(error.contains("registry changed"));
+    create(&f.0, descriptor, &policy).unwrap();
+    let task_file = f.0.join(".cirnetrules/tasks/toolbar.json");
+    let task = load_current(&f.0, "toolbar").unwrap();
+    let mut legacy = task.clone();
+    legacy["policy_sha256"] = json!(docs::sha256(&bytes));
+    legacy["evidence"] = json!([{"result":"PASS"}]);
+    fs::write(&task_file, serde_json::to_vec(&legacy).unwrap()).unwrap();
+    assert!(load_current(&f.0, "toolbar").unwrap_err().contains("stale"));
+    assert_eq!(
+        load(&f.0, "toolbar").unwrap()["evidence"],
+        legacy["evidence"]
+    );
+    fs::write(&task_file, serde_json::to_vec(&task).unwrap()).unwrap();
+
+    fs::write(f.0.join("en/references/other.md"), "unrelated drift\n").unwrap();
+    assert!(load_current(&f.0, "toolbar").is_ok());
+    for (_, _, path, _) in &inputs[1..4] {
+        fs::write(f.0.join(path), "changed source bytes\n").unwrap();
+        assert!(load_current(&f.0, "toolbar").unwrap_err().contains("stale"));
+        fs::write(f.0.join(path), "reviewed authority\n").unwrap();
+        assert!(load_current(&f.0, "toolbar").is_ok());
+    }
+}
+
+#[test]
 fn authority_reapproval_requires_explicit_revision_and_resets_evidence() {
     let f = Fixture::new();
     let descriptor = f.descriptor("ui", "toolbar");

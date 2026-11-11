@@ -1,10 +1,12 @@
 <!-- doc-id: CIRNETRULES-INTERACTION-STATE -->
-<!-- revision: 2 -->
-<!-- source-sha256: 5bcc70bd0250243337e71147c97a017769c49e56afae578ee9520c2f1c271ad9 -->
+<!-- revision: 3 -->
+<!-- source-sha256: 97cd64bdc938d41e8be81fba192a9f5a8d406fe3327e903df7366a3a404af416 -->
 <!-- translation-status: synchronized -->
 <a id="interaction-state"></a>
 
 # Trạng thái tương tác Desktop
+
+> Hồ sơ lịch sử cho [source lưu trữ](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/vi/references/desktop-interaction.md). Xem [quy trình CLI hiện hành](cirnetrules-local.md) để vận hành.
 
 | Trạng thái | Hành vi trên Qt Desktop |
 | --- | --- |

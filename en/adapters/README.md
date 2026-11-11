@@ -1,5 +1,5 @@
 <!-- doc-id: adapters -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 
 # Agent bootstrap adapters
 
@@ -33,9 +33,9 @@ to an existing isolated session directory. Use `claude` or `antigravity` in
 place of `codex` for the other surfaces.
 
 ```powershell
-cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --dry-run
-cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action install
-cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action uninstall
+cargo run --locked --bin cirnet-governance -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --dry-run
+cargo run --locked --bin cirnet-governance -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action install
+cargo run --locked --bin cirnet-governance -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action uninstall
 ```
 
 1. Resolve a context for the target checkout. Review the Git identities,
@@ -53,6 +53,36 @@ cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo
    adapter preserves partial stages after an install fails. Review a
    retained stage or stale lock manually and use a fresh isolated session
    to resume while preserving that evidence.
+
+<a id="config-export"></a>
+## Repository configuration
+
+Use a separate bundle directory outside Git, with an existing parent.
+Select the target worktree explicitly. The examples use path placeholders.
+
+```sh
+cnr agent export --repo cirnet-interface --agents codex,claude,antigravity --output NEW_BUNDLE --json
+cnr agent check --bundle NEW_BUNDLE --json
+cnr agent sync --bundle NEW_BUNDLE --target BOUND_WORKTREE --dry-run --json
+cnr agent sync --bundle NEW_BUNDLE --target BOUND_WORKTREE --yes --expect PLAN_DIGEST --task TASK --actor OPERATOR --json
+cnr audit agent --receipt RECEIPT --json
+cnr agent rollback --target BOUND_WORKTREE --receipt RECEIPT --dry-run --json
+cnr agent rollback --target BOUND_WORKTREE --receipt RECEIPT --yes --expect ROLLBACK_DIGEST --task TASK --actor OPERATOR --json
+```
+
+Codex and Antigravity share repository instructions in `AGENTS.md` and
+skills in `.agents/skills`. Claude Code uses `CLAUDE.md` and
+`.claude/skills`. The manifest records byte digests and target capabilities.
+Keep bundle output outside Git. Re-export if the selected source or binding
+changes. Dry-run reports conflicts with existing user files. Applying changes
+requires a current task with exact file-level write grants. Rollback verifies
+the managed bytes before reversing the latest receipt. Writes are atomic per
+file. After an interruption, inspect the receipt before retrying or rolling
+back. Rollback may leave empty parent directories.
+
+Bundle checks provide static evidence. Native discovery requires observing
+the Agent load the instructions and skills in the target worktree. Neither a
+bundle nor a portable handoff changes native permissions or registers hooks.
 
 <a id="adapter-support"></a>
 ## Surface support and verification

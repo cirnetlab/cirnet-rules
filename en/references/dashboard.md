@@ -1,8 +1,10 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-OPERATOR -->
-<!-- revision: 15 -->
+<!-- revision: 16 -->
 <a id="operator"></a>
 
 # CIRNET RULES Dashboard
+
+> Historical record for the [archived source](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/references/dashboard.md). Use the [current CLI workflow](cirnetrules-local.md) for operations.
 
 The application version comes from Cargo.
 The local candidate release title is `cirnet-rules-0.1.0`. Release review is

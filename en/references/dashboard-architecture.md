@@ -1,15 +1,17 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-ARCHITECTURE -->
-<!-- revision: 9 -->
+<!-- revision: 10 -->
 <a id="authority"></a>
 
 # Dashboard architecture and authority
+
+> Historical record for the [archived source](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/references/dashboard-architecture.md). Use the [current CLI workflow](cirnetrules-local.md) for operations.
 
 The Qt Widgets client owns presentation and file dialogs. The Rust runtime
 owns validation, repository and binding IDs, intake, scheduler and SQLite
 writes. Each client launches a verified sibling binary and communicates over
 its inherited private stdio pipes. The JSON line protocol uses request IDs,
 a bounded frame, explicit errors and persisted event cursors. No listening
-TCP endpoint is created. See [IPC schema](../schemas/dashboard-ipc.schema.json).
+TCP endpoint is created. See [IPC schema](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/schemas/dashboard-ipc.schema.json).
 
 This choice keeps the initial operator channel within one OS account.
 The runtime can be started independently for scheduling. A client restart

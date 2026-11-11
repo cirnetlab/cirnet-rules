@@ -874,6 +874,11 @@ pub fn dispatch(root: Option<&Path>, words: &[String], options: &Options) -> Res
             let project = project(root)?;
             Ok(json!({"status":"PASS","events":store::audit_list(project.root())?}))
         }
+        ["audit", "tooling"] => {
+            let project = project(root)?;
+            let events = store::audit_list(project.root())?;
+            Ok(json!({"schema":1,"status":"PASS","source":"tooling","record":{"events":events}}))
+        }
         _ => Err("Unknown CNR tooling command".into()),
     }
 }

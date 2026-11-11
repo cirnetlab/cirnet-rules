@@ -1,7 +1,7 @@
 {
   "governance": {
     "version": "0.1.0",
-    "registry_revision": 1,
+    "registry_revision": 2,
     "locale": "en"
   },
   "baseline": {
@@ -171,6 +171,276 @@
       "ownership": "local CIRNETRULES registry, routing, authority and verification",
       "depends_on": []
     }
+  },
+  "assets": {
+    "schema": 1,
+    "entries": [
+      {
+        "id": "AGENT-ENTRY",
+        "kind": "policy",
+        "path": "en/AGENTS.md",
+        "revision": 2,
+        "status": "ACTIVE",
+        "depends_on": [
+          "CIRNETRULES-LOCAL",
+          "CIRNETRULES-ROUTING",
+          "SEC-01",
+          "QA-01"
+        ]
+      },
+      {
+        "id": "POLICY",
+        "kind": "policy",
+        "path": "en/policies/governance.md",
+        "revision": 2,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "ARCH-01",
+        "kind": "rule",
+        "path": "en/rules/architecture.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "LANG-01",
+        "kind": "rule",
+        "path": "en/rules/coding.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "DOC-01",
+        "kind": "rule",
+        "path": "en/rules/documentation.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SEC-01",
+        "kind": "rule",
+        "path": "en/rules/security.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "QA-01",
+        "kind": "rule",
+        "path": "en/rules/testing.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "ROLE-architect",
+        "kind": "profile",
+        "path": "en/profiles/architect.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "ROLE-developer",
+        "kind": "profile",
+        "path": "en/profiles/developer.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": [
+          "POLICY"
+        ]
+      },
+      {
+        "id": "PRODUCT-PROFILES",
+        "kind": "profile",
+        "path": "en/profiles/product-architecture.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "ROLE-release-maintainer",
+        "kind": "profile",
+        "path": "en/profiles/release-maintainer.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "ROLE-reviewer",
+        "kind": "profile",
+        "path": "en/profiles/reviewer.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "ROLE-verifier",
+        "kind": "profile",
+        "path": "en/profiles/verifier.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-audit",
+        "kind": "skill",
+        "path": "en/skills/audit/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-bilingual-sync",
+        "kind": "skill",
+        "path": "en/skills/bilingual-sync/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-contract-change",
+        "kind": "skill",
+        "path": "en/skills/contract-change/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-debugging",
+        "kind": "skill",
+        "path": "en/skills/debugging/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-hardware-evidence",
+        "kind": "skill",
+        "path": "en/skills/hardware-evidence/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-implementation",
+        "kind": "skill",
+        "path": "en/skills/implementation/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": [
+          "QA-01"
+        ]
+      },
+      {
+        "id": "SKILL-refactoring",
+        "kind": "skill",
+        "path": "en/skills/refactoring/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-release-readiness",
+        "kind": "skill",
+        "path": "en/skills/release-readiness/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "SKILL-verification",
+        "kind": "skill",
+        "path": "en/skills/verification/SKILL.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "CIRNETRULES-LOCAL",
+        "kind": "reference",
+        "path": "en/references/cirnetrules-local.md",
+        "revision": 4,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "CNR-OPERATOR",
+        "kind": "reference",
+        "path": "en/references/cnr.md",
+        "revision": 2,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "HANDOFF",
+        "kind": "reference",
+        "path": "en/references/handoff.md",
+        "revision": 2,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "MIGRATION-MAP",
+        "kind": "reference",
+        "path": "en/references/migration.md",
+        "revision": 2,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "STANDARDS",
+        "kind": "reference",
+        "path": "en/references/standards.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "VERIFY-LOCAL",
+        "kind": "reference",
+        "path": "en/references/verification.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "CIRNETRULES-ROUTING",
+        "kind": "reference",
+        "path": "en/routing/README.md",
+        "revision": 2,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "ADR-0001",
+        "kind": "reference",
+        "path": "en/references/adr-0001.md",
+        "revision": 1,
+        "status": "DRAFT",
+        "depends_on": []
+      },
+      {
+        "id": "HOOKS",
+        "kind": "hook",
+        "path": "en/hooks/README.md",
+        "revision": 2,
+        "status": "ACTIVE",
+        "depends_on": []
+      },
+      {
+        "id": "COMMANDS",
+        "kind": "command",
+        "path": "en/commands/README.md",
+        "revision": 1,
+        "status": "ACTIVE",
+        "depends_on": []
+      }
+    ]
   },
   "context": {
     "common": [
@@ -406,6 +676,162 @@
     }
   ],
   "document_states": {
+    "en/plans/cirnet-rules/conversation-automation-deletion/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/dashboard-restore-ci/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/dashboard-ux/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/dashboard/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-appearance-customization/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-interaction/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-launch/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-live-appearance-storage/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-performance-lifecycle/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-performance/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-row-hover-toast/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-settings-refinement/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/desktop-status-visuals/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/identity-cutover/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/openrules-governance/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/plans/cirnet-rules/sidebar-footer/plan.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/references/adapter-capabilities.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/references/dashboard-architecture.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/references/dashboard-release.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/references/dashboard.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/references/desktop-interaction.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/references/governance-workspace.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/conversation-automation-deletion/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/dashboard-restore-ci/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/dashboard-ux/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/dashboard/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-appearance-customization/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-interaction/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-launch/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-live-appearance-storage/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-performance-lifecycle/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-performance/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-performance/verification.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-row-hover-toast/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-settings-refinement/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/desktop-status-visuals/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/identity-cutover/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/openrules-governance/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
+    "en/specs/cirnet-rules/sidebar-footer/spec.md": {
+      "state": "RETIRED",
+      "review": "Retired by the CLI-only refactor; historical review data"
+    },
     "en/references/adr-0001.md": {
       "state": "DRAFT",
       "review": "CIRNETLAB owner approval required before adopting additional proposals"

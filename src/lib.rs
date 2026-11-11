@@ -1,7 +1,11 @@
 mod adapter;
+mod agent_config;
 mod application_identity;
+mod audit;
+mod authority;
 mod docs;
 mod lifecycle;
+mod migration;
 mod policy;
 mod release;
 mod runner;

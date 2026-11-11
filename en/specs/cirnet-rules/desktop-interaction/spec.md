@@ -1,5 +1,5 @@
 <!-- doc-id: CGACP-DESKTOP-INTERACTION-SPEC -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="acceptance"></a>
 
 # Desktop interaction and Settings verification
@@ -22,7 +22,7 @@ The Windows build at Git revision 37808be opened CGACP v1 and initialized a priv
 
 ## UX-01 through UX-40
 
-PASS records evidence for the stated check. NOT_RUN records an unexercised part without counting it as a pass. The screenshot evidence uses disposable data. See the [state guide](../../../references/desktop-interaction.md) and [Qt tests](../../../../desktop/tests/desktop_test.cpp).
+PASS records evidence for the stated check. NOT_RUN records an unexercised part without counting it as a pass. The screenshot evidence uses disposable data. See the [state guide](../../../references/desktop-interaction.md) and [Qt tests](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/desktop/tests/desktop_test.cpp).
 
 | ID | Result | Evidence |
 | --- | --- | --- |

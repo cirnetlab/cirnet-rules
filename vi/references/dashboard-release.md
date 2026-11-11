@@ -1,10 +1,12 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-RELEASE -->
-<!-- revision: 1 -->
-<!-- source-sha256: 44199a9e85f555d87306cc63a88f357c7f53613417fd69e37bc7d55adad48c4f -->
+<!-- revision: 2 -->
+<!-- source-sha256: a2d503b17f77d049158a74bc5573bd617c0ddfb00e0d0fb833ea991f2b91c271 -->
 <!-- translation-status: synchronized -->
 <a id="candidate"></a>
 
 # Ứng viên ứng dụng Dashboard
+
+> Hồ sơ lịch sử cho [source lưu trữ](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/vi/references/dashboard-release.md). Xem [quy trình CLI hiện hành](cirnetrules-local.md) để vận hành.
 
 | Định danh | Ứng viên |
 | --- | --- |

@@ -53,9 +53,9 @@ fn source_record(root: &Path, id: &str) -> Result<Value, String> {
     source.ok_or_else(|| "No legacy task matches the reviewed descriptor ID".into())
 }
 
-fn preview(root: &Path, descriptor: Value) -> Result<Value, String> {
+fn preview(root: &Path, descriptor: Value, registry: &Value) -> Result<Value, String> {
     let source = source_record(root, text(&descriptor["id"]))?;
-    let proposal = new_record(root, descriptor)?;
+    let proposal = new_record(root, descriptor, registry)?;
     let mut review = json!({"source": source, "proposal": proposal});
     review["review_sha256"] = json!(descriptor_hash(&review)?);
     Ok(review)
@@ -76,7 +76,7 @@ pub(super) fn recover(
                 .into(),
         );
     }
-    let mut checked = preview(root, record.clone())?;
+    let mut checked = preview(root, record.clone(), registry)?;
     if review == "preview" {
         checked["status"] = json!("PASS");
         return Ok(checked);
@@ -87,7 +87,7 @@ pub(super) fn recover(
     let id = text(&record["id"]).to_owned();
     let key = id.to_ascii_lowercase();
     let _lock = lock(root, &key)?;
-    let mut checked = preview(root, record)?;
+    let mut checked = preview(root, record, registry)?;
     if checked["review_sha256"] != review {
         return Err("Legacy record or recovery proposal changed; review a fresh preview".into());
     }

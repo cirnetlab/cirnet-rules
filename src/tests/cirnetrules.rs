@@ -19,21 +19,22 @@ impl Fixture {
         let product = workspace.join("Interface feature worktree");
         fs::create_dir_all(&governance).unwrap();
         fs::create_dir_all(&product).unwrap();
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"));
         for path in [
             "VERSION",
             "governance.yaml",
             "en/schemas/governance.schema.json",
-            "en/AGENTS.md",
-            "en/skills/implementation/SKILL.md",
         ] {
-            Self::put(
-                &governance,
-                path,
-                &fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)).unwrap(),
-            );
+            Self::put(&governance, path, &fs::read(source.join(path)).unwrap());
         }
         let mut registry: Value =
             serde_json::from_slice(&fs::read(governance.join("governance.yaml")).unwrap()).unwrap();
+        for asset in registry["assets"]["entries"].as_array().unwrap() {
+            if asset["status"] == "ACTIVE" {
+                let path = asset["path"].as_str().unwrap();
+                Self::put(&governance, path, &fs::read(source.join(path)).unwrap());
+            }
+        }
         let product_registry = registry["repositories"]["cirnet-interface"]
             .as_object_mut()
             .unwrap();

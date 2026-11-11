@@ -1,5 +1,6 @@
 use crate::{
-    adapter, application_identity, docs, lifecycle, policy, release, runner, tasks, workspace,
+    adapter, agent_config, application_identity, audit, authority, docs, lifecycle, migration,
+    policy, release, runner, tasks, workspace,
 };
 use serde_json::{Value, json};
 use std::{
@@ -93,6 +94,27 @@ fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
 
 fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, String> {
     let root = governance_root(args.remove("governance"))?;
+    if let Some(action) = command.strip_prefix("authority-") {
+        return authority::run(&root, action, &args);
+    }
+    if let Some(action) = command.strip_prefix("agent-") {
+        return agent_config::run(&root, action, &args);
+    }
+    if let Some(action) = command.strip_prefix("migration-") {
+        if matches!(action, "apply" | "rollback") && args.remove("yes").as_deref() != Some("true") {
+            return Err(format!("Migration {action} requires --yes"));
+        }
+        return migration::run(&root, action, &args);
+    }
+    if let Some(source) = command.strip_prefix("audit-") {
+        let record = match source {
+            "task" => audit::task(&root, one_option(&args, "task")?),
+            "agent" => agent_config::audit(&root, one_option(&args, "receipt")?),
+            "migration" => migration::audit(&root, one_option(&args, "receipt")?),
+            _ => return Err("Unknown audit source".into()),
+        }?;
+        return Ok(json!({"schema":1,"status":record["status"],"source":source,"record":record}));
+    }
     let mut registry = policy::registry(&root)?;
     if !matches!(
         command,
@@ -171,6 +193,24 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
         }
         _ => {}
     }
+    let permitted: &[&str] = match command {
+        "validate" | "check-translations" | "check-versions" | "check-drift" | "check-release"
+        | "doctor" => &["workspace"],
+        "context" => &["workspace", "repo", "task", "risk"],
+        "bootstrap" => &[
+            "workspace",
+            "repo",
+            "task",
+            "risk",
+            "agent",
+            "session",
+            "action",
+        ],
+        _ => return Err("Unknown command".into()),
+    };
+    if let Some(key) = args.keys().find(|key| !permitted.contains(&key.as_str())) {
+        return Err(format!("Unknown argument --{key}"));
+    }
     let workspace = args.remove("workspace").map(PathBuf::from);
     let repository = args.remove("repo");
     let task = args.remove("task").unwrap_or_else(|| "audit".into());
@@ -178,9 +218,6 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
     let agent = args.remove("agent");
     let session = args.remove("session").map(PathBuf::from);
     let action = args.remove("action").unwrap_or_else(|| "dry-run".into());
-    if let Some(key) = args.keys().next() {
-        return Err(format!("Unknown argument --{key}"));
-    }
     match command {
         "validate" => {
             policy::validate(&root, &registry)?;
@@ -256,6 +293,15 @@ fn execute(command: &str, mut args: BTreeMap<String, String>) -> Result<Value, S
     }
 }
 
+fn one_option<'a>(args: &'a BTreeMap<String, String>, option: &str) -> Result<&'a str, String> {
+    if args.len() != 1 {
+        return Err(format!("Expected exactly --{option}"));
+    }
+    args.get(option)
+        .map(String::as_str)
+        .ok_or_else(|| format!("Missing --{option}"))
+}
+
 fn prepare_release_registry(root: &Path, registry: &mut Value) -> Result<(), String> {
     policy::validate(root, registry)?;
     let (commit, clean) = policy::checkout(root)?;
@@ -328,15 +374,25 @@ fn task_bootstrap(
     })
 }
 
-fn args(raw: impl IntoIterator<Item = String>) -> Result<BTreeMap<String, String>, String> {
+fn args(
+    command: &str,
+    raw: impl IntoIterator<Item = String>,
+) -> Result<BTreeMap<String, String>, String> {
     let mut raw = raw.into_iter();
     let mut parsed = BTreeMap::new();
     while let Some(arg) = raw.next() {
         let Some(key) = arg.strip_prefix("--") else {
             return Err("Expected a named option".into());
         };
-        let (key, value) = if key == "dry-run" {
+        let (key, value) = if key == "dry-run" && command.starts_with("agent-") {
+            ("dry-run", "true".to_owned())
+        } else if key == "dry-run" {
             ("action", "dry-run".to_owned())
+        } else if key == "yes"
+            && (command.starts_with("agent-")
+                || matches!(command, "migration-apply" | "migration-rollback"))
+        {
+            ("yes", "true".to_owned())
         } else {
             let value = raw
                 .next()
@@ -347,6 +403,9 @@ fn args(raw: impl IntoIterator<Item = String>) -> Result<BTreeMap<String, String
         if parsed.insert(key.to_owned(), value).is_some() {
             return Err("Duplicate option".into());
         }
+    }
+    if parsed.contains_key("task") && parsed.contains_key("id") {
+        return Err("Choose one task identifier option".into());
     }
     Ok(parsed)
 }
@@ -383,20 +442,36 @@ pub fn maintenance_main() -> ExitCode {
 }
 
 pub fn run(command: &str, argv: impl IntoIterator<Item = String>) -> (u8, Value) {
-    let result = if COMMANDS.contains(&command) {
-        args(argv).and_then(|args| execute(command, args))
+    let result = if COMMANDS.contains(&command)
+        || matches!(
+            command,
+            "migration-inspect"
+                | "migration-export"
+                | "migration-validate"
+                | "migration-preview"
+                | "migration-apply"
+                | "migration-rollback"
+                | "audit-task"
+                | "authority-inspect"
+                | "authority-context"
+                | "agent-list"
+                | "agent-export"
+                | "agent-check"
+                | "agent-sync"
+                | "agent-rollback"
+                | "audit-agent"
+                | "audit-migration"
+        ) {
+        args(command, argv).and_then(|args| execute(command, args))
     } else {
         Err("Unknown command".into())
     };
     let report = result.unwrap_or_else(|reason| json!({"status":"FAIL","reason":reason}));
-    let status = report["status"]
-        .as_str()
-        .filter(|status| matches!(*status, "PASS" | "BLOCKED" | "NOT_RUN" | "FAIL"))
-        .unwrap_or("FAIL");
-    let code = match status {
-        "PASS" => 0,
-        "BLOCKED" | "NOT_RUN" => 2,
-        _ => 1,
+    let (status, code) = match report["status"].as_str() {
+        Some("PASS") => ("PASS", 0),
+        Some("BLOCKED") => ("BLOCKED", 2),
+        Some("NOT_RUN" | "NOT_FOUND") => ("NOT_RUN", 2),
+        _ => ("FAIL", 1),
     };
     (
         code,

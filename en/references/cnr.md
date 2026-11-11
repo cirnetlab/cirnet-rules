@@ -1,10 +1,10 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
 
-CNR is the CIRNET RULES terminal for runtimes, SDKs and development tools.
+CNR is the CIRNET RULES CLI for governance, environments and development tools.
 Build it with the repository's pinned Rust and Cargo:
 
 ~~~sh
@@ -18,7 +18,7 @@ interactive terminal. Use the arrow keys, Enter, slash for search, and Esc
 or Ctrl+C to leave. `--lang vi` selects Vietnamese terminal labels and
 command summaries. `--no-banner` selects the compact header and `NO_COLOR`
 removes color. A noninteractive launch prints help. The version, help and
-catalog can run without a project or a Desktop process.
+catalog can run independently of a project.
 
 <a id="environment"></a>
 
@@ -87,11 +87,12 @@ engine can enforce them. Build hooks, package lifecycle scripts and
 explicit commands can act with the local process's permissions. The
 process harness bounds captured output and owns cancellation and cleanup.
 
-Use `cnr workspace discover` and `cnr task show -- --task ID` for
-existing governance operations. Options after the delimiter follow the
-[maintenance workflow](cirnetrules-local.md). CNR leaves maintenance
-command envelopes, task grants, and Dashboard IPC authority in place.
-The existing release workflow remains separately authorized.
+Use `cnr workspace discover` and `cnr task show --task ID` for governance.
+`--governance-root PATH` selects the authority checkout. The compatibility
+delimiter still accepts maintenance options such as `cnr task show -- --task ID`.
+For maintenance commands `--project PATH` selects the product workspace.
+See the [operator workflow](cirnetrules-local.md) for grants and verification.
+Release requires separate authorization.
 
 `--json` returns one JSON document on stdout. Native process output is
 bounded and sent separately to stderr. Exit 0 means success, 1 means

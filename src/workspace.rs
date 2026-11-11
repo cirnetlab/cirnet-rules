@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub(crate) use binding::workspace_path;
 pub use binding::{Binding, resolve};
 pub(crate) use context_packet::contains_known_secrets;
 
@@ -397,7 +398,12 @@ fn make_route(
     Ok(route)
 }
 
-fn configuration(registry: &Value, key: &str, fallback: u64, max: u64) -> Result<u64, String> {
+pub(crate) fn configuration(
+    registry: &Value,
+    key: &str,
+    fallback: u64,
+    max: u64,
+) -> Result<u64, String> {
     match registry["control_plane"]["budgets"].get(key) {
         None => Ok(fallback),
         Some(value) => value

@@ -1,8 +1,10 @@
 <!-- doc-id: CIRNETRULES-ADAPTER-CAPABILITIES -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="adapter-capabilities"></a>
 
 # External engine interoperability
+
+> Historical record for the [archived source](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/references/adapter-capabilities.md). Use the [current CLI workflow](cirnetrules-local.md) for operations.
 
 CIRNETRULES can inspect a selected local engine without creating a session. A matching probe confirms that the peer reported the pinned version and used the expected response shape. Authentication, sandboxing, approval enforcement, and agent execution need separate evidence. Governance authoring works offline.
 

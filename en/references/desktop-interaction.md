@@ -1,8 +1,10 @@
 <!-- doc-id: CIRNETRULES-INTERACTION-STATE -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="interaction-state"></a>
 
 # Desktop interaction states
+
+> Historical record for the [archived source](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/references/desktop-interaction.md). Use the [current CLI workflow](cirnetrules-local.md) for operations.
 
 | State | Qt desktop behavior |
 | --- | --- |

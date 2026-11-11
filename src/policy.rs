@@ -98,6 +98,7 @@ pub fn registry(root: &Path) -> Result<Value, String> {
     {
         return Err("Governance registry, VERSION and executable versions differ".into());
     }
+    crate::authority::validate_catalog(&registry)?;
     Ok(registry)
 }
 
@@ -152,6 +153,7 @@ fn text(value: &Value) -> &str {
 
 pub fn validate(root: &Path, registry: &Value) -> Result<(), String> {
     crate::release::validate_profile(registry)?;
+    crate::authority::validate(root, registry)?;
     let mut migrated = BTreeSet::new();
     for entry in registry["migration"].as_array().unwrap() {
         let from = text(&entry["from"]);
@@ -450,7 +452,7 @@ pub fn context(
     task: &str,
     risk: &str,
 ) -> Result<Value, String> {
-    let selection = registry["context"]["tasks"]
+    registry["context"]["tasks"]
         .get(task)
         .ok_or("Unknown governance task")?;
     if !matches!(risk, "normal" | "high" | "hardware") {
@@ -461,28 +463,17 @@ pub fn context(
         return Err("Governance origin does not match CIRNETLAB".into());
     }
     let (commit, clean) = checkout(root)?;
-    let mut paths: Vec<&str> = registry["context"]["common"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(text)
-        .collect();
-    paths.extend([text(&selection["profile"]), text(&selection["skill"])]);
-    if matches!(risk, "high" | "hardware") {
-        paths.push("en/profiles/reviewer.md");
-    }
-    if risk == "hardware" {
-        paths.push("en/skills/hardware-evidence/SKILL.md");
-    }
+    let mut documents = crate::authority::legacy_context(root, registry, repo, task, risk)?
+        .into_iter()
+        .map(|source| {
+            let content = std::str::from_utf8(&source.bytes).expect("validated English authority");
+            json!({"path":source.path, "sha256":crate::docs::sha256(content.replace("\r\n", "\n").as_bytes())})
+        })
+        .collect::<Vec<_>>();
     let evidence = &registry["repositories"][repo];
-    paths.extend([text(&evidence["plan"]), text(&evidence["spec"])]);
-    let mut seen = BTreeSet::new();
-    let mut documents = Vec::new();
-    for path in paths {
-        if seen.insert(path) {
-            let source = read(&english(root, registry, path)?)?;
-            documents.push(json!({"path":path, "sha256":crate::docs::sha256(source.as_bytes())}));
-        }
+    for path in [text(&evidence["plan"]), text(&evidence["spec"])] {
+        let source = read(&english(root, registry, path)?)?;
+        documents.push(json!({"path":path, "sha256":crate::docs::sha256(source.as_bytes())}));
     }
     Ok(json!({
         "governanceRoot":root,"productRoot":product,"repository":repo,"task":task,"risk":risk,

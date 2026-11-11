@@ -10,21 +10,6 @@
       }
     },
     {
-      "path": "cli/packaging/package-dashboard.ps1",
-      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
-      "matches": {
-        "bc1e160c56a4cecea19455f0ae8a9d7164bc85cc34e08b82ab92ae69b6f9a9ab": 1
-      }
-    },
-    {
-      "path": "en/CHANGELOG.md",
-      "reason": "Earlier change or verification identifiers retained as history.",
-      "matches": {
-        "1840f6faf5c7242f4deb64474b6e620e6c54e85784fe24b83531e94d3446ef3a": 1,
-        "3e9c3bb41bb78f9e950ece98edd5078c0071d53859886c9c8289c74f0d032cf8": 1
-      }
-    },
-    {
       "path": "en/plans/cirnet-rules/cgacp/plan.md",
       "reason": "Historical plan or specification retained at its original path and contents.",
       "matches": {
@@ -124,12 +109,11 @@
     },
     {
       "path": "en/references/cirnetrules-identity.md",
-      "reason": "Operator instructions describe previous data generations and recovery.",
+      "reason": "Recovery guide identifies predecessor data generations.",
       "matches": {
-        "381903d082b91169dab58cf8c850bcfb65bdd0be0cdf45ccb0e589fccc588081": 1,
-        "a972d73955025695daa85a6e0fee80b0cf87ed9411d8dcb556ca44935407e44d": 1,
-        "b4bcdafb6589ce654e4744aa2ba4353363a5e356d08413c71ac57567abd9a091": 1,
-        "c3bff303e49d9055aefe69c9e975ac7da10cfc0465bf743496c86d0d069cf821": 1
+        "2342575dfc8a7a491e787dff420197183b6af7098922f8b1c475ff7d16bba1a5": 1,
+        "26d274fe8111d1464035dd0990622cda02fc55f79c0eb03fed2e0bb43dad0a24": 1,
+        "6734261db91aaa6a8a5043bfad2a05844c1b3e4d04ed894d054ae4ea9bcadf12": 1
       }
     },
     {
@@ -255,52 +239,18 @@
       }
     },
     {
-      "path": "src/dashboard/catalog/tests.rs",
-      "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
+      "path": "governance.yaml",
+      "reason": "Retired records are named exactly to keep them outside active authority.",
       "matches": {
-        "f3475836554459604f5f1e894ae9aa8a9c7fdea4bc406cb4f10f5dc1588a118c": 1
+        "0457d5b5a7f58209ac6ab0abed15ad5e0dfafe35e8361a2f32004a58e58effa6": 1,
+        "97a529d5eb9096fd1e2bbd97b490795c674573690fbcf451637e36058568f0ad": 1
       }
     },
     {
-      "path": "src/dashboard/identity.rs",
-      "reason": "Read-only predecessor discovery, lineage validation or evidence archive.",
+      "path": "src/agent_config/tests.rs",
+      "reason": "Fixture verifies that an unrecovered legacy task store blocks Agent configuration writes.",
       "matches": {
-        "478ac0c617e561a5cd2638c9b2b31f98d8de3c80111ea6563fdb2ce815209973": 1,
-        "7574121a1de33660298b967bab8cfdafda7fa0a1d110fa4459b6e9c36b89b8b7": 1,
-        "a350bd223abe7b692b2f0cc0ceb1b750cd519b9cd2c3e859e218ccf3cf58cc6c": 1,
-        "d8d0d8289c9e8eb1530b0f4452704e95d591f41be62b6f5677a1fa40e714b25f": 1,
-        "e78eeb33fe14140bae01724d612d466f4feb8be64dbc3b764ee99d5edd24e728": 1,
-        "e9d3de4ba24c089d88838b7135dae11e978330daf252e358012e69da72daec14": 1
-      }
-    },
-    {
-      "path": "src/dashboard/identity_tests.rs",
-      "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
-      "matches": {
-        "41eb6ac13018b2889fe3e9caec5effa01bdc59b88517f5e626000f769bf0e33b": 1,
-        "87ca815d36c6d90752633d7ed1f0042e7817660402c2796776bd60512cfc78e1": 1,
-        "9caeb8dc599d7e3349bcc85249aab86bfa6e467a732d727502e65b1198f475cd": 1,
-        "a2ad6c362ef6152d3e5c5aba939000b439f760a26ab09742717746fdc5442ff8": 1,
-        "a87d5e2b73342e32a2f951255841f5b0dff3e2bed3fee87ab03a821ff2fe1c21": 1,
-        "cefd4ef618678fff853ba759ebe5f8bbb0841b6283ee6127e2a6582c144690d5": 1,
-        "dcaae6fe965c78cf63660f1b49cc7afc8bcadef38110479d74ae7c18ba5a709a": 1,
-        "ebfd001f16b847771b2a0015099dd6de08f243a6a6b0ccd1206866228d18ddd2": 2,
-        "fa066e883f996f875993f415d86f72f84f8bfae74054e812dd744f178ba788a3": 1
-      }
-    },
-    {
-      "path": "src/dashboard/legacy.rs",
-      "reason": "Read-only predecessor discovery, lineage validation or evidence archive.",
-      "matches": {
-        "ce24baa9a8afcdff011f4637abf31e148b5d7035d482fd4ab9f1f5807ba83fef": 1
-      }
-    },
-    {
-      "path": "src/dashboard/sessions.rs",
-      "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
-      "matches": {
-        "0536e877b4b023365627c57a6214bc130cfb66719afdb1445cadd84723a90331": 1,
-        "bb94bf12c6107f2ae85812905633353eb41cb923a35212373b7691f600274f95": 1
+        "65f8c3e67abfacf0ceabc24d30726abf8be0f83adb467ad80482ccd7c406934a": 1
       }
     },
     {
@@ -330,26 +280,11 @@
       }
     },
     {
-      "path": "src/tests/dashboard.rs",
-      "reason": "Fixture covers retired inputs, payload preservation or protocol rejection.",
-      "matches": {
-        "20218689a36fea88507eb27965b84b91e850ffd27e5ba9ea03e8ff510a62191d": 1
-      }
-    },
-    {
       "path": "src/workspace/context_packet.rs",
       "reason": "Guard keeps retired private state out of active task scope, Git or packaging.",
       "matches": {
         "a8bd7407c6fc532bd0f0bd26100f9e51fca37f83ca77cc2badf1e349ccaec3f9": 1,
         "feace77dd34d91a445d1d397c33b316a639e54dee15ef024a316a632a8109dac": 1
-      }
-    },
-    {
-      "path": "vi/CHANGELOG.md",
-      "reason": "Earlier change or verification identifiers retained as history.",
-      "matches": {
-        "19d0323f5d969c2765fb8c192a90361d7d98eaa1ecce5af2a779bc69e81519fe": 1,
-        "b031052c5cf456c21d98541594c8ffa93d5f7a8dfeee0512589c1594ca943672": 1
       }
     },
     {
@@ -452,13 +387,11 @@
     },
     {
       "path": "vi/references/cirnetrules-identity.md",
-      "reason": "Operator instructions describe previous data generations and recovery.",
+      "reason": "Recovery guide identifies predecessor data generations.",
       "matches": {
-        "215c3bd6d2889ea9eec297dbfad91245a16953b15883c10435b7b1be260d2352": 1,
-        "3e6398ffa88a45165ebbb2bf9ddc46da0f354d2ae33eb583f3ae920c7b3a2159": 1,
-        "e5aa58fed41812671a2bb48e518b32c9127e302e77687a71ce706817b31cf2ba": 1,
-        "e715704cfe978f3871e1517294b17e5ec42ad316f7afc7a9fabb4c9c3e5678f2": 1,
-        "f9d7d3519e86dc6512261c04d1aa7eab963d81ac9044a0e6a67934898b749dd6": 1
+        "2342575dfc8a7a491e787dff420197183b6af7098922f8b1c475ff7d16bba1a5": 1,
+        "26d274fe8111d1464035dd0990622cda02fc55f79c0eb03fed2e0bb43dad0a24": 1,
+        "c259d1a53870c8c40d090a761e3fad73bed3ec0cf189abc8e19c76d20cc82dc2": 1
       }
     },
     {

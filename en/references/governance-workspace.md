@@ -1,8 +1,10 @@
 <!-- doc-id: CIRNETRULES-GOVERNANCE-WORKSPACE -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="workspace"></a>
 
 # Governance workspace
+
+> Historical record for the [archived source](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/references/governance-workspace.md). Use the [current CLI workflow](cirnetrules-local.md) for operations.
 
 Open **Settings → Configuration**. The Library uses one paged catalog for skills, rules, profiles, references, policies, commands and hooks. Filter by kind or search by name. Select a row to load its current draft, if any, or its published revision. The Agents & Runtime page retains diagnostics and the current execution limits.
 

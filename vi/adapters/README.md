@@ -1,6 +1,6 @@
 <!-- doc-id: adapters -->
-<!-- revision: 2 -->
-<!-- source-sha256: d2de891719e718e4747945df86775d555fa976a8d551a7f00ae72ce61b4b8984 -->
+<!-- revision: 3 -->
+<!-- source-sha256: 9576c47190bc93da838af607930a3dcb283ccbb833fa70d914bde8b1ea802a5f -->
 <!-- translation-status: synchronized -->
 
 # Adapter khởi tạo ngữ cảnh Agent
@@ -34,9 +34,9 @@ thành thư mục phiên cô lập đã tồn tại. Dùng `claude` hoặc `anti
 thay `codex` cho các môi trường còn lại.
 
 ```powershell
-cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --dry-run
-cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action install
-cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action uninstall
+cargo run --locked --bin cirnet-governance -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --dry-run
+cargo run --locked --bin cirnet-governance -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action install
+cargo run --locked --bin cirnet-governance -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo cirnet-remote --task audit --risk normal --agent codex --session "$env:CIRNET_ADAPTER_SESSION" --action uninstall
 ```
 
 1. Phân giải ngữ cảnh cho checkout đích. Rà soát định danh Git, danh sách
@@ -54,6 +54,36 @@ cargo run --locked -- bootstrap --workspace "$env:CIRNET_AUDIT_WORKSPACE" --repo
    giữ lại gói chuẩn bị dở dang khi cài đặt thất bại. Rà soát thủ công vùng
    chuẩn bị còn lại hoặc khóa cũ, rồi dùng phiên cô lập mới để tiếp tục và
    giữ bằng chứng cũ.
+
+<a id="config-export"></a>
+## Cấu hình repository
+
+Dùng thư mục bundle riêng ngoài Git, với thư mục cha đã tồn tại. Chỉ định
+worktree đích. Thay các đường dẫn mẫu trong lệnh bên dưới.
+
+```sh
+cnr agent export --repo cirnet-interface --agents codex,claude,antigravity --output NEW_BUNDLE --json
+cnr agent check --bundle NEW_BUNDLE --json
+cnr agent sync --bundle NEW_BUNDLE --target BOUND_WORKTREE --dry-run --json
+cnr agent sync --bundle NEW_BUNDLE --target BOUND_WORKTREE --yes --expect PLAN_DIGEST --task TASK --actor OPERATOR --json
+cnr audit agent --receipt RECEIPT --json
+cnr agent rollback --target BOUND_WORKTREE --receipt RECEIPT --dry-run --json
+cnr agent rollback --target BOUND_WORKTREE --receipt RECEIPT --yes --expect ROLLBACK_DIGEST --task TASK --actor OPERATOR --json
+```
+
+Codex và Antigravity dùng chung chỉ dẫn repository trong `AGENTS.md`
+và skill trong `.agents/skills`. Claude Code dùng `CLAUDE.md` và
+`.claude/skills`. Manifest ghi digest theo byte và khả năng của đích.
+Giữ đầu ra bundle ngoài Git. Xuất lại nếu nguồn đã chọn hoặc binding thay
+đổi. Dry-run báo xung đột với tệp người dùng. Áp dụng thay đổi cần task hiện
+hành với quyền ghi từng tệp chính xác. Rollback xác minh byte của tệp được
+quản lý trước khi đảo thay đổi theo biên nhận mới nhất. Ghi nguyên tử theo
+từng tệp. Sau gián đoạn, kiểm tra biên nhận trước khi chạy lại hoặc rollback.
+Rollback có thể để lại thư mục cha rỗng.
+
+Kiểm tra bundle cung cấp bằng chứng tĩnh. Native discovery cần quan sát Agent
+nạp chỉ dẫn và skill tại worktree đích. Bundle và gói bàn giao đều giữ nguyên
+quyền native và không đăng ký hook.
 
 <a id="adapter-support"></a>
 ## Hỗ trợ từng môi trường và kiểm chứng

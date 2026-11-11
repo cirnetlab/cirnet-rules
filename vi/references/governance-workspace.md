@@ -1,10 +1,12 @@
 <!-- doc-id: CIRNETRULES-GOVERNANCE-WORKSPACE -->
-<!-- revision: 1 -->
-<!-- source-sha256: 00eabfac828261a9c5eecd4219726a61f0f924e45228b9a09fbf4f9e619ea3cb -->
+<!-- revision: 2 -->
+<!-- source-sha256: a46eab1651412987fbfc70c174542142cbacd16320a3682d667846fc0c88e658 -->
 <!-- translation-status: synchronized -->
 <a id="workspace"></a>
 
 # Không gian quản trị governance
+
+> Hồ sơ lịch sử cho [source lưu trữ](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/vi/references/governance-workspace.md). Xem [quy trình CLI hiện hành](cirnetrules-local.md) để vận hành.
 
 Mở **Cài đặt → Cấu hình**. Thư viện dùng một danh mục phân trang cho kỹ năng, quy tắc, hồ sơ, tham chiếu, chính sách, lệnh và hook. Lọc theo loại hoặc tìm theo tên. Chọn một hàng để mở bản nháp hiện tại hoặc revision đã công bố. Trang Agent và Runtime giữ thông tin chẩn đoán và các giới hạn thực thi.
 

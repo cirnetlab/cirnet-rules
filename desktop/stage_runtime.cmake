@@ -1,8 +1,0 @@
-if(NOT DEFINED SOURCE OR NOT DEFINED DEST)
-    message(FATAL_ERROR "Runtime staging requires SOURCE and DEST")
-endif()
-if(NOT SOURCE STREQUAL DEST)
-    file(COPY_FILE "${SOURCE}" "${DEST}" ONLY_IF_DIFFERENT)
-endif()
-file(SHA256 "${DEST}" checksum)
-file(WRITE "${DEST}.sha256" "${checksum}\n")

@@ -177,7 +177,7 @@ fn descriptor(root: &Path, record: &Value, registry: &Value) -> Result<(), Strin
                 relative(path)?;
                 if matches!(scope, "write_scope" | "documentation_scope")
                     && name == "cirnet-rules"
-                    && policy_input(path)
+                    && policy_input(path, registry)
                 {
                     return Err("Ordinary task writes cannot modify governance authority".into());
                 }
@@ -257,7 +257,7 @@ fn descriptor(root: &Path, record: &Value, registry: &Value) -> Result<(), Strin
     Ok(())
 }
 
-fn policy_input(path: &str) -> bool {
+fn policy_input(path: &str, registry: &Value) -> bool {
     let normalized = path.to_ascii_lowercase();
     matches!(
         normalized.as_str(),
@@ -271,6 +271,15 @@ fn policy_input(path: &str) -> bool {
     ]
     .iter()
     .any(|prefix| normalized.starts_with(prefix))
+        || registry["assets"]["entries"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|asset| {
+                asset["path"]
+                    .as_str()
+                    .is_some_and(|source| source.eq_ignore_ascii_case(path))
+            })
 }
 
 fn reject_credentials(value: &Value) -> Result<(), String> {
@@ -357,23 +366,17 @@ fn descriptor_hash(record: &Value) -> Result<String, String> {
         .map_err(|_| "Cannot identify task descriptor".into())
 }
 
-fn authority_hashes(root: &Path, record: &Value) -> Result<[String; 3], String> {
-    let spec = read_authority(root, text(&record["spec"]))?;
-    let plan = read_authority(root, text(&record["plan"]))?;
-    let mut policy = read_authority(root, "governance.yaml")?;
-    let notes = "en/policies/governance.md";
-    match fs::symlink_metadata(root.join(notes)) {
-        Ok(_) => {
-            policy.push('\0');
-            policy.push_str(&read_authority(root, notes)?);
-        }
-        Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(_) => return Err("Cannot inspect governance policy".into()),
-    }
+fn authority_hashes(
+    root: &Path,
+    record: &Value,
+    registry: Option<&Value>,
+) -> Result<[String; 3], String> {
+    let spec = crate::authority::read_authority(root, text(&record["spec"]), 4 * 1024 * 1024)?;
+    let plan = crate::authority::read_authority(root, text(&record["plan"]), 4 * 1024 * 1024)?;
     Ok([
-        docs::sha256(spec.as_bytes()),
-        docs::sha256(plan.as_bytes()),
-        docs::sha256(policy.as_bytes()),
+        docs::sha256(&spec),
+        docs::sha256(&plan),
+        crate::authority::task_digest(root, record, registry)?,
     ])
 }
 
@@ -486,7 +489,7 @@ fn current(root: &Path, record: &Value) -> Result<(), String> {
     if record["descriptor_sha256"] != descriptor_hash(&record["descriptor"])? {
         return Err("Task authorization descriptor is stale; request explicit revision".into());
     }
-    let actual = authority_hashes(root, &record["descriptor"])
+    let actual = authority_hashes(root, &record["descriptor"], None)
         .map_err(|_| "Task authority is stale or unreadable; request explicit revision")?;
     for (field, hash) in ["spec_sha256", "plan_sha256", "policy_sha256"]
         .into_iter()
@@ -550,6 +553,9 @@ fn update_impl(
         _coordinator = lock(root, "_coordination")?;
         ensure_children_closed(root, &record)?;
     }
+    if check_current {
+        current(root, &record)?;
+    }
     record["revision"] = json!(revision.checked_add(1).ok_or("Task revision exhausted")?);
     persist(root, id, &record)?;
     Ok(record)
@@ -564,8 +570,8 @@ pub fn update(
     update_impl(root, id, revision, true, apply)
 }
 
-fn new_record(root: &Path, record: Value) -> Result<Value, String> {
-    let [spec, plan, policy] = authority_hashes(root, &record)?;
+fn new_record(root: &Path, record: Value, registry: &Value) -> Result<Value, String> {
+    let [spec, plan, policy] = authority_hashes(root, &record, Some(registry))?;
     let descriptor = descriptor_hash(&record)?;
     Ok(json!({
         "descriptor": record,
@@ -587,7 +593,7 @@ fn create(root: &Path, record: Value, registry: &Value) -> Result<Value, String>
         Err(error) if error.kind() == ErrorKind::NotFound => {}
         Err(_) => return Err("Cannot inspect task ID".into()),
     }
-    let value = new_record(root, record)?;
+    let value = new_record(root, record, registry)?;
     persist(root, &id, &value)?;
     Ok(value)
 }
@@ -741,7 +747,7 @@ fn input(root: &Path, path: &str) -> Result<Value, String> {
     parse_json(&read_authority(root, path)?)
 }
 
-fn reset(root: &Path, task: &mut Value, descriptor: Value) -> Result<(), String> {
+fn reset(root: &Path, task: &mut Value, descriptor: Value, registry: &Value) -> Result<(), String> {
     if let Some(parent) = task["descriptor"]["parent"].as_str() {
         let parent = load(root, parent)?;
         if parent["state"] == "CLOSED"
@@ -753,7 +759,7 @@ fn reset(root: &Path, task: &mut Value, descriptor: Value) -> Result<(), String>
             );
         }
     }
-    let mut replacement = new_record(root, descriptor)?;
+    let mut replacement = new_record(root, descriptor, registry)?;
     let epoch = task["approval_epoch"]
         .as_u64()
         .ok_or("Invalid authorization revision")?;
@@ -906,7 +912,7 @@ pub fn run(
                         "Task revision cannot change its identity or authorization owner".into(),
                     );
                 }
-                reset(root, task, proposed)
+                reset(root, task, proposed, registry)
             })?
         }
         "task-checkpoint" => {
@@ -980,7 +986,7 @@ pub fn run(
                         actor_is(task, actor, true)?;
                         current(root, task)?;
                         let descriptor = task["descriptor"].clone();
-                        return reset(root, task, descriptor);
+                        return reset(root, task, descriptor, registry);
                     }
                     (_, "VERIFIED" | "ACCEPTED" | "DOCS_SYNCED" | "CLOSED") => {
                         return Err("Use the dedicated evidence, acceptance, documentation or closure command".into());

@@ -1,6 +1,6 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-ASYNC-SPEC -->
-<!-- revision: 1 -->
-<!-- source-sha256: dcc53fef84a6af8a00cc908c59e4e2d84d205c270ddc37565c2f39f37ebbff51 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 08878742b3d202c7804fcfe7a60a7455c3b89a21f2f7a1ec7ac6752ee05b80ea -->
 <!-- translation-status: synchronized -->
 <a id="acceptance"></a>
 

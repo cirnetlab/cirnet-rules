@@ -1,10 +1,12 @@
 <!-- doc-id: CIRNETRULES-ADAPTER-CAPABILITIES -->
-<!-- revision: 1 -->
-<!-- source-sha256: b076fc57379aeb0ca45b784915191d8d800794e42c59a46db98a4e968221ad07 -->
+<!-- revision: 2 -->
+<!-- source-sha256: 4a05d2b9cef1d36336f20ac5f88777357cad05825d7fb4326d55c4d9f830febe -->
 <!-- translation-status: synchronized -->
 <a id="adapter-capabilities"></a>
 
 # Khả năng tương tác với engine bên ngoài
+
+> Hồ sơ lịch sử cho [source lưu trữ](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/vi/references/adapter-capabilities.md). Xem [quy trình CLI hiện hành](cirnetrules-local.md) để vận hành.
 
 CIRNETRULES có thể kiểm tra engine cục bộ do người dùng chọn mà chưa tạo phiên. Kết quả khớp xác nhận phía kết nối đã tự báo đúng phiên bản được ghim và dùng cấu trúc phản hồi dự kiến. Xác thực, sandbox, thực thi điều kiện phê duyệt và chạy agent cần bằng chứng riêng. Chức năng soạn thảo governance hoạt động ngoại tuyến.
 

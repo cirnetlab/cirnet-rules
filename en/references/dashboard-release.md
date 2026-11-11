@@ -1,8 +1,10 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-RELEASE -->
-<!-- revision: 1 -->
+<!-- revision: 2 -->
 <a id="candidate"></a>
 
 # Dashboard application candidate
+
+> Historical record for the [archived source](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/references/dashboard-release.md). Use the [current CLI workflow](cirnetrules-local.md) for operations.
 
 | Identity | Candidate |
 | --- | --- |

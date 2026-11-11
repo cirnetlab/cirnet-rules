@@ -246,7 +246,7 @@ pub(super) fn discover(
     }))
 }
 
-fn workspace_path(root: &Path, workspace: Option<&Path>) -> Result<PathBuf, String> {
+pub(crate) fn workspace_path(root: &Path, workspace: Option<&Path>) -> Result<PathBuf, String> {
     let selected = workspace
         .or_else(|| root.parent())
         .ok_or("Local workspace root unavailable")?;

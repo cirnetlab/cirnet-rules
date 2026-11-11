@@ -1,17 +1,19 @@
 <!-- doc-id: CIRNETRULES-DESKTOP-ARCHITECTURE -->
-<!-- revision: 9 -->
-<!-- source-sha256: 1ec642f675b368df6a84a06cd5e9d21994f779b792b88825037b6beb6637cec7 -->
+<!-- revision: 10 -->
+<!-- source-sha256: 4ef002e9d469056f476dfe87a1132f6c044028ff250849727592fd85aadf397a -->
 <!-- translation-status: synchronized -->
 <a id="authority"></a>
 
 # Kiến trúc và thẩm quyền Dashboard
+
+> Hồ sơ lịch sử cho [source lưu trữ](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/vi/references/dashboard-architecture.md). Xem [quy trình CLI hiện hành](cirnetrules-local.md) để vận hành.
 
 Client Qt Widgets quản lý trình bày và hộp thoại file. Runtime Rust quản lý
 kiểm tra, ID repository và binding, intake, scheduler và thao tác ghi SQLite.
 Mỗi client khởi động binary cùng thư mục đã xác minh và giao tiếp qua pipe
 stdio riêng được kế thừa. Giao thức JSON theo dòng dùng ID request, giới hạn
 frame, lỗi có cấu trúc và cursor sự kiện lưu bền vững. Ứng dụng không mở
-cổng TCP lắng nghe. Xem [schema IPC](../../en/schemas/dashboard-ipc.schema.json).
+cổng TCP lắng nghe. Xem [schema IPC](https://github.com/cirnetlab/cirnet-rules/blob/52c163e638578bc8f8afe03b3d7bf7e2c0d21b8c/en/schemas/dashboard-ipc.schema.json).
 
 Kênh người vận hành ban đầu nằm trong một tài khoản OS. Runtime có thể chạy
 riêng để giữ lịch. Client khởi động lại tải hàng và sự kiện đã commit,

@@ -99,8 +99,13 @@ const COMMANDS: &[(&str, &str, &str)] = &[
     ),
     (
         "governance",
-        "Invoke a maintenance operation",
-        "Chạy lệnh bảo trì",
+        "Validate, resolve or migrate governance authority",
+        "Kiểm tra, phân giải hoặc di chuyển nguồn governance",
+    ),
+    (
+        "agent",
+        "Export and sync Agent instructions",
+        "Xuất và đồng bộ chỉ dẫn Agent",
     ),
     (
         "cache",
@@ -109,14 +114,53 @@ const COMMANDS: &[(&str, &str, &str)] = &[
     ),
     (
         "audit",
-        "Inspect local tooling receipts and history",
-        "Xem biên nhận và lịch sử công cụ",
+        "Inspect local task, migration, Agent and tooling receipts",
+        "Xem biên nhận task, migration, Agent và công cụ",
     ),
     (
         "completion",
         "Generate bash, zsh, fish or PowerShell completion",
         "Tạo hoàn thành lệnh cho bash, zsh, fish hoặc PowerShell",
     ),
+];
+
+const GOVERNANCE_OPTIONS: &[&str] = &[
+    "governance-root",
+    "workspace",
+    "repo",
+    "task",
+    "profile",
+    "risk",
+    "actor",
+    "path",
+    "paths",
+    "descriptor",
+    "revision",
+    "to",
+    "checkpoint",
+    "legacy-review",
+    "step",
+    "session",
+    "agent",
+    "action",
+    "proposal",
+    "reason",
+    "id",
+    "source",
+    "destination",
+    "archive",
+    "additional-archive",
+    "preview-out",
+    "expected-digest",
+    "bundle",
+    "target",
+    "agents",
+    "output",
+    "expect",
+    "receipt",
+    "replace",
+    "decision",
+    "basis",
 ];
 
 fn parser(vi: bool) -> Command {
@@ -130,9 +174,9 @@ fn parser(vi: bool) -> Command {
     let mut command = Command::new("cnr")
         .version(VERSION)
         .about(if vi {
-            "CIRNET RULES — Quản lý môi trường và công cụ phát triển"
+            "CIRNET RULES — Governance, môi trường và công cụ phát triển"
         } else {
-            "CIRNET RULES — Runtime, SDK & Development Tools"
+            "CIRNET RULES — Governance, environments and development tools"
         })
         .arg(
             Arg::new("project")
@@ -140,7 +184,7 @@ fn parser(vi: bool) -> Command {
                 .global(true)
                 .value_parser(value_parser!(PathBuf))
                 .value_name("PATH")
-                .help("Use an explicit project directory"),
+                .help("Select a tooling project or maintenance workspace"),
         )
         .arg(
             Arg::new("scope")
@@ -187,12 +231,24 @@ fn parser(vi: bool) -> Command {
         .arg(flag("no-banner", "Omit the terminal banner"))
         .arg(flag("yes", "Confirm a reviewed project-scoped operation"));
     for (name, en, vietnamese) in COMMANDS {
-        command = command.subcommand(
-            Command::new(*name)
-                .about(if vi { *vietnamese } else { *en })
-                .after_help(usage_notes(name, vi))
-                .arg(Arg::new("words").value_name("ARGS").num_args(0..)),
-        );
+        let mut sub = Command::new(*name)
+            .about(if vi { *vietnamese } else { *en })
+            .after_help(usage_notes(name, vi))
+            .arg(Arg::new("words").value_name("ARGS").num_args(0..));
+        if matches!(
+            *name,
+            "workspace" | "task" | "governance" | "agent" | "audit"
+        ) {
+            for option in GOVERNANCE_OPTIONS {
+                sub = sub.arg(
+                    Arg::new(*option)
+                        .long(*option)
+                        .value_name("VALUE")
+                        .hide(*option != "governance-root"),
+                );
+            }
+        }
+        command = command.subcommand(sub);
     }
     command
 }
@@ -211,8 +267,21 @@ fn usage_notes(name: &str, vi: bool) -> &'static str {
         "build" | "run" | "test" => "[rust|node|python|cmake] [-- ARG...]",
         "exec" => "-- PROGRAM [ARG...]",
         "package" => "[rust|node|python] list|add|remove|sync|outdated [ARG...]",
-        "workspace" => "discover | bind | health [-- MAINTENANCE_OPTIONS]",
-        "task" | "governance" => "ACTION [-- MAINTENANCE_OPTIONS]",
+        "workspace" => {
+            "discover | bind --repo NAME --path PATH --actor NAME | health\n--project selects the maintenance workspace. --governance-root selects the authority checkout."
+        }
+        "task" => {
+            "create | show | resume | revise | context | bootstrap | diff-check | verify | review | accept | close\nMaintenance options may also follow --."
+        }
+        "governance" => {
+            "validate | inspect | context --repo NAME [--task ID] [--profile ID]\nmigrate inspect --source FILE | export --source FILE --destination DIR | validate --archive DIR\nmigrate import --archive DIR --dry-run [--preview-out DIR] | --yes --expected-digest DIGEST\nmigrate rollback --expected-digest DIGEST --yes"
+        }
+        "agent" => {
+            "list | export --repo NAME --agents codex,claude,antigravity --output DIR | check --bundle DIR\nsync --bundle DIR --target WORKTREE --dry-run | --yes --expect DIGEST --task ID --actor NAME\nrollback --target WORKTREE --receipt ID --dry-run | --yes --expect DIGEST --task ID --actor NAME"
+        }
+        "audit" => {
+            "tooling [--project PATH] | task --task ID | migration --receipt DIGEST | agent --receipt ID\nThe existing audit list form keeps its tooling output."
+        }
         "completion" => "bash | zsh | fish | powershell",
         _ => "",
     }
@@ -277,7 +346,7 @@ fn run(args: &[String]) -> ExitCode {
         if !words.is_empty() || !trailing.is_empty() {
             return emit(name, error("tui takes no command arguments"), json_mode);
         }
-        let context = match validate_flags(name, &words, &matched) {
+        let context = match validate_flags(name, &words, &matched, false) {
             Ok(()) => &matched,
             Err(reason) => return emit(name, error(reason), json_mode),
         };
@@ -297,17 +366,34 @@ fn run(args: &[String]) -> ExitCode {
         }
         return menu::run(context, vi);
     }
-    if let Err(reason) = validate_flags(name, &words, &matched) {
+    let governance_group = matches!(name, "workspace" | "task" | "governance" | "agent")
+        || name == "audit"
+            && words
+                .first()
+                .is_some_and(|action| !matches!(action.as_str(), "list" | "tooling"));
+    if let Err(reason) = validate_flags(name, &words, &matched, governance_group) {
         return emit(name, error(reason), json_mode);
     }
-    if matches!(name, "workspace" | "task" | "governance") {
-        return governance_command(name, &words, trailing, &matched);
+    if governance_group {
+        return governance_command(name, &words, trailing, &matched, sub);
+    }
+    if name == "audit" && GOVERNANCE_OPTIONS.iter().any(|key| sub.contains_id(key)) {
+        return emit(
+            name,
+            error("Tooling audit uses --project; select an audit source for other options"),
+            json_mode,
+        );
     }
     let result = dispatch(name, &words, trailing, &matched).unwrap_or_else(|reason| error(&reason));
     emit(name, result, json_mode)
 }
 
-fn validate_flags(name: &str, words: &[String], flags: &ArgMatches) -> Result<(), &'static str> {
+fn validate_flags(
+    name: &str,
+    words: &[String],
+    flags: &ArgMatches,
+    governance_group: bool,
+) -> Result<(), &'static str> {
     let provider = matches!(
         name,
         "search"
@@ -343,18 +429,18 @@ fn validate_flags(name: &str, words: &[String], flags: &ArgMatches) -> Result<()
     {
         return Err("--installed and --available filter search, list or info");
     }
-    if flags.get_flag("offline") && !(provider || process || sync) {
+    if flags.get_flag("offline") && (governance_group || !(provider || process || sync)) {
         return Err("--offline is only available for providers, execution and env sync");
     }
     if flags.get_flag("locked") && !(process || environment || matches!(name, "install" | "update"))
     {
         return Err("--locked is only available for environment, installs and execution");
     }
-    if flags.get_flag("dry-run") && !(provider || process || environment) {
+    if flags.get_flag("dry-run") && !(provider || process || environment || governance_group) {
         return Err("--dry-run is unavailable for this command; pass maintenance options after --");
     }
     let provider_change = matches!(name, "install" | "update" | "remove" | "venv" | "cache");
-    if flags.get_flag("yes") && !(provider_change || process || sync) {
+    if flags.get_flag("yes") && !(provider_change || process || sync || governance_group) {
         return Err("--yes only confirms project-scoped provider or execution operations");
     }
     if flags.value_source("timeout-ms") == Some(clap::parser::ValueSource::CommandLine) && !process
@@ -362,7 +448,7 @@ fn validate_flags(name: &str, words: &[String], flags: &ArgMatches) -> Result<()
         return Err("--timeout-ms only applies to build, run, test, exec and package");
     }
     if flags.value_source("scope") == Some(clap::parser::ValueSource::CommandLine)
-        && !(provider || process || environment)
+        && (governance_group || !(provider || process || environment))
     {
         return Err("--scope is unavailable for this command");
     }
@@ -587,32 +673,83 @@ fn governance_command(
     words: &[String],
     trailing: &[String],
     flags: &ArgMatches,
+    sub: &ArgMatches,
 ) -> ExitCode {
     let json_mode = flags.get_flag("json");
-    let [action] = words else {
-        return emit(
-            group,
-            error("Use cnr workspace|task|governance ACTION -- [maintenance options]"),
-            json_mode,
-        );
-    };
-    let command = match (group, action.as_str()) {
-        ("workspace", "discover" | "bind" | "health") => format!("workspace-{action}"),
-        ("workspace", "route" | "context-prune") => action.clone(),
+    let dry_run = flags.get_flag("dry-run");
+    let yes = flags.get_flag("yes");
+    let command = match (
+        group,
+        words
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
         (
-            "task",
-            "create" | "show" | "resume" | "revise" | "checkpoint" | "transition" | "verify"
-            | "review" | "accept" | "close" | "context" | "bootstrap",
-        ) => format!("task-{action}"),
-        (
-            "task",
-            "route" | "grant-evaluate" | "run-step" | "cancel-step" | "diff-check"
-            | "review-context" | "docs-preview" | "docs-apply" | "docs-check",
-        ) => action.clone(),
-        ("governance", action) if governance::COMMANDS.contains(&action) => action.to_owned(),
-        _ => return emit(group, error("Unknown maintenance action"), json_mode),
+            "governance",
+            [
+                "migrate",
+                action @ ("inspect" | "export" | "validate" | "rollback"),
+            ],
+        ) => {
+            format!("migration-{action}")
+        }
+        ("governance", ["migrate", "import"]) if dry_run != yes => if dry_run {
+            "migration-preview"
+        } else {
+            "migration-apply"
+        }
+        .into(),
+        (group @ ("agent" | "audit"), [action]) => format!("{group}-{action}"),
+        ("governance", ["inspect"]) => "authority-inspect".into(),
+        ("governance", ["context"]) if trailing.is_empty() => "authority-context".into(),
+        (group, [action]) => {
+            let action = *action;
+            match (group, action) {
+                ("workspace", "discover" | "bind" | "health") => format!("workspace-{action}"),
+                ("workspace", "route" | "context-prune") => action.to_owned(),
+                (
+                    "task",
+                    "create" | "show" | "resume" | "revise" | "checkpoint" | "transition"
+                    | "verify" | "review" | "accept" | "close" | "context" | "bootstrap",
+                ) => format!("task-{action}"),
+                (
+                    "task",
+                    "route" | "grant-evaluate" | "run-step" | "cancel-step" | "diff-check"
+                    | "review-context" | "docs-preview" | "docs-apply" | "docs-check",
+                ) => action.to_owned(),
+                ("governance", action) if governance::COMMANDS.contains(&action) => {
+                    action.to_owned()
+                }
+                _ => return emit(group, error("Unknown maintenance action"), json_mode),
+            }
+        }
+        _ => {
+            return emit(
+                group,
+                error("Choose a supported action; migration import requires --dry-run or --yes"),
+                json_mode,
+            );
+        }
     };
     let mut native: Vec<_> = trailing.iter().skip(1).cloned().collect();
+    for option in GOVERNANCE_OPTIONS {
+        if let Some(value) = sub.get_one::<String>(option) {
+            let option = if *option == "governance-root" {
+                "governance"
+            } else {
+                option
+            };
+            native.extend([format!("--{option}"), value.to_owned()]);
+        }
+    }
+    if dry_run && command != "migration-preview" {
+        native.push("--dry-run".into());
+    }
+    if yes {
+        native.push("--yes".into());
+    }
     if let Some(path) = flags.get_one::<PathBuf>("project") {
         if native.iter().any(|arg| arg == "--workspace") {
             return emit(
