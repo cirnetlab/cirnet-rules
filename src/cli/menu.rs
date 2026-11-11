@@ -353,12 +353,7 @@ impl Menu {
     }
 }
 
-fn show(
-    menu: &mut Menu,
-    status: &str,
-    color: bool,
-    banner: bool,
-) -> io::Result<Option<Vec<String>>> {
+fn show(menu: &mut Menu, color: bool, banner: bool) -> io::Result<Option<Vec<String>>> {
     let _screen = Screen::enter()?;
     let mut out = io::BufWriter::new(io::stdout().lock());
     let mut painter = Painter::default();
@@ -366,7 +361,7 @@ fn show(
     let mut redraw = true;
     loop {
         if redraw {
-            painter.draw(&mut out, view::frame(menu, size, status, banner), color)?;
+            painter.draw(&mut out, view::frame(menu, size, banner, color), color)?;
         }
 
         // Windows pseudoconsoles can change size without a resize event.
@@ -429,37 +424,12 @@ fn words(text: &str) -> Result<Vec<String>, &'static str> {
     Ok(result)
 }
 
-fn project_status(flags: &ArgMatches, vi: bool) -> String {
-    let path = super::project(flags, false)
-        .ok()
-        .flatten()
-        .map(|project| project.root().to_path_buf())
-        .or_else(|| flags.get_one::<PathBuf>("project").cloned())
-        .or_else(|| env::current_dir().ok());
-    let project = path.as_deref().map_or_else(
-        || "-".into(),
-        |path| {
-            path.file_name()
-                .unwrap_or(path.as_os_str())
-                .to_string_lossy()
-        },
-    );
-    let state = match path {
-        Some(ref path) if path.join("cnr.lock").is_file() => {
-            ["Environment locked", "Đã khóa môi trường"]
-        }
-        Some(ref path) if path.join("cnr.toml").is_file() => ["Configured", "Đã cấu hình"],
-        _ => ["Unconfigured", "Chưa cấu hình"],
-    };
-    format!("{project}  ·  {}  ·  v{}", text(state, vi), super::VERSION)
-}
-
 pub fn run(flags: &ArgMatches, vi: bool) -> ExitCode {
     let color = env::var_os("NO_COLOR").is_none();
     let banner = !flags.get_flag("no-banner");
     let mut menu = Menu::new(vi);
     loop {
-        let mut args = match show(&mut menu, &project_status(flags, vi), color, banner) {
+        let mut args = match show(&mut menu, color, banner) {
             Ok(Some(args)) => args,
             Ok(None) => return ExitCode::SUCCESS,
             Err(error) => {

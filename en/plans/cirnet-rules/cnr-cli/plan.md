@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-CLI-PLAN -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="cnr-plan"></a>
 
 # CNR implementation plan
@@ -16,5 +16,5 @@
 
 1. Reproduce the full-screen erase during keyboard navigation in a Windows pseudoconsole.
 2. Move the executable and tests under the Rust source tree and update Cargo, build identity and the Rust source policy together.
-3. Separate menu state, layout and terminal output. Compose the wordmark from half-block cells and draw only rows that change. Put search, command input and optional help above the status line.
+3. Separate menu state, layout and terminal output. Compose the wordmark and its offset shadow from half-block cells. Draw only changed rows. Show search, command input and optional help at the bottom when active.
 4. Verify wide and compact screens, Vietnamese labels, command dispatch, resizing, `NO_COLOR`, unchanged rows and the headless CLI.

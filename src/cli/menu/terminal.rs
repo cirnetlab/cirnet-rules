@@ -1,7 +1,7 @@
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     execute, queue,
-    style::{Attribute, Color, Print, SetAttribute, SetForegroundColor},
+    style::{Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::io::{self, Write};
@@ -12,12 +12,20 @@ const ORANGE: Color = Color::Rgb {
     b: 103,
 };
 
+const SHADOW: Color = Color::Rgb {
+    r: 91,
+    g: 51,
+    b: 43,
+};
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Tone {
     Plain,
     Muted,
     Heading,
     Accent,
+    Shadow,
+    AccentOnShadow,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -96,6 +104,10 @@ impl Painter {
                         Tone::Muted => queue!(out, SetAttribute(Attribute::Dim))?,
                         Tone::Heading => queue!(out, SetAttribute(Attribute::Bold))?,
                         Tone::Accent => queue!(out, SetForegroundColor(ORANGE))?,
+                        Tone::Shadow => queue!(out, SetForegroundColor(SHADOW))?,
+                        Tone::AccentOnShadow => {
+                            queue!(out, SetForegroundColor(ORANGE), SetBackgroundColor(SHADOW))?
+                        }
                     }
                     active = *tone;
                 }

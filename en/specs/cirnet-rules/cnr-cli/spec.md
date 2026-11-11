@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-CLI-SPEC -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="cnr-acceptance"></a>
 
 # CNR implementation acceptance
@@ -13,7 +13,7 @@
 
 ## Terminal acceptance
 
-- The wide terminal shows a Claude-orange `CIRNET RULES` wordmark with a common baseline and letter size. Narrow or short terminals use a compact title.
+- The wide terminal shows a Claude-orange `CIRNET RULES` wordmark with a common baseline, consistent letter size and a dark offset shadow. Narrow or short terminals use a compact title.
 - Arrow navigation keeps the screen in place and redraws changed rows. A resize recomputes the layout. Returning from a command restores terminal input and output.
-- The default view has command labels and workspace status. Search, command input and optional help appear near the bottom when active.
+- The default view has command labels. The bottom is reserved for search, command input and optional help when active.
 - `cnr`, `--no-banner`, `--lang vi`, `NO_COLOR` and the headless CLI preserve their roles. The command parser, permission checks and MCP entry points use the existing core.

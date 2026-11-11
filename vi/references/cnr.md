@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 4 -->
-<!-- source-sha256: 8973622215756a254a2861a776b03641cfc008b53122a8aeac0e8981448c8bdf -->
+<!-- revision: 5 -->
+<!-- source-sha256: c972b2fb9400682b934de79b202f21615f8004b0b9d9e9c5d69ba86222f26b38 -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
@@ -17,15 +17,15 @@ cargo build --locked --bin cnr
 
 Trên Windows dùng `target/debug/cnr.exe`. Chạy `cnr` hoặc `cnr tui` trong
 terminal tương tác. Bố cục rộng hiển thị lệnh đang chọn bên cạnh danh sách.
-`/` mở tìm kiếm và `?` mở trợ giúp theo ngữ cảnh ngay trên dòng trạng thái
-workspace. Khi một lệnh nhận đầu vào, ví dụ xuất hiện ở đó. Để trống trường
-nhập để dùng ví dụ. Có thể dùng bàn phím để di chuyển trong danh sách, chọn
-lệnh, đóng trường đang mở hoặc thoát.
+`/` mở tìm kiếm và `?` mở trợ giúp theo ngữ cảnh ở cuối màn hình.
+Khi một lệnh nhận đầu vào, ví dụ xuất hiện ở đó. Để trống trường nhập để
+dùng ví dụ. Có thể dùng bàn phím để di chuyển trong danh sách, chọn lệnh,
+đóng trường đang mở hoặc thoát.
 
 `--lang vi` chọn nhãn terminal và mô tả lệnh tiếng Việt. `--no-banner` dùng
-tiêu đề gọn và `NO_COLOR` tắt màu. Lượt chạy phi tương tác in trợ giúp.
-Phiên bản, trợ giúp và danh mục chạy được khi chưa có dự án. Mã nguồn
-executable ở `src/cli/` và test tích hợp ở `src/tests/cnr.rs`.
+tiêu đề gọn. `NO_COLOR` hiển thị văn bản và chữ khối đơn sắc, bỏ bóng đổ.
+Lượt chạy phi tương tác in trợ giúp. Phiên bản, trợ giúp và danh mục chạy
+được khi chưa có dự án. Mã nguồn executable ở `src/cli/` và test tích hợp ở `src/tests/cnr.rs`.
 
 <a id="environment"></a>
 

@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-CLI-SPEC -->
-<!-- revision: 2 -->
-<!-- source-sha256: 78e01db6e18ccb35f74f1bf6d3006b4aaab9e39346f7dccc51c98ad3aecf2921 -->
+<!-- revision: 3 -->
+<!-- source-sha256: 29d253c266069ab80e2d3ee7e56d24f03300bb445b6bd66acac66b01b67ea8dc -->
 <!-- translation-status: synchronized -->
 <a id="cnr-acceptance"></a>
 
@@ -15,7 +15,7 @@
 
 ## Tiêu chí nghiệm thu terminal
 
-- Terminal rộng hiển thị chữ `CIRNET RULES` màu cam Claude với cùng kích thước và đường chân chữ. Terminal hẹp hoặc thấp dùng tiêu đề gọn.
+- Terminal rộng hiển thị chữ `CIRNET RULES` màu cam Claude với cùng kích thước, đường chân chữ và bóng đổ lệch màu sẫm. Terminal hẹp hoặc thấp dùng tiêu đề gọn.
 - Điều hướng bằng phím mũi tên giữ màn hình ổn định và chỉ vẽ các dòng thay đổi. Khi đổi kích thước, bố cục được tính lại. Khi trở về từ một lệnh, đầu vào và đầu ra terminal được khôi phục.
-- Giao diện mặc định hiển thị danh sách lệnh và trạng thái workspace. Tìm kiếm, nhập lệnh và trợ giúp tùy chọn xuất hiện gần cuối khi được kích hoạt.
+- Giao diện mặc định hiển thị danh sách lệnh. Phần cuối dành cho tìm kiếm, nhập lệnh và trợ giúp tùy chọn khi được kích hoạt.
 - `cnr`, `--no-banner`, `--lang vi`, `NO_COLOR` và CLI phi tương tác giữ vai trò hiện có. Bộ phân tích lệnh, kiểm tra quyền và điểm vào MCP dùng lõi hiện hành.

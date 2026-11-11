@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-CLI-PLAN -->
-<!-- revision: 2 -->
-<!-- source-sha256: 2282749ef648db8f0a481ddcaded8957551ecef56e72b6e7c5bd7853c2cb3ea6 -->
+<!-- revision: 3 -->
+<!-- source-sha256: cdd677450724bdf98c848c62662c25418d63fb3cd2fe5a65215e8227328b6708 -->
 <!-- translation-status: synchronized -->
 <a id="cnr-plan"></a>
 
@@ -18,5 +18,5 @@
 
 1. Tái hiện việc xóa toàn màn hình khi điều hướng bàn phím trong pseudoconsole Windows.
 2. Chuyển executable và test vào cây mã nguồn Rust, đồng thời cập nhật Cargo, định danh build và chính sách vị trí mã Rust.
-3. Tách trạng thái menu, bố cục và đầu ra terminal. Dựng chữ bằng ký tự nửa ô và chỉ vẽ các dòng thay đổi. Đặt tìm kiếm, nhập lệnh và trợ giúp tùy chọn ngay trên dòng trạng thái.
+3. Tách trạng thái menu, bố cục và đầu ra terminal. Dựng chữ và bóng đổ lệch bằng ký tự nửa ô. Chỉ vẽ các dòng thay đổi. Hiển thị tìm kiếm, nhập lệnh và trợ giúp tùy chọn ở cuối khi được kích hoạt.
 4. Kiểm tra màn hình rộng và gọn, nhãn tiếng Việt, thực thi lệnh, thay đổi kích thước, `NO_COLOR`, các dòng giữ nguyên và CLI phi tương tác.
