@@ -1,5 +1,6 @@
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
+    event::{DisableMouseCapture, EnableMouseCapture},
     execute, queue,
     style::{Attribute, Color, Print, SetAttribute, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
@@ -13,9 +14,9 @@ const ORANGE: Color = Color::Rgb {
 };
 
 const SHADOW: Color = Color::Rgb {
-    r: 73,
-    g: 50,
-    b: 49,
+    r: 57,
+    g: 45,
+    b: 50,
 };
 
 const BANNER_COLORS: [Color; 4] = [
@@ -163,7 +164,7 @@ impl Screen {
     pub(super) fn enter() -> io::Result<Self> {
         terminal::enable_raw_mode()?;
         let screen = Self;
-        execute!(io::stdout(), EnterAlternateScreen, Hide)?;
+        execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture, Hide)?;
         Ok(screen)
     }
 }
@@ -173,6 +174,7 @@ impl Drop for Screen {
         let _ = execute!(
             io::stdout(),
             SetAttribute(Attribute::Reset),
+            DisableMouseCapture,
             Show,
             LeaveAlternateScreen
         );

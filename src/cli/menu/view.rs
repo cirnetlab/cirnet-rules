@@ -80,6 +80,11 @@ fn input_line(
         line.push(Tone::Muted, clip(placeholder, available));
     } else {
         line.push(Tone::Plain, clip(after, available - before.width()));
+        if after.is_empty()
+            && let Some(suffix) = placeholder.strip_prefix(&input.value)
+        {
+            line.push(Tone::Muted, clip(suffix, available - before.width()));
+        }
     }
     let cursor = margin + prefix.width() + before.width();
     frame.cursor = Some((cursor as u16, row));
@@ -104,7 +109,170 @@ fn wrap(value: &str, width: usize) -> Vec<String> {
     rows
 }
 
+// Preserve indentation and wrap long output without emitting terminal controls.
+fn output_rows(lines: &[String], width: usize) -> Vec<String> {
+    let mut rows = Vec::new();
+    if width == 0 {
+        return rows;
+    }
+    for value in lines {
+        let mut row = String::new();
+        let mut used = 0;
+        for ch in value.chars() {
+            let Some(columns) = ch.width() else { continue };
+            if columns > width {
+                continue;
+            }
+            if used + columns > width {
+                rows.push(std::mem::take(&mut row));
+                used = 0;
+            }
+            row.push(ch);
+            used += columns;
+        }
+        rows.push(row);
+    }
+    rows
+}
+
+fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
+    let mut frame = Frame::new(size);
+    let columns = usize::from(size.0.saturating_sub(1)).min(108);
+    if columns == 0 || size.1 == 0 {
+        return frame;
+    }
+    let margin = if columns >= 24 { 2 } else { 0 };
+    let width = columns - 2 * margin;
+    let suggestion = menu.suggestion();
+    let output = menu.output.as_mut().expect("output mode");
+    let prompt_row = size.1 - 1;
+    let status_row = (size.1 >= 4).then_some(size.1.saturating_sub(2));
+    let hint_row = (size.1 >= 6).then_some(size.1.saturating_sub(3));
+    let first = u16::from(size.1 >= 2);
+    let end = hint_row.or(status_row).unwrap_or(prompt_row);
+    if size.1 >= 2 {
+        label(
+            &mut frame,
+            0,
+            margin,
+            width,
+            Tone::Accent,
+            &format!("{NAME}  /  {}", output.title),
+        );
+    }
+    let lines = output_rows(&output.lines, width);
+    let available = usize::from(end.saturating_sub(first));
+    output.scroll = output.scroll.min(lines.len().saturating_sub(available));
+    for (offset, line) in lines.iter().skip(output.scroll).take(available).enumerate() {
+        label(
+            &mut frame,
+            first + offset as u16,
+            margin,
+            width,
+            Tone::Plain,
+            line,
+        );
+    }
+    if let Some(row) = status_row {
+        label(&mut frame, row, margin, width, Tone::Accent, &output.status);
+    }
+    if let Some(row) = hint_row {
+        let error = menu.prompt.as_ref().and_then(|prompt| prompt.error);
+        let hint = error
+            .map(|error| text(error, menu.vi).to_owned())
+            .or_else(|| {
+                suggestion
+                    .filter(|_| {
+                        menu.prompt
+                            .as_ref()
+                            .is_some_and(|p| !p.input.value.is_empty())
+                    })
+                    .map(|value| format!("Tab: {value}"))
+            })
+            .unwrap_or_else(|| {
+                if output.running {
+                    text(
+                        [
+                            "PgUp/PgDn scroll  ·  Tab complete  ·  Ctrl+C cancel",
+                            "PgUp/PgDn cuộn  ·  Tab gợi ý  ·  Ctrl+C hủy",
+                        ],
+                        menu.vi,
+                    )
+                } else {
+                    text(
+                        [
+                            "PgUp/PgDn scroll  ·  Tab complete  ·  Esc back  ·  Ctrl+C exit",
+                            "PgUp/PgDn cuộn  ·  Tab gợi ý  ·  Esc quay lại  ·  Ctrl+C thoát",
+                        ],
+                        menu.vi,
+                    )
+                }
+                .to_owned()
+            });
+        label(
+            &mut frame,
+            row,
+            margin,
+            width,
+            if error.is_some() {
+                Tone::Accent
+            } else {
+                Tone::Muted
+            },
+            &hint,
+        );
+    }
+    if let Some(prompt) = &menu.prompt {
+        input_line(
+            &mut frame,
+            prompt_row,
+            margin,
+            width,
+            text(["Command  › ", "Lệnh  › "], menu.vi),
+            &prompt.input,
+            "",
+        );
+    }
+    frame
+}
+
+// Coordinates refer to the ordinary menu, before any prompt or overlay is opened.
+pub(super) fn menu_hit(size: (u16, u16), banner: bool, x: u16, y: u16) -> Option<usize> {
+    let columns = usize::from(size.0.saturating_sub(1)).min(108);
+    if columns == 0 || size.1 == 0 {
+        return None;
+    }
+    let margin = if columns >= 24 { 2 } else { 0 };
+    let width = columns - 2 * margin;
+    let height = size.1;
+    let mut row = u16::from(height >= 16);
+    if banner && columns >= BANNER_WIDTH && height >= 22 {
+        row += WORDMARK.len() as u16 + 2;
+    } else if height >= 3 {
+        row += 1 + u16::from(height >= 12);
+    }
+    row += u16::from(height >= 12);
+    let end = if height >= 8 {
+        height - 1 - u16::from(height >= 18)
+    } else {
+        height
+    };
+    let visible = usize::from(end.saturating_sub(row));
+    let left_width = if width >= 80 && visible >= 4 {
+        33
+    } else {
+        width
+    };
+    if usize::from(x) < margin || usize::from(x) >= margin + left_width || y < row || y >= end {
+        return None;
+    }
+    Some(usize::from(y - row))
+}
+
 pub(super) fn frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
+    if menu.output.is_some() {
+        return output_frame(menu, size);
+    }
     frame_with_status(menu, size, "", banner, color)
 }
 
@@ -175,12 +343,30 @@ fn frame_with_status(
     if height >= 8 {
         end -= 1 + u16::from(height >= 18);
         label(&mut frame, end, margin, width, Tone::Muted, status);
+        if status.is_empty() {
+            let hint = if menu.prompt.is_some() {
+                menu.suggestion().map(|value| format!("Tab: {value}"))
+            } else {
+                None
+            }
+            .unwrap_or_else(|| {
+                text(
+                    [
+                        "↑↓ / click select  ·  Enter open  ·  : command  ·  / search  ·  ? help",
+                        "↑↓ / click chọn  ·  Enter mở  ·  : lệnh  ·  / tìm  ·  ? trợ giúp",
+                    ],
+                    menu.vi,
+                )
+                .to_owned()
+            });
+            label(&mut frame, height - 1, margin, width, Tone::Muted, &hint);
+        }
     }
     let menu_minimum = u16::from(height > 1);
     if end > row + menu_minimum {
         if let Some(prompt) = &menu.prompt {
             end -= 1;
-            let example = format!("cnr {}", menu.items[menu.selected].command);
+            let example = menu.suggestion().unwrap_or_default();
             input_line(
                 &mut frame,
                 end,
@@ -291,7 +477,7 @@ fn frame_with_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::menu::Effect;
+    use crate::menu::{Effect, OutputView, Prompt};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     const STATUS: &str = "workspace  ·  Configured  ·  v0.1.0";
@@ -302,6 +488,70 @@ mod tests {
 
     fn rows(frame: &Frame) -> Vec<String> {
         frame.rows.iter().map(Line::text).collect()
+    }
+
+    #[test]
+    fn command_results_remain_in_the_interface_with_an_editable_prompt() {
+        let mut menu = Menu::new(false);
+        menu.prompt = Some(Prompt::default());
+        menu.output = Some(OutputView {
+            title: "cnr list".into(),
+            lines: vec!["first result".into(), "second result".into()],
+            scroll: 0,
+            running: false,
+            status: "PASS".into(),
+        });
+        let output = frame(&mut menu, (50, 12), true, true);
+        let text = rows(&output).join("\n");
+        assert!(text.contains("CIRNET RULES"));
+        assert!(text.contains("cnr list"));
+        assert!(text.contains("first result"));
+        assert!(text.contains("PASS"));
+        assert!(text.contains("Command"));
+        assert!(output.cursor.is_some());
+        let idle = frame(&mut menu, (100, 12), true, true);
+        assert!(rows(&idle).join("\n").contains("Ctrl+C exit"));
+        menu.output.as_mut().unwrap().running = true;
+        let running = frame(&mut menu, (100, 12), true, true);
+        let hint = rows(&running).join("\n");
+        assert!(hint.contains("Ctrl+C cancel"));
+        assert!(!hint.contains("Esc back"));
+        for size in [(0, 0), (1, 1), (2, 2), (10, 4), (26, 8)] {
+            let small = frame(&mut menu, size, true, true);
+            for line in rows(&small) {
+                assert!(line.width() < usize::from(size.0).max(1));
+            }
+        }
+    }
+
+    #[test]
+    fn output_wraps_without_losing_indentation_and_scroll_is_clamped() {
+        assert_eq!(
+            output_rows(&["  abcdef".into(), "x\u{1b}y".into()], 4),
+            ["  ab", "cdef", "xy"]
+        );
+        let mut menu = Menu::new(false);
+        menu.prompt = Some(Prompt::default());
+        menu.output = Some(OutputView {
+            title: "list".into(),
+            lines: (0..20).map(|n| format!("result {n}")).collect(),
+            scroll: usize::MAX,
+            running: false,
+            status: "PASS".into(),
+        });
+        let output = frame(&mut menu, (40, 10), true, true);
+        assert!(rows(&output).iter().any(|line| line.contains("result 19")));
+        assert_ne!(menu.output.as_ref().unwrap().scroll, usize::MAX);
+    }
+
+    #[test]
+    fn mouse_hit_only_selects_visible_menu_rows() {
+        assert_eq!(menu_hit((110, 30), true, 4, 9), Some(0));
+        assert_eq!(menu_hit((110, 30), true, 4, 10), Some(1));
+        assert_eq!(menu_hit((110, 30), true, 40, 9), None);
+        assert_eq!(menu_hit((110, 30), true, 4, 8), None);
+        assert_eq!(menu_hit((30, 12), true, 4, 3), Some(0));
+        assert_eq!(menu_hit((0, 0), true, 0, 0), None);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-CLI-SPEC -->
-<!-- revision: 3 -->
+<!-- revision: 4 -->
 <a id="cnr-acceptance"></a>
 
 # CNR implementation acceptance
@@ -17,3 +17,11 @@
 - Arrow navigation keeps the screen in place and redraws changed rows. A resize recomputes the layout. Returning from a command restores terminal input and output.
 - The default view has command labels. The bottom is reserved for search, command input and optional help when active.
 - `cnr`, `--no-banner`, `--lang vi`, `NO_COLOR` and the headless CLI preserve their roles. The command parser, permission checks and MCP entry points use the existing core.
+
+## Planned interactive terminal acceptance
+
+- Present command results inside the application, with bounded and sanitized output, scrolling and cancellation. Keep the menu usable after a command ends or is cancelled.
+- Run commands with isolated argument vectors and non-interactive defaults. Do not grant authorization automatically; preserve existing permission checks and explicit confirmations for mutations.
+- Offer command suggestions and Tab completion, recall command history, and provide a clear action for the visible output. Keep these controls usable in responsive compact layouts.
+- Refine the wide `CIRNET RULES` wordmark with a dimensional offset shadow informed by the supplied visual references. Preserve legibility, narrow-screen fallback and `NO_COLOR`.
+- Verify command dispatch, denial and cancellation paths, bounded output and sanitization, completion, history, clear, scrolling, resize, monochrome and visual presentation. Record unavailable interactive or platform checks as limitations.
