@@ -1,3 +1,4 @@
+mod banner;
 mod completion;
 mod highlight;
 mod runner;
@@ -6,9 +7,9 @@ mod view;
 mod viewport;
 
 use self::{
+    banner::Banner,
     completion::{Completer, Kind, Source, Suggestion},
     terminal::{Painter, Screen, Tone},
-    view::Banner,
     viewport::Buffer,
 };
 use clap::ArgMatches;

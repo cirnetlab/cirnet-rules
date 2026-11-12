@@ -22,9 +22,9 @@ const ORANGE: Color = Color::Rgb {
 };
 
 const SHADOW: Color = Color::Rgb {
-    r: 57,
-    g: 45,
-    b: 50,
+    r: 38,
+    g: 31,
+    b: 35,
 };
 
 const BANNER_COLORS: [Color; 4] = [
@@ -176,12 +176,13 @@ impl Style {
     fn palette(part: PalettePart, depth: SemanticDepth) -> Self {
         use Color::*;
         use PalettePart::*;
-        let input = depth.color((35, 37, 40), 235, DarkGrey);
-        let suggestions = depth.color((39, 42, 46), 236, DarkGrey);
+        let input = depth.color((27, 29, 32), 234, DarkGrey);
+        let suggestions = depth.color((31, 33, 37), 235, DarkGrey);
+        let input_rim = depth.color((78, 80, 86), 240, DarkGrey);
+        let suggestions_edge = depth.color((49, 51, 56), 237, DarkGrey);
         let (color, background) = match part {
-            InputRim => (depth.color((62, 65, 70), 238, DarkGrey), None),
-            InputEdge => (input, None),
-            SuggestionsEdge => (suggestions, None),
+            InputRim | InputEdge => (input_rim, None),
+            SuggestionsEdge => (suggestions_edge, None),
             Input => (depth.color((237, 237, 239), 255, White), Some(input)),
             Detail => (depth.color((194, 195, 199), 251, White), Some(suggestions)),
             Suggestion => (depth.color((180, 199, 230), 153, White), Some(suggestions)),
@@ -731,7 +732,7 @@ mod tests {
         let mut bytes = Vec::new();
         painter.draw(&mut bytes, frame, true).unwrap();
         let initial = String::from_utf8_lossy(&bytes);
-        assert!(initial.contains("\x1b[48;2;35;37;40m› env"), "{initial:?}");
+        assert!(initial.contains("\x1b[48;2;27;29;32m› env"), "{initial:?}");
         assert!(initial.contains("\x1b[49moutput"), "{initial:?}");
 
         let mut closed = Frame::new((40, 6));
@@ -756,7 +757,7 @@ mod tests {
         }
         let frame = view::frame(&mut menu, (120, 35), true, true);
         let input = usize::from(frame.cursor.unwrap().1);
-        for (index, line) in frame.rows[input - 1..=input + 3].iter().enumerate() {
+        for (index, line) in frame.rows[input - 1..=input + 4].iter().enumerate() {
             let spans: Vec<_> = line
                 .segments()
                 .filter(|(tone, _)| matches!(tone, Tone::Palette(_)))
@@ -766,7 +767,7 @@ mod tests {
             let style = |tone| Style::for_tone(tone, SemanticDepth::Rgb);
             assert!(style(first).background.is_none(), "row {index}, left edge");
             assert!(style(last).background.is_none(), "row {index}, right edge");
-            if index == 0 || index == 4 {
+            if matches!(index, 0 | 2 | 5) {
                 assert!(
                     spans
                         .iter()
@@ -774,9 +775,11 @@ mod tests {
                     "row {index}, cap"
                 );
             } else {
-                let surface = style(spans[1].0).background.expect("filled panel body");
-                assert_eq!(style(first).color, Some(surface));
-                assert_eq!(style(last).color, Some(surface));
+                assert!(
+                    style(spans[1].0).background.is_some(),
+                    "row {index}, filled body"
+                );
+                assert_eq!(style(first).color, style(last).color);
             }
         }
     }
