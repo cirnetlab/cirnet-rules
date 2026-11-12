@@ -151,6 +151,34 @@ fn catalog_works_without_a_project_and_rejects_wrong_type() {
     assert!(dispatch(None, &words(&["info", "qt"]), &options).is_err());
 }
 
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+#[test]
+fn completion_inventory_reads_pins_and_ready_receipts() {
+    let fixture = Fixture::new();
+    fs::write(
+        fixture.0.join("cnr.toml"),
+        "schema = 1\nprofile = \"default\"\n[tools]\nrust = \"1.99.1\"\n",
+    )
+    .unwrap();
+    let installed = store::Identity::tool("rust", "1.98.0");
+    let owned = store::reserve(&fixture.0, &installed).unwrap();
+    let executable = owned.join("rustc-fixture");
+    fs::write(&executable, b"receipt fixture, never executed").unwrap();
+    store::publish(&fixture.0, &installed, &executable).unwrap();
+    store::reserve(&fixture.0, &store::Identity::tool("rust", "1.97.0")).unwrap();
+    fs::create_dir(owned.parent().unwrap().join("1.100.0")).unwrap();
+
+    let catalog = completion_catalog(Some(&fixture.0));
+    let rust = catalog.iter().find(|tool| tool.id == "rust").unwrap();
+    assert_eq!(
+        rust.versions
+            .iter()
+            .map(|version| (version.version.as_str(), version.pinned, version.installed))
+            .collect::<Vec<_>>(),
+        [("1.99.1", true, false), ("1.98.0", false, true)]
+    );
+}
+
 #[test]
 fn project_and_venv_references_keep_an_owned_python() {
     let fixture = Fixture::new();

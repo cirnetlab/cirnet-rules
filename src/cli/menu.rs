@@ -1,9 +1,16 @@
 mod completion;
+mod highlight;
 mod runner;
 mod terminal;
 mod view;
+mod viewport;
 
-use self::terminal::{Painter, Screen};
+use self::{
+    completion::{Completer, Kind, Source, Suggestion},
+    terminal::{Painter, Screen, Tone},
+    view::Banner,
+    viewport::Buffer,
+};
 use clap::ArgMatches;
 use crossterm::{
     event::{
@@ -11,7 +18,14 @@ use crossterm::{
     },
     terminal as console,
 };
-use std::{env, io, path::PathBuf, process::ExitCode, time::Duration};
+use std::{
+    io,
+    ops::Range,
+    path::{Path, PathBuf},
+    process::ExitCode,
+    time::{Duration, Instant},
+};
+use unicode_width::UnicodeWidthChar;
 
 type Localized = [&'static str; 2];
 
@@ -125,45 +139,70 @@ const ENTRIES: &[Entry] = &[
     },
 ];
 
-#[derive(Default)]
+const COMMAND_LIMIT: usize = 8192;
+const SEARCH_LIMIT: usize = 256;
+const HISTORY_LIMIT: usize = 100;
+const SUGGESTION_LIMIT: usize = 7;
+const COMMAND_TOO_LONG: Localized = ["Command exceeds 8 KiB.", "Lệnh vượt quá 8 KiB."];
+
+fn text_modifiers(key: KeyEvent) -> bool {
+    !key.modifiers
+        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
+}
+
+fn control(key: KeyEvent, ch: char) -> bool {
+    key.code == KeyCode::Char(ch) && key.modifiers == KeyModifiers::CONTROL
+}
+
+fn printable(key: KeyEvent) -> Option<char> {
+    match key.code {
+        KeyCode::Char(ch) if !ch.is_control() && text_modifiers(key) => Some(ch),
+        _ => None,
+    }
+}
+
+#[derive(Clone, Default)]
 struct Input {
     value: String,
     cursor: usize,
 }
 
 impl Input {
-    fn edit(&mut self, key: KeyEvent) -> bool {
+    fn insert(&mut self, value: &str, limit: usize) -> bool {
+        if value.is_empty() || self.value.len() + value.len() > limit {
+            return false;
+        }
+        self.value.insert_str(self.cursor, value);
+        self.cursor += value.len();
+        true
+    }
+
+    fn edit(&mut self, key: KeyEvent, limit: usize) -> bool {
         let old_cursor = self.cursor;
+        // Move/delete a base character together with its combining marks.
         let before = self.value[..self.cursor]
             .char_indices()
-            .next_back()
+            .rev()
+            .find(|(index, ch)| *index == 0 || ch.width() != Some(0))
             .map(|(index, _)| index);
-        let after = self.value[self.cursor..]
-            .chars()
-            .next()
-            .map(|ch| self.cursor + ch.len_utf8());
+        let after = (self.cursor < self.value.len()).then(|| {
+            self.value[self.cursor..]
+                .char_indices()
+                .skip(1)
+                .find(|(_, ch)| ch.width() != Some(0))
+                .map_or(self.value.len(), |(index, _)| self.cursor + index)
+        });
         match key.code {
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if self.cursor == 0 {
-                    return false;
-                }
+            KeyCode::Char('u') if control(key, 'u') && self.cursor > 0 => {
                 self.value.drain(..self.cursor);
                 self.cursor = 0;
                 return true;
             }
-            KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => self.cursor = 0,
-            KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.cursor = self.value.len()
-            }
-            KeyCode::Char(ch)
-                if !ch.is_control()
-                    && !key.modifiers.intersects(
-                        KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER,
-                    ) =>
-            {
-                self.value.insert(self.cursor, ch);
-                self.cursor += ch.len_utf8();
-                return true;
+            KeyCode::Char('a') if control(key, 'a') => self.cursor = 0,
+            KeyCode::Char('e') if control(key, 'e') => self.cursor = self.value.len(),
+            _ if !text_modifiers(key) => return false,
+            KeyCode::Char(ch) if printable(key).is_some() => {
+                return self.insert(ch.encode_utf8(&mut [0; 4]), limit);
             }
             KeyCode::Backspace if let Some(before) = before => {
                 self.value.drain(before..self.cursor);
@@ -188,23 +227,143 @@ impl Input {
 struct Prompt {
     input: Input,
     error: Option<Localized>,
-    completions: Vec<String>,
-    completion_index: usize,
-    completion_suffix: usize,
+    completions: Vec<Suggestion>,
+    edited: bool,
+    accepted: Option<(usize, Input)>,
+}
+
+impl Prompt {
+    fn changed(&mut self) {
+        self.error = None;
+        self.edited = true;
+        self.accepted = None;
+    }
 }
 
 struct OutputView {
     title: String,
-    lines: Vec<String>,
+    buffer: Buffer,
     scroll: usize,
+    last_page: usize,
+    page_size: usize,
+    width: usize,
+    follow: bool,
     running: bool,
     status: String,
+    tone: Tone,
+    find: Option<Input>,
+    query: String,
+    hit: Option<Range<usize>>,
+}
+
+impl OutputView {
+    fn new(title: String, vi: bool) -> Self {
+        Self {
+            title,
+            buffer: Buffer::default(),
+            scroll: 0,
+            last_page: 0,
+            page_size: 0,
+            width: 0,
+            follow: false,
+            running: true,
+            status: text(["Running…", "Đang chạy…"], vi).into(),
+            tone: Tone::Accent,
+            find: None,
+            query: String::new(),
+            hit: None,
+        }
+    }
+
+    fn layout(&mut self, width: usize, height: usize) {
+        let anchor = self.buffer.row_start(self.scroll);
+        self.page_size = height;
+        self.width = width;
+        self.last_page = self.buffer.layout(width).saturating_sub(height.max(1));
+        self.scroll = if self.follow {
+            self.last_page
+        } else {
+            anchor
+                .map_or(self.scroll, |offset| self.buffer.row_at(offset))
+                .min(self.last_page)
+        };
+    }
+
+    fn scroll_to(&mut self, row: usize, follow: bool) -> Effect {
+        let row = row.min(self.last_page);
+        self.follow = follow && row == self.last_page;
+        if row == self.scroll {
+            return Effect::Idle;
+        }
+        self.scroll = row;
+        Effect::Redraw
+    }
+
+    fn scroll_by(&mut self, lines: isize) -> Effect {
+        self.scroll_to(self.scroll.saturating_add_signed(lines), lines > 0)
+    }
+
+    fn search(&mut self, backwards: bool) {
+        self.hit = self.buffer.find(&self.query, self.hit.as_ref(), backwards);
+        if let Some(hit) = &self.hit {
+            self.scroll_to(self.buffer.row_at(hit.start), false);
+        }
+    }
+
+    fn finish(&mut self, result: Result<runner::RunOutput, String>, vi: bool) -> Option<Completer> {
+        self.running = false;
+        self.hit = None;
+        match result {
+            Ok(result) => {
+                self.buffer = result.buffer;
+                if !self.query.is_empty() {
+                    self.last_page = self
+                        .buffer
+                        .layout(self.width)
+                        .saturating_sub(self.page_size.max(1));
+                    self.search(false);
+                }
+                let (tone, status) = if result.cancelled {
+                    (Tone::Warning, text(["Cancelled", "Đã hủy"], vi).into())
+                } else if result.timed_out {
+                    (
+                        Tone::Warning,
+                        text(["Timed out", "Hết thời gian"], vi).into(),
+                    )
+                } else {
+                    let tone = match result.exit_code {
+                        Some(0) => Tone::Success,
+                        Some(2) => Tone::Warning,
+                        _ => Tone::Error,
+                    };
+                    let code = result
+                        .exit_code
+                        .map_or_else(|| "?".into(), |code| code.to_string());
+                    (
+                        tone,
+                        format!("{} {code}", text(["Exit code:", "Mã thoát:"], vi)),
+                    )
+                };
+                self.tone = tone;
+                self.status = format!("{status}  ·  {:.2} s", result.elapsed_ms as f64 / 1000.0);
+                result.completer
+            }
+            Err(error) => {
+                self.buffer =
+                    Buffer::from_streams(String::new(), &runner::sanitize(error.as_bytes()), None);
+                self.tone = Tone::Error;
+                self.status = text(["Failed", "Thất bại"], vi).into();
+                None
+            }
+        }
+    }
 }
 
 enum Effect {
     Idle,
     Redraw,
     Run(Vec<String>),
+    Cancel,
     Exit,
 }
 
@@ -215,15 +374,18 @@ struct Menu {
     first: usize,
     search: Option<Input>,
     prompt: Option<Prompt>,
+    draft: Input,
     help: bool,
     output: Option<OutputView>,
     history: Vec<String>,
     history_index: Option<usize>,
-    history_draft: String,
+    history_draft: Input,
+    completer: Completer,
+    banner: Banner,
 }
 
 impl Menu {
-    fn new(vi: bool) -> Self {
+    fn new(vi: bool, project: Option<&Path>) -> Self {
         Self {
             vi,
             items: ENTRIES.iter().collect(),
@@ -231,11 +393,14 @@ impl Menu {
             first: 0,
             search: None,
             prompt: None,
+            draft: Input::default(),
             help: false,
             output: None,
             history: Vec::new(),
             history_index: None,
-            history_draft: String::new(),
+            history_draft: Input::default(),
+            completer: Completer::new(project, vi),
+            banner: Banner::default(),
         }
     }
 
@@ -257,20 +422,24 @@ impl Menu {
     }
 
     fn reveal_selection(&mut self, visible: usize) {
-        self.first = self.first.min(self.items.len().saturating_sub(visible));
-        self.first = self.first.clamp(
-            self.selected.saturating_sub(visible.saturating_sub(1)),
-            self.selected,
-        );
+        self.first = self
+            .first
+            .min(self.items.len().saturating_sub(visible))
+            .clamp(
+                self.selected.saturating_sub(visible.saturating_sub(1)),
+                self.selected,
+            );
     }
 
     fn select(&mut self, index: usize) -> Effect {
         let index = index.min(self.items.len().saturating_sub(1));
-        if index == self.selected {
-            return Effect::Idle;
-        }
+        let effect = if index == self.selected {
+            Effect::Idle
+        } else {
+            Effect::Redraw
+        };
         self.selected = index;
-        Effect::Redraw
+        effect
     }
 
     fn activate(&mut self) -> Effect {
@@ -281,8 +450,7 @@ impl Menu {
             return Effect::Exit;
         }
         if entry.prompt {
-            self.prompt = Some(Prompt::default());
-            self.help = false;
+            self.open_prompt(Input::default());
             return Effect::Redraw;
         }
         Effect::Run(
@@ -294,85 +462,180 @@ impl Menu {
         )
     }
 
-    fn suggestion(&self) -> Option<String> {
-        let prompt = self.prompt.as_ref()?;
-        if prompt.input.value.is_empty() && self.output.is_none() {
-            return self
-                .items
-                .get(self.selected)
-                .map(|entry| entry.command.to_owned());
-        }
-        completion::suggestions(&prompt.input.value, prompt.input.cursor)
-            .into_iter()
-            .next()
-            .filter(|candidate| candidate != &prompt.input.value)
+    fn open_prompt(&mut self, input: Input) {
+        self.prompt = Some(Prompt {
+            input,
+            edited: true,
+            ..Prompt::default()
+        });
+        self.help = false;
+        self.history_index = None;
     }
 
-    fn complete(&mut self) -> Effect {
-        let suggestion = self.suggestion();
-        let prompt = self.prompt.as_mut().expect("prompt is active");
-        if prompt.completions.is_empty() {
-            prompt.completion_suffix = prompt.input.value[prompt.input.cursor..]
-                .find(char::is_whitespace)
-                .map_or(0, |index| {
-                    prompt.input.value.len() - prompt.input.cursor - index
-                });
-            prompt.completions = if prompt.input.value.is_empty() && suggestion.is_some() {
-                suggestion.into_iter().collect()
+    fn close_main_prompt(&mut self) -> bool {
+        let Some(prompt) = self.prompt.take() else {
+            return false;
+        };
+        self.draft = if prompt.error == Some(COMMAND_TOO_LONG) {
+            Input::default()
+        } else {
+            prompt.input
+        };
+        self.history_index = None;
+        self.history_draft = Input::default();
+        true
+    }
+
+    fn refresh_suggestions(&mut self) {
+        let Some(prompt) = self.prompt.as_mut().filter(|prompt| prompt.edited) else {
+            return;
+        };
+        prompt.edited = false;
+        let input = &prompt.input;
+        prompt.completions = if input.value.is_empty() {
+            self.output
+                .is_none()
+                .then(|| self.items.get(self.selected))
+                .flatten()
+                .filter(|entry| !entry.command.is_empty())
+                .map(|entry| Suggestion {
+                    text: entry.command.into(),
+                    insert_range: 0..0,
+                    label: entry.command.into(),
+                    kind: Kind::Command,
+                    description: text(entry.detail, self.vi).into(),
+                    source: Source::Menu,
+                })
+                .into_iter()
+                .collect()
+        } else {
+            self.completer.suggestions(&input.value, input.cursor)
+        };
+        if input.cursor == input.value.len()
+            && !input.value.is_empty()
+            && !input.value.contains("-- ")
+        {
+            // The completer only falls back to fuzzy matches if no exact prefix
+            // matches exist. Safe history takes precedence over those matches.
+            let fuzzy = if prompt.completions.iter().all(|item| {
+                !item
+                    .text
+                    .starts_with(&input.value[item.insert_range.start..input.cursor])
+            }) {
+                std::mem::take(&mut prompt.completions)
             } else {
-                completion::suggestions(&prompt.input.value, prompt.input.cursor)
+                Vec::new()
             };
-            prompt.completion_index = 0;
+            for entry in self
+                .history
+                .iter()
+                .rev()
+                .filter(|entry| entry.starts_with(&input.value) && *entry != &input.value)
+            {
+                if prompt.completions.len() >= SUGGESTION_LIMIT {
+                    break;
+                }
+                if prompt.completions.iter().any(|suggestion| {
+                    let range = &suggestion.insert_range;
+                    entry.len() == input.value.len() - range.len() + suggestion.text.len()
+                        && entry.starts_with(&input.value[..range.start])
+                        && entry.ends_with(&input.value[range.end..])
+                        && entry[range.start..].starts_with(&suggestion.text)
+                }) {
+                    continue;
+                }
+                prompt.completions.push(Suggestion {
+                    text: entry.clone(),
+                    insert_range: 0..input.value.len(),
+                    label: entry.clone(),
+                    kind: Kind::History,
+                    description: text(["Recent command", "Lệnh gần đây"], self.vi).into(),
+                    source: Source::History,
+                });
+            }
+            for suggestion in fuzzy {
+                if prompt.completions.len() == SUGGESTION_LIMIT {
+                    break;
+                }
+                if !prompt.completions.iter().any(|existing| {
+                    existing.text == suggestion.text
+                        && existing.insert_range == suggestion.insert_range
+                }) {
+                    prompt.completions.push(suggestion);
+                }
+            }
         }
-        if prompt.completions.is_empty() {
+    }
+
+    fn complete(&mut self, backwards: bool) -> Effect {
+        self.refresh_suggestions();
+        let prompt = self.prompt.as_mut().expect("prompt is active");
+        let count = prompt.completions.len();
+        if count == 0 || prompt.error == Some(COMMAND_TOO_LONG) {
             return Effect::Idle;
         }
-        prompt.input.value = prompt.completions[prompt.completion_index].clone();
-        prompt.input.cursor = prompt.input.value.len() - prompt.completion_suffix;
-        prompt.completion_index = (prompt.completion_index + 1) % prompt.completions.len();
+        let (index, base) = prompt.accepted.take().map_or_else(
+            || (if backwards { count - 1 } else { 0 }, prompt.input.clone()),
+            |(index, base)| {
+                (
+                    (index + if backwards { count - 1 } else { 1 }) % count,
+                    base,
+                )
+            },
+        );
+        let completion = &prompt.completions[index];
+        let range = completion.insert_range.clone();
+        if base.value.len() - range.len() + completion.text.len() > COMMAND_LIMIT {
+            return Effect::Idle;
+        }
+        prompt.input.value.clone_from(&base.value);
+        prompt
+            .input
+            .value
+            .replace_range(range.clone(), &completion.text);
+        prompt.input.cursor = range.start + completion.text.len();
+        prompt.accepted = Some((index, base));
         prompt.error = None;
+        self.history_index = None;
         Effect::Redraw
     }
 
-    fn history_move(&mut self, older: bool) -> Effect {
+    fn history_move(&mut self, older: bool, prefix: bool) -> Effect {
         if self.history.is_empty() || (!older && self.history_index.is_none()) {
             return Effect::Idle;
         }
         let prompt = self.prompt.as_mut().expect("prompt is active");
-        if older && self.history_index.is_none() {
-            self.history_draft.clone_from(&prompt.input.value);
+        if self.history_index.is_none() {
+            self.history_draft.clone_from(&prompt.input);
         }
         self.history_index = if older {
-            Some(
-                self.history_index
-                    .unwrap_or(self.history.len())
-                    .saturating_sub(1),
-            )
+            let before = self.history_index.unwrap_or(self.history.len());
+            let matches = |entry: &String| !prefix || entry.starts_with(&self.history_draft.value);
+            let Some(index) = self.history[..before].iter().rposition(matches) else {
+                return Effect::Idle;
+            };
+            Some(index)
         } else {
             self.history_index
                 .and_then(|index| (index + 1 < self.history.len()).then_some(index + 1))
         };
-        prompt.input.value = self.history_index.map_or_else(
+        prompt.input = self.history_index.map_or_else(
             || self.history_draft.clone(),
-            |index| self.history[index].clone(),
+            |index| Input {
+                value: self.history[index].clone(),
+                cursor: self.history[index].len(),
+            },
         );
-        prompt.input.cursor = prompt.input.value.len();
-        prompt.completions.clear();
+        prompt.changed();
         Effect::Redraw
     }
 
     fn submit_prompt(&mut self) -> Effect {
         let prompt = self.prompt.as_mut().expect("prompt is active");
-        let value = prompt.input.value.trim();
-        if value.is_empty() && self.output.is_some() {
+        if prompt.input.value.trim().is_empty() || prompt.error == Some(COMMAND_TOO_LONG) {
             return Effect::Idle;
         }
-        let command = if value.is_empty() {
-            self.items[self.selected].command
-        } else {
-            value
-        };
-        let Ok(mut args) = words(command) else {
+        let Ok(mut args) = completion::arguments(&prompt.input.value) else {
             prompt.error = Some([
                 "Close the quoted argument.",
                 "Hãy đóng dấu nháy của đối số.",
@@ -384,261 +647,453 @@ impl Menu {
         }
         if args.len() == 1 && args[0] == "clear" {
             if let Some(output) = &mut self.output {
-                output.lines.clear();
+                output.buffer = Buffer::default();
                 output.scroll = 0;
+                output.follow = false;
+                output.hit = None;
             }
-            self.prompt = Some(Prompt::default());
+            self.open_prompt(Input::default());
             return Effect::Redraw;
         }
         if args.is_empty() || args[0] == "tui" {
             prompt.error = Some(["Enter a CNR command.", "Nhập một lệnh CNR."]);
             return Effect::Redraw;
         }
-        let command = command.to_owned();
-        if self.history.last() != Some(&command) {
-            self.history.push(command);
-            if self.history.len() > 100 {
-                self.history.remove(0);
+        if safe_history(&args) {
+            let command = args.join(" ");
+            if self.history.last() != Some(&command) {
+                self.history.push(command);
+                if self.history.len() > HISTORY_LIMIT {
+                    self.history.remove(0);
+                }
             }
         }
         self.history_index = None;
+        self.history_draft = Input::default();
+        self.draft = Input::default();
         self.prompt = None;
         Effect::Run(args)
+    }
+
+    fn edit_prompt(&mut self, key: KeyEvent) -> Effect {
+        match key.code {
+            KeyCode::Enter
+                if text_modifiers(key)
+                    && self.output.as_ref().is_none_or(|output| !output.running) =>
+            {
+                return self.submit_prompt();
+            }
+            KeyCode::Tab | KeyCode::BackTab if text_modifiers(key) => {
+                return self.complete(
+                    key.code == KeyCode::BackTab || key.modifiers.contains(KeyModifiers::SHIFT),
+                );
+            }
+            KeyCode::Up | KeyCode::Down if self.output.is_some() && text_modifiers(key) => {
+                return self.history_move(key.code == KeyCode::Up, false);
+            }
+            _ if control(key, 'r') => return self.history_move(true, true),
+            _ => {}
+        }
+        let prompt = self.prompt.as_mut().expect("prompt is active");
+        if printable(key).is_some_and(|ch| prompt.input.value.len() + ch.len_utf8() > COMMAND_LIMIT)
+        {
+            prompt.error = Some(COMMAND_TOO_LONG);
+            return Effect::Redraw;
+        }
+        let previous_len = prompt.input.value.len();
+        if !prompt.input.edit(key, COMMAND_LIMIT) {
+            return Effect::Idle;
+        }
+        if prompt.input.value.len() != previous_len || prompt.error != Some(COMMAND_TOO_LONG) {
+            prompt.changed();
+            self.history_index = None;
+        }
+        Effect::Redraw
+    }
+
+    fn handle_output(&mut self, key: KeyEvent) -> Effect {
+        let output = self.output.as_mut().expect("output is active");
+        if control(key, 'f') {
+            output.find.get_or_insert_with(|| Input {
+                value: output.query.clone(),
+                cursor: output.query.len(),
+            });
+            return Effect::Redraw;
+        }
+        if key.code == KeyCode::F(3) && text_modifiers(key) {
+            output.search(key.modifiers.contains(KeyModifiers::SHIFT));
+            return Effect::Redraw;
+        }
+        let page = output.page_size.clamp(1, 10) as isize;
+        match key.code {
+            KeyCode::PageUp => return output.scroll_by(-page),
+            KeyCode::PageDown => return output.scroll_by(page),
+            KeyCode::Home if key.modifiers == KeyModifiers::CONTROL => {
+                return output.scroll_to(0, false);
+            }
+            KeyCode::End if key.modifiers == KeyModifiers::CONTROL => {
+                return output.scroll_to(output.last_page, true);
+            }
+            _ => {}
+        }
+        if let Some(find) = &mut output.find {
+            return match key.code {
+                KeyCode::Enter | KeyCode::Esc => {
+                    output.find = None;
+                    Effect::Redraw
+                }
+                _ if find.edit(key, SEARCH_LIMIT) => {
+                    output.query.clone_from(&find.value);
+                    output.hit = None;
+                    output.search(false);
+                    Effect::Redraw
+                }
+                _ => Effect::Idle,
+            };
+        }
+        if key.code == KeyCode::Esc {
+            if output.running {
+                return Effect::Idle;
+            }
+            self.output = None;
+            self.prompt = None;
+            self.history_index = None;
+            return Effect::Redraw;
+        }
+        self.edit_prompt(key)
     }
 
     fn handle(&mut self, key: KeyEvent) -> Effect {
         if key.kind == KeyEventKind::Release {
             return Effect::Idle;
         }
-        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        if control(key, 'c') {
+            if let Some(output) = self.output.as_mut().filter(|output| output.running) {
+                output.status = text(["Cancelling…", "Đang hủy…"], self.vi).into();
+                output.tone = Tone::Warning;
+                return Effect::Cancel;
+            }
             return Effect::Exit;
         }
+        if self.output.is_some() {
+            return self.handle_output(key);
+        }
         if key.code == KeyCode::Esc {
-            if self.output.is_some() {
-                if self.output.as_ref().is_some_and(|output| output.running) {
-                    return Effect::Idle;
-                }
-                self.output = None;
-                self.prompt = None;
-                return Effect::Redraw;
-            }
-            if self.prompt.take().is_some() {
+            if self.close_main_prompt() {
                 return Effect::Redraw;
             }
             if self.search.take().is_some() {
                 self.refilter();
                 return Effect::Redraw;
             }
-            if self.help {
-                self.help = false;
+            if std::mem::take(&mut self.help) {
                 return Effect::Redraw;
             }
             return Effect::Exit;
         }
-        if matches!(key.code, KeyCode::PageUp | KeyCode::PageDown)
-            && let Some(output) = self.output.as_mut()
-        {
-            output.scroll = if key.code == KeyCode::PageUp {
-                output.scroll.saturating_sub(10)
-            } else {
-                output.scroll.saturating_add(10)
+        if text_modifiers(key) {
+            let index = match key.code {
+                KeyCode::Up => Some(self.selected.saturating_sub(1)),
+                KeyCode::Down => Some(self.selected + 1),
+                KeyCode::Home => Some(0),
+                KeyCode::End => Some(self.items.len().saturating_sub(1)),
+                _ => None,
             };
-            return Effect::Redraw;
+            if let Some(index) = index {
+                let closed = self.close_main_prompt();
+                let selection = self.select(index);
+                return if closed { Effect::Redraw } else { selection };
+            }
         }
         if self.prompt.is_some() {
-            if key.code == KeyCode::Enter {
-                return self.submit_prompt();
-            }
-            if key.code == KeyCode::Tab {
-                return self.complete();
-            }
-            if matches!(key.code, KeyCode::Up | KeyCode::Down) {
-                return self.history_move(key.code == KeyCode::Up);
-            }
-            let prompt = self.prompt.as_mut().expect("prompt is active");
-            if prompt.input.edit(key) {
-                prompt.error = None;
-                prompt.completions.clear();
-                self.history_index = None;
-                return Effect::Redraw;
-            }
-            return Effect::Idle;
+            return self.edit_prompt(key);
         }
-        match key.code {
-            KeyCode::Up => self.select(self.selected.saturating_sub(1)),
-            KeyCode::Down => self.select(self.selected + 1),
-            KeyCode::Enter => self.activate(),
-            _ if let Some(search) = &mut self.search => {
-                if matches!(key.code, KeyCode::Char(ch) if search.value.len() + ch.len_utf8() > 256)
-                    || !search.edit(key)
-                {
-                    return Effect::Idle;
-                }
-                let query_unchanged = matches!(
-                    key.code,
-                    KeyCode::Left | KeyCode::Right | KeyCode::Home | KeyCode::End
-                );
-                if !query_unchanged {
-                    self.refilter();
-                }
-                Effect::Redraw
+        if control(key, 'k') {
+            self.search = Some(Input::default());
+            self.help = false;
+            self.refilter();
+            return Effect::Redraw;
+        }
+        if control(key, 'r') && !self.history.is_empty() {
+            self.open_prompt(Input::default());
+            return self.history_move(true, true);
+        }
+        if key.code == KeyCode::Enter && text_modifiers(key) {
+            return self.activate();
+        }
+        if let Some(search) = &mut self.search {
+            let previous = search.value.len();
+            if !search.edit(key, SEARCH_LIMIT) {
+                return Effect::Idle;
             }
-            KeyCode::Char('/')
-                if !key.modifiers.intersects(
-                    KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER,
-                ) =>
-            {
+            if search.value.len() != previous {
+                self.refilter();
+            }
+            return Effect::Redraw;
+        }
+        match printable(key) {
+            Some('/') => {
                 self.search = Some(Input::default());
                 self.help = false;
                 Effect::Redraw
             }
-            KeyCode::Char('?') => {
+            Some('?') => {
                 self.help = !self.help;
                 Effect::Redraw
             }
-            KeyCode::Char(':') => {
-                self.prompt = Some(Prompt::default());
+            Some(':') => {
+                let draft = std::mem::take(&mut self.draft);
+                self.open_prompt(draft);
                 Effect::Redraw
+            }
+            Some(ch) if !ch.is_whitespace() && !self.help => {
+                self.draft = Input::default();
+                self.open_prompt(Input::default());
+                self.edit_prompt(key)
             }
             _ => Effect::Idle,
         }
     }
+
+    fn paste(&mut self, value: &str) -> Effect {
+        if value.len() > COMMAND_LIMIT {
+            if self.prompt.is_none() && self.search.is_none() && !self.help {
+                self.open_prompt(Input::default());
+            }
+            if let Some(prompt) = &mut self.prompt {
+                prompt.error = Some(COMMAND_TOO_LONG);
+                return Effect::Redraw;
+            }
+            return Effect::Idle;
+        }
+        let sanitized = runner::sanitize(value.as_bytes()).replace('\n', " ");
+        if let Some(output) = &mut self.output
+            && let Some(find) = &mut output.find
+        {
+            if !find.insert(&sanitized, SEARCH_LIMIT) {
+                return Effect::Idle;
+            }
+            output.query.clone_from(&find.value);
+            output.hit = None;
+            output.search(false);
+            return Effect::Redraw;
+        }
+        if self.prompt.is_none() {
+            if let Some(search) = &mut self.search {
+                if !search.insert(&sanitized, SEARCH_LIMIT) {
+                    return Effect::Idle;
+                }
+                self.refilter();
+                return Effect::Redraw;
+            }
+            if self.help || sanitized.trim().is_empty() {
+                return Effect::Idle;
+            }
+            self.draft = Input::default();
+            self.open_prompt(Input::default());
+        }
+        let prompt = self.prompt.as_mut().expect("prompt is active");
+        if prompt.input.value.len() + sanitized.len() > COMMAND_LIMIT {
+            prompt.error = Some(COMMAND_TOO_LONG);
+            return Effect::Redraw;
+        }
+        if prompt.input.insert(&sanitized, COMMAND_LIMIT) {
+            prompt.changed();
+            self.history_index = None;
+            Effect::Redraw
+        } else {
+            Effect::Idle
+        }
+    }
 }
 
-fn show(menu: &mut Menu, color: bool, banner: bool, project: Option<PathBuf>) -> io::Result<()> {
-    let _screen = Screen::enter()?;
-    let mut out = io::BufWriter::new(io::stdout().lock());
+fn safe_history(args: &[String]) -> bool {
+    // Record known read-only command shapes. Free-form arguments may be secrets.
+    let args = if args.last().is_some_and(|arg| arg == "--json") {
+        &args[..args.len() - 1]
+    } else {
+        args
+    };
+    match args {
+        [command] => matches!(command.as_str(), "list" | "doctor" | "--help" | "--version"),
+        [command, action] => matches!(
+            (command.as_str(), action.as_str()),
+            ("env", "plan" | "profiles")
+                | ("config", "show")
+                | ("venv", "list")
+                | ("workspace", "discover" | "health")
+                | ("governance", "inspect" | "validate")
+                | ("agent", "list")
+                | ("audit", "list" | "tooling")
+        ),
+        _ => false,
+    }
+}
+
+fn output_title(args: &[String]) -> String {
+    if safe_history(args) {
+        return format!("cnr {}", args.join(" "));
+    }
+    let command = args
+        .iter()
+        .take_while(|word| word.as_str() != "--")
+        .find(|word| super::COMMANDS.iter().any(|(name, _, _)| name == *word));
+    command.map_or_else(|| "cnr".into(), |command| format!("cnr {command}"))
+}
+
+fn read_events(batch: &mut Vec<Event>, running: bool) -> io::Result<()> {
+    batch.clear();
+    let timeout = if running {
+        Some(Duration::from_millis(16))
+    } else if cfg!(windows) {
+        Some(Duration::from_millis(120))
+    } else {
+        None
+    };
+    if let Some(timeout) = timeout
+        && !event::poll(timeout)?
+    {
+        return Ok(());
+    }
+    batch.push(event::read()?);
+    while batch.len() < 128 && event::poll(Duration::ZERO)? {
+        batch.push(event::read()?);
+    }
+    Ok(())
+}
+
+fn windows_paste(batch: &[Event], previous_text: usize) -> Option<String> {
+    // The Windows console input API reports unbracketed paste as queued keys.
+    // A newline in a queued text burst is input, never a submit.
+    let mut value = String::new();
+    let mut characters = previous_text;
+    let mut newline = false;
+    for event in batch {
+        let Event::Key(key) = event else { return None };
+        if key.kind == KeyEventKind::Release {
+            continue;
+        }
+        if let Some(ch) = printable(*key) {
+            characters += 1;
+            value.push(ch);
+        } else if key.code == KeyCode::Enter && text_modifiers(*key) {
+            newline = true;
+            value.push(' ');
+        } else {
+            return None;
+        }
+    }
+    (newline && characters >= 2).then_some(value)
+}
+
+fn show(
+    menu: &mut Menu,
+    color: bool,
+    banner: bool,
+    project: Option<PathBuf>,
+    catalog_project: Option<&Path>,
+) -> io::Result<()> {
+    // Restore the terminal before joining an owned worker on an I/O error.
+    let mut running: Option<runner::Runner> = None;
+    let mut screen = Screen::enter(io::BufWriter::with_capacity(64 * 1024, io::stdout().lock()))?;
     let mut painter = Painter::default();
     let mut size = console::size()?;
+    let mut batch = Vec::with_capacity(128);
     let mut redraw = true;
-    let mut running: Option<runner::Runner> = None;
+    let mut last_size_check = Instant::now();
+    let mut paste_continuation = 0;
     loop {
         if let Some(result) = running.as_mut().and_then(runner::Runner::poll) {
-            if let Some(output) = &mut menu.output {
-                output.running = false;
-                match result {
-                    Ok(result) => {
-                        output.lines = result.stdout.lines().map(str::to_owned).collect();
-                        if !result.stderr.is_empty() {
-                            output
-                                .lines
-                                .extend(result.stderr.lines().map(str::to_owned));
-                        }
-                        if result.truncated {
-                            output.lines.push(
-                                text(["[Output truncated]", "[Đầu ra đã được rút gọn]"], menu.vi)
-                                    .into(),
-                            );
-                        }
-                        output.status = if result.cancelled {
-                            text(["Cancelled", "Đã hủy"], menu.vi).into()
-                        } else if result.timed_out {
-                            text(["Timed out", "Hết thời gian"], menu.vi).into()
-                        } else {
-                            format!(
-                                "{} {}",
-                                text(["Exit code:", "Mã thoát:"], menu.vi),
-                                result
-                                    .exit_code
-                                    .map_or_else(|| "?".into(), |code| code.to_string())
-                            )
-                        };
-                    }
-                    Err(error) => {
-                        output.lines = vec![error];
-                        output.status = text(["Failed", "Thất bại"], menu.vi).into();
-                    }
+            if let Some(output) = &mut menu.output
+                && let Some(completer) = output.finish(result, menu.vi)
+            {
+                menu.completer = completer;
+                if let Some(prompt) = &mut menu.prompt {
+                    prompt.changed();
                 }
             }
             running = None;
             redraw = true;
         }
         if redraw {
-            painter.draw(&mut out, view::frame(menu, size, banner, color), color)?;
+            painter.draw(
+                &mut screen.out,
+                view::frame(menu, size, banner, color),
+                color,
+            )?;
+        }
+        read_events(&mut batch, running.is_some())?;
+        redraw = false;
+        if batch
+            .iter()
+            .any(|event| matches!(event, Event::Resize(_, _)))
+            || (cfg!(windows) && last_size_check.elapsed() >= Duration::from_millis(120))
+        {
+            let new_size = console::size()?;
+            last_size_check = Instant::now();
+            if new_size.0 > 0 && new_size.1 > 0 && new_size != size {
+                size = new_size;
+                redraw = true;
+            }
         }
 
-        // Windows pseudoconsoles can change size without a resize event.
-        // Recheck the viewport on a blocking wait timeout, without drawing
-        // or flushing anything while the menu and viewport are unchanged.
-        let input = if !event::poll(Duration::from_millis(120))? {
-            None
-        } else {
-            Some(event::read()?)
-        };
-        let new_size = if cfg!(windows) || matches!(input, Some(Event::Resize(_, _))) {
-            console::size()?
-        } else {
-            size
-        };
-        redraw = new_size != size;
-        size = new_size;
-        let key = match input {
-            Some(Event::Key(key)) => Some(key),
-            Some(Event::Mouse(mouse)) if menu.output.is_some() => {
-                let output = menu.output.as_mut().expect("output is active");
-                match mouse.kind {
-                    MouseEventKind::ScrollUp => {
-                        output.scroll = output.scroll.saturating_sub(3);
-                        redraw = true;
-                    }
-                    MouseEventKind::ScrollDown => {
-                        output.scroll = output.scroll.saturating_add(3);
-                        redraw = true;
-                    }
-                    _ => {}
-                }
-                None
+        let pending = std::mem::take(&mut paste_continuation);
+        if cfg!(windows) {
+            if batch.len() == 128 {
+                paste_continuation = pending + batch.iter().filter(|event| {
+                    matches!(event, Event::Key(key) if key.kind != KeyEventKind::Release && printable(*key).is_some())
+                }).count();
             }
-            Some(Event::Mouse(mouse))
-                if menu.prompt.is_none() && menu.search.is_none() && !menu.help =>
-            {
-                if mouse.kind == MouseEventKind::Down(MouseButton::Left)
-                    && let Some(index) = view::menu_hit(size, banner, mouse.column, mouse.row)
-                    && menu.first + index < menu.items.len()
-                {
-                    menu.selected = menu.first + index;
-                    redraw = true;
-                    Some(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
-                } else {
-                    None
-                }
+            if let Some(paste) = windows_paste(&batch, pending) {
+                redraw |= matches!(menu.paste(&paste), Effect::Redraw);
+                continue;
             }
-            _ => None,
-        };
-        if let Some(key) = key {
-            if let Some(worker) = &running {
-                if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                    worker.cancel();
-                    if let Some(output) = &mut menu.output {
-                        output.status = text(["Cancelling…", "Đang hủy…"], menu.vi).into();
+        }
+
+        for input in batch.drain(..) {
+            let effect = match input {
+                Event::Key(key) => menu.handle(key),
+                Event::Paste(value) => menu.paste(&value),
+                Event::Mouse(mouse) if menu.output.is_some() => {
+                    let output = menu.output.as_mut().expect("output is active");
+                    match mouse.kind {
+                        MouseEventKind::ScrollUp => output.scroll_by(-3),
+                        MouseEventKind::ScrollDown => output.scroll_by(3),
+                        _ => Effect::Idle,
                     }
-                    redraw = true;
-                    continue;
                 }
-                if key.code == KeyCode::Enter {
-                    continue;
+                Event::Mouse(mouse) if mouse.kind == MouseEventKind::Down(MouseButton::Left) => {
+                    if let Some(index) = painter.menu_hit(size, mouse.column, mouse.row)
+                        && index < menu.items.len()
+                    {
+                        redraw |= menu.close_main_prompt();
+                        redraw |= matches!(menu.select(index), Effect::Redraw);
+                        menu.activate()
+                    } else {
+                        Effect::Idle
+                    }
                 }
-            }
-            match menu.handle(key) {
+                _ => Effect::Idle,
+            };
+            match effect {
                 Effect::Idle => {}
                 Effect::Redraw => redraw = true,
+                Effect::Cancel => {
+                    if let Some(worker) = &running {
+                        worker.cancel();
+                    }
+                    redraw = true;
+                }
                 Effect::Run(args) => {
-                    let title = format!("cnr {}", args.join(" "));
-                    menu.output = Some(OutputView {
-                        title,
-                        lines: Vec::new(),
-                        scroll: 0,
-                        running: true,
-                        status: text(["Running…", "Đang chạy…"], menu.vi).into(),
-                    });
-                    menu.prompt = Some(Prompt::default());
-                    match runner::Runner::start(args, project.clone(), menu.vi) {
+                    menu.output = Some(OutputView::new(output_title(&args), menu.vi));
+                    menu.open_prompt(Input::default());
+                    match runner::Runner::start(args, project.clone(), catalog_project, menu.vi) {
                         Ok(worker) => running = Some(worker),
                         Err(error) => {
-                            let output = menu.output.as_mut().expect("output was created");
-                            output.running = false;
-                            output.lines.push(error);
-                            output.status = text(["Failed", "Thất bại"], menu.vi).into();
+                            menu.output
+                                .as_mut()
+                                .expect("output was created")
+                                .finish(Err(error), menu.vi);
                         }
                     }
                     redraw = true;
@@ -649,49 +1104,20 @@ fn show(menu: &mut Menu, color: bool, banner: bool, project: Option<PathBuf>) ->
     }
 }
 
-fn words(text: &str) -> Result<Vec<String>, &'static str> {
-    let mut result = Vec::new();
-    let mut word = String::new();
-    let mut quote = None;
-    let mut started = false;
-    for ch in text.trim_end_matches(['\r', '\n']).chars() {
-        if let Some(delimiter) = quote {
-            if ch == delimiter {
-                quote = None;
-            } else {
-                word.push(ch);
-            }
-        } else if matches!(ch, '\'' | '"') {
-            quote = Some(ch);
-            started = true;
-        } else if ch.is_whitespace() {
-            if started {
-                result.push(std::mem::take(&mut word));
-                started = false;
-            }
-        } else {
-            word.push(ch);
-            started = true;
-        }
-    }
-    if quote.is_some() {
-        return Err("Unclosed quote");
-    }
-    if started {
-        result.push(word);
-    }
-    Ok(result)
-}
-
 pub fn run(flags: &ArgMatches, vi: bool) -> ExitCode {
-    let color = env::var_os("NO_COLOR").is_none();
+    let color = terminal::color_enabled();
     let banner = !flags.get_flag("no-banner");
-    let mut menu = Menu::new(vi);
+    let catalog_project = super::project(flags, true).ok().flatten();
+    let catalog_project = catalog_project
+        .as_ref()
+        .map(cirnetrules::environment::Project::root);
+    let mut menu = Menu::new(vi, catalog_project);
     match show(
         &mut menu,
         color,
         banner,
         flags.get_one::<PathBuf>("project").cloned(),
+        catalog_project,
     ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => super::emit(
@@ -710,104 +1136,168 @@ mod tests {
         KeyEvent::new(code, KeyModifiers::NONE)
     }
 
-    #[test]
-    fn tab_fills_the_suggested_command() {
-        let mut menu = Menu::new(false);
-        menu.handle(key(KeyCode::Down));
-        menu.handle(key(KeyCode::Enter));
-        assert!(matches!(menu.handle(key(KeyCode::Tab)), Effect::Redraw));
-        assert_eq!(menu.prompt.as_ref().unwrap().input.value, "search");
+    fn press(menu: &mut Menu, code: KeyCode) -> Effect {
+        menu.handle(key(code))
+    }
+
+    fn command(menu: &Menu) -> &str {
+        &menu.prompt.as_ref().expect("command prompt").input.value
     }
 
     #[test]
-    fn clear_is_handled_in_the_interface() {
-        let mut menu = Menu::new(false);
-        menu.output = Some(OutputView {
-            title: "cnr list".into(),
-            lines: vec!["previous output".into()],
-            scroll: 3,
-            running: false,
-            status: String::new(),
-        });
-        menu.prompt = Some(Prompt::default());
-        for ch in "clear".chars() {
-            menu.handle(key(KeyCode::Char(ch)));
+    fn typing_opens_command_and_escape_restores_menu_and_draft() {
+        for vi in [false, true] {
+            let mut menu = Menu::new(vi, None);
+            assert!(matches!(press(&mut menu, KeyCode::Char(' ')), Effect::Idle));
+            assert!(matches!(
+                menu.handle(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::ALT)),
+                Effect::Idle
+            ));
+            assert!(menu.prompt.is_none());
+            assert!(matches!(
+                press(&mut menu, KeyCode::Char('l')),
+                Effect::Redraw
+            ));
+            assert_eq!(command(&menu), "l");
+            menu.refresh_suggestions();
+            assert_eq!(menu.prompt.as_ref().unwrap().completions[0].text, "list");
+            assert!(matches!(press(&mut menu, KeyCode::Esc), Effect::Redraw));
+            assert!(menu.prompt.is_none());
+            assert_eq!(menu.selected, 0);
+            press(&mut menu, KeyCode::Char(':'));
+            assert_eq!(command(&menu), "l");
+            press(&mut menu, KeyCode::Esc);
+            press(&mut menu, KeyCode::Char('s'));
+            assert_eq!(command(&menu), "s");
+            press(&mut menu, KeyCode::Esc);
+            assert!(matches!(press(&mut menu, KeyCode::Esc), Effect::Exit));
         }
-        assert!(matches!(menu.handle(key(KeyCode::Enter)), Effect::Redraw));
-        assert!(menu.output.as_ref().unwrap().lines.is_empty());
-        assert_eq!(menu.output.as_ref().unwrap().scroll, 0);
     }
 
     #[test]
-    fn history_restores_the_draft_and_escape_returns_to_the_menu() {
-        let mut menu = Menu::new(false);
-        menu.output = Some(OutputView {
-            title: "cnr list".into(),
-            lines: Vec::new(),
-            scroll: 0,
-            running: false,
-            status: String::new(),
-        });
-        menu.prompt = Some(Prompt::default());
-        menu.history.push("config show".into());
-        for ch in "draft".chars() {
-            menu.handle(key(KeyCode::Char(ch)));
-        }
-        menu.handle(key(KeyCode::Down));
-        assert_eq!(menu.prompt.as_ref().unwrap().input.value, "draft");
-        menu.handle(key(KeyCode::Up));
-        assert_eq!(menu.prompt.as_ref().unwrap().input.value, "config show");
-        menu.handle(key(KeyCode::Down));
-        assert_eq!(menu.prompt.as_ref().unwrap().input.value, "draft");
-        menu.handle(key(KeyCode::Esc));
-        assert!(menu.output.is_none());
+    fn arrows_close_prompt_and_select_in_the_same_event_at_edges_and_in_filtered_menu() {
+        let mut menu = Menu::new(false, None);
+        press(&mut menu, KeyCode::Char('l'));
+        assert!(matches!(press(&mut menu, KeyCode::Up), Effect::Redraw));
         assert!(menu.prompt.is_none());
+        assert_eq!(menu.selected, 0);
+        press(&mut menu, KeyCode::Char(':'));
+        assert!(matches!(press(&mut menu, KeyCode::Down), Effect::Redraw));
+        assert!(menu.prompt.is_none());
+        assert_eq!(menu.selected, 1);
+        press(&mut menu, KeyCode::Char('/'));
+        menu.paste("tools");
+        assert!(menu.items.len() > 1);
+        menu.open_prompt(Input::default());
+        assert!(matches!(press(&mut menu, KeyCode::Down), Effect::Redraw));
+        assert!(menu.prompt.is_none());
+        assert!(menu.search.is_some());
+        assert_eq!(menu.selected, 1);
     }
 
     #[test]
-    fn command_prompt_preserves_quotes_and_keeps_errors_in_the_menu() {
-        let mut menu = Menu::new(false);
-        assert!(matches!(menu.handle(key(KeyCode::Down)), Effect::Redraw));
-        assert!(matches!(menu.handle(key(KeyCode::Enter)), Effect::Redraw));
-        assert!(menu.prompt.is_some());
-        for ch in r#"cnr search "rust toolchain"#.chars() {
-            menu.handle(key(KeyCode::Char(ch)));
+    fn tab_fills_selected_suggestion_without_executing_it_and_cycles_both_ways() {
+        let mut menu = Menu::new(false, None);
+        press(&mut menu, KeyCode::Down);
+        press(&mut menu, KeyCode::Enter);
+        assert!(matches!(press(&mut menu, KeyCode::Enter), Effect::Idle));
+        press(&mut menu, KeyCode::Tab);
+        assert_eq!(command(&menu), "search");
+        press(&mut menu, KeyCode::Esc);
+        menu.paste("cnr workspace b --json");
+        menu.prompt.as_mut().unwrap().input.cursor = "cnr workspace b".len();
+        press(&mut menu, KeyCode::Tab);
+        let first = command(&menu).to_owned();
+        assert!(first.ends_with(" --json"));
+        press(&mut menu, KeyCode::Tab);
+        assert_ne!(command(&menu), first);
+        press(&mut menu, KeyCode::BackTab);
+        assert_eq!(command(&menu), first);
+        match press(&mut menu, KeyCode::Enter) {
+            Effect::Run(args) => assert_eq!(args.join(" "), first.strip_prefix("cnr ").unwrap()),
+            _ => panic!("accepted command should run"),
         }
-        assert!(matches!(menu.handle(key(KeyCode::Enter)), Effect::Redraw));
+    }
+
+    #[test]
+    fn menu_shortcuts_are_literal_when_command_has_focus() {
+        let mut menu = Menu::new(true, None);
+        press(&mut menu, KeyCode::Char('?'));
+        assert!(menu.help);
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char('/'));
+        assert!(menu.search.is_some());
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        for ch in "/?:".chars() {
+            press(&mut menu, KeyCode::Char(ch));
+        }
+        assert_eq!(command(&menu), "/?:");
+    }
+
+    #[test]
+    fn preserves_quoted_paths_and_keeps_parse_errors_inline() {
+        let mut menu = Menu::new(false, None);
+        menu.paste(r#"cnr exec -- "C:\Program Files\Việt\tool.exe"#);
+        assert!(matches!(press(&mut menu, KeyCode::Enter), Effect::Redraw));
         assert!(menu.prompt.as_ref().unwrap().error.is_some());
-        menu.handle(key(KeyCode::Char('"')));
-        match menu.handle(key(KeyCode::Enter)) {
-            Effect::Run(args) => assert_eq!(args, ["search", "rust toolchain"]),
+        menu.paste("\" \"\" 'two words'");
+        match press(&mut menu, KeyCode::Enter) {
+            Effect::Run(args) => assert_eq!(
+                args,
+                [
+                    "exec",
+                    "--",
+                    r"C:\Program Files\Việt\tool.exe",
+                    "",
+                    "two words",
+                ]
+            ),
             _ => panic!("expected parsed command"),
         }
-        assert!(menu.prompt.is_none());
+        assert!(menu.history.is_empty());
     }
 
     #[test]
-    fn unicode_input_can_edit_in_the_middle() {
+    fn output_history_restores_the_draft_and_clear_keeps_the_prompt() {
+        let mut menu = Menu::new(false, None);
+        menu.paste("config show");
+        assert!(matches!(press(&mut menu, KeyCode::Enter), Effect::Run(_)));
+        let mut output = OutputView::new("cnr config show".into(), false);
+        output.running = false;
+        output.buffer = Buffer::from_streams("previous output".into(), "", None);
+        menu.output = Some(output);
+        menu.open_prompt(Input::default());
+        menu.paste("clear");
+        press(&mut menu, KeyCode::Up);
+        assert_eq!(command(&menu), "config show");
+        press(&mut menu, KeyCode::Down);
+        assert_eq!(command(&menu), "clear");
+        assert!(matches!(press(&mut menu, KeyCode::Enter), Effect::Redraw));
+        assert_eq!(menu.output.as_mut().unwrap().buffer.layout(80), 0);
+        assert_eq!(command(&menu), "");
+        press(&mut menu, KeyCode::Esc);
+        assert!(menu.output.is_none());
+    }
+
+    #[test]
+    fn unicode_editing_keeps_a_base_and_combining_mark_together() {
         let mut input = Input::default();
-        for ch in "aệc".chars() {
-            input.edit(key(KeyCode::Char(ch)));
-        }
-        assert!(input.edit(key(KeyCode::Left)));
-        assert!(input.edit(key(KeyCode::Backspace)));
-        assert!(input.edit(key(KeyCode::Char('b'))));
-        assert_eq!(input.value, "abc");
-        assert_eq!(input.cursor, 2);
+        input.insert("a東京e\u{301}c", COMMAND_LIMIT);
+        input.edit(key(KeyCode::Left), COMMAND_LIMIT);
+        input.edit(key(KeyCode::Backspace), COMMAND_LIMIT);
+        assert_eq!(input.value, "a東京c");
+        assert_eq!(input.cursor, "a東京".len());
     }
 
     #[test]
-    fn preserves_quoted_unicode_paths_and_empty_argv_values() {
-        assert_eq!(
-            words(r#"exec -- "C:\Program Files\Việt\tool.exe" "" 'two words'"#).unwrap(),
-            [
-                "exec",
-                "--",
-                r"C:\Program Files\Việt\tool.exe",
-                "",
-                "two words"
-            ]
-        );
-        assert!(words("exec -- \"unclosed").is_err());
+    fn pasted_newlines_and_oversized_text_do_not_submit() {
+        let mut menu = Menu::new(false, None);
+        assert!(matches!(menu.paste("list\n"), Effect::Redraw));
+        assert_eq!(command(&menu), "list ");
+        menu.paste(&"x".repeat(COMMAND_LIMIT + 1));
+        assert_eq!(command(&menu), "list ");
+        assert!(matches!(press(&mut menu, KeyCode::Enter), Effect::Idle));
+        assert!(windows_paste(&[Event::Key(key(KeyCode::Enter))], 0).is_none());
     }
 }

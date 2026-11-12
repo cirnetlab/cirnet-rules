@@ -88,6 +88,89 @@ pub fn resolved(root: &Path, tool: &str, version: &str) -> Result<Option<PathBuf
     }
 }
 
+pub struct CompletionVersion {
+    pub version: String,
+    pub pinned: bool,
+    pub installed: bool,
+}
+
+pub struct CompletionTool {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub kind: &'static str,
+    pub managed: bool,
+    pub versions: Vec<CompletionVersion>,
+}
+
+/// Read the project pins and managed receipts without probing native commands.
+pub fn completion_catalog(root: Option<&Path>) -> Vec<CompletionTool> {
+    let project = root.and_then(|root| Project::open(root).ok());
+    let selected = project
+        .as_ref()
+        .and_then(|project| project.selected().ok())
+        .unwrap_or_default();
+    catalog::TOOLS
+        .iter()
+        .map(|tool| {
+            let managed = tool.supported();
+            let pinned = selected
+                .get(tool.id)
+                .and_then(|version| exact_version(version).ok());
+            let root = project.as_ref().map(Project::root).filter(|_| managed);
+            let installed = |version: &str| {
+                root.is_some_and(|root| {
+                    resolved(root, tool.id, version).is_ok_and(|path| path.is_some())
+                })
+            };
+            let mut versions = Vec::new();
+            if let Some(version) = pinned {
+                versions.push(CompletionVersion {
+                    version: version.into(),
+                    pinned: true,
+                    installed: installed(version),
+                });
+            }
+            let mut candidates: Vec<_> = root
+                .and_then(|root| tool_version_paths(root, tool).ok())
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|path| {
+                    let version = path.file_name()?.to_str()?;
+                    (exact_version(version).ok() == Some(version) && Some(version) != pinned)
+                        .then(|| version.to_owned())
+                })
+                .collect();
+            candidates.sort_unstable_by_key(|version| {
+                let mut parts = version
+                    .split('.')
+                    .map(|part| part.parse::<u32>().unwrap_or(0));
+                std::cmp::Reverse(std::array::from_fn::<_, 3, _>(|_| {
+                    parts.next().unwrap_or(0)
+                }))
+            });
+            // Bound receipt verification even if the provider store is large.
+            for version in candidates
+                .into_iter()
+                .take(16)
+                .filter(|version| installed(version))
+            {
+                versions.push(CompletionVersion {
+                    version,
+                    pinned: false,
+                    installed: true,
+                });
+            }
+            CompletionTool {
+                id: tool.id,
+                label: tool.label,
+                kind: tool.kind,
+                managed,
+                versions,
+            }
+        })
+        .collect()
+}
+
 fn blocked(reason: &str, plan: Value) -> Value {
     json!({"status":"BLOCKED", "reason":reason, "plan":plan})
 }
@@ -181,13 +264,15 @@ fn inventory(root: Option<&Path>, words: &[&str], options: &Options) -> Result<V
     }))
 }
 
-fn versions(root: &Path, tool: &catalog::Tool) -> Result<Vec<Value>, String> {
+fn tool_version_paths(root: &Path, tool: &catalog::Tool) -> Result<Vec<PathBuf>, String> {
     let relative = Path::new(".cnr/tools").join(tool.id);
-    let Some(base) = store::directory(root, &relative, false)? else {
-        return Ok(Vec::new());
-    };
+    store::directory(root, &relative, false)?
+        .map_or_else(|| Ok(Vec::new()), |base| store::entries(&base))
+}
+
+fn versions(root: &Path, tool: &catalog::Tool) -> Result<Vec<Value>, String> {
     let mut versions = Vec::new();
-    for target in store::entries(&base)? {
+    for target in tool_version_paths(root, tool)? {
         let Some(name) = target.file_name().and_then(|name| name.to_str()) else {
             continue;
         };

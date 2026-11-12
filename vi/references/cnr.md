@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 6 -->
-<!-- source-sha256: 0f2361222c5e443244de1c78add2776e3d121cd814a2ab140750b32484b58203 -->
+<!-- revision: 7 -->
+<!-- source-sha256: 469415b49dd60d2b7804be0ce6b208ce122a512a1ea525b083d49f146f8c60b7 -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
@@ -17,10 +17,19 @@ cargo build --locked --bin cnr
 
 Trên Windows dùng `target/debug/cnr.exe`. Chạy `cnr` hoặc `cnr tui` trong
 terminal tương tác. Bố cục rộng hiển thị lệnh đang chọn bên cạnh danh sách.
-`/` mở tìm kiếm và `?` mở trợ giúp theo ngữ cảnh ở cuối màn hình.
-Khi một lệnh nhận đầu vào, ví dụ xuất hiện ở đó. Để trống trường nhập để
-dùng ví dụ. Có thể dùng bàn phím để di chuyển trong danh sách, chọn lệnh,
-đóng trường đang mở hoặc thoát.
+`/` hoặc Ctrl+K tìm trong menu. `?` mở trợ giúp theo ngữ cảnh.
+
+Gõ để mở ô Lệnh hoặc dùng `:` để mở lại bản nháp chưa gửi.
+Tab nhận và duyệt gợi ý. Shift+Tab duyệt ngược. Enter gửi nội dung trong
+ô Lệnh. Ở menu chính, Esc đóng ô Lệnh, còn phím mũi tên đóng ô và di
+chuyển mục đang chọn. Gợi ý phiên bản lấy từ pin dự án và bản cài do
+CNR quản lý đã được xác thực.
+
+Trong kết quả, PgUp/PgDn và bánh xe chuột cuộn đầu ra. Ctrl+Home và
+Ctrl+End chuyển đến đầu và cuối. Ctrl+F tìm trong đầu ra. F3 và Shift+F3
+chuyển giữa các vị trí khớp. Mũi tên lên và xuống gọi lại các lệnh chỉ
+đọc gần đây, còn Ctrl+R tìm theo tiền tố. Ctrl+C hủy lệnh đang chạy hoặc
+thoát khi rảnh. Esc trở về menu từ màn hình kết quả khi lệnh đã dừng.
 
 `--lang vi` chọn nhãn terminal và mô tả lệnh tiếng Việt. `--no-banner` dùng
 tiêu đề gọn. `NO_COLOR` hiển thị văn bản và chữ khối đơn sắc, bỏ bóng đổ.

@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 6 -->
+<!-- revision: 7 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
@@ -15,10 +15,19 @@ cargo build --locked --bin cnr
 
 On Windows use `target/debug/cnr.exe`. Run `cnr` or `cnr tui` in an
 interactive terminal. The wide layout shows the selected command beside
-the list. `/` opens search and `?` reveals contextual help at the
-bottom of the screen. When a command accepts input, the example appears there
-and a blank entry uses it. The keyboard can move through the list, select
-a command, close the active field or exit.
+the list. `/` or Ctrl+K searches the menu. `?` opens contextual help.
+
+Type to open Command or press `:` to recover an unsent draft.
+Tab accepts and cycles through suggestions. Shift+Tab cycles backward.
+Enter submits the text in Command. In the main menu, Esc closes Command
+and an arrow key closes it and moves the selection. Version suggestions
+use project pins and verified managed installations.
+
+In results, PgUp/PgDn and the mouse wheel scroll the output.
+Ctrl+Home and Ctrl+End go to the start and end. Ctrl+F searches the output.
+F3 and Shift+F3 move between matches. Up and Down recall recent read-only
+commands and Ctrl+R searches that history by prefix. Ctrl+C cancels a
+running command or exits while idle. Esc returns to the menu from idle results.
 
 `--lang vi` selects Vietnamese terminal labels and command summaries.
 `--no-banner` selects the compact title. `NO_COLOR` shows plain text and
