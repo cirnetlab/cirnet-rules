@@ -89,6 +89,7 @@ pub(super) enum PalettePart {
     InputRim,
     InputEdge,
     Input,
+    SuggestionEdge,
     Detail,
     Suggestion,
     Selected,
@@ -205,13 +206,17 @@ impl Style {
     fn palette(part: PalettePart, depth: SemanticDepth) -> Self {
         use Color::*;
         use PalettePart::*;
-        let input = depth.color((20, 21, 23), 233, DarkGrey);
         let suggestions = depth.color((31, 33, 37), 235, DarkGrey);
         let input_rim = depth.color((78, 80, 86), 240, DarkGrey);
         let (color, background) = match part {
             InputRim => (input_rim, None),
-            InputEdge => (input_rim, Some(input)),
-            Input => (depth.color((237, 237, 239), 255, White), Some(input)),
+            InputEdge => (input_rim, None),
+            // A box-drawing cell cannot combine a third color outside its
+            // stroke with a distinct interior background. Inherit the
+            // terminal surface for the complete input to keep its rounded
+            // border seamless without painting beyond the outer edge.
+            Input => return Self::default(),
+            SuggestionEdge => (suggestions, None),
             Detail => (depth.color((159, 161, 166), 248, Grey), Some(suggestions)),
             Suggestion => (depth.color((211, 212, 215), 252, White), Some(suggestions)),
             Selected => (depth.color((237, 237, 239), 255, White), Some(suggestions)),
@@ -501,11 +506,28 @@ impl Painter {
             } else {
                 queue!(out, Print(&line.contents()[dirty]))?;
             }
-            if resized || old.is_some_and(|old| old.contents().width() > line.contents().width()) {
+            if resized {
                 let plain = Style::default();
                 plain.write(out, active)?;
                 active = plain;
                 queue!(out, Clear(ClearType::UntilNewLine))?;
+            } else if let Some(old) = old {
+                let mut stale = old
+                    .contents()
+                    .width()
+                    .saturating_sub(line.contents().width());
+                if stale > 0 {
+                    let plain = Style::default();
+                    plain.write(out, active)?;
+                    active = plain;
+                    const BLANKS: &str =
+                        "                                                                ";
+                    while stale > 0 {
+                        let count = stale.min(BLANKS.len());
+                        queue!(out, Print(&BLANKS[..count]))?;
+                        stale -= count;
+                    }
+                }
             }
             changed = true;
         }
@@ -668,7 +690,9 @@ mod tests {
         assert_eq!(bytes.len(), length);
         bytes.clear();
         painter.draw(&mut bytes, frame("new"), true).unwrap();
-        assert!(String::from_utf8_lossy(&bytes).contains("\x1b[2;4H\x1b[K"));
+        let delta = String::from_utf8_lossy(&bytes);
+        assert!(delta.contains("\x1b[2;4H  "), "{delta:?}");
+        assert!(!delta.contains("\x1b[K"), "{delta:?}");
     }
 
     #[test]
@@ -730,7 +754,8 @@ mod tests {
         painter.draw(&mut bytes, frame("env"), true).unwrap();
         let trace = String::from_utf8_lossy(&bytes);
         assert!(!trace.contains("Danh mục"), "{trace:?}");
-        assert!(trace.contains("\x1b[K"), "{trace:?}");
+        assert!(trace.contains("            "), "{trace:?}");
+        assert!(!trace.contains("\x1b[K"), "{trace:?}");
     }
 
     #[test]
@@ -801,13 +826,47 @@ mod tests {
     }
 
     #[test]
-    fn input_border_meets_the_input_surface_without_filling_the_corners() {
+    fn input_and_border_share_the_terminal_surface_without_halos() {
         let input = Style::palette(PalettePart::Input, SemanticDepth::Rgb);
         let edge = Style::palette(PalettePart::InputEdge, SemanticDepth::Rgb);
         let corner = Style::palette(PalettePart::InputRim, SemanticDepth::Rgb);
         assert_eq!(edge.background, input.background);
-        assert!(edge.background.is_some());
+        assert!(edge.background.is_none());
         assert!(corner.background.is_none());
+    }
+
+    #[test]
+    fn suggestion_half_cells_use_the_surface_color_without_an_outer_background() {
+        for depth in [
+            SemanticDepth::Rgb,
+            SemanticDepth::Indexed,
+            SemanticDepth::Basic,
+        ] {
+            let surface = Style::palette(PalettePart::Detail, depth);
+            let edge = Style::palette(PalettePart::SuggestionEdge, depth);
+            assert_eq!(edge.color, surface.background);
+            assert!(edge.background.is_none());
+            assert!(edge.attribute.is_none());
+        }
+    }
+
+    #[test]
+    fn shrinking_a_row_clears_only_the_stale_cells() {
+        if ran_in_ansi_fixture("shrinking_a_row_clears_only_the_stale_cells") {
+            return;
+        }
+        let mut painter = Painter::default();
+        let mut out = Vec::new();
+        let mut previous = Frame::new((40, 4));
+        previous.rows[1].push(Tone::Palette(PalettePart::Detail), "  suggestion");
+        painter.draw(&mut out, previous, true).unwrap();
+        out.clear();
+        let mut next = Frame::new((40, 4));
+        next.rows[1].push(Tone::Plain, "  done");
+        painter.draw(&mut out, next, true).unwrap();
+        let trace = String::from_utf8_lossy(&out);
+        assert!(!trace.contains("\x1b[K"), "{trace:?}");
+        assert!(trace.contains("done      "), "{trace:?}");
     }
 
     #[test]
@@ -830,7 +889,7 @@ mod tests {
             return;
         }
         let mut frame = Frame::new((40, 6));
-        frame.rows[1].push(Tone::Palette(PalettePart::Input), "› env       ");
+        frame.rows[1].push(Tone::Palette(PalettePart::Detail), "› env       ");
         frame.rows[2].push(Tone::Plain, "output");
         let mut painter = Painter {
             previous: None,
@@ -839,7 +898,7 @@ mod tests {
         let mut bytes = Vec::new();
         painter.draw(&mut bytes, frame, true).unwrap();
         let initial = String::from_utf8_lossy(&bytes);
-        assert!(initial.contains("\x1b[48;2;20;21;23m› env"), "{initial:?}");
+        assert!(initial.contains("\x1b[48;2;31;33;37m› env"), "{initial:?}");
         assert!(initial.contains("\x1b[49moutput"), "{initial:?}");
 
         let mut closed = Frame::new((40, 6));
@@ -848,7 +907,8 @@ mod tests {
         bytes.clear();
         painter.draw(&mut bytes, closed, true).unwrap();
         let delta = String::from_utf8_lossy(&bytes);
-        assert!(delta.contains("env\x1b[K"), "{delta:?}");
+        assert!(delta.contains("env         "), "{delta:?}");
+        assert!(!delta.contains("\x1b[K"), "{delta:?}");
         assert!(!delta.contains("\x1b[48;"), "{delta:?}");
         assert!(!delta.contains("\x1b[2J"), "{delta:?}");
     }
@@ -882,11 +942,16 @@ mod tests {
                 assert_eq!(style(first).background, input_surface);
                 assert_eq!(style(last).background, input_surface);
             } else {
+                assert_eq!(first, Tone::Palette(PalettePart::SuggestionEdge));
+                assert_eq!(last, Tone::Palette(PalettePart::SuggestionEdge));
+                assert_eq!(style(first).color, suggestions);
+                assert!(style(first).background.is_none());
+                assert!(style(last).background.is_none());
                 assert!(
-                    spans
+                    spans[1..spans.len() - 1]
                         .iter()
                         .all(|(tone, _)| style(*tone).background == suggestions),
-                    "row {index}, borderless suggestions"
+                    "row {index}, suggestion surface"
                 );
             }
         }

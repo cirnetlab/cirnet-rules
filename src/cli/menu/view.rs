@@ -300,9 +300,17 @@ impl<'a> Palette<'a> {
             } else {
                 Tone::Muted
             };
-            let inset = usize::from(self.bordered) * 2;
-            let inner = self.width - inset;
-            line.push(body_tone, spaces(inset));
+            let edge = if color {
+                Tone::Palette(SuggestionEdge)
+            } else {
+                Tone::Plain
+            };
+            let bordered = usize::from(self.bordered);
+            let inner = self.width - 3 * bordered;
+            if self.bordered {
+                line.push(edge, if color { "▐" } else { " " });
+                line.push(body_tone, " ");
+            }
             let used = if let Some(error) = self.prompt.error {
                 let value = clip(text(error, vi), inner);
                 let used = value.width();
@@ -312,6 +320,9 @@ impl<'a> Palette<'a> {
                 self.draw_choice(line, row, inner, vi, color)
             };
             line.push(body_tone, spaces(inner - used));
+            if self.bordered {
+                line.push(edge, if color { "▌" } else { " " });
+            }
             None
         }
     }
@@ -663,7 +674,12 @@ mod tests {
             assert!(panel(row).starts_with('│') && panel(row).ends_with('│'));
             for index in row + 2..=row + 3 {
                 let choice = panel(index);
-                assert!(choice.starts_with(' ') && choice.ends_with(' '));
+                if color {
+                    assert!(choice.starts_with('▐') && choice.ends_with('▌'));
+                    assert!(rendered.rows[index].has(Tone::Palette(PalettePart::SuggestionEdge)));
+                } else {
+                    assert!(choice.starts_with(' ') && choice.ends_with(' '));
+                }
                 assert!(!choice.contains('│'));
                 assert_eq!(choice.width(), panel_width);
             }
@@ -694,6 +710,54 @@ mod tests {
         let row = usize::from(y);
         assert!(rendered.rows[row + 1].text().contains('╰'));
         assert!(!rendered.rows[row + 2].has(Tone::Palette(PalettePart::Detail)));
+    }
+
+    #[test]
+    fn floating_suggestion_edges_align_at_different_widths() {
+        let mut menu = Menu::new(false, None);
+        for ch in "env p".chars() {
+            press(&mut menu, KeyCode::Char(ch));
+        }
+        menu.refresh_suggestions();
+        let prompt = menu.prompt.as_ref().unwrap();
+        for width in [20, 40, 80] {
+            for color in [true, false] {
+                let palette = Palette::new(prompt, width, 8, true, true);
+                assert!(palette.choices > 0);
+                let mut lines = Vec::new();
+                for row in 0..palette.rows() {
+                    let mut line = Line::default();
+                    palette.draw(&mut line, row, false, color);
+                    lines.push(line.text());
+                }
+                assert!(lines.iter().all(|line| line.width() == width));
+                assert!(lines[2].starts_with('╰') && lines[2].ends_with('╯'));
+                for line in &lines[3..] {
+                    if color {
+                        assert!(line.starts_with('▐') && line.ends_with('▌'));
+                    } else {
+                        assert!(line.starts_with(' ') && line.ends_with(' '));
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn closing_floating_suggestions_marks_their_rows_for_redraw() {
+        let mut menu = Menu::new(false, None);
+        for ch in "env p".chars() {
+            press(&mut menu, KeyCode::Char(ch));
+        }
+        let opened = frame(&mut menu, (120, 35), true, true);
+        let row = opened.cursor.unwrap().1;
+        press(&mut menu, KeyCode::Esc);
+        let closed = frame(&mut menu, (120, 35), true, true);
+        let changed: Vec<_> = closed.changed_rows(Some(&opened)).map(|(y, _)| y).collect();
+        assert!(changed.contains(&(row + 2)));
+        assert!(changed.contains(&(row + 3)));
+        assert!(!closed.rows[usize::from(row + 2)].has(Tone::Palette(PalettePart::Detail)));
+        assert!(!changed.iter().any(|y| (1..=6).contains(y)));
     }
 
     #[test]
