@@ -76,8 +76,9 @@ pub(super) enum Tone {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PalettePart {
-    Border,
-    Corner,
+    InputRim,
+    InputEdge,
+    SuggestionsEdge,
     Input,
     Detail,
     Suggestion,
@@ -175,17 +176,20 @@ impl Style {
     fn palette(part: PalettePart, depth: SemanticDepth) -> Self {
         use Color::*;
         use PalettePart::*;
-        let color = match part {
-            Border | Corner => depth.color((83, 86, 91), 240, Grey),
-            Input => depth.color((237, 237, 239), 255, White),
-            Detail => depth.color((194, 195, 199), 251, Grey),
-            Suggestion => depth.color((180, 199, 230), 153, Cyan),
-            Selected => depth.color((212, 225, 250), 189, White),
+        let input = depth.color((35, 37, 40), 235, DarkGrey);
+        let suggestions = depth.color((39, 42, 46), 236, DarkGrey);
+        let (color, background) = match part {
+            InputRim => (depth.color((62, 65, 70), 238, DarkGrey), None),
+            InputEdge => (input, None),
+            SuggestionsEdge => (suggestions, None),
+            Input => (depth.color((237, 237, 239), 255, White), Some(input)),
+            Detail => (depth.color((194, 195, 199), 251, White), Some(suggestions)),
+            Suggestion => (depth.color((180, 199, 230), 153, White), Some(suggestions)),
+            Selected => (depth.color((212, 225, 250), 189, White), Some(suggestions)),
         };
         Self {
             color: Some(color),
-            // The corner cells inherit the terminal background around the arc.
-            background: (part != Corner).then(|| depth.color((27, 29, 32), 234, Black)),
+            background,
             attribute: (part == Selected).then_some(Attribute::Bold),
         }
     }
@@ -727,7 +731,7 @@ mod tests {
         let mut bytes = Vec::new();
         painter.draw(&mut bytes, frame, true).unwrap();
         let initial = String::from_utf8_lossy(&bytes);
-        assert!(initial.contains("\x1b[48;2;27;29;32m› env"), "{initial:?}");
+        assert!(initial.contains("\x1b[48;2;35;37;40m› env"), "{initial:?}");
         assert!(initial.contains("\x1b[49moutput"), "{initial:?}");
 
         let mut closed = Frame::new((40, 6));
@@ -739,6 +743,42 @@ mod tests {
         assert!(delta.contains("env\x1b[K"), "{delta:?}");
         assert!(!delta.contains("\x1b[48;"), "{delta:?}");
         assert!(!delta.contains("\x1b[2J"), "{delta:?}");
+    }
+
+    #[test]
+    fn palette_draws_edges_with_ink_and_leaves_the_exterior_at_default_background() {
+        use crate::menu::{Menu, view};
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        let mut menu = Menu::new(false, None);
+        for ch in "env p".chars() {
+            menu.handle(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+        }
+        let frame = view::frame(&mut menu, (120, 35), true, true);
+        let input = usize::from(frame.cursor.unwrap().1);
+        for (index, line) in frame.rows[input - 1..=input + 3].iter().enumerate() {
+            let spans: Vec<_> = line
+                .segments()
+                .filter(|(tone, _)| matches!(tone, Tone::Palette(_)))
+                .collect();
+            let (first, _) = spans[0];
+            let (last, _) = *spans.last().unwrap();
+            let style = |tone| Style::for_tone(tone, SemanticDepth::Rgb);
+            assert!(style(first).background.is_none(), "row {index}, left edge");
+            assert!(style(last).background.is_none(), "row {index}, right edge");
+            if index == 0 || index == 4 {
+                assert!(
+                    spans
+                        .iter()
+                        .all(|(tone, _)| style(*tone).background.is_none()),
+                    "row {index}, cap"
+                );
+            } else {
+                let surface = style(spans[1].0).background.expect("filled panel body");
+                assert_eq!(style(first).color, Some(surface));
+                assert_eq!(style(last).color, Some(surface));
+            }
+        }
     }
 
     struct FailOnce {

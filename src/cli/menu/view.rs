@@ -283,64 +283,84 @@ impl<'a> Palette<'a> {
         1 + self.choices + 2 * u16::from(self.bordered)
     }
 
+    fn draw_cap(&self, line: &mut Line, top: bool, color: bool) {
+        static TOP: LazyLock<String> = LazyLock::new(|| "▁".repeat(MAX_COLUMNS));
+        static BOTTOM: LazyLock<String> = LazyLock::new(|| "▔".repeat(MAX_COLUMNS));
+        static RULE: LazyLock<String> = LazyLock::new(|| "─".repeat(MAX_COLUMNS));
+
+        let (left, rule, right, tone) = if color {
+            // Paint only the block glyph. The rest of its cell keeps the terminal background.
+            let rule = if top { TOP.as_str() } else { BOTTOM.as_str() };
+            let part = if top || self.choices == 0 {
+                PalettePart::InputRim
+            } else {
+                PalettePart::SuggestionsEdge
+            };
+            (" ", rule, " ", Tone::Palette(part))
+        } else if top {
+            ("╭", RULE.as_str(), "╮", Tone::Plain)
+        } else {
+            ("╰", RULE.as_str(), "╯", Tone::Plain)
+        };
+        line.push(tone, left);
+        line.push(tone, &rule[..(self.width - 2) * '─'.len_utf8()]);
+        line.push(tone, right);
+    }
+
     fn draw(&self, line: &mut Line, row: u16, vi: bool, color: bool) -> Option<usize> {
         use PalettePart::*;
-        let part = |part, fallback| {
-            if self.bordered {
-                Tone::Palette(part)
-            } else {
-                fallback
-            }
+        if self.bordered && (row == 0 || row == self.rows() - 1) {
+            self.draw_cap(line, row == 0, color);
+            return None;
+        }
+
+        let input_row = row == u16::from(self.bordered);
+        let body_tone = match (self.bordered, input_row) {
+            (true, true) => Tone::Palette(Input),
+            (true, false) => Tone::Palette(Detail),
+            (false, true) => Tone::Plain,
+            (false, false) => Tone::Muted,
         };
-        let border = Tone::Palette(Border);
         let inset = usize::from(self.bordered) * 2;
         let inner = self.width - 2 * inset;
-        if self.bordered {
-            let edge = if row == 0 {
-                Some(("╭", "╮"))
-            } else if row == self.rows() - 1 {
-                Some(("╰", "╯"))
+        let (left, right, edge_tone) = if color {
+            let part = if input_row {
+                InputEdge
             } else {
-                None
+                SuggestionsEdge
             };
-            if let Some((left, right)) = edge {
-                static RULE: LazyLock<String> = LazyLock::new(|| "─".repeat(MAX_COLUMNS));
-                line.push(Tone::Palette(Corner), left);
-                line.push(border, &RULE[..(self.width - 2) * '─'.len_utf8()]);
-                line.push(Tone::Palette(Corner), right);
-                return None;
-            }
-            line.push(border, "│");
-        }
-        if row == u16::from(self.bordered) {
-            let tone = part(Input, Tone::Plain);
-            if self.bordered {
-                line.push(tone, " ");
-            }
-            let (cursor, used) = input_text(line, inner, "› ", tone, tone, &self.prompt.input, "");
-            if self.bordered {
-                line.push(tone, spaces(inner - used + 1));
-                line.push(border, "│");
-            }
-            return Some(inset + cursor);
-        }
-        let detail_tone = part(Detail, Tone::Muted);
-        if self.bordered {
-            line.push(detail_tone, " ");
-        }
-        let used = if let Some(error) = self.prompt.error {
-            let value = clip(text(error, vi), inner);
-            let used = value.width();
-            line.push(detail_tone, value);
-            used
+            ("▐", "▌", Tone::Palette(part))
         } else {
-            self.draw_choice(line, row, inner, vi, color)
+            ("│", "│", Tone::Plain)
         };
         if self.bordered {
-            line.push(detail_tone, spaces(inner - used + 1));
-            line.push(border, "│");
+            line.push(edge_tone, left);
+            line.push(body_tone, " ");
         }
-        None
+        let (cursor, used) = if input_row {
+            let (cursor, used) = input_text(
+                line,
+                inner,
+                "› ",
+                body_tone,
+                body_tone,
+                &self.prompt.input,
+                "",
+            );
+            (Some(inset + cursor), used)
+        } else if let Some(error) = self.prompt.error {
+            let value = clip(text(error, vi), inner);
+            let used = value.width();
+            line.push(body_tone, value);
+            (None, used)
+        } else {
+            (None, self.draw_choice(line, row, inner, vi, color))
+        };
+        if self.bordered {
+            line.push(body_tone, spaces(inner - used + 1));
+            line.push(edge_tone, right);
+        }
+        cursor
     }
 
     fn draw_choice(&self, line: &mut Line, row: u16, width: usize, vi: bool, color: bool) -> usize {
@@ -659,21 +679,31 @@ mod tests {
     }
 
     #[test]
-    fn command_panel_frames_the_input_and_contextual_suggestions() {
+    fn command_panel_clips_caps_and_keeps_suggestions_below_input() {
         let mut menu = Menu::new(false, None);
         for ch in "env p".chars() {
             press(&mut menu, KeyCode::Char(ch));
         }
         let main = frame(&mut menu, (120, 35), true, true);
         let lines = rows(&main);
-        let row = usize::from(main.cursor.unwrap().1);
-        assert!(lines[row - 1].contains('╭') && lines[row - 1].ends_with('╮'));
-        assert!(lines[row].contains("│ › env p") && lines[row].ends_with('│'));
+        let (x, y) = main.cursor.unwrap();
+        let row = usize::from(y);
+        let left = usize::from(x) - "▐ › env p".width();
+        let caps = |line: &str| line.chars().skip(left).collect::<String>();
+        let top = caps(&lines[row - 1]);
+        let bottom = caps(&lines[row + 3]);
+        assert!(top.starts_with(" ▁") && top.ends_with("▁ "));
+        assert!(bottom.starts_with(" ▔") && bottom.ends_with("▔ "));
+        for line in &lines[row..row + 3] {
+            let body = caps(line);
+            assert!(body.starts_with('▐') && body.ends_with('▌'));
+            assert_eq!(body.width(), top.width());
+        }
+        assert!(lines[row].contains("› env p"));
         assert!(lines[row + 1].contains("env plan"));
         assert!(lines[row + 1].contains("Review requirements, version pins and conflicts"));
         assert!(lines[row + 2].contains("env profiles"));
         assert!(lines[row + 2].contains("List environment profiles"));
-        assert!(lines[row + 3].contains('╰') && lines[row + 3].ends_with('╯'));
     }
 
     #[test]
@@ -684,15 +714,22 @@ mod tests {
         let result = frame(&mut menu, (120, 35), true, true);
         let lines = rows(&result);
         let row = usize::from(result.cursor.unwrap().1);
-        assert!(lines[row - 1].trim_start().starts_with('╭'));
-        assert!(lines[row].trim_start().starts_with("│ › "));
-        assert!(lines[row + 1].trim_start().starts_with('╰'));
+        assert!(lines[row - 1].trim_start().starts_with('▁'));
+        assert!(lines[row].trim_start().starts_with("▐ › "));
+        assert!(lines[row + 1].trim_start().starts_with('▔'));
         assert_eq!(lines[row].width(), 117);
         assert!(
             lines[..row - 1]
                 .iter()
                 .any(|line| line.trim() == "Running…")
         );
+
+        let monochrome = frame(&mut menu, (120, 35), true, false);
+        assert_eq!(monochrome.cursor, result.cursor);
+        let lines = rows(&monochrome);
+        assert!(lines[row - 1].trim_start().starts_with('╭'));
+        assert!(lines[row].trim_start().starts_with("│ › "));
+        assert!(lines[row + 1].trim_start().starts_with('╰'));
     }
 
     #[test]
