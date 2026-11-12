@@ -1,6 +1,10 @@
 mod banner;
+mod check_view;
+mod clipboard;
 mod completion;
+mod editor;
 mod highlight;
+mod interaction;
 mod runner;
 mod terminal;
 mod view;
@@ -9,15 +13,17 @@ mod wizard;
 
 use self::{
     banner::Banner,
+    check_view::CheckView,
+    clipboard::SystemClipboard,
     completion::{Completer, Kind, Source, Suggestion},
+    editor::Input,
+    interaction::Interaction,
     terminal::{Painter, Screen, Tone},
     viewport::Buffer,
 };
 use clap::ArgMatches;
 use crossterm::{
-    event::{
-        self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
-    },
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal as console,
 };
 use std::{
@@ -27,7 +33,6 @@ use std::{
     process::ExitCode,
     time::{Duration, Instant},
 };
-use unicode_width::UnicodeWidthChar;
 
 type Localized = [&'static str; 2];
 
@@ -185,68 +190,6 @@ fn printable(key: KeyEvent) -> Option<char> {
     }
 }
 
-#[derive(Clone, Default)]
-struct Input {
-    value: String,
-    cursor: usize,
-}
-
-impl Input {
-    fn insert(&mut self, value: &str, limit: usize) -> bool {
-        if value.is_empty() || self.value.len() + value.len() > limit {
-            return false;
-        }
-        self.value.insert_str(self.cursor, value);
-        self.cursor += value.len();
-        true
-    }
-
-    fn edit(&mut self, key: KeyEvent, limit: usize) -> bool {
-        let old_cursor = self.cursor;
-        // Move/delete a base character together with its combining marks.
-        let before = self.value[..self.cursor]
-            .char_indices()
-            .rev()
-            .find(|(index, ch)| *index == 0 || ch.width() != Some(0))
-            .map(|(index, _)| index);
-        let after = (self.cursor < self.value.len()).then(|| {
-            self.value[self.cursor..]
-                .char_indices()
-                .skip(1)
-                .find(|(_, ch)| ch.width() != Some(0))
-                .map_or(self.value.len(), |(index, _)| self.cursor + index)
-        });
-        match key.code {
-            KeyCode::Char('u') if control(key, 'u') && self.cursor > 0 => {
-                self.value.drain(..self.cursor);
-                self.cursor = 0;
-                return true;
-            }
-            KeyCode::Char('a') if control(key, 'a') => self.cursor = 0,
-            KeyCode::Char('e') if control(key, 'e') => self.cursor = self.value.len(),
-            _ if !text_modifiers(key) => return false,
-            KeyCode::Char(ch) if printable(key).is_some() => {
-                return self.insert(ch.encode_utf8(&mut [0; 4]), limit);
-            }
-            KeyCode::Backspace if let Some(before) = before => {
-                self.value.drain(before..self.cursor);
-                self.cursor = before;
-                return true;
-            }
-            KeyCode::Delete if let Some(after) = after => {
-                self.value.drain(self.cursor..after);
-                return true;
-            }
-            KeyCode::Left if let Some(before) = before => self.cursor = before,
-            KeyCode::Right if let Some(after) = after => self.cursor = after,
-            KeyCode::Home => self.cursor = 0,
-            KeyCode::End => self.cursor = self.value.len(),
-            _ => {}
-        }
-        self.cursor != old_cursor
-    }
-}
-
 #[derive(Default)]
 struct Prompt {
     input: Input,
@@ -280,7 +223,8 @@ struct OutputView {
     query: String,
     hit: Option<Range<usize>>,
     check_report: Option<cirnetrules::operator::CheckReport>,
-    check_details: bool,
+    check: Option<CheckView>,
+    check_command: bool,
 }
 
 impl OutputView {
@@ -301,7 +245,8 @@ impl OutputView {
             query: String::new(),
             hit: None,
             check_report: None,
-            check_details: false,
+            check: None,
+            check_command: false,
         }
     }
 
@@ -347,6 +292,8 @@ impl OutputView {
             Ok(result) => {
                 self.buffer = result.buffer;
                 self.check_report = result.check_report;
+                self.check = self.check_report.as_ref().map(CheckView::new);
+                self.check_command = false;
                 if !self.query.is_empty() {
                     self.last_page = self
                         .buffer
@@ -414,6 +361,7 @@ struct Menu {
     history_draft: Input,
     completer: Completer,
     banner: Banner,
+    interaction: Interaction,
 }
 
 impl Menu {
@@ -434,6 +382,7 @@ impl Menu {
             history_draft: Input::default(),
             completer: Completer::new(project, vi),
             banner: Banner::default(),
+            interaction: Interaction::default(),
         }
     }
 
@@ -507,6 +456,7 @@ impl Menu {
     }
 
     fn begin_output(&mut self, args: &[String]) {
+        self.interaction.reset_output();
         self.output = Some(OutputView::new(output_title(args), self.vi));
         let draft = std::mem::take(&mut self.draft);
         self.open_prompt(draft);
@@ -527,7 +477,7 @@ impl Menu {
     }
 
     fn refresh_suggestions(&mut self) {
-        if self.wizard_active() {
+        if self.wizard_active() || self.check_visible() {
             return;
         }
         let Some(prompt) = self.prompt.as_mut().filter(|prompt| prompt.edited) else {
@@ -628,15 +578,12 @@ impl Menu {
         );
         let completion = &prompt.completions[index];
         let range = completion.insert_range.clone();
-        if base.value.len() - range.len() + completion.text.len() > COMMAND_LIMIT {
+        if !prompt
+            .input
+            .replace_from(&base, range, &completion.text, COMMAND_LIMIT)
+        {
             return Effect::Idle;
         }
-        prompt.input.value.clone_from(&base.value);
-        prompt
-            .input
-            .value
-            .replace_range(range.clone(), &completion.text);
-        prompt.input.cursor = range.start + completion.text.len();
         prompt.accepted = Some((index, base));
         prompt.error = None;
         self.history_index = None;
@@ -664,10 +611,7 @@ impl Menu {
         };
         prompt.input = self.history_index.map_or_else(
             || self.history_draft.clone(),
-            |index| Input {
-                value: self.history[index].clone(),
-                cursor: self.history[index].len(),
-            },
+            |index| Input::at_end(self.history[index].clone()),
         );
         prompt.changed();
         Effect::Redraw
@@ -695,6 +639,7 @@ impl Menu {
                 output.follow = false;
                 output.hit = None;
                 output.check_report = None;
+                output.check = None;
             }
             self.open_prompt(Input::default());
             return Effect::Redraw;
@@ -746,16 +691,17 @@ impl Menu {
             _ => {}
         }
         let prompt = self.prompt.as_mut().expect("prompt is active");
-        if printable(key).is_some_and(|ch| prompt.input.value.len() + ch.len_utf8() > COMMAND_LIMIT)
+        if printable(key)
+            .is_some_and(|ch| !prompt.input.fits_replacement(ch.len_utf8(), COMMAND_LIMIT))
         {
             prompt.error = Some(COMMAND_TOO_LONG);
             return Effect::Redraw;
         }
-        let previous_len = prompt.input.value.len();
+        let previous = prompt.input.value.clone();
         if !prompt.input.edit(key, COMMAND_LIMIT) {
             return Effect::Idle;
         }
-        if prompt.input.value.len() != previous_len || prompt.error != Some(COMMAND_TOO_LONG) {
+        if prompt.input.value != previous || prompt.error != Some(COMMAND_TOO_LONG) {
             prompt.changed();
             self.history_index = None;
         }
@@ -763,12 +709,34 @@ impl Menu {
     }
 
     fn handle_output(&mut self, key: KeyEvent) -> Effect {
+        if self.check_visible() {
+            let output = self.output.as_mut().expect("output is active");
+            if let (Some(check), Some(report)) = (&mut output.check, &output.check_report)
+                && let Some(effect) = check.key(report, key)
+            {
+                return effect;
+            }
+            if printable(key) == Some(':') || control(key, 'r') {
+                output.check_command = true;
+                self.interaction.reset_output();
+                if self.prompt.is_none() {
+                    self.open_prompt(Input::default());
+                }
+                if control(key, 'r') {
+                    self.history_move(true, true);
+                }
+                return Effect::Redraw;
+            }
+            if key.code != KeyCode::Esc {
+                return Effect::Idle;
+            }
+        }
         let output = self.output.as_mut().expect("output is active");
         if control(key, 'f') {
-            output.find.get_or_insert_with(|| Input {
-                value: output.query.clone(),
-                cursor: output.query.len(),
-            });
+            self.interaction.read_focus = false;
+            output
+                .find
+                .get_or_insert_with(|| Input::at_end(output.query.clone()));
             return Effect::Redraw;
         }
         if key.code == KeyCode::F(3) && text_modifiers(key) {
@@ -804,55 +772,49 @@ impl Menu {
         }
         if key.code == KeyCode::Esc {
             if output.running {
-                return Effect::Idle;
+                return self.cancel_output();
+            }
+            if output.check_command && output.check.is_some() {
+                output.check_command = false;
+                self.interaction.reset_output();
+                return Effect::Redraw;
             }
             if self.wizard.is_some() {
                 return self.wizard_back();
             }
             self.output = None;
+            self.interaction.reset_output();
             self.close_main_prompt();
             return Effect::Redraw;
         }
-        if key.code == KeyCode::Enter
-            && text_modifiers(key)
-            && self
-                .prompt
-                .as_ref()
-                .is_some_and(|prompt| prompt.input.value.trim().is_empty())
-            && let Some(report) = &output.check_report
-        {
-            output.check_details = !output.check_details;
-            let rendered = if output.check_details {
-                serde_json::to_string_pretty(report).unwrap_or_default()
-            } else {
-                report.render()
-            };
-            let hint = text(
-                [
-                    "Enter toggles summary/details.",
-                    "Enter chuyển giữa tóm tắt và chi tiết.",
-                ],
-                self.vi,
-            );
-            output.buffer =
-                Buffer::from_streams(runner::sanitize(rendered.as_bytes()), "", Some(hint));
-            output.scroll = 0;
-            output.follow = false;
-            output.hit = None;
-            return Effect::Redraw;
+        if self.interaction.read_focus {
+            if printable(key) == Some(':') {
+                self.interaction.read_focus = false;
+                return Effect::Redraw;
+            }
+            return Effect::Idle;
         }
         self.edit_prompt(key)
     }
 
     fn handle(&mut self, key: KeyEvent) -> Effect {
+        self.handle_with_clipboard(key, &mut SystemClipboard)
+    }
+
+    fn handle_with_clipboard(
+        &mut self,
+        key: KeyEvent,
+        clipboard: &mut impl clipboard::Clipboard,
+    ) -> Effect {
         if key.kind == KeyEventKind::Release {
             return Effect::Idle;
         }
+        if let Some(effect) = self.interaction_key(key, clipboard) {
+            return effect;
+        }
         if control(key, 'c') {
-            if let Some(output) = self.output.as_mut().filter(|output| output.running) {
-                output.status = text(["Cancelling…", "Đang hủy…"], self.vi).into();
-                output.tone = Tone::Warning;
-                return Effect::Cancel;
+            if self.output.as_ref().is_some_and(|output| output.running) {
+                return self.cancel_output();
             }
             if self.wizard.is_some() {
                 return self.wizard_back();
@@ -875,12 +837,14 @@ impl Menu {
             }
             return Effect::Exit;
         }
-        if text_modifiers(key) {
+        if text_modifiers(key) && !key.modifiers.contains(KeyModifiers::SHIFT) {
             let index = match key.code {
                 KeyCode::Up => Some(self.selected.saturating_sub(1)),
                 KeyCode::Down => Some(self.selected + 1),
-                KeyCode::Home => Some(0),
-                KeyCode::End => Some(self.items.len().saturating_sub(1)),
+                KeyCode::Home if self.prompt.is_none() && self.search.is_none() => Some(0),
+                KeyCode::End if self.prompt.is_none() && self.search.is_none() => {
+                    Some(self.items.len().saturating_sub(1))
+                }
                 _ => None,
             };
             if let Some(index) = index {
@@ -908,11 +872,11 @@ impl Menu {
             return self.activate();
         }
         if let Some(search) = &mut self.search {
-            let previous = search.value.len();
+            let previous = search.value.clone();
             if !search.edit(key, SEARCH_LIMIT) {
                 return Effect::Idle;
             }
-            if search.value.len() != previous {
+            if search.value != previous {
                 self.refilter();
             }
             return Effect::Redraw;
@@ -941,60 +905,34 @@ impl Menu {
         }
     }
 
+    fn cancel_output(&mut self) -> Effect {
+        if let Some(output) = &mut self.output {
+            output.status = text(["Cancelling…", "Đang hủy…"], self.vi).into();
+            output.tone = Tone::Warning;
+        }
+        Effect::Cancel
+    }
+
+    fn check_visible(&self) -> bool {
+        self.output
+            .as_ref()
+            .is_some_and(|output| output.check.is_some() && !output.check_command)
+    }
+
     fn paste(&mut self, value: &str) -> Effect {
-        if value.len() > COMMAND_LIMIT {
-            if self.prompt.is_none() && self.search.is_none() && !self.help {
-                let draft = std::mem::take(&mut self.draft);
-                self.open_prompt(draft);
-            }
-            if let Some(prompt) = &mut self.prompt {
-                prompt.error = Some(COMMAND_TOO_LONG);
-                return Effect::Redraw;
-            }
-            return Effect::Idle;
-        }
-        let sanitized = runner::sanitize(value.as_bytes()).replace('\n', " ");
-        if let Some(output) = &mut self.output
-            && let Some(find) = &mut output.find
-        {
-            if !find.insert(&sanitized, SEARCH_LIMIT) {
-                return Effect::Idle;
-            }
-            output.query.clone_from(&find.value);
-            output.hit = None;
-            output.search(false);
-            return Effect::Redraw;
-        }
-        if self.prompt.is_none() {
-            if let Some(search) = &mut self.search {
-                if !search.insert(&sanitized, SEARCH_LIMIT) {
-                    return Effect::Idle;
-                }
-                self.refilter();
-                return Effect::Redraw;
-            }
-            if self.help || sanitized.trim().is_empty() {
+        if self.prompt.is_none() && self.output.is_none() && self.search.is_none() {
+            if self.help || value.trim().is_empty() {
                 return Effect::Idle;
             }
             let draft = std::mem::take(&mut self.draft);
             self.open_prompt(draft);
         }
-        let prompt = self.prompt.as_mut().expect("prompt is active");
-        if prompt.input.value.len() + sanitized.len() > COMMAND_LIMIT {
-            prompt.error = Some(COMMAND_TOO_LONG);
-            return Effect::Redraw;
-        }
-        if prompt.input.insert(&sanitized, COMMAND_LIMIT) {
-            prompt.changed();
-            self.history_index = None;
-            Effect::Redraw
-        } else {
-            Effect::Idle
-        }
+        self.paste_editor(value)
     }
 
     fn paste_suppressed_newline(&mut self, value: &str) -> Effect {
         let command_input = (self.prompt.is_some() || self.search.is_none())
+            && !self.check_visible()
             && self
                 .output
                 .as_ref()
@@ -1076,12 +1014,19 @@ fn windows_paste(batch: &[Event], previous_text: usize) -> Option<String> {
     let mut value = String::new();
     let mut characters = previous_text;
     let mut newline = false;
+    let mut paste_key = false;
     for event in batch {
-        let Event::Key(key) = event else { return None };
+        let key = match event {
+            Event::Key(key) => key,
+            Event::Resize(_, _) | Event::FocusGained => continue,
+            _ => return None,
+        };
         if key.kind == KeyEventKind::Release {
             continue;
         }
-        if let Some(ch) = printable(*key) {
+        if control(*key, 'v') {
+            paste_key = true;
+        } else if let Some(ch) = printable(*key) {
             characters += 1;
             value.push(ch);
         } else if key.code == KeyCode::Enter && text_modifiers(*key) {
@@ -1091,7 +1036,22 @@ fn windows_paste(batch: &[Event], previous_text: usize) -> Option<String> {
             return None;
         }
     }
-    (newline && characters >= 2).then_some(value)
+    ((newline || paste_key) && characters > 0).then_some(value)
+}
+
+fn skip_paste_companion(event: &Event, host_paste: bool, pasted: &mut bool) -> bool {
+    match event {
+        Event::Paste(_) => {
+            *pasted = true;
+            false
+        }
+        Event::Key(key) if control(*key, 'v') => {
+            *pasted = true;
+            host_paste
+        }
+        Event::Key(key) if key.code == KeyCode::Enter && *pasted => true,
+        _ => false,
+    }
 }
 
 fn show(
@@ -1110,6 +1070,7 @@ fn show(
     let mut redraw = true;
     let mut last_size_check = Instant::now();
     let mut paste_continuation = 0;
+    let mut clipboard = SystemClipboard;
     loop {
         if let Some(result) = running.as_mut().and_then(runner::Runner::poll) {
             if let Some(output) = &mut menu.output
@@ -1158,29 +1119,17 @@ fn show(
             }
         }
 
+        let host_paste = batch.iter().any(|event| matches!(event, Event::Paste(_)));
+        let mut pasted = false;
         for input in batch.drain(..) {
+            if skip_paste_companion(&input, host_paste, &mut pasted) {
+                continue;
+            }
             let effect = match input {
                 Event::Key(key) => menu.handle(key),
                 Event::Paste(value) => menu.paste(&value),
-                Event::Mouse(mouse) if menu.output.is_some() => {
-                    let output = menu.output.as_mut().expect("output is active");
-                    match mouse.kind {
-                        MouseEventKind::ScrollUp => output.scroll_by(-3),
-                        MouseEventKind::ScrollDown => output.scroll_by(3),
-                        _ => Effect::Idle,
-                    }
-                }
-                Event::Mouse(mouse) if mouse.kind == MouseEventKind::Down(MouseButton::Left) => {
-                    if let Some(index) = painter.menu_hit(size, mouse.column, mouse.row)
-                        && index < menu.items.len()
-                    {
-                        redraw |= menu.close_main_prompt();
-                        redraw |= matches!(menu.select(index), Effect::Redraw);
-                        menu.activate()
-                    } else {
-                        Effect::Idle
-                    }
-                }
+                Event::Mouse(mouse) => menu.mouse(mouse, painter.last_frame(size), &mut clipboard),
+                Event::FocusLost => menu.focus_lost(),
                 _ => Effect::Idle,
             };
             match effect {
@@ -1216,10 +1165,7 @@ fn show(
                     }
                     menu.begin_output(&args);
                     if check_choices {
-                        menu.open_prompt(Input {
-                            value: "check ".into(),
-                            cursor: "check ".len(),
-                        });
+                        menu.open_prompt(Input::at_end("check ".into()));
                     }
                     match runner::Runner::start(args, project.clone(), catalog_project, menu.vi) {
                         Ok(worker) => running = Some(worker),
@@ -1692,6 +1638,35 @@ mod tests {
         assert_eq!(command(&menu), "list ");
         assert!(matches!(press(&mut menu, KeyCode::Enter), Effect::Idle));
         assert!(windows_paste(&[Event::Key(key(KeyCode::Enter))], 0).is_none());
+    }
+
+    #[test]
+    fn a_host_paste_replaces_its_control_key_and_never_dispatches_queued_enter() {
+        let mut pasted = false;
+        let shortcut = Event::Key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL));
+        assert!(skip_paste_companion(&shortcut, true, &mut pasted));
+        assert!(!skip_paste_companion(
+            &Event::Paste("YES\r\n".into()),
+            true,
+            &mut pasted
+        ));
+        assert!(skip_paste_companion(
+            &Event::Key(key(KeyCode::Enter)),
+            true,
+            &mut pasted
+        ));
+        let mut fresh = false;
+        assert!(!skip_paste_companion(
+            &Event::Key(key(KeyCode::Enter)),
+            false,
+            &mut fresh
+        ));
+        let mixed = [
+            shortcut,
+            Event::Key(key(KeyCode::Char('x'))),
+            Event::Key(key(KeyCode::Enter)),
+        ];
+        assert_eq!(windows_paste(&mixed, 0).as_deref(), Some("x "));
     }
 
     #[test]

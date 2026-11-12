@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 9 -->
-<!-- source-sha256: 4da0df9cdd0a62f4fb389c3ba0765d79cb9f981822eb1cb50be00dc9d871e0f9 -->
+<!-- revision: 10 -->
+<!-- source-sha256: 16abd69db73a575a5e39e3a68982662e26579d0cfe025c9efeacb79cabd6e90b -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
@@ -32,8 +32,49 @@ mã thoát và thời gian thực tính bằng mili giây ngay trên ô Lệnh.
 Trong kết quả, PgUp/PgDn và bánh xe chuột cuộn đầu ra. Ctrl+Home và
 Ctrl+End chuyển đến đầu và cuối. Ctrl+F tìm trong đầu ra. F3 và Shift+F3
 chuyển giữa các vị trí khớp. Mũi tên lên và xuống gọi lại các lệnh chỉ
-đọc gần đây, còn Ctrl+R tìm theo tiền tố. Ctrl+C hủy lệnh đang chạy hoặc
-thoát khi rảnh. Esc trở về menu từ màn hình kết quả khi lệnh đã dừng.
+đọc gần đây, còn Ctrl+R tìm theo tiền tố. Esc đóng menu ngữ cảnh hoặc bỏ
+vùng chọn trước. Sau đó Esc có thể hủy lệnh đang chạy hoặc trở về menu từ
+màn hình kết quả khi lệnh đã dừng.
+
+<a id="tui-editing"></a>
+
+### Chỉnh văn bản và clipboard
+
+Các phím tắt này áp dụng trong ô Lệnh, ô tìm kiếm và trường thiết lập.
+
+| Phím | Tác dụng |
+| --- | --- |
+| Shift+Trái/Phải, Shift+Home/End | Mở rộng vùng chọn theo ký tự hiển thị hoặc tới đầu/cuối trường |
+| Ctrl+A | Chọn toàn bộ văn bản trong trường |
+| Ctrl+C | Sao chép vùng chọn. Khi chưa chọn, hủy lệnh đang chạy, quay lại trong thiết lập hoặc thoát CNR theo ngữ cảnh. |
+| Ctrl+X, Delete, Backspace | Cắt hoặc xóa vùng chọn |
+| Ctrl+V | Dán tại con trỏ, thay thế vùng chọn nếu có |
+| Ctrl+Z, Ctrl+Y hoặc Ctrl+Shift+Z | Hoàn tác hoặc làm lại lần sửa văn bản |
+| Home, End hoặc Ctrl+E | Đưa con trỏ tới đầu hoặc cuối trường |
+| Shift+F10 hoặc chuột phải | Mở menu ngữ cảnh khi terminal chuyển sự kiện tới CNR |
+
+Bấm để đặt con trỏ và kéo để chọn văn bản khi terminal chuyển sự kiện chuột.
+Trong khung kết quả, kéo để chọn văn bản hoặc dùng menu ngữ cảnh để sao chép
+một dòng, một mục, một giá trị hoặc báo cáo dạng văn bản. Khung kết quả chỉ
+đọc. Ctrl+A chọn văn bản đang thấy khi khung kết quả có focus. F6 chuyển
+giữa khung đầu ra thông thường và ô nhập. JSON thô có chế độ xem riêng,
+nằm ngoài thao tác clipboard của CNR. Dán chỉ chỉnh văn bản và vẫn cần
+thao tác gửi lệnh hoặc xác nhận bản xem trước. Hoàn tác và làm lại áp dụng
+cho văn bản.
+
+| Terminal | Clipboard và vùng chọn |
+| --- | --- |
+| Windows Terminal | CNR dùng clipboard Windows khi người dùng yêu cầu. Nếu terminal giữ thao tác, dùng Shift+kéo để chọn bằng terminal khi CNR đang nhận chuột, rồi dùng lệnh sao chép hoặc dán của terminal. Hành vi chuột phải tùy cài đặt terminal. |
+| Windows Console Host | Clipboard native cần desktop Windows khả dụng. Sự kiện chuột và phím tắt tùy chế độ nhập và cài đặt console. Có thể dùng vùng chọn và thao tác dán của console khi khả dụng. |
+| Linux, macOS, WSL hoặc phiên SSH nhận diện được | Dùng sao chép và dán của terminal. CNR báo `CLIPBOARD_UNSUPPORTED` cho thao tác clipboard native trong các phiên này. |
+
+Clipboard native có thể báo `CLIPBOARD_UNAVAILABLE` khi clipboard đang bận
+hoặc thiếu văn bản, và `CLIPBOARD_PERMISSION_DENIED` khi quyền truy cập bị
+từ chối.
+
+[Chọn văn bản trong Windows Terminal](https://learn.microsoft.com/en-us/windows/terminal/selection) ·
+[Cài đặt tương tác](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/interaction) ·
+[Thao tác terminal](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/actions)
 
 `--lang vi` chọn nhãn terminal và mô tả lệnh tiếng Việt. `--no-banner` dùng
 tiêu đề gọn. `NO_COLOR` hiển thị văn bản và chữ khối đơn sắc, bỏ bóng đổ.
@@ -129,6 +170,15 @@ và `--agent` để thu hẹp phạm vi bằng chứng. Kết quả phân biệt
 hiện được với binding đã xác nhận, cũng như giao thức MCP đã kiểm chứng với
 phiên Agent native. Xem lý do và bước tiếp theo cho từng mục bắt buộc còn thiếu
 bằng chứng.
+
+Phần tóm tắt giữ số lượng của mọi trạng thái. Danh sách ưu tiên mục cần xử
+lý và gom các mục chưa kiểm chứng hoặc đã đạt bên dưới. Dùng mũi tên lên/xuống
+để chọn, Enter để mở nhóm hoặc xem một mục và Esc để quay lại. Dùng `/`
+hoặc Ctrl+F để tìm, `f` lọc trạng thái, `r` lọc repository và `a` hiện tất cả.
+`b` chọn mục bị chặn. `j` mở JSON thô. Trên terminal rộng, Tab chuyển giữa
+danh sách và khung chi tiết. Chi tiết hiển thị bằng chứng, nguồn và các bước
+tiếp theo. Xem trước thao tác ghi trong luồng thiết lập tương ứng với quyền
+bắt buộc.
 
 Dùng `cnr check all --json --non-interactive` để nhận báo cáo có phiên bản.
 Mã thoát 1 báo lỗi, mã 2 báo thiếu kiểm tra bắt buộc hoặc có cảnh báo ở chế độ

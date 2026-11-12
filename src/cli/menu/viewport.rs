@@ -10,6 +10,7 @@ pub(super) struct Buffer {
     text: String,
     styles: Vec<Span>,
     wrap: Option<Wrap>,
+    copy_safe: bool,
 }
 
 struct Wrap {
@@ -42,11 +43,17 @@ impl Buffer {
                 tone: Tone::Warning,
             });
         }
+        let copy_safe = super::interaction::clipboard_safe_output(&stdout);
         Self {
             text: stdout,
             styles,
             wrap: None,
+            copy_safe,
         }
+    }
+
+    pub(super) fn copy_safe(&self) -> bool {
+        self.copy_safe
     }
 
     pub(super) fn layout(&mut self, width: usize) -> usize {

@@ -138,7 +138,7 @@ pub(super) fn run(
                 machine,
             );
         }
-        return emit_report(&report, machine, false);
+        return emit_report(&report, machine, false, vi);
     }
     let request = match check_request(group, flags) {
         Ok(request) => request,
@@ -149,7 +149,7 @@ pub(super) fn run(
         &request.scope,
         request.strict,
     ));
-    emit_report(&report, request.machine, request.verbose)
+    emit_report(&report, request.machine, request.verbose, vi)
 }
 
 pub(super) struct CheckRequest {
@@ -197,7 +197,7 @@ pub(super) fn check_request(
     })
 }
 
-fn emit_report(report: &operator::CheckReport, machine: bool, verbose: bool) -> ExitCode {
+fn emit_report(report: &operator::CheckReport, machine: bool, verbose: bool, vi: bool) -> ExitCode {
     if machine || verbose {
         let result = if verbose && !machine {
             serde_json::to_string_pretty(report)
@@ -209,7 +209,7 @@ fn emit_report(report: &operator::CheckReport, machine: bool, verbose: bool) -> 
             Err(_) => return ExitCode::FAILURE,
         }
     } else {
-        print!("{}", report.render());
+        print!("{}", report.render_for(vi));
     }
     ExitCode::from(report.exit_code)
 }

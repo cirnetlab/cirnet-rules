@@ -374,6 +374,12 @@ fn option_arg(option: &'static str, command: &str) -> Arg {
 
 fn usage_notes(name: &str, vi: bool) -> &'static str {
     match name {
+        "tui" if vi => {
+            "Trong ô nhập, dùng Shift+mũi tên để chọn và Ctrl+A để chọn tất cả. Ctrl+C/V/X sao chép, dán, cắt. Ctrl+Z/Y hoàn tác, làm lại. Shift+F10 mở menu văn bản. Esc hủy tác vụ đang chạy sau khi đóng menu hoặc bỏ vùng chọn."
+        }
+        "tui" => {
+            "In editable fields, use Shift+arrows to select and Ctrl+A to select all. Ctrl+C/V/X copies, pastes, and cuts. Ctrl+Z/Y undoes and redoes. Shift+F10 opens text actions. Esc cancels a running job after dismissing the menu or selection."
+        }
         "install" | "update" | "remove" if vi => {
             "Chọn TOOL[@VERSION]. Xem trước với --dry-run. Xác nhận thay đổi bằng --yes."
         }
@@ -398,8 +404,11 @@ fn usage_notes(name: &str, vi: bool) -> &'static str {
         "agent" => {
             "list | export --repo NAME --agents codex,claude,antigravity --output DIR | check --bundle DIR\nmcp-config export --binary PATH --workspace PATH --output DIR | check --bundle DIR\nmcp-config install --agent AGENT --repo NAME --bundle DIR --target WORKTREE --dry-run\nmcp-config rollback --agent AGENT --target WORKTREE --receipt ID --dry-run\nmcp-config inspect | probe | preview-export\nsync --bundle DIR --target WORKTREE --dry-run [--entry-mode strict|managed-block]\nrollback --target WORKTREE --receipt ID --dry-run\nApply a reviewed sync, rollback or MCP registration with --yes --expect DIGEST --task ID --actor NAME."
         }
+        "check" if vi => {
+            "Mặc định kiểm tra all. Chọn governance, registry, policies, rules, skills, profiles, references, hooks, repositories, bindings, routing, task, diff, verification, audit, environment, agent-config, agent hoặc mcp.\nBằng chứng client native được báo riêng. Trong CNR, Enter xem chi tiết, / tìm, f lọc trạng thái, r lọc repo, a xem tất cả, j xem JSON."
+        }
         "check" => {
-            "Defaults to all. Select governance, registry, policies, rules, skills, profiles, references, hooks, repositories, bindings, routing, task, diff, verification, audit, environment, agent-config, agent, or mcp.\nChecks inspect the selected scope. Native client evidence is reported separately."
+            "Defaults to all. Select governance, registry, policies, rules, skills, profiles, references, hooks, repositories, bindings, routing, task, diff, verification, audit, environment, agent-config, agent, or mcp.\nChecks inspect the selected scope. Native client evidence is reported separately.\nIn CNR, use Enter for details, / to search, f for status, r for repository, a for all, and j for JSON."
         }
         "setup" => {
             "setup agent [--repo NAME] [--agent codex|claude|antigravity]\nThe terminal offers a chooser. Headless setup requires one explicit Agent and inspects the supplied context."

@@ -38,7 +38,14 @@ cnr --lang vi
 | `Esc` | Quay lại |
 | `/` | Tìm kiếm lệnh |
 | `?` | Xem hướng dẫn |
-| `Ctrl+C` | Thoát CLI |
+| `Ctrl+C` | Sao chép vùng chọn. Khi chưa chọn, hủy lệnh đang chạy, quay lại trong thiết lập hoặc thoát CLI theo ngữ cảnh. |
+| `Ctrl+V` / `Ctrl+X` | Dán tại con trỏ hoặc cắt vùng chọn trong ô nhập |
+| `Ctrl+Z` / `Ctrl+Y` | Hoàn tác hoặc làm lại lần sửa văn bản |
+| `Ctrl+A`, `Shift+←/→` | Chọn toàn bộ ô nhập hoặc mở rộng vùng chọn |
+| `Shift+F10` / chuột phải | Mở menu ngữ cảnh khi terminal chuyển sự kiện tới CNR |
+
+Trong Windows Terminal, dùng Shift+kéo và thao tác sao chép/dán của terminal
+khi host giữ sự kiện. Xem [phím chỉnh văn bản và clipboard](vi/references/cnr.md#tui-editing).
 
 ### Menu chức năng trong giao diện CLI
 
@@ -58,7 +65,7 @@ cnr --lang vi
 
 ### Kiểm tra và thiết lập Agent
 
-1. Mở `cnr`, chọn **Kiểm tra hệ thống** hoặc nhập `cnr check all`. Xem cột **Next action** cho các mục còn thiếu. Báo cáo tự động dùng `cnr check all --json --non-interactive`.
+1. Mở `cnr`, chọn **Kiểm tra hệ thống** hoặc nhập `cnr check all`. Chọn một mục và nhấn Enter để xem lý do, bằng chứng và **Bước tiếp theo**. Dùng `/` để tìm, `f` lọc trạng thái, `r` lọc repo, `a` hiện tất cả và `j` mở JSON. Báo cáo tự động dùng `cnr check all --json --non-interactive`.
 2. Chọn **Thiết lập Agent** hoặc nhập `cnr setup agent`. Chọn Codex, Claude Code hoặc Antigravity, sau đó chọn repo và binding. Đối chiếu Governance root và worktree đích trước khi xác nhận.
 3. Chọn thư mục gói xuất ngoài Git. Xem trước các file thay đổi. Khi `AGENTS.md` hoặc `CLAUDE.md` đã chứa nội dung của repo, xem phương án managed block và kiểm tra cả nội dung lẫn quyền của task trước khi áp dụng. Trình hướng dẫn dùng digest của bản xem trước vừa xác nhận.
 4. Xem trước cấu hình MCP rồi đăng ký trong phạm vi dự án nếu đủ điều kiện, hoặc nhập template trong Agent theo chỉ dẫn. Chạy probe trong CNR và kiểm tra lại bằng `cnr check mcp`. Kết quả giao thức CNR và bằng chứng Agent native được hiển thị riêng.
@@ -417,6 +424,15 @@ cargo clean
 cargo build --locked --bins
 # chạy toàn bộ bài kiểm thử trên tất cả target (lib, bins, tests)
 cargo test --locked --all-targets
+```
+
+### Lệnh chạy chương trình
+
+```sh
+# tiếng việt
+.\target\release\cnr.exe --lang vi
+# tiếng anh
+.\target\release\cnr.exe --lang en
 ```
 
 ```powershell

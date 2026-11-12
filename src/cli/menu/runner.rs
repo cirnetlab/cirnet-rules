@@ -116,7 +116,7 @@ impl Runner {
             if check.scope.workspace.is_none() {
                 check.scope.workspace = project;
             }
-            return Ok(Self::spawn_check(check));
+            return Ok(Self::spawn_check(check, vi));
         }
         let refresh = catalog_project
             .filter(|_| invocation.refresh_catalog)
@@ -183,7 +183,7 @@ impl Runner {
         })
     }
 
-    fn spawn_check(check: CheckRequest) -> Self {
+    fn spawn_check(check: CheckRequest, vi: bool) -> Self {
         Self::worker(move |signal| {
             let report = check.finalize(cirnetrules::operator::check(
                 &check.target,
@@ -199,7 +199,7 @@ impl Runner {
             } else if check.verbose {
                 serde_json::to_string_pretty(&report).map_err(|_| "Cannot encode check report")?
             } else {
-                report.render()
+                report.render_for(vi)
             };
             Ok(RunOutput {
                 buffer: Buffer::from_streams(sanitize(rendered.as_bytes()), "", None),

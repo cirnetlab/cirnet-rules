@@ -81,6 +81,7 @@ pub(super) enum Tone {
     Error,
     Stderr,
     Match,
+    Selection,
     Palette(PalettePart),
 }
 
@@ -150,7 +151,7 @@ impl Style {
         use Color::*;
         let color = match tone {
             Tone::Plain => return Self::default(),
-            Tone::Muted | Tone::Heading | Tone::Match => {
+            Tone::Muted | Tone::Heading | Tone::Match | Tone::Selection => {
                 return Self {
                     attribute: Some(match tone {
                         Tone::Muted => Attribute::Dim,
@@ -279,8 +280,26 @@ impl Line {
         }
     }
 
-    fn contents(&self) -> &str {
+    pub(super) fn contents(&self) -> &str {
         self.0.as_ref().map_or("", |data| data.text.as_str())
+    }
+
+    pub(super) fn select(&mut self, range: Range<usize>) {
+        if range.is_empty() {
+            return;
+        }
+        let mut selected = Self::default();
+        let mut start = 0;
+        for (tone, segment) in self.segments() {
+            let end = start + segment.len();
+            let left = range.start.clamp(start, end) - start;
+            let right = range.end.clamp(start, end) - start;
+            selected.push(tone, &segment[..left]);
+            selected.push(Tone::Selection, &segment[left..right]);
+            selected.push(tone, &segment[right..]);
+            start = end;
+        }
+        *self = selected;
     }
 
     fn segments(&self) -> impl DoubleEndedIterator<Item = (Tone, &str)> {
@@ -406,6 +425,15 @@ pub(super) struct Frame {
     pub(super) rows: Vec<Line>,
     pub(super) cursor: Option<(u16, u16)>,
     pub(super) menu: Option<MenuRows>,
+    pub(super) input: Option<InputHit>,
+    pub(super) readable: Option<Range<u16>>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct InputHit {
+    pub(super) row: u16,
+    pub(super) columns: Range<u16>,
+    pub(super) offset: usize,
 }
 
 impl Frame {
@@ -415,6 +443,8 @@ impl Frame {
             cursor: None,
             rows: vec![Line::default(); usize::from(size.1)],
             menu: None,
+            input: None,
+            readable: None,
         }
     }
 
@@ -459,11 +489,8 @@ impl Default for Painter {
 }
 
 impl Painter {
-    pub(super) fn menu_hit(&self, size: (u16, u16), x: u16, y: u16) -> Option<usize> {
-        self.previous
-            .as_ref()
-            .filter(|frame| frame.size == size)?
-            .menu_hit(x, y)
+    pub(super) fn last_frame(&self, size: (u16, u16)) -> Option<&Frame> {
+        self.previous.as_ref().filter(|frame| frame.size == size)
     }
 
     pub(super) fn draw(
@@ -486,7 +513,7 @@ impl Painter {
                 .map(|old| &old.rows[usize::from(y)]);
             let (column, dirty) = line.damage(old);
             queue!(out, MoveTo(column, y))?;
-            if color {
+            if color || line.segments().any(|(tone, _)| tone == Tone::Selection) {
                 let mut offset = 0;
                 for (tone, text) in line.segments() {
                     let end = offset + text.len();
@@ -494,7 +521,11 @@ impl Painter {
                         break;
                     }
                     if end > dirty.start {
-                        let next = Style::for_tone(tone, self.depth);
+                        let next = if color || tone == Tone::Selection {
+                            Style::for_tone(tone, self.depth)
+                        } else {
+                            Style::default()
+                        };
                         next.write(out, active)?;
                         let start = dirty.start.saturating_sub(offset);
                         let stop = dirty.end.min(end) - offset;

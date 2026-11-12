@@ -1,5 +1,6 @@
 mod checks;
 mod context;
+pub mod presentation;
 mod setup;
 
 pub use checks::check;
@@ -188,46 +189,11 @@ impl CheckReport {
         }
     }
     pub fn render(&self) -> String {
-        use std::fmt::Write;
-        let mut output = String::new();
-        let scope = &self.requested_scope;
-        let _ = writeln!(
-            output,
-            "{} · {} · {} ms",
-            self.overall_status.label(),
-            scope["target"].as_str().unwrap_or("setup"),
-            self.duration_ms
-        );
-        for (key, label) in [
-            ("repo", "Repo"),
-            ("binding", "Binding"),
-            ("task", "Task"),
-            ("agent", "Agent"),
-        ] {
-            if let Some(value) = scope[key].as_str() {
-                let _ = write!(output, "{label} {value}  ");
-            }
-        }
-        let _ = writeln!(output);
-        for (status, count) in &self.counts_by_status {
-            let _ = write!(output, "{} {count}  ", status.label());
-        }
-        let _ = writeln!(output, "\nComponent | Status | Reason | Next action");
-        for row in &self.findings {
-            let _ = write!(output, "{}", row.component);
-            if let Some(repo) = &row.repository {
-                let _ = write!(output, " [{repo}]");
-            }
-            if let Some(agent) = &row.agent_id {
-                let _ = write!(output, " [{agent}]");
-            }
-            let _ = write!(output, " | {} | {}", row.status.label(), row.message);
-            if let Some(action) = row.actions.first() {
-                let _ = write!(output, " | {}", action.label);
-            }
-            let _ = writeln!(output);
-        }
-        output
+        self.render_for(false)
+    }
+
+    pub fn render_for(&self, vi: bool) -> String {
+        presentation::report(self, vi)
     }
 }
 
@@ -339,6 +305,58 @@ fn label(value: Option<&str>) -> Option<String> {
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn plain_report_keeps_status_groups_and_next_actions_without_table_columns() {
+        let blocked = Finding {
+            id: "binding-1".into(),
+            component: "bindings".into(),
+            repository: Some("cirnet-fpga".into()),
+            binding_id: None,
+            task_id: None,
+            agent_id: None,
+            status: Status::Blocked,
+            required: false,
+            evidence_level: None,
+            code: "NO_BINDING".into(),
+            message: "No confirmed worktree".into(),
+            expected: None,
+            observed: None,
+            sources: Vec::new(),
+            blocked_by: Vec::new(),
+            duration_ms: 1,
+            actions: vec![NextAction {
+                id: "select-binding".into(),
+                label: "Select a verified worktree".into(),
+                operation: "select-binding".into(),
+                typed_arguments: BTreeMap::new(),
+                effect: Effect::ReadOnly,
+                requires_confirmation: false,
+                required_grant: None,
+                plan_digest: None,
+                stale_when: Vec::new(),
+            }],
+        };
+        let mut passed = blocked.clone();
+        passed.status = Status::Pass;
+        let report = finish(
+            Instant::now(),
+            SystemTime::now(),
+            serde_json::json!({"target":"all"}),
+            Value::Null,
+            vec![passed, blocked],
+            false,
+        );
+        let rendered = report.render();
+        assert!(rendered.contains("Overall WARNING"));
+        assert!(rendered.contains("Issues needing attention (1)"));
+        assert!(rendered.contains("    Next: Select a verified worktree"));
+        assert!(rendered.find("Issues needing attention") < rendered.find("Passed checks"));
+        assert!(!rendered.contains("Component | Status"));
+        assert!(!rendered.contains('\u{1b}'));
+        assert_eq!(report.overall_status, Status::Warning);
+        assert_eq!(report.exit_code, 0);
+    }
 
     #[test]
     fn cancellation_keeps_completed_findings_and_never_reports_pass() {

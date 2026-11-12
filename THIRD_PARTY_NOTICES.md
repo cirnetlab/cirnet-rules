@@ -8,3 +8,6 @@ Review the exact distribution contents and retain the applicable upstream
 license texts and notices before redistributing binaries.
 
 The STDIO server uses the official [Rust MCP SDK](https://docs.rs/crate/rmcp/3.6.0) under Apache-2.0 and Tokio under MIT. The resolved packages and versions are recorded in Cargo.lock.
+
+The TUI uses [unicode-segmentation](https://docs.rs/unicode-segmentation/1.13.2/unicode_segmentation/)
+under MIT or Apache-2.0 for Unicode grapheme boundaries.

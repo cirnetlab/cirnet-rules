@@ -195,6 +195,10 @@ impl Wizard {
         self.context = operator::inspect_setup(&self.input.scope);
     }
 
+    pub(super) fn editing_text(&self) -> bool {
+        self.edit.is_some() && self.pending.is_none() && !self.suspended
+    }
+
     fn set(&mut self, field: Field, value: &str) -> Result<(), &'static str> {
         let value = value.trim();
         let value = value
@@ -375,10 +379,7 @@ impl Wizard {
             );
             for (agent, receipts) in &self.receipts {
                 for (action, receipt) in receipts {
-                    let name = ACTIONS
-                        .iter()
-                        .find(|(candidate, _)| candidate == action)
-                        .map_or("", |(_, name)| text(*name, vi));
+                    let name = action_name(*action, vi);
                     let _ = writeln!(out, "  {agent} · {name} · {receipt}");
                 }
             }
@@ -395,7 +396,12 @@ impl Wizard {
                     "Xem trước kế hoạch. Gõ YES rồi Enter để áp dụng. Esc để hủy.",
                 ]
             };
-            let _ = writeln!(out, "\n{}\n\n{}", text(hint, vi), pretty(&preview.report));
+            let _ = writeln!(
+                out,
+                "\n{}\n\n{}",
+                text(hint, vi),
+                render_report(preview.action, &preview.report, vi)
+            );
             return out;
         }
         if let Some(edit) = self.edit {
@@ -460,9 +466,101 @@ impl Wizard {
     }
 }
 
-fn pretty(value: &Value) -> String {
-    let text = serde_json::to_string_pretty(value).unwrap_or_default();
-    runner::sanitize(text.as_bytes())
+fn action_name(action: SetupAction, vi: bool) -> &'static str {
+    ACTIONS
+        .iter()
+        .find(|(candidate, _)| *candidate == action)
+        .map_or("", |(_, name)| text(*name, vi))
+}
+
+fn render_report(action: SetupAction, report: &Value, vi: bool) -> String {
+    let name = action_name(action, vi);
+    let mut out = String::new();
+    if let Some(status) = report["status"].as_str() {
+        let _ = write!(out, "{status} · ");
+    }
+    let _ = write!(out, "{name}");
+    for key in ["state", "registration"] {
+        if let Some(value) = report[key].as_str() {
+            let _ = write!(out, " · {value}");
+        }
+    }
+    let _ = writeln!(out);
+    if let Some(reason) = report["reason"].as_str() {
+        let _ = writeln!(out, "  {reason}");
+    }
+    if let Some(next) = report["next_action"]
+        .as_str()
+        .or_else(|| report["next"].as_str())
+    {
+        let _ = writeln!(
+            out,
+            "  {} · {next}",
+            text(["Next action", "Bước tiếp theo"], vi)
+        );
+    }
+    for (key, label) in [
+        ("destination", ["Destination", "Đích"]),
+        ("path", ["Path", "Đường dẫn"]),
+        ("file", ["File", "Tệp"]),
+        ("receipt", ["Receipt", "Receipt"]),
+        ("authorization", ["Authorization", "Quyền"]),
+        ("native_client", ["Native client", "Agent native"]),
+        ("native_discovery", ["Native discovery", "Phát hiện native"]),
+    ] {
+        if let Some(value) = report[key].as_str() {
+            let _ = writeln!(out, "  {} · {value}", text(label, vi));
+        }
+    }
+    let mut files = report["files"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|file| {
+            let path = file.as_str().or_else(|| file["path"].as_str())?;
+            Some((path, file["action"].as_str(), file["reason"].as_str()))
+        })
+        .chain(
+            report["files"]
+                .as_object()
+                .into_iter()
+                .flat_map(|files| files.keys().map(|path| (path.as_str(), None, None))),
+        )
+        .peekable();
+    if files.peek().is_some() {
+        let _ = writeln!(out, "\n{}", text(["Files", "Tệp"], vi));
+        for (path, operation, reason) in files.by_ref().take(20) {
+            let _ = write!(out, "  ");
+            if let Some(operation) = operation {
+                let _ = write!(out, "{operation} · ");
+            }
+            let _ = writeln!(out, "{path}");
+            if let Some(reason) = reason {
+                let _ = writeln!(out, "    {reason}");
+            }
+        }
+        if files.peek().is_some() {
+            let _ = writeln!(
+                out,
+                "  {}",
+                text(
+                    [
+                        "See the full file list in the details below.",
+                        "Xem danh sách tệp đầy đủ trong chi tiết bên dưới."
+                    ],
+                    vi
+                )
+            );
+        }
+    }
+    if let Ok(details) = serde_json::to_string_pretty(report) {
+        let _ = writeln!(
+            out,
+            "\n{}\n{details}",
+            text(["Details (JSON)", "Chi tiết (JSON)"], vi)
+        );
+    }
+    out
 }
 
 impl Menu {
@@ -482,10 +580,14 @@ impl Menu {
         );
         output.running = false;
         output.status = text(
-            [
-                "Enter to select · Esc to go back",
-                "Enter để chọn · Esc để quay lại",
-            ],
+            if wizard.pending.is_some() {
+                ["Review preview · Esc cancels", "Xem trước · Esc để hủy"]
+            } else {
+                [
+                    "Enter to select · Esc to go back",
+                    "Enter để chọn · Esc để quay lại",
+                ]
+            },
             self.vi,
         )
         .into();
@@ -547,7 +649,7 @@ impl Menu {
                                 }
                             }
                         }
-                        pretty(&result)
+                        render_report(action, &result, self.vi)
                     }
                     Err(reason) => format!("BLOCKED · {reason}"),
                 };
@@ -619,7 +721,9 @@ impl Menu {
                 {
                     wizard.pending = Some(preview)
                 }
-                Ok(preview) => wizard.notice = pretty(&preview.report),
+                Ok(preview) => {
+                    wizard.notice = render_report(preview.action, &preview.report, self.vi);
+                }
                 Err(reason) => wizard.notice = format!("BLOCKED · {reason}"),
             }
         } else if !value.is_empty() {
@@ -642,6 +746,27 @@ mod tests {
     use super::*;
     use cirnetrules::operator::Scope;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    fn preview_status_reason_file_and_next_action_precede_the_raw_plan() {
+        let report = serde_json::json!({
+            "status": "BLOCKED",
+            "state": "DRY_RUN",
+            "reason": "Review approval",
+            "next_action": "Choose a task",
+            "files": [{"path": "AGENTS.md", "action": "UPDATE"}],
+            "native_client": "NOT_RUN"
+        });
+        let rendered = render_report(SetupAction::SyncManaged, &report, true);
+        let (summary, evidence) = rendered.split_once("Chi tiết (JSON)\n").unwrap();
+        assert!(summary.starts_with("BLOCKED"));
+        assert!(summary.contains("DRY_RUN"));
+        assert!(summary.contains("Review approval"));
+        assert!(summary.contains("Bước tiếp theo · Choose a task"));
+        assert!(summary.contains("UPDATE · AGENTS.md"));
+        assert!(summary.contains("Agent native · NOT_RUN"));
+        assert_eq!(serde_json::from_str::<Value>(evidence).unwrap(), report);
+    }
 
     #[test]
     fn wizard_selects_agents_sequentially_and_clears_repo_dependent_fields() {
@@ -678,6 +803,7 @@ mod tests {
             },
             ..SetupInput::default()
         });
+        assert!(menu.wizard.as_ref().is_some_and(Wizard::editing_text));
         assert!(matches!(menu.paste("YES\r\n"), Effect::Redraw));
         assert!(menu.wizard.as_ref().unwrap().input.scope.agent.is_none());
         let escape = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);

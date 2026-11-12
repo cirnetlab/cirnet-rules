@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 9 -->
+<!-- revision: 10 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
@@ -30,8 +30,48 @@ exit code and elapsed milliseconds above Command. In results, PgUp/PgDn
 and the mouse wheel scroll the output.
 Ctrl+Home and Ctrl+End go to the start and end. Ctrl+F searches the output.
 F3 and Shift+F3 move between matches. Up and Down recall recent read-only
-commands and Ctrl+R searches that history by prefix. Ctrl+C cancels a
-running command or exits while idle. Esc returns to the menu from idle results.
+commands and Ctrl+R searches that history by prefix. Esc first dismisses an
+open popup or text selection. It can then cancel a running job or return to
+the menu from idle results.
+
+<a id="tui-editing"></a>
+
+### Text editing and clipboard
+
+These shortcuts apply in Command, search and setup fields.
+
+| Shortcut | Effect |
+| --- | --- |
+| Shift+Left/Right, Shift+Home/End | Extend the selection by displayed characters or to an edge |
+| Ctrl+A | Select the field text |
+| Ctrl+C | Copy the selection. With no selection, cancel a running job, go back in setup or exit CNR as appropriate. |
+| Ctrl+X, Delete, Backspace | Cut or remove the selection |
+| Ctrl+V | Paste at the caret, replacing any selection |
+| Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z | Undo or redo a text edit |
+| Home, End or Ctrl+E | Move to a field edge |
+| Shift+F10 or right-click | Open the context menu when the terminal forwards the event |
+
+Click to place the caret and drag to select text when the terminal forwards
+mouse events. In the result pane, drag to select readable text or use the
+context menu to copy a line, a finding, a value or the readable report.
+Ctrl+A selects visible text when the result pane has focus. F6 moves between
+the generic output pane and editor. The result pane is read-only. Raw JSON
+is a separate inspection mode outside CNR clipboard actions.
+Paste edits text without submitting a command or accepting a setup preview.
+Undo and redo apply to text edits.
+
+| Terminal host | Clipboard and selection |
+| --- | --- |
+| Windows Terminal | CNR uses the Windows clipboard on explicit requests. When the host handles a gesture, use Shift+drag for host selection while CNR mouse capture is active, then use the terminal's copy or paste action. Host right-click behavior depends on its settings. |
+| Windows Console Host | Native clipboard access requires an available Windows desktop. Mouse events and shortcuts depend on console input mode and host settings. Host selection and paste can be used when available. |
+| Linux, macOS, WSL, or detected SSH | Use the terminal's own copy and paste. CNR reports `CLIPBOARD_UNSUPPORTED` for native clipboard actions in these sessions. |
+
+Native clipboard access can report `CLIPBOARD_UNAVAILABLE` for a busy
+clipboard or missing text and `CLIPBOARD_PERMISSION_DENIED` for denied access.
+
+[Windows Terminal selection](https://learn.microsoft.com/en-us/windows/terminal/selection) ·
+[Interaction settings](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/interaction) ·
+[Terminal actions](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/actions)
 
 `--lang vi` selects Vietnamese terminal labels and command summaries.
 `--no-banner` selects the compact title. `NO_COLOR` shows plain text and
@@ -130,6 +170,15 @@ that component. Headless `cnr check` defaults to `all`. Use `--repo`,
 distinguish a discovered checkout from a confirmed binding and a verified MCP
 protocol exchange from a native Agent session. Review the reason and next
 action for every required item that lacks evidence.
+
+The summary keeps counts for all statuses. The list shows issues first and
+groups pending and passed findings below them. Use Up/Down to select,
+Enter to expand a group or open one finding, and Esc to return. Use `/`
+or Ctrl+F to search, `f` to filter by status, `r` to filter by repository and
+`a` to show all. `b` selects blocked findings. `j` opens raw JSON. On wide
+terminals, Tab moves between the list and details. Details include evidence,
+source and the available Next Actions. Review write actions in the relevant
+setup flow with the required authorization.
 
 Use `cnr check all --json --non-interactive` for a versioned report. Exit 1
 indicates an error, exit 2 a mandatory gap or a warning in strict mode, and

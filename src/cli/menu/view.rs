@@ -2,10 +2,11 @@ use super::{
     Input, Menu, Prompt,
     banner::BANNER_WIDTH,
     completion::Source,
-    terminal::{Frame, Line, MenuRows, PalettePart, Tone},
+    terminal::{Frame, InputHit, Line, MenuRows, PalettePart, Tone},
     text,
 };
-use std::{borrow::Cow, sync::LazyLock};
+use std::{borrow::Cow, ops::Range, sync::LazyLock};
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const NAME: &str = "CIRNET RULES";
@@ -39,15 +40,13 @@ fn clip(value: &str, width: usize) -> Cow<'_, str> {
 fn tail(value: &str, width: usize) -> &str {
     let mut remaining = width;
     let mut start = value.len();
-    for (index, ch) in value.char_indices().rev() {
-        let columns = ch.width().unwrap_or(0);
+    for (index, grapheme) in value.grapheme_indices(true).rev() {
+        let columns = grapheme.width();
         if columns > remaining {
             break;
         }
-        if columns > 0 {
-            start = index;
-            remaining -= columns;
-        }
+        start = index;
+        remaining -= columns;
     }
     &value[start..]
 }
@@ -75,7 +74,7 @@ fn label(frame: &mut Frame, row: u16, margin: usize, width: usize, tone: Tone, v
     frame.rows[usize::from(row)] = line;
 }
 
-fn input_line(
+pub(super) fn input_line(
     frame: &mut Frame,
     row: u16,
     margin: usize,
@@ -85,7 +84,7 @@ fn input_line(
     feedback: &str,
 ) {
     let mut line = indented(margin);
-    let (cursor, _) = input_text(
+    let layout = input_text(
         &mut line,
         width,
         prefix,
@@ -94,8 +93,26 @@ fn input_line(
         input,
         feedback,
     );
-    frame.cursor = Some(((margin + cursor) as u16, row));
+    layout.attach(frame, row, margin);
     frame.rows[usize::from(row)] = line;
+}
+
+struct InputLayout {
+    cursor: usize,
+    used: usize,
+    columns: Range<usize>,
+    offset: usize,
+}
+
+impl InputLayout {
+    fn attach(self, frame: &mut Frame, row: u16, margin: usize) {
+        frame.cursor = Some(((margin + self.cursor) as u16, row));
+        frame.input = Some(InputHit {
+            row,
+            columns: (margin + self.columns.start) as u16..(margin + self.columns.end) as u16,
+            offset: self.offset,
+        });
+    }
 }
 
 fn input_text(
@@ -106,22 +123,42 @@ fn input_text(
     body: Tone,
     input: &Input,
     feedback: &str,
-) -> (usize, usize) {
+) -> InputLayout {
     let prefix = clip(prefix, width.saturating_sub(1));
     let available = width - prefix.width();
-    let (before, after) = input.value.split_at(input.cursor);
-    let before = tail(before, available.saturating_sub(1));
+    let before = tail(&input.value[..input.cursor], available.saturating_sub(1));
+    let offset = input.cursor - before.len();
     line.push(marker, &prefix);
-    line.push(body, before);
-    let (suffix, tone) = if after.is_empty() {
-        (feedback, Tone::Muted)
-    } else {
-        (after, body)
-    };
-    let suffix = clip(suffix, available - before.width());
-    line.push(tone, &suffix);
+    let mut used = 0;
+    let selection = input.selection();
+    for (index, grapheme) in input.value[offset..].grapheme_indices(true) {
+        let columns = grapheme.width();
+        if used + columns > available {
+            break;
+        }
+        let tone = if selection
+            .as_ref()
+            .is_some_and(|range| range.contains(&(offset + index)))
+        {
+            Tone::Selection
+        } else {
+            body
+        };
+        line.push(tone, grapheme);
+        used += columns;
+    }
+    if input.cursor == input.value.len() {
+        let feedback = clip(feedback, available - used);
+        line.push(Tone::Muted, &feedback);
+        used += feedback.width();
+    }
     let cursor = prefix.width() + before.width();
-    (cursor, cursor + suffix.width())
+    InputLayout {
+        cursor,
+        used: prefix.width() + used,
+        columns: prefix.width()..width,
+        offset,
+    }
 }
 
 fn wrap(value: &str, width: usize) -> Vec<String> {
@@ -255,7 +292,7 @@ impl<'a> Palette<'a> {
         line.push(tone, right);
     }
 
-    fn draw(&self, line: &mut Line, row: u16, vi: bool, color: bool) -> Option<usize> {
+    fn draw(&self, line: &mut Line, row: u16, vi: bool, color: bool) -> Option<InputLayout> {
         use PalettePart::*;
         if self.bordered && (row == 0 || row == 2) {
             self.draw_cap(line, row == 0, color);
@@ -280,7 +317,7 @@ impl<'a> Palette<'a> {
                 line.push(edge_tone, "│");
                 line.push(body_tone, " ");
             }
-            let (cursor, used) = input_text(
+            let mut layout = input_text(
                 line,
                 inner,
                 "› ",
@@ -290,10 +327,12 @@ impl<'a> Palette<'a> {
                 "",
             );
             if self.bordered {
-                line.push(body_tone, spaces(inner - used + 1));
+                line.push(body_tone, spaces(inner - layout.used + 1));
                 line.push(edge_tone, "│");
             }
-            Some(inset + cursor)
+            layout.cursor += inset;
+            layout.columns = inset + layout.columns.start..inset + layout.columns.end;
+            Some(layout)
         } else {
             let body_tone = if self.bordered || color {
                 Tone::Palette(Detail)
@@ -406,6 +445,9 @@ fn output_frame(menu: &mut Menu, size: (u16, u16), color: bool) -> Frame {
         .unwrap_or(command_row)
         .saturating_sub(u16::from(separate_find));
     let visible = body_end.saturating_sub(header);
+    if output.check_report.is_none() && output.buffer.copy_safe() {
+        frame.readable = Some(header..body_end);
+    }
     if header != 0 {
         label(
             &mut frame,
@@ -433,8 +475,8 @@ fn output_frame(menu: &mut Menu, size: (u16, u16), color: bool) -> Frame {
         for offset in 0..palette.rows() {
             let row = command_row + offset;
             let mut line = indented(margin);
-            if let Some(cursor) = palette.draw(&mut line, offset, menu.vi, color) {
-                frame.cursor = Some(((margin + cursor) as u16, row));
+            if let Some(layout) = palette.draw(&mut line, offset, menu.vi, color) {
+                layout.attach(&mut frame, row, margin);
             }
             frame.rows[usize::from(row)] = line;
         }
@@ -461,10 +503,19 @@ fn output_frame(menu: &mut Menu, size: (u16, u16), color: bool) -> Frame {
 
 pub(super) fn frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
     menu.refresh_suggestions();
-    if menu.output.is_some() {
-        return output_frame(menu, size, color);
-    }
-    menu_frame(menu, size, banner, color)
+    let mut frame = if let Some(output) = &mut menu.output {
+        if !output.check_command
+            && let (Some(check), Some(report)) = (&mut output.check, &output.check_report)
+        {
+            check.frame(report, size, menu.vi)
+        } else {
+            output_frame(menu, size, color)
+        }
+    } else {
+        menu_frame(menu, size, banner, color)
+    };
+    menu.interaction.decorate(&mut frame, menu.vi);
+    frame
 }
 
 fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
@@ -563,8 +614,8 @@ fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> F
             for offset in 0..palette.rows() {
                 let y = end + offset;
                 let mut line = indented(margin);
-                if let Some(cursor) = palette.draw(&mut line, offset, menu.vi, color) {
-                    frame.cursor = Some(((margin + cursor) as u16, y));
+                if let Some(layout) = palette.draw(&mut line, offset, menu.vi, color) {
+                    layout.attach(&mut frame, y, margin);
                 }
                 frame.rows[usize::from(y)] = line;
             }
@@ -626,9 +677,9 @@ fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> F
             } else if let Some((start, palette)) = &wide_palette
                 && let Some(offset) = (i as u16).checked_sub(*start)
                 && offset < palette.rows()
-                && let Some(cursor) = palette.draw(&mut line, offset, menu.vi, color)
+                && let Some(layout) = palette.draw(&mut line, offset, menu.vi, color)
             {
-                frame.cursor = Some(((margin + left_width + 5 + cursor) as u16, y));
+                layout.attach(&mut frame, y, margin + left_width + 5);
             }
         }
         frame.rows[usize::from(y)] = line;
