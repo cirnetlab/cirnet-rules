@@ -38,7 +38,7 @@ cnr --lang vi
 
 ### Menu chức năng trong giao diện CLI
 
-| Menu | Dùng để làm gì? |
+| Menu | Chức năng |
 | :--- | :--- |
 | **Tool inventory** | Xem các công cụ đã cài |
 | **Search tools** | Tìm Runtime, SDK, compiler |

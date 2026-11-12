@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 7 -->
+<!-- revision: 8 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
@@ -17,13 +17,17 @@ On Windows use `target/debug/cnr.exe`. Run `cnr` or `cnr tui` in an
 interactive terminal. The wide layout shows the selected command beside
 the list. `/` or Ctrl+K searches the menu. `?` opens contextual help.
 
-Type to open Command or press `:` to recover an unsent draft.
+Type to open Command or press `:` to recover an unsent draft. Suggestions
+open below the input. Wide menus place Command in the preview column.
+Smaller terminals stack it below the menu and reduce the suggestions.
 Tab accepts and cycles through suggestions. Shift+Tab cycles backward.
 Enter submits the text in Command. In the main menu, Esc closes Command
 and an arrow key closes it and moves the selection. Version suggestions
 use project pins and verified managed installations.
 
-In results, PgUp/PgDn and the mouse wheel scroll the output.
+The menu keeps its shortcut bar at the bottom. Results show the outcome,
+exit code and elapsed milliseconds above Command. In results, PgUp/PgDn
+and the mouse wheel scroll the output.
 Ctrl+Home and Ctrl+End go to the start and end. Ctrl+F searches the output.
 F3 and Shift+F3 move between matches. Up and Down recall recent read-only
 commands and Ctrl+R searches that history by prefix. Ctrl+C cancels a

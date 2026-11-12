@@ -1,5 +1,6 @@
 use super::{completion::Completer, text, viewport::Buffer};
 use cirnetrules::execution;
+use serde::Deserialize;
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -14,12 +15,45 @@ use std::{
 
 const TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub(super) enum Outcome {
+    Pass,
+    Fail,
+    Blocked,
+    NotRun,
+    Cancelled,
+    #[serde(skip_deserializing)]
+    TimedOut,
+}
+
+impl Outcome {
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Pass => "PASS",
+            Self::Fail => "FAIL",
+            Self::Blocked => "BLOCKED",
+            Self::NotRun => "NOT_RUN",
+            Self::Cancelled => "CANCELLED",
+            Self::TimedOut => "TIMED_OUT",
+        }
+    }
+
+    fn expected_exit(self) -> i32 {
+        match self {
+            Self::Pass => 0,
+            Self::Fail => 1,
+            Self::Blocked | Self::NotRun | Self::TimedOut => 2,
+            Self::Cancelled => 130,
+        }
+    }
+}
+
 pub(super) struct RunOutput {
     pub(super) buffer: Buffer,
     pub(super) elapsed_ms: u64,
     pub(super) exit_code: Option<i32>,
-    pub(super) timed_out: bool,
-    pub(super) cancelled: bool,
+    pub(super) outcome: Outcome,
     pub(super) completer: Option<Completer>,
 }
 
@@ -51,10 +85,10 @@ impl Runner {
             command.args(["--lang", "vi"]);
         }
         command.args(args);
-        Ok(Self::spawn(command, refresh, vi))
+        Ok(Self::spawn(command, refresh, vi, true))
     }
 
-    fn spawn(mut command: Command, refresh: Option<PathBuf>, vi: bool) -> Self {
+    fn spawn(mut command: Command, refresh: Option<PathBuf>, vi: bool, cnr_stdout: bool) -> Self {
         let (sender, receiver) = mpsc::sync_channel(1);
         let cancelled = Arc::new(AtomicBool::new(false));
         let signal = Arc::clone(&cancelled);
@@ -63,6 +97,7 @@ impl Runner {
                 signal.load(Ordering::Relaxed)
             })
             .map(|result| {
+                let outcome = completed_outcome(&result, cnr_stdout);
                 let notice = result
                     .output_truncated
                     .then(|| text(["[Output truncated]", "[Đầu ra đã được rút gọn]"], vi));
@@ -72,14 +107,13 @@ impl Runner {
                     notice,
                 );
                 let completer = refresh
-                    .filter(|_| result.success())
+                    .filter(|_| outcome == Outcome::Pass)
                     .map(|project| Completer::new(Some(&project), vi));
                 RunOutput {
                     buffer,
                     elapsed_ms: result.elapsed_ms,
                     exit_code: result.exit_code,
-                    timed_out: result.timed_out,
-                    cancelled: result.cancelled,
+                    outcome,
                     completer,
                 }
             });
@@ -122,6 +156,94 @@ impl Drop for Runner {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
+    }
+}
+
+#[derive(Deserialize)]
+struct CnrReport<'a> {
+    status: Outcome,
+    #[serde(borrow)]
+    command: Option<&'a str>,
+    #[serde(default)]
+    timed_out: bool,
+    #[serde(default)]
+    cancelled: bool,
+}
+
+impl CnrReport<'_> {
+    fn blocked_outcome(&self) -> Outcome {
+        if self.cancelled {
+            Outcome::Cancelled
+        } else if self.timed_out {
+            Outcome::TimedOut
+        } else {
+            Outcome::Blocked
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct GovernedStepReport<'a> {
+    #[serde(borrow)]
+    result: CnrReport<'a>,
+}
+
+fn cnr_outcome(bytes: &[u8], exit_code: Option<i32>) -> Option<Outcome> {
+    let stdout = std::str::from_utf8(bytes).ok()?;
+    let (header_status, body) = if let Some(report) = stdout.strip_prefix("CNR · ") {
+        let (header, body) = report.split_once('\n')?;
+        let (name, status) = header.trim_end_matches('\r').split_once(" · ")?;
+        if name != "cnr" && !super::super::COMMANDS.iter().any(|(key, ..)| *key == name) {
+            return None;
+        }
+        (Some(status), body)
+    } else {
+        (None, stdout)
+    };
+    if !body.trim_start().starts_with('{') {
+        return None;
+    }
+    // Deserialize only top-level report fields. This avoids retaining a second
+    // copy of captured output and rejects duplicate status keys.
+    let report: CnrReport<'_> = serde_json::from_str(body).ok()?;
+    if header_status.is_some_and(|header| header != report.status.label())
+        || exit_code != Some(report.status.expected_exit())
+    {
+        return Some(Outcome::Fail);
+    }
+    if report.status != Outcome::Blocked {
+        return Some(report.status);
+    }
+    // Governance run-step retains a blocked exit code for interrupted steps.
+    // Only this envelope has a nested process receipt that can refine BLOCKED.
+    if header_status.is_none()
+        && report.command == Some("run-step")
+        && let Ok(step) = serde_json::from_str::<GovernedStepReport<'_>>(body)
+        && step.result.status == Outcome::Blocked
+    {
+        return Some(step.result.blocked_outcome());
+    }
+    Some(report.blocked_outcome())
+}
+
+fn completed_outcome(result: &execution::NativeResult, cnr_stdout: bool) -> Outcome {
+    if result.cancelled {
+        return Outcome::Cancelled;
+    }
+    if result.timed_out {
+        return Outcome::TimedOut;
+    }
+    if cnr_stdout
+        && !result.output_truncated
+        && let Some(outcome) = cnr_outcome(&result.output, result.exit_code)
+    {
+        return outcome;
+    }
+    match result.exit_code {
+        Some(0) => Outcome::Pass,
+        Some(2) => Outcome::Blocked,
+        Some(130) => Outcome::Cancelled,
+        _ => Outcome::Fail,
     }
 }
 
@@ -264,7 +386,7 @@ mod tests {
             "--nocapture",
         ]);
         command.env("CNR_RUNNER_TEST_FIXTURE", mode);
-        Runner::spawn(command, None, false)
+        Runner::spawn(command, None, false, false)
     }
 
     #[test]
@@ -281,7 +403,7 @@ mod tests {
         assert!(captured.contains("[stderr]\nfixture stderr"));
         assert!(!captured.contains('\x1b'));
         assert!(!captured.contains("[Output truncated]"));
-        assert!(!output.cancelled && !output.timed_out);
+        assert_eq!(output.outcome, Outcome::Pass);
         assert!(runner.poll().is_none());
     }
 
@@ -291,8 +413,98 @@ mod tests {
         assert!(runner.poll().is_none());
         runner.cancel();
         let output = wait(&mut runner);
-        assert!(output.cancelled);
-        assert!(!output.timed_out);
+        assert_eq!(output.outcome, Outcome::Cancelled);
+    }
+
+    fn captured_result(stdout: &str, exit_code: Option<i32>) -> execution::NativeResult {
+        execution::NativeResult {
+            output: stdout.as_bytes().to_vec(),
+            error: Vec::new(),
+            output_truncated: false,
+            exit_code,
+            timed_out: false,
+            cancelled: false,
+            elapsed_ms: 850,
+        }
+    }
+
+    #[test]
+    fn complete_cnr_report_agrees_with_measured_exit_or_fails_closed() {
+        for (report, code, outcome) in [
+            (
+                "CNR · env · PASS\r\n{\"status\":\"PASS\"}\r\n",
+                Some(0),
+                Outcome::Pass,
+            ),
+            (
+                r#"{"command":"task-show","status":"NOT_RUN","result":{"status":"NOT_FOUND"}}"#,
+                Some(2),
+                Outcome::NotRun,
+            ),
+            (
+                r#"{"command":"run-step","status":"BLOCKED","result":{"status":"BLOCKED","timed_out":true,"cancelled":false}}"#,
+                Some(2),
+                Outcome::TimedOut,
+            ),
+            (
+                r#"{"command":"run-step","status":"BLOCKED","result":{"status":"BLOCKED","timed_out":false,"cancelled":true}}"#,
+                Some(2),
+                Outcome::Cancelled,
+            ),
+            (
+                r#"{"status":"BLOCKED","timed_out":true}"#,
+                Some(2),
+                Outcome::TimedOut,
+            ),
+            (r#"{"status":"BLOCKED"}"#, Some(2), Outcome::Blocked),
+            (r#"{"status":"CANCELLED"}"#, Some(130), Outcome::Cancelled),
+            (r#"{"status":"FAIL"}"#, Some(0), Outcome::Fail),
+            (r#"{"status":"PASS"}"#, Some(2), Outcome::Fail),
+            (
+                "CNR · env · PASS\n{\"status\":\"FAIL\"}\n",
+                Some(0),
+                Outcome::Fail,
+            ),
+            (r#"{"status":"PASS"}"#, None, Outcome::Fail),
+        ] {
+            assert_eq!(
+                completed_outcome(&captured_result(report, code), true),
+                outcome,
+                "{report}"
+            );
+        }
+    }
+
+    #[test]
+    fn status_uses_owned_stdout_and_ignores_embedded_or_incomplete_reports() {
+        for report in [
+            r#"{"result":{"status":"NOT_RUN"}}"#,
+            r#"{"command":"task-show","status":"BLOCKED","result":{"status":"BLOCKED","timed_out":true}}"#,
+            r#"{"command":"run-step","status":"BLOCKED","result":{"status":"PASS","timed_out":true}}"#,
+            r#"[{"status":"NOT_RUN"}]"#,
+            r#"{"status":"NOT_RUN","status":"NOT_RUN"}"#,
+            r#"debug output {"status":"NOT_RUN"}"#,
+            "CNR · unknown · NOT_RUN\n{\"status\":\"NOT_RUN\"}",
+            "{\"status\":\"NOT_RUN\"}\nnon-report output",
+        ] {
+            assert_eq!(
+                completed_outcome(&captured_result(report, Some(2)), true),
+                Outcome::Blocked,
+                "{report}"
+            );
+        }
+        let mut result = captured_result(r#"{"status":"NOT_RUN"}"#, Some(2));
+        assert_eq!(completed_outcome(&result, false), Outcome::Blocked);
+        result.output_truncated = true;
+        assert_eq!(completed_outcome(&result, true), Outcome::Blocked);
+
+        let mut result = captured_result("", Some(0));
+        result.error = br#"{"status":"FAIL"}"#.to_vec();
+        assert_eq!(completed_outcome(&result, true), Outcome::Pass);
+        result.timed_out = true;
+        assert_eq!(completed_outcome(&result, true), Outcome::TimedOut);
+        result.cancelled = true;
+        assert_eq!(completed_outcome(&result, true), Outcome::Cancelled);
     }
 
     #[test]

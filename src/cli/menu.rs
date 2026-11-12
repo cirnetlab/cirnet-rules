@@ -248,6 +248,7 @@ struct OutputView {
     page_size: usize,
     width: usize,
     follow: bool,
+    started_at: Instant,
     running: bool,
     status: String,
     tone: Tone,
@@ -266,6 +267,7 @@ impl OutputView {
             page_size: 0,
             width: 0,
             follow: false,
+            started_at: Instant::now(),
             running: true,
             status: text(["Running…", "Đang chạy…"], vi).into(),
             tone: Tone::Accent,
@@ -310,7 +312,7 @@ impl OutputView {
         }
     }
 
-    fn finish(&mut self, result: Result<runner::RunOutput, String>, vi: bool) -> Option<Completer> {
+    fn finish(&mut self, result: Result<runner::RunOutput, String>) -> Option<Completer> {
         self.running = false;
         self.hit = None;
         match result {
@@ -323,39 +325,39 @@ impl OutputView {
                         .saturating_sub(self.page_size.max(1));
                     self.search(false);
                 }
-                let (tone, status) = if result.cancelled {
-                    (Tone::Warning, text(["Cancelled", "Đã hủy"], vi).into())
-                } else if result.timed_out {
-                    (
-                        Tone::Warning,
-                        text(["Timed out", "Hết thời gian"], vi).into(),
-                    )
-                } else {
-                    let tone = match result.exit_code {
-                        Some(0) => Tone::Success,
-                        Some(2) => Tone::Warning,
-                        _ => Tone::Error,
-                    };
-                    let code = result
-                        .exit_code
-                        .map_or_else(|| "?".into(), |code| code.to_string());
-                    (
-                        tone,
-                        format!("{} {code}", text(["Exit code:", "Mã thoát:"], vi)),
-                    )
-                };
-                self.tone = tone;
-                self.status = format!("{status}  ·  {:.2} s", result.elapsed_ms as f64 / 1000.0);
+                self.completed_status(result.outcome, result.exit_code, result.elapsed_ms.into());
                 result.completer
             }
             Err(error) => {
                 self.buffer =
                     Buffer::from_streams(String::new(), &runner::sanitize(error.as_bytes()), None);
-                self.tone = Tone::Error;
-                self.status = text(["Failed", "Thất bại"], vi).into();
+                self.completed_status(
+                    runner::Outcome::Fail,
+                    None,
+                    self.started_at.elapsed().as_millis(),
+                );
                 None
             }
         }
+    }
+
+    fn completed_status(
+        &mut self,
+        outcome: runner::Outcome,
+        exit_code: Option<i32>,
+        elapsed_ms: u128,
+    ) {
+        let (symbol, tone) = match outcome {
+            runner::Outcome::Pass => ("✓", Tone::Success),
+            runner::Outcome::Fail => ("✗", Tone::Error),
+            _ => ("!", Tone::Warning),
+        };
+        let code = exit_code.map_or_else(|| "?".into(), |code| code.to_string());
+        self.tone = tone;
+        self.status = format!(
+            "{symbol} {} · Exit {code} · Duration {elapsed_ms} ms",
+            outcome.label()
+        );
     }
 }
 
@@ -1005,7 +1007,7 @@ fn show(
     loop {
         if let Some(result) = running.as_mut().and_then(runner::Runner::poll) {
             if let Some(output) = &mut menu.output
-                && let Some(completer) = output.finish(result, menu.vi)
+                && let Some(completer) = output.finish(result)
             {
                 menu.completer = completer;
                 if let Some(prompt) = &mut menu.prompt {
@@ -1093,7 +1095,7 @@ fn show(
                             menu.output
                                 .as_mut()
                                 .expect("output was created")
-                                .finish(Err(error), menu.vi);
+                                .finish(Err(error));
                         }
                     }
                     redraw = true;
@@ -1131,6 +1133,118 @@ pub fn run(flags: &ArgMatches, vi: bool) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn execution_status_uses_measured_milliseconds_and_the_actual_exit() {
+        use runner::Outcome::*;
+        let mut output = OutputView::new("fixture".into(), false);
+        assert_eq!(output.status, "Running…");
+        for (outcome, exit_code, elapsed_ms, expected, tone) in [
+            (
+                Pass,
+                Some(0),
+                850,
+                "✓ PASS · Exit 0 · Duration 850 ms",
+                Tone::Success,
+            ),
+            (
+                Pass,
+                Some(0),
+                0,
+                "✓ PASS · Exit 0 · Duration 0 ms",
+                Tone::Success,
+            ),
+            (
+                Pass,
+                Some(0),
+                1,
+                "✓ PASS · Exit 0 · Duration 1 ms",
+                Tone::Success,
+            ),
+            (
+                Pass,
+                Some(0),
+                999,
+                "✓ PASS · Exit 0 · Duration 999 ms",
+                Tone::Success,
+            ),
+            (
+                Pass,
+                Some(0),
+                1000,
+                "✓ PASS · Exit 0 · Duration 1000 ms",
+                Tone::Success,
+            ),
+            (
+                Fail,
+                Some(1),
+                850,
+                "✗ FAIL · Exit 1 · Duration 850 ms",
+                Tone::Error,
+            ),
+            (
+                Blocked,
+                Some(2),
+                850,
+                "! BLOCKED · Exit 2 · Duration 850 ms",
+                Tone::Warning,
+            ),
+            (
+                NotRun,
+                Some(2),
+                1,
+                "! NOT_RUN · Exit 2 · Duration 1 ms",
+                Tone::Warning,
+            ),
+            (
+                Cancelled,
+                Some(130),
+                4,
+                "! CANCELLED · Exit 130 · Duration 4 ms",
+                Tone::Warning,
+            ),
+            (
+                TimedOut,
+                None,
+                2345,
+                "! TIMED_OUT · Exit ? · Duration 2345 ms",
+                Tone::Warning,
+            ),
+            (
+                Fail,
+                None,
+                850,
+                "✗ FAIL · Exit ? · Duration 850 ms",
+                Tone::Error,
+            ),
+        ] {
+            output.finish(Ok(runner::RunOutput {
+                buffer: Buffer::default(),
+                elapsed_ms,
+                exit_code,
+                outcome,
+                completer: None,
+            }));
+            assert_eq!(output.status, expected);
+            assert!(output.tone == tone);
+            assert!(!output.running);
+        }
+    }
+
+    #[test]
+    fn runner_error_reports_failure_with_unknown_exit_and_measured_time() {
+        let mut output = OutputView::new("fixture".into(), false);
+        output.finish(Err("Unable to start the contained child".into()));
+        let duration = output
+            .status
+            .strip_prefix("✗ FAIL · Exit ? · Duration ")
+            .unwrap()
+            .strip_suffix(" ms")
+            .unwrap();
+        assert!(duration.parse::<u64>().is_ok());
+        assert!(output.tone == Tone::Error);
+        assert!(!output.running);
+    }
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)

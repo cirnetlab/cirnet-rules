@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 7 -->
-<!-- source-sha256: 469415b49dd60d2b7804be0ce6b208ce122a512a1ea525b083d49f146f8c60b7 -->
+<!-- revision: 8 -->
+<!-- source-sha256: e4c2766e3f7dbddb92dda5df3f8ff1297f3f16f28d1addec983fd09c7eb65fad -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
@@ -19,12 +19,16 @@ Trên Windows dùng `target/debug/cnr.exe`. Chạy `cnr` hoặc `cnr tui` trong
 terminal tương tác. Bố cục rộng hiển thị lệnh đang chọn bên cạnh danh sách.
 `/` hoặc Ctrl+K tìm trong menu. `?` mở trợ giúp theo ngữ cảnh.
 
-Gõ để mở ô Lệnh hoặc dùng `:` để mở lại bản nháp chưa gửi.
+Gõ để mở ô Lệnh hoặc dùng `:` để mở lại bản nháp chưa gửi. Gợi ý hiện
+bên dưới ô nhập. Menu rộng đặt ô Lệnh ở cột mô tả. Terminal nhỏ đặt ô
+Lệnh dưới danh sách menu và giảm số dòng gợi ý.
 Tab nhận và duyệt gợi ý. Shift+Tab duyệt ngược. Enter gửi nội dung trong
 ô Lệnh. Ở menu chính, Esc đóng ô Lệnh, còn phím mũi tên đóng ô và di
 chuyển mục đang chọn. Gợi ý phiên bản lấy từ pin dự án và bản cài do
 CNR quản lý đã được xác thực.
 
+Menu giữ thanh phím tắt ở đáy. Màn hình kết quả hiển thị trạng thái,
+mã thoát và thời gian thực tính bằng mili giây ngay trên ô Lệnh.
 Trong kết quả, PgUp/PgDn và bánh xe chuột cuộn đầu ra. Ctrl+Home và
 Ctrl+End chuyển đến đầu và cuối. Ctrl+F tìm trong đầu ra. F3 và Shift+F3
 chuyển giữa các vị trí khớp. Mũi tên lên và xuống gọi lại các lệnh chỉ

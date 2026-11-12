@@ -4,6 +4,7 @@ use super::{
     terminal::{Frame, Line, MenuRows, Tone},
     text,
 };
+use std::borrow::Cow;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const NAME: &str = "CIRNET RULES";
@@ -19,20 +20,27 @@ const WORDMARK: [&str; 5] = [
     " ▀▀▀▀▀▀ ▀▀▀▀▀▀▀ ▀▀   ▀▀ ▀▀   ▀▀ ▀▀▀▀▀▀▀   ▀▀▀      ▀▀   ▀▀  ▀▀▀▀▀  ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀ ▀▀▀▀▀▀",
 ];
 
-fn clip(value: &str, width: usize) -> String {
+fn clip(value: &str, width: usize) -> Cow<'_, str> {
     let mut remaining = width;
-    let mut result = String::new();
-    for ch in value.chars() {
+    let mut end = value.len();
+    let mut control = false;
+    for (index, ch) in value.char_indices() {
         let Some(columns) = ch.width() else {
+            control = true;
             continue;
         };
         if columns > remaining {
+            end = index;
             break;
         }
-        result.push(ch);
         remaining -= columns;
     }
-    result
+    let visible = &value[..end];
+    if control {
+        Cow::Owned(visible.chars().filter(|ch| ch.width().is_some()).collect())
+    } else {
+        Cow::Borrowed(visible)
+    }
 }
 
 fn tail(value: &str, width: usize) -> &str {
@@ -53,8 +61,18 @@ fn tail(value: &str, width: usize) -> &str {
 
 fn indented(margin: usize) -> Line {
     let mut line = Line::default();
-    line.push(Tone::Plain, " ".repeat(margin));
+    line.push(Tone::Plain, spaces(margin));
     line
+}
+
+fn spaces(count: usize) -> &'static str {
+    const SPACES: &str = concat!(
+        "                           ",
+        "                           ",
+        "                           ",
+        "                           "
+    );
+    &SPACES[..count]
 }
 
 fn label(frame: &mut Frame, row: u16, margin: usize, width: usize, tone: Tone, value: &str) {
@@ -70,27 +88,37 @@ fn input_line(
     width: usize,
     prefix: &str,
     input: &Input,
-    ghost: &str,
+    feedback: &str,
 ) {
-    let tone = if COMMAND.contains(&prefix) {
-        Tone::Accent
-    } else {
-        Tone::Heading
-    };
+    let mut line = indented(margin);
+    let (cursor, _) = input_text(&mut line, width, prefix, Tone::Heading, input, feedback);
+    frame.cursor = Some(((margin + cursor) as u16, row));
+    frame.rows[usize::from(row)] = line;
+}
+
+fn input_text(
+    line: &mut Line,
+    width: usize,
+    prefix: &str,
+    tone: Tone,
+    input: &Input,
+    feedback: &str,
+) -> (usize, usize) {
     let prefix = clip(prefix, width.saturating_sub(1));
     let available = width - prefix.width();
     let (before, after) = input.value.split_at(input.cursor);
     let before = tail(before, available.saturating_sub(1));
-    let mut line = indented(margin);
     line.push(tone, &prefix);
     line.push(Tone::Plain, before);
-    line.push(Tone::Plain, clip(after, available - before.width()));
-    if after.is_empty() {
-        line.push(Tone::Muted, clip(ghost, available - before.width()));
-    }
-    let cursor = margin + prefix.width() + before.width();
-    frame.cursor = Some((cursor as u16, row));
-    frame.rows[usize::from(row)] = line;
+    let (suffix, tone) = if after.is_empty() {
+        (feedback, Tone::Muted)
+    } else {
+        (after, Tone::Plain)
+    };
+    let suffix = clip(suffix, available - before.width());
+    line.push(tone, &suffix);
+    let cursor = prefix.width() + before.width();
+    (cursor, cursor + suffix.width())
 }
 
 fn wrap(value: &str, width: usize) -> Vec<String> {
@@ -111,19 +139,52 @@ fn wrap(value: &str, width: usize) -> Vec<String> {
     rows
 }
 
-const COMMAND: [&str; 2] = ["Command  › ", "Lệnh  › "];
 const MENU_HINT: [&str; 2] = [
-    "↑↓ / click select  ·  Enter open  ·  : command  ·  / search  ·  ? help",
-    "↑↓ / click chọn  ·  Enter mở  ·  : lệnh  ·  / tìm  ·  ? trợ giúp",
+    "Tab complete · : command · / search · Esc back · Ctrl+C exit · ? help",
+    "Tab gợi ý · : lệnh · / tìm · Esc quay lại · Ctrl+C thoát · ? trợ giúp",
 ];
-const OUTPUT_HINT: [&str; 2] = [
-    "PgUp/PgDn scroll  ·  Tab complete  ·  Esc back  ·  Ctrl+C exit",
-    "PgUp/PgDn cuộn  ·  Tab gợi ý  ·  Esc quay lại  ·  Ctrl+C thoát",
-];
-const RUNNING_HINT: [&str; 2] = [
-    "PgUp/PgDn scroll  ·  Tab complete  ·  Ctrl+C cancel",
-    "PgUp/PgDn cuộn  ·  Tab gợi ý  ·  Ctrl+C hủy",
-];
+
+fn menu_footer(frame: &mut Frame, margin: usize, width: usize, vi: bool) -> u16 {
+    let height = frame.size.1;
+    if height < 2 {
+        return height;
+    }
+    let full = text(MENU_HINT, vi);
+    let labeled = text(
+        [
+            "Tab · : cmd · / find · Esc · Ctrl+C · ?",
+            "Tab · : lệnh · / tìm · Esc · Ctrl+C · ?",
+        ],
+        vi,
+    );
+    let keys = "Tab : / Esc Ctrl+C ?";
+    let last = height - 1;
+    for candidate in [full, labeled, keys] {
+        if candidate.width() <= width {
+            label(frame, last, margin, width, Tone::Muted, candidate);
+            return last;
+        }
+    }
+    if width >= 8 && height >= 4 {
+        label(frame, last - 1, margin, width, Tone::Muted, "Tab : /");
+        let rest = if width >= 12 {
+            "Esc Ctrl+C ?"
+        } else {
+            "Esc ^C ?"
+        };
+        label(frame, last, margin, width, Tone::Muted, rest);
+        return last - 1;
+    }
+    let brief = if width >= 5 {
+        "Esc ?"
+    } else if width >= 3 {
+        "Esc"
+    } else {
+        "?"
+    };
+    label(frame, last, margin, width, Tone::Muted, brief);
+    last
+}
 
 #[derive(Default)]
 pub(super) struct Banner {
@@ -170,84 +231,83 @@ impl Banner {
     }
 }
 
-fn ghost(prompt: &Prompt) -> &str {
-    if prompt.error.is_some()
-        || prompt.accepted.is_some()
-        || prompt.input.cursor != prompt.input.value.len()
-    {
-        return "";
-    }
-    prompt
-        .completions
-        .first()
-        .filter(|item| item.insert_range.end == prompt.input.cursor)
-        .and_then(|item| {
-            item.text
-                .strip_prefix(&prompt.input.value[item.insert_range.clone()])
-        })
-        .unwrap_or_default()
-}
-
-fn popup_rows(prompt: Option<&Prompt>, available: u16) -> u16 {
-    let count = prompt.map_or(0, |p| {
-        if p.error.is_some() {
-            1
-        } else {
-            p.completions.len()
-        }
-    });
-    (count.min(5) as u16).min(available)
-}
-
-fn popup(
-    frame: &mut Frame,
-    prompt: &Prompt,
-    rows: std::ops::Range<u16>,
-    margin: usize,
+struct Palette<'a> {
+    prompt: &'a Prompt,
     width: usize,
-    vi: bool,
-) {
-    if rows.is_empty() {
-        return;
-    }
-    if let Some(error) = prompt.error {
-        label(
-            frame,
-            rows.end - 1,
-            margin,
+    choices: u16,
+    label_width: usize,
+}
+
+impl<'a> Palette<'a> {
+    fn new(prompt: &'a Prompt, width: usize, available: u16, show_choices: bool) -> Self {
+        let label_width = prompt
+            .completions
+            .iter()
+            .map(|candidate| candidate.label.width())
+            .max()
+            .unwrap_or(0);
+        let choices = if !show_choices {
+            0
+        } else if prompt.error.is_some() {
+            1
+        } else if prompt.input.value.trim().is_empty() || width < label_width.saturating_add(2) {
+            0
+        } else {
+            prompt.completions.len().min(5) as u16
+        };
+        Self {
+            prompt,
             width,
-            Tone::Accent,
-            text(error, vi),
-        );
-        return;
-    }
-    let focus = prompt.accepted.as_ref().map_or(0, |(index, _)| *index);
-    let start = (focus + 1).saturating_sub(rows.len());
-    for (row, (index, candidate)) in rows.zip(prompt.completions.iter().enumerate().skip(start)) {
-        let mut line = indented(margin);
-        let selected = index == focus;
-        let tone = if selected { Tone::Accent } else { Tone::Plain };
-        let name = clip(
-            &format!("{}{}", if selected { "› " } else { "  " }, candidate.label),
-            width.min(27),
-        );
-        let used = name.width();
-        line.push(tone, name);
-        if width.saturating_sub(used) >= 12 {
-            let source = if matches!(candidate.source, Source::Pinned | Source::Installed) {
-                candidate.source.label(vi)
-            } else {
-                candidate.kind.label(vi)
-            };
-            line.push(
-                Tone::Muted,
-                clip(
-                    &format!("  {source}  ·  {}", candidate.description),
-                    width - used,
-                ),
-            );
+            choices: choices.min(available.saturating_sub(1)),
+            label_width,
         }
-        frame.rows[usize::from(row)] = line;
+    }
+
+    fn rows(&self) -> u16 {
+        1 + self.choices
+    }
+
+    fn draw(&self, line: &mut Line, row: u16, vi: bool) -> Option<usize> {
+        if row == 0 {
+            let bordered = self.width >= 12;
+            let inset = if bordered { 2 } else { 0 };
+            if bordered {
+                line.push(Tone::Muted, "│ ");
+            }
+            let inner = self.width - 2 * inset;
+            let (cursor, used) = input_text(line, inner, "› ", Tone::Muted, &self.prompt.input, "");
+            if bordered {
+                line.push(Tone::Plain, spaces(inner - used));
+                line.push(Tone::Muted, " │");
+            }
+            return Some(inset + cursor);
+        }
+        if let Some(error) = self.prompt.error {
+            line.push(Tone::Muted, clip(text(error, vi), self.width));
+            return None;
+        }
+        let focus = self.prompt.accepted.as_ref().map_or(0, |(index, _)| *index);
+        let index = (focus + 1).saturating_sub(usize::from(self.choices)) + usize::from(row - 1);
+        let item = &self.prompt.completions[index];
+        let selected = index == focus;
+        line.push(Tone::Muted, if selected { "› " } else { "  " });
+        line.push(
+            if selected { Tone::Heading } else { Tone::Plain },
+            &item.label,
+        );
+        if self.width.saturating_sub(self.label_width + 5) >= 12 {
+            line.push(
+                Tone::Plain,
+                spaces(self.label_width - item.label.width() + 3),
+            );
+            let detail = match item.source {
+                Source::Pinned | Source::Installed => item.source.label(vi),
+                _ if item.description.is_empty() => item.kind.label(vi),
+                _ => &item.description,
+            };
+            line.push(Tone::Muted, clip(detail, self.width - self.label_width - 5));
+        }
+        None
     }
 }
 
@@ -262,12 +322,23 @@ fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
     let margin = inset.len();
     let width = columns - 2 * margin;
     let output = menu.output.as_mut().expect("output mode");
-    let hint = (height >= 6).then_some(height - 1);
-    let command = hint.map_or(height - 1, |row| row - 1);
-    let status = (height >= 4).then(|| command - 1);
-    let first = u16::from(height >= 2);
-    let mut end = status.unwrap_or(command);
-    if first != 0 {
+    let find = output.find.as_ref();
+    let separate_find = find.is_some() && height >= 3;
+    let header = u16::from(height >= 4 + u16::from(separate_find));
+    let has_status = height >= 2;
+    let body = u16::from(height >= 3 + u16::from(separate_find));
+    let palette = menu.prompt.as_ref().map(|prompt| {
+        let available =
+            height.saturating_sub(header + u16::from(has_status) + body + u16::from(separate_find));
+        Palette::new(prompt, width, available, find.is_none())
+    });
+    let command_row = height - palette.as_ref().map_or(0, Palette::rows);
+    let status_row = has_status.then(|| command_row - 1);
+    let body_end = status_row
+        .unwrap_or(command_row)
+        .saturating_sub(u16::from(separate_find));
+    let visible = body_end.saturating_sub(header);
+    if header != 0 {
         label(
             &mut frame,
             0,
@@ -277,20 +348,6 @@ fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
             &format!("{NAME}  /  {}", output.title),
         );
     }
-    let find_row = output.find.as_ref().map(|_| {
-        if end > first + 1 {
-            end -= 1;
-            end
-        } else {
-            command
-        }
-    });
-    let suggestions = if find_row.is_none() {
-        popup_rows(menu.prompt.as_ref(), end.saturating_sub(first + 1))
-    } else {
-        0
-    };
-    let visible = end.saturating_sub(first + suggestions);
     output.layout(width, usize::from(visible));
     for row in 0..visible {
         if let Some(line) =
@@ -298,54 +355,29 @@ fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
                 .buffer
                 .line(output.scroll + usize::from(row), inset, output.hit.as_ref())
         {
-            frame.rows[usize::from(first + row)] = line;
+            frame.rows[usize::from(header + row)] = line;
         }
     }
-    if let Some(row) = status {
+    if let Some(row) = status_row {
         label(&mut frame, row, margin, width, output.tone, &output.status);
     }
-    if let Some(prompt) = &menu.prompt {
-        popup(
-            &mut frame,
-            prompt,
-            end - suggestions..end,
-            margin,
-            width,
-            menu.vi,
-        );
-        input_line(
-            &mut frame,
-            command,
-            margin,
-            width,
-            text(COMMAND, menu.vi),
-            &prompt.input,
-            ghost(prompt),
-        );
+    if let Some(palette) = palette {
+        for offset in 0..palette.rows() {
+            let row = command_row + offset;
+            let mut line = indented(margin);
+            if let Some(cursor) = palette.draw(&mut line, offset, menu.vi) {
+                frame.cursor = Some(((margin + cursor) as u16, row));
+            }
+            frame.rows[usize::from(row)] = line;
+        }
     }
-    if let Some(row) = hint {
-        label(
-            &mut frame,
-            row,
-            margin,
-            width,
-            Tone::Muted,
-            text(
-                if output.running {
-                    RUNNING_HINT
-                } else {
-                    OUTPUT_HINT
-                },
-                menu.vi,
-            ),
-        );
-    }
-    if let (Some(row), Some(find)) = (find_row, &output.find) {
+    if let Some(find) = &output.find {
         let feedback = if !find.value.is_empty() && output.hit.is_none() {
             text(["  (no matches)", "  (không có kết quả)"], menu.vi)
         } else {
             ""
         };
+        let row = if separate_find { body_end } else { height - 1 };
         input_line(
             &mut frame,
             row,
@@ -358,21 +390,16 @@ fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
     }
     frame
 }
+
 pub(super) fn frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
     menu.refresh_suggestions();
     if menu.output.is_some() {
         return output_frame(menu, size);
     }
-    frame_with_status(menu, size, "", banner, color)
+    menu_frame(menu, size, banner, color)
 }
 
-fn frame_with_status(
-    menu: &mut Menu,
-    size: (u16, u16),
-    status: &str,
-    banner: bool,
-    color: bool,
-) -> Frame {
+fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
     let mut frame = Frame::new(size);
     let columns = usize::from(size.0.saturating_sub(1)).min(108);
     let height = size.1;
@@ -405,76 +432,71 @@ fn frame_with_status(
         row += 1;
     }
 
-    let mut end = height;
-    if height >= 8 {
-        end -= 1;
-        if status.is_empty() {
-            label(
-                &mut frame,
-                end,
-                margin,
-                width,
-                Tone::Muted,
-                text(MENU_HINT, menu.vi),
-            );
-        }
-    }
-    if let Some(prompt) = &menu.prompt {
+    let mut end = menu_footer(&mut frame, margin, width, menu.vi);
+    if menu.prompt.is_none()
+        && let Some(search) = &menu.search
+        && end > row
+    {
         end -= 1;
         input_line(
             &mut frame,
             end,
             margin,
             width,
-            text(COMMAND, menu.vi),
-            &prompt.input,
-            ghost(prompt),
+            text(["Search  › ", "Tìm kiếm  › "], menu.vi),
+            search,
+            "",
         );
-        let suggestions = popup_rows(Some(prompt), end.saturating_sub(row + 3));
-        popup(
-            &mut frame,
-            prompt,
-            end - suggestions..end,
-            margin,
-            width,
-            menu.vi,
+    }
+
+    let wide = width >= 80 && end.saturating_sub(row) >= 4;
+    let left_width = if wide { 33 } else { width };
+    let right_width = width.saturating_sub(left_width + 5);
+    let mut preview = Vec::new();
+    if menu.help && menu.prompt.is_none() {
+        let help = text(["Command reference", "Tham chiếu lệnh"], menu.vi);
+        if wide {
+            preview.push((Tone::Heading, help.to_owned()));
+            preview.push((Tone::Plain, "cnr --help".to_owned()));
+        } else if end > row {
+            label(
+                &mut frame,
+                row,
+                margin,
+                width,
+                Tone::Heading,
+                &format!("{help} · cnr --help"),
+            );
+            row += 1;
+        }
+    } else if wide && let Some(entry) = menu.items.get(menu.selected) {
+        if !entry.command.is_empty() {
+            preview.push((Tone::Accent, format!("cnr {}", entry.command)));
+        }
+        preview.extend(
+            wrap(text(entry.detail, menu.vi), right_width)
+                .into_iter()
+                .map(|line| (Tone::Plain, line)),
         );
-        end -= suggestions;
-    } else {
-        if height >= 18 {
-            end -= 1;
-        }
-        if height >= 8 && !status.is_empty() {
-            label(&mut frame, end, margin, width, Tone::Muted, status);
-        }
-        if end > row + 1 {
-            if let Some(search) = &menu.search {
-                end -= 1;
-                input_line(
-                    &mut frame,
-                    end,
-                    margin,
-                    width,
-                    text(["Search  › ", "Tìm kiếm  › "], menu.vi),
-                    search,
-                    "",
-                );
-            } else if menu.help {
-                end -= 1;
-                label(
-                    &mut frame,
-                    end,
-                    margin,
-                    width,
-                    Tone::Muted,
-                    text(
-                        [
-                            "/  Search commands   ·   cnr --help  Full reference",
-                            "/  Tìm lệnh   ·   cnr --help  Xem tham chiếu",
-                        ],
-                        menu.vi,
-                    ),
-                );
+    }
+
+    let mut wide_start = None;
+    if let Some(prompt) = &menu.prompt {
+        let available = end.saturating_sub(row);
+        if wide {
+            let start = (preview.len() as u16 + 1).max(5).min(available - 1);
+            wide_start = Some(start);
+        } else if available > 0 {
+            let menu_rows = (available - 1).min(2);
+            let palette = Palette::new(prompt, width, available - menu_rows, true);
+            end -= palette.rows();
+            for offset in 0..palette.rows() {
+                let y = end + offset;
+                let mut line = indented(margin);
+                if let Some(cursor) = palette.draw(&mut line, offset, menu.vi) {
+                    frame.cursor = Some(((margin + cursor) as u16, y));
+                }
+                frame.rows[usize::from(y)] = line;
             }
         }
     }
@@ -484,63 +506,62 @@ fn frame_with_status(
         return frame;
     }
     menu.reveal_selection(visible);
-    if menu.items.is_empty() {
-        label(
-            &mut frame,
-            row,
-            margin,
-            width,
-            Tone::Muted,
-            text(["No matching commands", "Không có lệnh phù hợp"], menu.vi),
-        );
-        return frame;
-    }
-
-    let left_width = if width >= 80 && visible >= 4 {
-        33
-    } else {
-        width
-    };
-    let mut preview = Vec::new();
-    if left_width < width {
-        let entry = menu.items[menu.selected];
-        if !entry.command.is_empty() {
-            preview.push((Tone::Accent, format!("cnr {}", entry.command)));
-        }
-        preview.extend(
-            wrap(text(entry.detail, menu.vi), width - left_width - 5)
-                .into_iter()
-                .map(|line| (Tone::Plain, line)),
-        );
-    }
+    let wide_palette = wide_start.zip(menu.prompt.as_ref()).map(|(start, prompt)| {
+        (
+            start,
+            Palette::new(prompt, right_width, end - row - start, true),
+        )
+    });
     let items = &menu.items[menu.first..];
     frame.menu = Some(MenuRows {
         columns: margin as u16..(margin + left_width) as u16,
         rows: row..row + items.len().min(visible) as u16,
         first: menu.first,
     });
-    let count = items.len().max(preview.len()).min(visible);
+    let right_rows = wide_palette
+        .as_ref()
+        .map_or(0, |(start, palette)| usize::from(start + palette.rows()));
+    let count = items
+        .len()
+        .max(1)
+        .max(preview.len())
+        .max(right_rows)
+        .min(visible);
     for i in 0..count {
+        let y = row + i as u16;
         let mut line = indented(margin);
         let mut used = 0;
         if let Some(entry) = items.get(i) {
             let selected = menu.first + i == menu.selected;
-            let marker = if selected { "› " } else { "  " };
-            let value = clip(
-                &format!("{marker}{}", text(entry.label, menu.vi)),
-                left_width,
-            );
+            let marker = clip(if selected { "› " } else { "  " }, left_width);
+            let value = clip(text(entry.label, menu.vi), left_width - marker.width());
+            let tone = if selected { Tone::Accent } else { Tone::Plain };
+            used = marker.width() + value.width();
+            line.push(tone, marker);
+            line.push(tone, value);
+        } else if i == 0 && items.is_empty() {
+            let message = text(["No matching commands", "Không có lệnh phù hợp"], menu.vi);
+            let value = clip(message, left_width);
             used = value.width();
-            line.push(if selected { Tone::Accent } else { Tone::Plain }, value);
+            line.push(Tone::Muted, value);
         }
-        if left_width < width {
-            line.push(Tone::Plain, " ".repeat(left_width - used));
+        if wide {
+            line.push(Tone::Plain, spaces(left_width - used));
             line.push(Tone::Muted, "  │  ");
-            if let Some((tone, value)) = preview.get(i) {
-                line.push(*tone, clip(value, width - left_width - 5));
+            if let Some((tone, value)) = preview
+                .get(i)
+                .filter(|_| wide_start.is_none_or(|start| i < usize::from(start)))
+            {
+                line.push(*tone, clip(value, right_width));
+            } else if let Some((start, palette)) = &wide_palette
+                && let Some(offset) = (i as u16).checked_sub(*start)
+                && offset < palette.rows()
+                && let Some(cursor) = palette.draw(&mut line, offset, menu.vi)
+            {
+                frame.cursor = Some(((margin + left_width + 5 + cursor) as u16, y));
             }
         }
-        frame.rows[usize::from(row) + i] = line;
+        frame.rows[usize::from(y)] = line;
     }
     frame
 }
@@ -548,10 +569,8 @@ fn frame_with_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::menu::{Effect, OutputView, Prompt};
+    use crate::menu::{Effect, OutputView};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-
-    const STATUS: &str = "workspace  ·  Configured  ·  v0.1.0";
 
     fn press(menu: &mut Menu, code: KeyCode) -> Effect {
         menu.handle(KeyEvent::new(code, KeyModifiers::NONE))
@@ -562,67 +581,169 @@ mod tests {
     }
 
     #[test]
-    fn command_and_suggestions_stay_above_the_muted_hint() {
-        for vi in [false, true] {
-            for size in [(120, 32), (100, 25), (80, 24), (40, 12), (20, 6)] {
-                let mut menu = Menu::new(vi, None);
-                let initial = frame(&mut menu, size, true, true);
-                assert!(initial.cursor.is_none());
-                press(&mut menu, KeyCode::Char('l'));
-                let active = frame(&mut menu, size, true, true);
-                let command = usize::from(active.cursor.unwrap().1);
-                assert!(rows(&active)[command].contains(text(COMMAND, vi)));
-                assert!(
-                    rows(&active)[..command]
-                        .iter()
-                        .any(|line| line.contains("› list"))
-                );
-                if size.1 >= 8 {
-                    assert_eq!(
-                        rows(&active)[command + 1].trim(),
-                        clip(
-                            text(MENU_HINT, vi),
-                            usize::from(size.0.saturating_sub(1)).min(108) - 4
-                        )
-                        .trim()
-                    );
-                    assert!(active.rows[command + 1].has(Tone::Muted));
-                }
-                if size.0 >= 100 {
-                    assert!(
-                        !active
-                            .changed_rows(Some(&initial))
-                            .any(|(row, _)| (1..=6).contains(&row))
-                    );
-                }
+    fn wide_menu_has_one_fixed_footer_and_the_palette_opens_downward() {
+        let mut menu = Menu::new(false, None);
+        let initial = frame(&mut menu, (120, 35), true, true);
+        let expected = "Tab complete · : command · / search · Esc back · Ctrl+C exit · ? help";
+        assert_eq!(initial.rows.last().unwrap().text().trim(), expected);
+        assert!(initial.cursor.is_none());
 
-                let mut output = OutputView::new("cnr list".into(), vi);
-                output.buffer = super::super::viewport::Buffer::from_streams(
-                    "{\"count\": 42}".into(),
-                    "",
-                    None,
-                );
-                output.running = false;
-                output.status = text(["Exit code: 0", "Mã thoát: 0"], vi).into();
-                menu.output = Some(output);
-                menu.prompt = Some(Prompt::default());
-                let result = frame(&mut menu, size, true, true);
-                let lines = rows(&result);
-                let command = usize::from(result.cursor.unwrap().1);
-                assert!(lines[command - 1].contains(text(["Exit code:", "Mã thoát:"], vi)));
-                assert!(lines[command].contains(text(COMMAND, vi)));
-                assert!(lines[command + 1].contains("PgUp/PgDn"));
-                assert!(result.rows[command + 1].has(Tone::Muted));
-                menu.output.as_mut().unwrap().running = true;
-                let running = frame(&mut menu, (120, 32), true, true);
-                assert!(
-                    rows(&running)
-                        .last()
-                        .unwrap()
-                        .contains(text(RUNNING_HINT, vi))
-                );
+        press(&mut menu, KeyCode::Char('l'));
+        let opened = frame(&mut menu, (120, 35), true, true);
+        let (column, input_row) = opened.cursor.unwrap();
+        assert!(column >= 40);
+        let lines = rows(&opened);
+        assert!(lines[usize::from(input_row)].contains("› l"));
+        assert!(lines[usize::from(input_row + 1)].contains("› list"));
+        assert_eq!(lines.last().unwrap().trim(), expected);
+        assert_eq!(
+            lines
+                .iter()
+                .filter(|line| line.contains("Ctrl+C exit"))
+                .count(),
+            1
+        );
+        assert!(
+            !opened
+                .changed_rows(Some(&initial))
+                .any(|(row, _)| (1..=6).contains(&row))
+        );
+    }
+
+    #[test]
+    fn results_put_status_above_command_and_keep_suggestions_below_it_without_hints() {
+        for (status, running) in [
+            ("Running…", true),
+            ("Cancelling…", true),
+            ("✓ PASS · Exit 0 · Duration 850 ms", false),
+            ("✗ FAIL · Exit 1 · Duration 850 ms", false),
+            ("! BLOCKED · Exit 2 · Duration 850 ms", false),
+            ("! NOT_RUN · Exit 2 · Duration 850 ms", false),
+            ("! CANCELLED · Exit ? · Duration 850 ms", false),
+            ("! TIMED_OUT · Exit ? · Duration 850 ms", false),
+        ] {
+            let mut menu = Menu::new(false, None);
+            press(&mut menu, KeyCode::Char('l'));
+            let mut output = OutputView::new("cnr list".into(), false);
+            output.running = running;
+            output.status = status.into();
+            menu.output = Some(output);
+            let result = frame(&mut menu, (80, 24), true, true);
+            let lines = rows(&result);
+            let input_row = usize::from(result.cursor.unwrap().1);
+            assert_eq!(lines[input_row - 1].trim(), status);
+            assert!(lines[input_row].contains("› l"));
+            assert!(!lines.iter().any(|line| {
+                ["PgUp/PgDn", "Ctrl+C", "Tab complete", "Esc back"]
+                    .iter()
+                    .any(|hint| line.contains(hint))
+            }));
+            if !running {
+                assert!(lines[input_row + 1].contains("› list"));
             }
         }
+    }
+
+    #[test]
+    fn responsive_frames_keep_status_command_and_footer_within_their_own_regions() {
+        for vi in [false, true] {
+            for color in [false, true] {
+                for size in [
+                    (120, 35),
+                    (100, 25),
+                    (80, 24),
+                    (50, 15),
+                    (26, 8),
+                    (12, 4),
+                    (2, 2),
+                    (1, 1),
+                    (0, 0),
+                ] {
+                    let mut menu = Menu::new(vi, None);
+                    press(&mut menu, KeyCode::Char('l'));
+                    let main = frame(&mut menu, size, true, color);
+                    let main_rows = rows(&main);
+                    let columns = usize::from(size.0.saturating_sub(1));
+                    assert!(main_rows.iter().all(|line| line.width() <= columns));
+                    if size.0 >= 26 {
+                        let last = main.rows.last().unwrap();
+                        assert!(last.has(Tone::Muted));
+                        assert!(last.text().contains("Ctrl+C"));
+                    }
+                    if size.0 > 1 && size.1 > 0 {
+                        let (x, y) = main.cursor.expect("input remains visible");
+                        assert!(x < size.0 && y < size.1);
+                        if size.1 >= 2 {
+                            assert!(y < size.1 - 1);
+                        }
+                        if size.0 >= 26 {
+                            assert!(main_rows[usize::from(y + 1)].contains("› list"));
+                        }
+                    }
+
+                    let mut output = OutputView::new("cnr list".into(), vi);
+                    output.buffer = super::super::viewport::Buffer::from_streams(
+                        "{\"count\": 42}".into(),
+                        "",
+                        None,
+                    );
+                    output.running = false;
+                    output.status = "✓ PASS · Exit 0 · Duration 850 ms".into();
+                    menu.output = Some(output);
+                    let result = frame(&mut menu, size, true, color);
+                    let result_rows = rows(&result);
+                    assert!(result_rows.iter().all(|line| line.width() <= columns));
+                    assert!(
+                        !result_rows
+                            .iter()
+                            .any(|line| line.contains("Ctrl+C") || line.contains("PgUp/PgDn"))
+                    );
+                    if size.0 > 1 && size.1 > 0 {
+                        let (x, y) = result.cursor.expect("input remains visible");
+                        assert!(x < size.0 && y < size.1);
+                        if size.1 >= 2 && size.0 >= 26 {
+                            assert!(result_rows[usize::from(y - 1)].contains("PASS"));
+                            assert!(result_rows[usize::from(y + 1)].contains("› list"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn result_palette_shrinks_and_restores_the_viewport_without_losing_scroll() {
+        let mut menu = Menu::new(false, None);
+        menu.open_prompt(Input::default());
+        let mut output = OutputView::new("cnr list".into(), false);
+        output.running = false;
+        output.buffer = super::super::viewport::Buffer::from_streams(
+            (0..20_000).map(|i| format!("row {i}\n")).collect(),
+            "",
+            None,
+        );
+        menu.output = Some(output);
+        let size = (120, 35);
+        let initial = frame(&mut menu, size, true, true);
+        let output = menu.output.as_mut().unwrap();
+        let _ = output.scroll_to(80, false);
+        let scrolled = frame(&mut menu, size, true, true);
+        press(&mut menu, KeyCode::Char('l'));
+        let opened = frame(&mut menu, size, true, true);
+        let command = opened.cursor.unwrap().1;
+        assert!(command < initial.cursor.unwrap().1);
+        assert!(
+            opened.rows[usize::from(command + 1)]
+                .text()
+                .contains("› list")
+        );
+        assert_eq!(opened.rows[1], scrolled.rows[1]);
+        assert_eq!(menu.output.as_ref().unwrap().scroll, 80);
+
+        press(&mut menu, KeyCode::Backspace);
+        let closed = frame(&mut menu, size, true, true);
+        assert_eq!(closed.cursor, scrolled.cursor);
+        assert_eq!(closed.changed_rows(Some(&scrolled)).count(), 0);
     }
 
     #[test]
@@ -643,7 +764,7 @@ mod tests {
     #[test]
     fn wide_banner_has_a_visible_offset_shadow() {
         let mut menu = Menu::new(false, None);
-        let art = frame_with_status(&mut menu, (100, 25), STATUS, true, true);
+        let art = frame(&mut menu, (100, 25), true, true);
         let lines = rows(&art);
         assert!(lines.iter().any(|line| line.contains('█')));
         assert!(lines.iter().any(|line| line.contains('░')));
@@ -666,9 +787,9 @@ mod tests {
     #[test]
     fn navigation_changes_only_the_affected_rows() {
         let mut menu = Menu::new(false, None);
-        let first = frame_with_status(&mut menu, (80, 25), STATUS, true, true);
+        let first = frame(&mut menu, (80, 25), true, true);
         assert!(matches!(press(&mut menu, KeyCode::Down), Effect::Redraw));
-        let next = frame_with_status(&mut menu, (80, 25), STATUS, true, true);
+        let next = frame(&mut menu, (80, 25), true, true);
         let changed: Vec<_> = next
             .changed_rows(Some(&first))
             .map(|(_, line)| line.text())
@@ -676,12 +797,11 @@ mod tests {
         assert_eq!(changed, ["    Tool inventory", "  › Search tools"]);
         assert_eq!(next.changed_rows(Some(&next)).count(), 0);
 
-        let wide = frame_with_status(&mut menu, (110, 30), STATUS, true, true);
+        let wide = frame(&mut menu, (110, 30), true, true);
         assert!(matches!(press(&mut menu, KeyCode::Down), Effect::Redraw));
-        let next = frame_with_status(&mut menu, (110, 30), STATUS, true, true);
+        let next = frame(&mut menu, (110, 30), true, true);
         for (_, line) in next.changed_rows(Some(&wide)) {
             assert!(!line.text().contains('█'));
-            assert!(!line.text().contains(STATUS));
         }
         assert!(
             next.changed_rows(Some(&wide))
@@ -690,9 +810,9 @@ mod tests {
     }
 
     #[test]
-    fn help_and_search_are_at_the_bottom_only_when_active() {
+    fn help_and_search_keep_one_footer_at_the_same_position() {
         let mut menu = Menu::new(true, None);
-        let initial = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
+        let initial = frame(&mut menu, (78, 24), true, true);
         assert!(
             rows(&initial)
                 .iter()
@@ -700,26 +820,26 @@ mod tests {
         );
         assert_eq!(initial.cursor, None);
         press(&mut menu, KeyCode::Char('?'));
-        let help = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
-        assert!(help.rows[21].text().contains("cnr --help"));
-        assert!(help.rows[22].text().contains(STATUS));
+        let help = frame(&mut menu, (78, 24), true, true);
+        assert!(rows(&help).iter().any(|line| line.contains("cnr --help")));
+        assert_eq!(help.rows.last(), initial.rows.last());
 
         press(&mut menu, KeyCode::Char('/'));
         for ch in "chẩn đoán".chars() {
             press(&mut menu, KeyCode::Char(ch));
         }
-        let search = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
-        assert!(search.rows[21].text().contains("Tìm kiếm  › chẩn đoán"));
-        assert_eq!(search.cursor.map(|(_, y)| y), Some(21));
+        let search = frame(&mut menu, (78, 24), true, true);
+        assert!(search.rows[22].text().contains("Tìm kiếm  › chẩn đoán"));
+        assert_eq!(search.cursor.map(|(_, y)| y), Some(22));
         assert!(
             rows(&search)
                 .iter()
                 .any(|line| line.contains("› Chẩn đoán"))
         );
         press(&mut menu, KeyCode::Esc);
-        let closed = frame_with_status(&mut menu, (78, 24), STATUS, true, true);
-        assert!(closed.rows[21].text().is_empty());
-        assert!(closed.changed_rows(Some(&search)).any(|(row, _)| row == 21));
+        let closed = frame(&mut menu, (78, 24), true, true);
+        assert!(closed.rows[22].text().is_empty());
+        assert!(closed.changed_rows(Some(&search)).any(|(row, _)| row == 22));
     }
 
     #[test]
@@ -729,15 +849,15 @@ mod tests {
             WORDMARK.iter().map(|row| row.width()).max(),
             Some(WORDMARK_WIDTH)
         );
-        let art = frame_with_status(&mut menu, (92, 22), "Dự án 東京", true, true);
+        let art = frame(&mut menu, (92, 22), true, true);
         assert!(art.rows[1].text().contains('█'));
         for (size, banner) in [((91, 22), true), ((91, 21), true), ((110, 25), false)] {
-            let compact = frame_with_status(&mut menu, size, STATUS, banner, true);
+            let compact = frame(&mut menu, size, banner, true);
             assert!(rows(&compact).iter().any(|line| line.trim() == NAME));
             assert!(compact.changed_rows(Some(&art)).count() > 2);
         }
         for size in [(0, 0), (1, 1), (2, 2), (10, 4), (26, 8)] {
-            let small = frame_with_status(&mut menu, size, "Dự án 東京\u{1b}[31m", true, true);
+            let small = frame(&mut menu, size, true, true);
             for line in rows(&small) {
                 assert!(line.width() < usize::from(size.0).max(1));
                 assert!(!line.contains('\u{1b}'));

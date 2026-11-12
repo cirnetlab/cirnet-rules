@@ -13,7 +13,7 @@ use std::{
     ops::Range,
     rc::Rc,
 };
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const ORANGE: Color = Color::Rgb {
     r: 211,
@@ -217,33 +217,43 @@ impl Line {
         })
     }
 
-    fn damage(&self, previous: Option<&Self>) -> Range<usize> {
+    fn damage(&self, previous: Option<&Self>) -> (u16, Range<usize>) {
         let text = self.contents();
         let len = text.len();
-        // A byte offset is also a screen column only for ASCII here.
-        let Some(previous) = previous.filter(|old| text.is_ascii() && old.contents().is_ascii())
-        else {
-            return 0..len;
+        let Some(previous) = previous else {
+            return (0, 0..len);
         };
-        let start = self
-            .segments()
-            .zip(previous.segments())
-            .take_while(|(new, old)| new == old)
-            .map(|((_, text), _)| text.len())
-            .sum();
-        let end = if previous.contents().len() == len {
-            let suffix: usize = self
-                .segments()
-                .rev()
-                .zip(previous.segments().rev())
-                .take_while(|(new, old)| new == old)
-                .map(|((_, text), _)| text.len())
-                .sum();
-            len.saturating_sub(suffix).max(start)
+        let old = previous.contents();
+        let mut start = matching_edge(self.segments().zip(previous.segments()), false);
+        let mut end = if old.len() == len {
+            (len - matching_edge(self.segments().rev().zip(previous.segments().rev()), true))
+                .max(start)
         } else {
             len
         };
-        start..end
+        if text.is_ascii() && old.is_ascii() {
+            return (start as u16, start..end);
+        }
+
+        // Cut around ASCII cells only, so a partial write cannot split a
+        // Unicode glyph, combining sequence or styled grapheme.
+        while start > 0 && !ascii_cut(text, old, start) {
+            start -= 1;
+        }
+        while end < len && !ascii_cut(text, old, end) {
+            end += 1;
+        }
+        let column = stable_columns(&text[..start]).unwrap_or_else(|| {
+            start = 0;
+            0
+        });
+        if end < len
+            && !stable_columns(&text[..end])
+                .is_some_and(|width| stable_columns(&old[..end]) == Some(width))
+        {
+            end = len;
+        }
+        (column as u16, start..end)
     }
 
     #[cfg(test)]
@@ -260,6 +270,54 @@ impl Line {
     pub(super) fn shares_storage(&self, other: &Self) -> bool {
         matches!((&self.0, &other.0), (Some(a), Some(b)) if Rc::ptr_eq(a, b))
     }
+}
+
+fn matching_edge<'a>(
+    runs: impl Iterator<Item = ((Tone, &'a str), (Tone, &'a str))>,
+    reverse: bool,
+) -> usize {
+    let mut count = 0;
+    for ((tone, new), (old_tone, old)) in runs {
+        if tone != old_tone {
+            break;
+        }
+        if new == old {
+            count += new.len();
+            continue;
+        }
+        count += if reverse {
+            new.bytes()
+                .rev()
+                .zip(old.bytes().rev())
+                .take_while(|(a, b)| a == b)
+                .count()
+        } else {
+            new.bytes()
+                .zip(old.bytes())
+                .take_while(|(a, b)| a == b)
+                .count()
+        };
+        break;
+    }
+    count
+}
+
+fn ascii_cut(new: &str, old: &str, byte: usize) -> bool {
+    let printable = |byte: &u8| byte.is_ascii_graphic() || *byte == b' ';
+    [new, old].into_iter().all(|text| {
+        let bytes = text.as_bytes();
+        bytes.get(byte - 1).is_some_and(printable) && bytes.get(byte).is_none_or(printable)
+    })
+}
+
+fn stable_columns(text: &str) -> Option<usize> {
+    // Use a full-row write when joined glyphs have contextual width.
+    let width = text.width();
+    let cells = text
+        .chars()
+        .filter_map(UnicodeWidthChar::width)
+        .sum::<usize>();
+    (width == cells).then_some(width)
 }
 
 pub(super) struct MenuRows {
@@ -346,8 +404,8 @@ impl Painter {
             let old = previous
                 .filter(|_| !reset)
                 .map(|old| &old.rows[usize::from(y)]);
-            let dirty = line.damage(old);
-            queue!(out, MoveTo(dirty.start as u16, y))?;
+            let (column, dirty) = line.damage(old);
+            queue!(out, MoveTo(column, y))?;
             if color {
                 let mut offset = 0;
                 for (tone, text) in line.segments() {
@@ -358,7 +416,9 @@ impl Painter {
                     if end > dirty.start {
                         let next = Style::for_tone(tone, self.depth);
                         next.write(out, active)?;
-                        queue!(out, Print(text))?;
+                        let start = dirty.start.saturating_sub(offset);
+                        let stop = dirty.end.min(end) - offset;
+                        queue!(out, Print(&text[start..stop]))?;
                         active = next;
                     }
                     offset = end;
@@ -503,7 +563,7 @@ mod tests {
         assert_eq!(bytes.len(), length);
         bytes.clear();
         painter.draw(&mut bytes, frame("new"), true).unwrap();
-        assert!(String::from_utf8_lossy(&bytes).contains("new\x1b[K"));
+        assert!(String::from_utf8_lossy(&bytes).contains("\x1b[2;4H\x1b[K"));
     }
 
     #[test]
@@ -517,11 +577,70 @@ mod tests {
             row
         };
         let old = line("99");
-        assert_eq!(line("88").damage(Some(&old)), 3..5);
-        assert_eq!(line("1").damage(Some(&old)), 3..5);
-        assert_eq!(line("東京").damage(Some(&old)), 0..10);
+        assert_eq!(line("88").damage(Some(&old)), (3, 3..5));
+        assert_eq!(line("1").damage(Some(&old)), (3, 3..5));
+        assert_eq!(line("東京").damage(Some(&old)), (2, 2..10));
         let old_copy = old.clone();
         assert!(old.shares_storage(&old_copy));
+    }
+
+    #[test]
+    fn palette_edit_preserves_static_unicode_cells_and_writes_inside_a_run() {
+        if ran_in_ansi_fixture(
+            "palette_edit_preserves_static_unicode_cells_and_writes_inside_a_run",
+        ) {
+            return;
+        }
+
+        let frame = |input| {
+            let mut frame = Frame::new((80, 20));
+            let row = &mut frame.rows[4];
+            row.push(Tone::Plain, "  Danh mục 東京");
+            row.push(Tone::Muted, "  │  › ");
+            row.push(Tone::Plain, input);
+            row.push(Tone::Muted, "  │");
+            frame.cursor = Some((25, 4));
+            frame
+        };
+        let mut bytes = Vec::new();
+        let mut painter = Painter::default();
+        painter
+            .draw(&mut bytes, frame("env lock       "), true)
+            .unwrap();
+        bytes.clear();
+        painter
+            .draw(&mut bytes, frame("env plan       "), true)
+            .unwrap();
+        let trace = String::from_utf8_lossy(&bytes);
+        assert!(trace.starts_with("\x1b[5;27Hplan"), "{trace:?}");
+        assert!(!trace.contains("Danh mục"), "{trace:?}");
+        assert!(!trace.contains("       "), "{trace:?}");
+        assert!(!trace.contains("\x1b[2J"), "{trace:?}");
+        bytes.clear();
+        painter
+            .draw(&mut bytes, frame("env plan       "), true)
+            .unwrap();
+        assert!(bytes.is_empty());
+
+        painter.draw(&mut bytes, frame("env"), true).unwrap();
+        let trace = String::from_utf8_lossy(&bytes);
+        assert!(!trace.contains("Danh mục"), "{trace:?}");
+        assert!(trace.contains("\x1b[K"), "{trace:?}");
+    }
+
+    #[test]
+    fn damage_does_not_start_inside_a_combining_character() {
+        let line = |input| {
+            let mut row = Line::default();
+            row.push(Tone::Muted, " │  ");
+            row.push(Tone::Plain, input);
+            row
+        };
+        let old = line("e\u{301}dit");
+        let new = line("e\u{300}dit");
+        let (column, dirty) = new.damage(Some(&old));
+        assert_eq!(column, 4);
+        assert!(new.contents()[dirty].starts_with("e\u{300}"));
     }
 
     #[test]
