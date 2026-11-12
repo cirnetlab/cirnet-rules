@@ -517,7 +517,7 @@ impl Completer {
                     }),
             );
         }
-        rank(candidates, input, cursor, range)
+        rank(candidates, input, cursor, range, &context)
     }
 
     fn actions<'a>(
@@ -539,10 +539,10 @@ impl Completer {
             );
         }
         let words: Vec<_> = context.words.iter().map(String::as_str).collect();
-        let detail = super::super::usage_notes(&command.name, self.vi)
+        let usage = super::super::usage_notes(&command.name, self.vi)
             .lines()
             .next()
-            .unwrap_or("");
+            .unwrap_or_default();
         let mut action_words = context.words.clone();
         for &action in command_words(&command.name, &words) {
             action_words.push(action.into());
@@ -550,6 +550,7 @@ impl Completer {
                 .grammar
                 .supports(&command.name, &action_words, context.used.iter().copied())
             {
+                let detail = action_description(&command.name, action, self.vi).unwrap_or(usage);
                 result.push(Candidate::cli(action, Kind::Subcommand, detail));
             }
             action_words.pop();
@@ -635,6 +636,7 @@ fn rank(
     input: &str,
     cursor: usize,
     range: Range<usize>,
+    context: &Context<'_, '_>,
 ) -> Vec<Suggestion> {
     let prefix = &input[range.start..cursor];
     let original = &input[range.clone()];
@@ -680,8 +682,22 @@ fn rank(
         .take(LIMIT)
         .map(|(_, candidate)| {
             let text = candidate.text.into_owned();
+            let label = if candidate.kind == Kind::Subcommand
+                && let Some(command) = context.command
+            {
+                let mut label = command.name.clone();
+                for word in &context.words {
+                    label.push(' ');
+                    label.push_str(word);
+                }
+                label.push(' ');
+                label.push_str(&text);
+                label
+            } else {
+                text.clone()
+            };
             Suggestion {
-                label: text.clone(),
+                label,
                 text,
                 insert_range: range.clone(),
                 kind: candidate.kind,
@@ -690,6 +706,28 @@ fn rank(
             }
         })
         .collect()
+}
+
+fn action_description(command: &str, action: &str, vi: bool) -> Option<&'static str> {
+    let labels = match (command, action) {
+        ("env", "plan") => [
+            "Review requirements, version pins and conflicts",
+            "Xem yêu cầu, phiên bản đã ghim và xung đột",
+        ],
+        ("env", "lock") => ["Write the environment lock file", "Ghi tệp khóa môi trường"],
+        ("env", "profiles") => ["List environment profiles", "Liệt kê hồ sơ môi trường"],
+        ("env", "sync") => [
+            "Sync the selected project tools",
+            "Đồng bộ công cụ đã chọn của dự án",
+        ],
+        ("env", "export") => ["Export the environment", "Xuất môi trường"],
+        ("env", "import") => [
+            "Import an environment from a file",
+            "Nhập môi trường từ tệp",
+        ],
+        _ => return None,
+    };
+    Some(labels[usize::from(vi)])
 }
 
 fn fuzzy_score(candidate: &str, prefix: &str) -> Option<usize> {

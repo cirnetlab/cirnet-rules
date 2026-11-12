@@ -1,13 +1,14 @@
 use super::{
     Input, Menu, Prompt,
     completion::Source,
-    terminal::{Frame, Line, MenuRows, Tone},
+    terminal::{Frame, Line, MenuRows, PalettePart, Tone},
     text,
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::LazyLock};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const NAME: &str = "CIRNET RULES";
+const MAX_COLUMNS: usize = 132;
 const WORDMARK_WIDTH: usize = 90;
 const BANNER_WIDTH: usize = WORDMARK_WIDTH + 1;
 // Each letter uses the same seven-pixel width and nine-pixel height.
@@ -70,6 +71,7 @@ fn spaces(count: usize) -> &'static str {
         "                           ",
         "                           ",
         "                           ",
+        "                           ",
         "                           "
     );
     &SPACES[..count]
@@ -91,7 +93,15 @@ fn input_line(
     feedback: &str,
 ) {
     let mut line = indented(margin);
-    let (cursor, _) = input_text(&mut line, width, prefix, Tone::Heading, input, feedback);
+    let (cursor, _) = input_text(
+        &mut line,
+        width,
+        prefix,
+        Tone::Heading,
+        Tone::Plain,
+        input,
+        feedback,
+    );
     frame.cursor = Some(((margin + cursor) as u16, row));
     frame.rows[usize::from(row)] = line;
 }
@@ -100,7 +110,8 @@ fn input_text(
     line: &mut Line,
     width: usize,
     prefix: &str,
-    tone: Tone,
+    marker: Tone,
+    body: Tone,
     input: &Input,
     feedback: &str,
 ) -> (usize, usize) {
@@ -108,12 +119,12 @@ fn input_text(
     let available = width - prefix.width();
     let (before, after) = input.value.split_at(input.cursor);
     let before = tail(before, available.saturating_sub(1));
-    line.push(tone, &prefix);
-    line.push(Tone::Plain, before);
+    line.push(marker, &prefix);
+    line.push(body, before);
     let (suffix, tone) = if after.is_empty() {
         (feedback, Tone::Muted)
     } else {
-        (after, Tone::Plain)
+        (after, body)
     };
     let suffix = clip(suffix, available - before.width());
     line.push(tone, &suffix);
@@ -236,10 +247,12 @@ struct Palette<'a> {
     width: usize,
     choices: u16,
     label_width: usize,
+    bordered: bool,
 }
 
 impl<'a> Palette<'a> {
     fn new(prompt: &'a Prompt, width: usize, available: u16, show_choices: bool) -> Self {
+        let bordered = width >= 12 && available >= 4;
         let label_width = prompt
             .completions
             .iter()
@@ -250,7 +263,9 @@ impl<'a> Palette<'a> {
             0
         } else if prompt.error.is_some() {
             1
-        } else if prompt.input.value.trim().is_empty() || width < label_width.saturating_add(2) {
+        } else if prompt.input.value.trim().is_empty()
+            || width < label_width.saturating_add(if bordered { 6 } else { 2 })
+        {
             0
         } else {
             prompt.completions.len().min(5) as u16
@@ -258,62 +273,123 @@ impl<'a> Palette<'a> {
         Self {
             prompt,
             width,
-            choices: choices.min(available.saturating_sub(1)),
+            choices: choices.min(available.saturating_sub(if bordered { 3 } else { 1 })),
             label_width,
+            bordered,
         }
     }
 
     fn rows(&self) -> u16 {
-        1 + self.choices
+        1 + self.choices + 2 * u16::from(self.bordered)
     }
 
-    fn draw(&self, line: &mut Line, row: u16, vi: bool) -> Option<usize> {
-        if row == 0 {
-            let bordered = self.width >= 12;
-            let inset = if bordered { 2 } else { 0 };
-            if bordered {
-                line.push(Tone::Muted, "│ ");
+    fn draw(&self, line: &mut Line, row: u16, vi: bool, color: bool) -> Option<usize> {
+        use PalettePart::*;
+        let part = |part, fallback| {
+            if self.bordered {
+                Tone::Palette(part)
+            } else {
+                fallback
             }
-            let inner = self.width - 2 * inset;
-            let (cursor, used) = input_text(line, inner, "› ", Tone::Muted, &self.prompt.input, "");
-            if bordered {
-                line.push(Tone::Plain, spaces(inner - used));
-                line.push(Tone::Muted, " │");
+        };
+        let border = Tone::Palette(Border);
+        let inset = usize::from(self.bordered) * 2;
+        let inner = self.width - 2 * inset;
+        if self.bordered {
+            let edge = if row == 0 {
+                Some(("╭", "╮"))
+            } else if row == self.rows() - 1 {
+                Some(("╰", "╯"))
+            } else {
+                None
+            };
+            if let Some((left, right)) = edge {
+                static RULE: LazyLock<String> = LazyLock::new(|| "─".repeat(MAX_COLUMNS));
+                line.push(Tone::Palette(Corner), left);
+                line.push(border, &RULE[..(self.width - 2) * '─'.len_utf8()]);
+                line.push(Tone::Palette(Corner), right);
+                return None;
+            }
+            line.push(border, "│");
+        }
+        if row == u16::from(self.bordered) {
+            let tone = part(Input, Tone::Plain);
+            if self.bordered {
+                line.push(tone, " ");
+            }
+            let (cursor, used) = input_text(line, inner, "› ", tone, tone, &self.prompt.input, "");
+            if self.bordered {
+                line.push(tone, spaces(inner - used + 1));
+                line.push(border, "│");
             }
             return Some(inset + cursor);
         }
-        if let Some(error) = self.prompt.error {
-            line.push(Tone::Muted, clip(text(error, vi), self.width));
-            return None;
+        let detail_tone = part(Detail, Tone::Muted);
+        if self.bordered {
+            line.push(detail_tone, " ");
         }
-        let focus = self.prompt.accepted.as_ref().map_or(0, |(index, _)| *index);
-        let index = (focus + 1).saturating_sub(usize::from(self.choices)) + usize::from(row - 1);
-        let item = &self.prompt.completions[index];
-        let selected = index == focus;
-        line.push(Tone::Muted, if selected { "› " } else { "  " });
-        line.push(
-            if selected { Tone::Heading } else { Tone::Plain },
-            &item.label,
-        );
-        if self.width.saturating_sub(self.label_width + 5) >= 12 {
-            line.push(
-                Tone::Plain,
-                spaces(self.label_width - item.label.width() + 3),
-            );
-            let detail = match item.source {
-                Source::Pinned | Source::Installed => item.source.label(vi),
-                _ if item.description.is_empty() => item.kind.label(vi),
-                _ => &item.description,
-            };
-            line.push(Tone::Muted, clip(detail, self.width - self.label_width - 5));
+        let used = if let Some(error) = self.prompt.error {
+            let value = clip(text(error, vi), inner);
+            let used = value.width();
+            line.push(detail_tone, value);
+            used
+        } else {
+            self.draw_choice(line, row, inner, vi, color)
+        };
+        if self.bordered {
+            line.push(detail_tone, spaces(inner - used + 1));
+            line.push(border, "│");
         }
         None
     }
+
+    fn draw_choice(&self, line: &mut Line, row: u16, width: usize, vi: bool, color: bool) -> usize {
+        let detail_tone = if self.bordered {
+            Tone::Palette(PalettePart::Detail)
+        } else {
+            Tone::Muted
+        };
+        let focus = self.prompt.accepted.as_ref().map_or(0, |(index, _)| *index);
+        let offset = row - if self.bordered { 2 } else { 1 };
+        let index = (focus + 1).saturating_sub(usize::from(self.choices)) + usize::from(offset);
+        let item = &self.prompt.completions[index];
+        let selected = index == focus;
+        line.push(
+            detail_tone,
+            if selected && (!self.bordered || !color) {
+                "› "
+            } else {
+                "  "
+            },
+        );
+        let tone = match (self.bordered, selected) {
+            (true, true) => Tone::Palette(PalettePart::Selected),
+            (true, false) => Tone::Palette(PalettePart::Suggestion),
+            (false, true) => Tone::Heading,
+            (false, false) => Tone::Plain,
+        };
+        line.push(tone, &item.label);
+        let label = item.label.width();
+        let detail_width = width.saturating_sub(self.label_width + 5);
+        if detail_width < 12 {
+            return label + 2;
+        }
+        let detail = match item.source {
+            Source::Pinned | Source::Installed => item.source.label(vi),
+            _ if item.description.is_empty() => item.kind.label(vi),
+            _ => &item.description,
+        };
+        let detail = clip(detail, detail_width);
+        let used = self.label_width + 5 + detail.width();
+        line.push(detail_tone, spaces(self.label_width - label + 3));
+        line.push(detail_tone, detail);
+        used
+    }
 }
 
-fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
+fn output_frame(menu: &mut Menu, size: (u16, u16), color: bool) -> Frame {
     let mut frame = Frame::new(size);
-    let columns = usize::from(size.0.saturating_sub(1)).min(108);
+    let columns = usize::from(size.0.saturating_sub(1)).min(MAX_COLUMNS);
     let height = size.1;
     if columns == 0 || height == 0 {
         return frame;
@@ -327,13 +403,15 @@ fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
     let header = u16::from(height >= 4 + u16::from(separate_find));
     let has_status = height >= 2;
     let body = u16::from(height >= 3 + u16::from(separate_find));
+    let status_gap = u16::from(height >= 16 && width >= 24 && menu.prompt.is_some());
     let palette = menu.prompt.as_ref().map(|prompt| {
-        let available =
-            height.saturating_sub(header + u16::from(has_status) + body + u16::from(separate_find));
-        Palette::new(prompt, width, available, find.is_none())
+        let available = height.saturating_sub(
+            header + u16::from(has_status) + body + u16::from(separate_find) + status_gap,
+        );
+        Palette::new(prompt, width, available, find.is_none() && !output.running)
     });
     let command_row = height - palette.as_ref().map_or(0, Palette::rows);
-    let status_row = has_status.then(|| command_row - 1);
+    let status_row = has_status.then(|| command_row - status_gap - 1);
     let body_end = status_row
         .unwrap_or(command_row)
         .saturating_sub(u16::from(separate_find));
@@ -365,7 +443,7 @@ fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
         for offset in 0..palette.rows() {
             let row = command_row + offset;
             let mut line = indented(margin);
-            if let Some(cursor) = palette.draw(&mut line, offset, menu.vi) {
+            if let Some(cursor) = palette.draw(&mut line, offset, menu.vi, color) {
                 frame.cursor = Some(((margin + cursor) as u16, row));
             }
             frame.rows[usize::from(row)] = line;
@@ -394,14 +472,14 @@ fn output_frame(menu: &mut Menu, size: (u16, u16)) -> Frame {
 pub(super) fn frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
     menu.refresh_suggestions();
     if menu.output.is_some() {
-        return output_frame(menu, size);
+        return output_frame(menu, size, color);
     }
     menu_frame(menu, size, banner, color)
 }
 
 fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> Frame {
     let mut frame = Frame::new(size);
-    let columns = usize::from(size.0.saturating_sub(1)).min(108);
+    let columns = usize::from(size.0.saturating_sub(1)).min(MAX_COLUMNS);
     let height = size.1;
     if columns == 0 || height == 0 {
         return frame;
@@ -493,7 +571,7 @@ fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> F
             for offset in 0..palette.rows() {
                 let y = end + offset;
                 let mut line = indented(margin);
-                if let Some(cursor) = palette.draw(&mut line, offset, menu.vi) {
+                if let Some(cursor) = palette.draw(&mut line, offset, menu.vi, color) {
                     frame.cursor = Some(((margin + cursor) as u16, y));
                 }
                 frame.rows[usize::from(y)] = line;
@@ -556,7 +634,7 @@ fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> F
             } else if let Some((start, palette)) = &wide_palette
                 && let Some(offset) = (i as u16).checked_sub(*start)
                 && offset < palette.rows()
-                && let Some(cursor) = palette.draw(&mut line, offset, menu.vi)
+                && let Some(cursor) = palette.draw(&mut line, offset, menu.vi, color)
             {
                 frame.cursor = Some(((margin + left_width + 5 + cursor) as u16, y));
             }
@@ -581,6 +659,43 @@ mod tests {
     }
 
     #[test]
+    fn command_panel_frames_the_input_and_contextual_suggestions() {
+        let mut menu = Menu::new(false, None);
+        for ch in "env p".chars() {
+            press(&mut menu, KeyCode::Char(ch));
+        }
+        let main = frame(&mut menu, (120, 35), true, true);
+        let lines = rows(&main);
+        let row = usize::from(main.cursor.unwrap().1);
+        assert!(lines[row - 1].contains('╭') && lines[row - 1].ends_with('╮'));
+        assert!(lines[row].contains("│ › env p") && lines[row].ends_with('│'));
+        assert!(lines[row + 1].contains("env plan"));
+        assert!(lines[row + 1].contains("Review requirements, version pins and conflicts"));
+        assert!(lines[row + 2].contains("env profiles"));
+        assert!(lines[row + 2].contains("List environment profiles"));
+        assert!(lines[row + 3].contains('╰') && lines[row + 3].ends_with('╯'));
+    }
+
+    #[test]
+    fn result_input_has_a_closed_frame_across_the_viewport() {
+        let mut menu = Menu::new(false, None);
+        menu.open_prompt(Input::default());
+        menu.output = Some(OutputView::new("cnr env plan".into(), false));
+        let result = frame(&mut menu, (120, 35), true, true);
+        let lines = rows(&result);
+        let row = usize::from(result.cursor.unwrap().1);
+        assert!(lines[row - 1].trim_start().starts_with('╭'));
+        assert!(lines[row].trim_start().starts_with("│ › "));
+        assert!(lines[row + 1].trim_start().starts_with('╰'));
+        assert_eq!(lines[row].width(), 117);
+        assert!(
+            lines[..row - 1]
+                .iter()
+                .any(|line| line.trim() == "Running…")
+        );
+    }
+
+    #[test]
     fn wide_menu_has_one_fixed_footer_and_the_palette_opens_downward() {
         let mut menu = Menu::new(false, None);
         let initial = frame(&mut menu, (120, 35), true, true);
@@ -594,7 +709,7 @@ mod tests {
         assert!(column >= 40);
         let lines = rows(&opened);
         assert!(lines[usize::from(input_row)].contains("› l"));
-        assert!(lines[usize::from(input_row + 1)].contains("› list"));
+        assert!(lines[usize::from(input_row + 1)].contains("list"));
         assert_eq!(lines.last().unwrap().trim(), expected);
         assert_eq!(
             lines
@@ -631,16 +746,14 @@ mod tests {
             let result = frame(&mut menu, (80, 24), true, true);
             let lines = rows(&result);
             let input_row = usize::from(result.cursor.unwrap().1);
-            assert_eq!(lines[input_row - 1].trim(), status);
+            assert_eq!(lines[input_row - 3].trim(), status);
             assert!(lines[input_row].contains("› l"));
             assert!(!lines.iter().any(|line| {
                 ["PgUp/PgDn", "Ctrl+C", "Tab complete", "Esc back"]
                     .iter()
                     .any(|hint| line.contains(hint))
             }));
-            if !running {
-                assert!(lines[input_row + 1].contains("› list"));
-            }
+            assert_eq!(lines[input_row + 1].contains("list"), !running);
         }
     }
 
@@ -677,7 +790,11 @@ mod tests {
                             assert!(y < size.1 - 1);
                         }
                         if size.0 >= 26 {
-                            assert!(main_rows[usize::from(y + 1)].contains("› list"));
+                            assert!(
+                                main_rows[usize::from(y + 1)..]
+                                    .iter()
+                                    .any(|line| line.contains("list"))
+                            );
                         }
                     }
 
@@ -702,8 +819,17 @@ mod tests {
                         let (x, y) = result.cursor.expect("input remains visible");
                         assert!(x < size.0 && y < size.1);
                         if size.1 >= 2 && size.0 >= 26 {
-                            assert!(result_rows[usize::from(y - 1)].contains("PASS"));
-                            assert!(result_rows[usize::from(y + 1)].contains("› list"));
+                            let y = usize::from(y);
+                            assert!(
+                                result_rows[y.saturating_sub(3)..y]
+                                    .iter()
+                                    .any(|line| line.contains("PASS"))
+                            );
+                            assert!(
+                                result_rows[y + 1..]
+                                    .iter()
+                                    .any(|line| line.contains("list"))
+                            );
                         }
                     }
                 }
@@ -735,7 +861,7 @@ mod tests {
         assert!(
             opened.rows[usize::from(command + 1)]
                 .text()
-                .contains("› list")
+                .contains("list")
         );
         assert_eq!(opened.rows[1], scrolled.rows[1]);
         assert_eq!(menu.output.as_ref().unwrap().scroll, 80);

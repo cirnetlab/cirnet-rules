@@ -10,7 +10,11 @@ Use the binaries from `target/debug` or make them available on your path.
 On Windows the executable is `cnr.exe`.
 
 <p align="center">
-  <img src="assets/cirnet-rules.png" alt="Command Line Interface" width="750" />
+  <img src="assets/menu_interface.png" alt="Command Line Interface" width="750" />
+</p>
+
+<p align="center">
+  <img src="assets/result_display.png" alt="Command Line Interface" width="750" />
 </p>
 
 ## Giao diện dòng lệnh CNR (CLI / TUI)

@@ -4,7 +4,7 @@ use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{DisableMouseCapture, EnableMouseCapture},
     execute, queue,
-    style::{Attribute, Color, Print, SetAttribute, SetForegroundColor},
+    style::{Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::{
@@ -71,6 +71,17 @@ pub(super) enum Tone {
     Error,
     Stderr,
     Match,
+    Palette(PalettePart),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PalettePart {
+    Border,
+    Corner,
+    Input,
+    Detail,
+    Suggestion,
+    Selected,
 }
 
 pub(super) fn color_enabled() -> bool {
@@ -119,6 +130,7 @@ impl SemanticDepth {
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 struct Style {
     color: Option<Color>,
+    background: Option<Color>,
     attribute: Option<Attribute>,
 }
 
@@ -152,10 +164,29 @@ impl Style {
             Tone::Warning => depth.color((242, 199, 105), 221, Yellow),
             Tone::Error => depth.color((244, 137, 130), 210, Red),
             Tone::Stderr => depth.color((178, 176, 187), 249, Grey),
+            Tone::Palette(part) => return Self::palette(part, depth),
         };
         Self {
             color: Some(color),
-            attribute: None,
+            ..Self::default()
+        }
+    }
+
+    fn palette(part: PalettePart, depth: SemanticDepth) -> Self {
+        use Color::*;
+        use PalettePart::*;
+        let color = match part {
+            Border | Corner => depth.color((83, 86, 91), 240, Grey),
+            Input => depth.color((237, 237, 239), 255, White),
+            Detail => depth.color((194, 195, 199), 251, Grey),
+            Suggestion => depth.color((180, 199, 230), 153, Cyan),
+            Selected => depth.color((212, 225, 250), 189, White),
+        };
+        Self {
+            color: Some(color),
+            // The corner cells inherit the terminal background around the arc.
+            background: (part != Corner).then(|| depth.color((27, 29, 32), 234, Black)),
+            attribute: (part == Selected).then_some(Attribute::Bold),
         }
     }
 
@@ -175,6 +206,12 @@ impl Style {
         }
         if self.color != previous.color {
             queue!(out, SetForegroundColor(self.color.unwrap_or(Color::Reset)))?;
+        }
+        if self.background != previous.background {
+            queue!(
+                out,
+                SetBackgroundColor(self.background.unwrap_or(Color::Reset))
+            )?;
         }
         Ok(())
     }
@@ -673,6 +710,35 @@ mod tests {
             "{delta:?}"
         );
         assert!(delta.ends_with("\x1b[39m"));
+    }
+
+    #[test]
+    fn palette_background_does_not_leak_to_output_or_cleared_cells() {
+        if ran_in_ansi_fixture("palette_background_does_not_leak_to_output_or_cleared_cells") {
+            return;
+        }
+        let mut frame = Frame::new((40, 6));
+        frame.rows[1].push(Tone::Palette(PalettePart::Input), "› env       ");
+        frame.rows[2].push(Tone::Plain, "output");
+        let mut painter = Painter {
+            previous: None,
+            depth: SemanticDepth::Rgb,
+        };
+        let mut bytes = Vec::new();
+        painter.draw(&mut bytes, frame, true).unwrap();
+        let initial = String::from_utf8_lossy(&bytes);
+        assert!(initial.contains("\x1b[48;2;27;29;32m› env"), "{initial:?}");
+        assert!(initial.contains("\x1b[49moutput"), "{initial:?}");
+
+        let mut closed = Frame::new((40, 6));
+        closed.rows[1].push(Tone::Plain, "env");
+        closed.rows[2].push(Tone::Plain, "output");
+        bytes.clear();
+        painter.draw(&mut bytes, closed, true).unwrap();
+        let delta = String::from_utf8_lossy(&bytes);
+        assert!(delta.contains("env\x1b[K"), "{delta:?}");
+        assert!(!delta.contains("\x1b[48;"), "{delta:?}");
+        assert!(!delta.contains("\x1b[2J"), "{delta:?}");
     }
 
     struct FailOnce {
