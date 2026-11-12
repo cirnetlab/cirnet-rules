@@ -42,7 +42,7 @@ cnr --lang vi
 
 ### Menu chức năng trong giao diện CLI
 
-| Menu | Dùng để làm gì? | Lệnh tương ứng |
+| Menu | Chức năng | Lệnh tương ứng |
 | :--- | :--- | :--- |
 | **Tool inventory** | Xem các công cụ đã cài | `cnr list` |
 | **Search tools** | Tìm Runtime, SDK, compiler | `cnr search` |
