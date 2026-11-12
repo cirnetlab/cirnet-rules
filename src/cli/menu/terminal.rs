@@ -22,9 +22,15 @@ const ORANGE: Color = Color::Rgb {
 };
 
 const SHADOW: Color = Color::Rgb {
-    r: 78,
-    g: 72,
-    b: 76,
+    r: 81,
+    g: 57,
+    b: 50,
+};
+
+const SHADOW_SOFT: Color = Color::Rgb {
+    r: 44,
+    g: 34,
+    b: 33,
 };
 
 const BANNER_COLORS: [Color; 4] = [
@@ -57,7 +63,11 @@ pub(super) enum Tone {
     Heading,
     Accent,
     Shadow,
+    ShadowSoft,
     Banner(usize),
+    BannerOnShadow(usize, bool),
+    ShadowOverSoft,
+    SoftOverShadow,
     Key,
     String,
     Number,
@@ -151,7 +161,27 @@ impl Style {
             }
             Tone::Accent => ORANGE,
             Tone::Shadow => SHADOW,
+            Tone::ShadowSoft => SHADOW_SOFT,
             Tone::Banner(index) => BANNER_COLORS[index],
+            Tone::BannerOnShadow(index, near) => {
+                return Self {
+                    color: Some(BANNER_COLORS[index]),
+                    background: Some(if near { SHADOW } else { SHADOW_SOFT }),
+                    ..Self::default()
+                };
+            }
+            Tone::ShadowOverSoft | Tone::SoftOverShadow => {
+                let (foreground, background) = if tone == Tone::ShadowOverSoft {
+                    (SHADOW, SHADOW_SOFT)
+                } else {
+                    (SHADOW_SOFT, SHADOW)
+                };
+                return Self {
+                    color: Some(foreground),
+                    background: Some(background),
+                    ..Self::default()
+                };
+            }
             Tone::Key => depth.color((125, 207, 222), 117, Cyan),
             Tone::String => depth.color((223, 198, 145), 222, DarkYellow),
             Tone::Number => depth.color((238, 170, 117), 216, Yellow),
@@ -175,11 +205,12 @@ impl Style {
     fn palette(part: PalettePart, depth: SemanticDepth) -> Self {
         use Color::*;
         use PalettePart::*;
-        let input = depth.color((27, 29, 32), 234, DarkGrey);
+        let input = depth.color((20, 21, 23), 233, DarkGrey);
         let suggestions = depth.color((31, 33, 37), 235, DarkGrey);
         let input_rim = depth.color((78, 80, 86), 240, DarkGrey);
         let (color, background) = match part {
-            InputRim | InputEdge => (input_rim, None),
+            InputRim => (input_rim, None),
+            InputEdge => (input_rim, Some(input)),
             Input => (depth.color((237, 237, 239), 255, White), Some(input)),
             Detail => (depth.color((159, 161, 166), 248, Grey), Some(suggestions)),
             Suggestion => (depth.color((211, 212, 215), 252, White), Some(suggestions)),
@@ -770,6 +801,30 @@ mod tests {
     }
 
     #[test]
+    fn input_border_meets_the_input_surface_without_filling_the_corners() {
+        let input = Style::palette(PalettePart::Input, SemanticDepth::Rgb);
+        let edge = Style::palette(PalettePart::InputEdge, SemanticDepth::Rgb);
+        let corner = Style::palette(PalettePart::InputRim, SemanticDepth::Rgb);
+        assert_eq!(edge.background, input.background);
+        assert!(edge.background.is_some());
+        assert!(corner.background.is_none());
+    }
+
+    #[test]
+    fn extrusion_styles_keep_the_face_color_and_distinct_depth_layers() {
+        let near = Style::for_tone(Tone::BannerOnShadow(1, true), SemanticDepth::Rgb);
+        let far = Style::for_tone(Tone::BannerOnShadow(1, false), SemanticDepth::Rgb);
+        assert_eq!(near.color, Some(BANNER_COLORS[1]));
+        assert_eq!(far.color, near.color);
+        assert_eq!(near.background, Some(SHADOW));
+        assert_eq!(far.background, Some(SHADOW_SOFT));
+        assert_ne!(near.background, far.background);
+        let transition = Style::for_tone(Tone::ShadowOverSoft, SemanticDepth::Rgb);
+        assert_eq!(transition.color, Some(SHADOW));
+        assert_eq!(transition.background, Some(SHADOW_SOFT));
+    }
+
+    #[test]
     fn palette_background_does_not_leak_to_output_or_cleared_cells() {
         if ran_in_ansi_fixture("palette_background_does_not_leak_to_output_or_cleared_cells") {
             return;
@@ -784,7 +839,7 @@ mod tests {
         let mut bytes = Vec::new();
         painter.draw(&mut bytes, frame, true).unwrap();
         let initial = String::from_utf8_lossy(&bytes);
-        assert!(initial.contains("\x1b[48;2;27;29;32m› env"), "{initial:?}");
+        assert!(initial.contains("\x1b[48;2;20;21;23m› env"), "{initial:?}");
         assert!(initial.contains("\x1b[49moutput"), "{initial:?}");
 
         let mut closed = Frame::new((40, 6));
@@ -799,7 +854,7 @@ mod tests {
     }
 
     #[test]
-    fn palette_draws_edges_with_ink_and_leaves_the_exterior_at_default_background() {
+    fn input_border_meets_its_surface_and_suggestions_have_no_border() {
         use crate::menu::{Menu, view};
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -809,6 +864,8 @@ mod tests {
         }
         let frame = view::frame(&mut menu, (120, 35), true, true);
         let input = usize::from(frame.cursor.unwrap().1);
+        let input_surface = Style::palette(PalettePart::Input, SemanticDepth::Rgb).background;
+        let suggestions = Style::palette(PalettePart::Detail, SemanticDepth::Rgb).background;
         for (index, line) in frame.rows[input - 1..=input + 3].iter().enumerate() {
             let spans: Vec<_> = line
                 .segments()
@@ -817,21 +874,20 @@ mod tests {
             let (first, _) = spans[0];
             let (last, _) = *spans.last().unwrap();
             let style = |tone| Style::for_tone(tone, SemanticDepth::Rgb);
-            assert!(style(first).background.is_none(), "row {index}, left edge");
-            assert!(style(last).background.is_none(), "row {index}, right edge");
-            if matches!(index, 0 | 4) {
+            if matches!(index, 0 | 2) {
+                assert!(style(first).background.is_none(), "row {index}, corner");
+                assert!(style(last).background.is_none(), "row {index}, corner");
+                assert_eq!(style(spans[1].0).background, input_surface);
+            } else if index == 1 {
+                assert_eq!(style(first).background, input_surface);
+                assert_eq!(style(last).background, input_surface);
+            } else {
                 assert!(
                     spans
                         .iter()
-                        .all(|(tone, _)| style(*tone).background.is_none()),
-                    "row {index}, cap"
+                        .all(|(tone, _)| style(*tone).background == suggestions),
+                    "row {index}, borderless suggestions"
                 );
-            } else {
-                assert!(
-                    style(spans[1].0).background.is_some(),
-                    "row {index}, filled body"
-                );
-                assert_eq!(style(first).color, style(last).color);
             }
         }
     }
