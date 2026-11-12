@@ -145,6 +145,10 @@ const SEARCH_LIMIT: usize = 256;
 const HISTORY_LIMIT: usize = 100;
 const SUGGESTION_LIMIT: usize = 7;
 const COMMAND_TOO_LONG: Localized = ["Command exceeds 8 KiB.", "Lệnh vượt quá 8 KiB."];
+const PASTE_NEWLINE_NOTICE: Localized = [
+    "Input received. Press Enter to run.",
+    "Đã nhận nội dung. Nhấn Enter để chạy.",
+];
 
 fn text_modifiers(key: KeyEvent) -> bool {
     !key.modifiers
@@ -453,7 +457,8 @@ impl Menu {
             return Effect::Exit;
         }
         if entry.prompt {
-            self.open_prompt(Input::default());
+            let draft = std::mem::take(&mut self.draft);
+            self.open_prompt(draft);
             return Effect::Redraw;
         }
         Effect::Run(
@@ -475,12 +480,18 @@ impl Menu {
         self.history_index = None;
     }
 
+    fn begin_output(&mut self, args: &[String]) {
+        self.output = Some(OutputView::new(output_title(args), self.vi));
+        let draft = std::mem::take(&mut self.draft);
+        self.open_prompt(draft);
+    }
+
     fn close_main_prompt(&mut self) -> bool {
         let Some(prompt) = self.prompt.take() else {
             return false;
         };
-        self.draft = if prompt.error == Some(COMMAND_TOO_LONG) {
-            Input::default()
+        self.draft = if self.history_index.is_some() {
+            std::mem::take(&mut self.history_draft)
         } else {
             prompt.input
         };
@@ -759,8 +770,7 @@ impl Menu {
                 return Effect::Idle;
             }
             self.output = None;
-            self.prompt = None;
-            self.history_index = None;
+            self.close_main_prompt();
             return Effect::Redraw;
         }
         self.edit_prompt(key)
@@ -818,8 +828,10 @@ impl Menu {
             return Effect::Redraw;
         }
         if control(key, 'r') && !self.history.is_empty() {
-            self.open_prompt(Input::default());
-            return self.history_move(true, true);
+            let draft = std::mem::take(&mut self.draft);
+            self.open_prompt(draft);
+            self.history_move(true, true);
+            return Effect::Redraw;
         }
         if key.code == KeyCode::Enter && text_modifiers(key) {
             return self.activate();
@@ -850,8 +862,8 @@ impl Menu {
                 Effect::Redraw
             }
             Some(ch) if !ch.is_whitespace() && !self.help => {
-                self.draft = Input::default();
-                self.open_prompt(Input::default());
+                let draft = std::mem::take(&mut self.draft);
+                self.open_prompt(draft);
                 self.edit_prompt(key)
             }
             _ => Effect::Idle,
@@ -861,7 +873,8 @@ impl Menu {
     fn paste(&mut self, value: &str) -> Effect {
         if value.len() > COMMAND_LIMIT {
             if self.prompt.is_none() && self.search.is_none() && !self.help {
-                self.open_prompt(Input::default());
+                let draft = std::mem::take(&mut self.draft);
+                self.open_prompt(draft);
             }
             if let Some(prompt) = &mut self.prompt {
                 prompt.error = Some(COMMAND_TOO_LONG);
@@ -892,8 +905,8 @@ impl Menu {
             if self.help || sanitized.trim().is_empty() {
                 return Effect::Idle;
             }
-            self.draft = Input::default();
-            self.open_prompt(Input::default());
+            let draft = std::mem::take(&mut self.draft);
+            self.open_prompt(draft);
         }
         let prompt = self.prompt.as_mut().expect("prompt is active");
         if prompt.input.value.len() + sanitized.len() > COMMAND_LIMIT {
@@ -907,6 +920,27 @@ impl Menu {
         } else {
             Effect::Idle
         }
+    }
+
+    fn paste_suppressed_newline(&mut self, value: &str) -> Effect {
+        let command_input = (self.prompt.is_some() || self.search.is_none())
+            && self
+                .output
+                .as_ref()
+                .is_none_or(|output| output.find.is_none())
+            && self
+                .prompt
+                .as_ref()
+                .is_none_or(|prompt| prompt.error.is_none());
+        let effect = self.paste(value);
+        if command_input
+            && matches!(effect, Effect::Redraw)
+            && let Some(prompt) = &mut self.prompt
+            && prompt.error.is_none()
+        {
+            prompt.error = Some(PASTE_NEWLINE_NOTICE);
+        }
+        effect
     }
 }
 
@@ -1048,7 +1082,7 @@ fn show(
                 }).count();
             }
             if let Some(paste) = windows_paste(&batch, pending) {
-                redraw |= matches!(menu.paste(&paste), Effect::Redraw);
+                redraw |= matches!(menu.paste_suppressed_newline(&paste), Effect::Redraw);
                 continue;
             }
         }
@@ -1088,8 +1122,7 @@ fn show(
                     redraw = true;
                 }
                 Effect::Run(args) => {
-                    menu.output = Some(OutputView::new(output_title(&args), menu.vi));
-                    menu.open_prompt(Input::default());
+                    menu.begin_output(&args);
                     match runner::Runner::start(args, project.clone(), catalog_project, menu.vi) {
                         Ok(worker) => running = Some(worker),
                         Err(error) => {
@@ -1260,6 +1293,129 @@ mod tests {
     }
 
     #[test]
+    fn reopening_command_after_menu_navigation_keeps_draft_for_typing_and_paste() {
+        let mut menu = Menu::new(false, None);
+        menu.paste("env");
+        press(&mut menu, KeyCode::Down);
+        press(&mut menu, KeyCode::Char('p'));
+        assert_eq!(command(&menu), "envp");
+        press(&mut menu, KeyCode::Up);
+        menu.paste("lan");
+        assert_eq!(command(&menu), "envplan");
+    }
+
+    #[test]
+    fn opening_and_closing_an_entry_prompt_preserves_the_existing_draft() {
+        let mut menu = Menu::new(false, None);
+        menu.paste("env");
+        press(&mut menu, KeyCode::Down);
+        press(&mut menu, KeyCode::Enter);
+        assert_eq!(command(&menu), "env");
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        assert_eq!(command(&menu), "env");
+    }
+
+    #[test]
+    fn rejected_oversized_paste_does_not_erase_the_previous_draft() {
+        let mut menu = Menu::new(false, None);
+        menu.paste("env");
+        menu.paste(&"x".repeat(COMMAND_LIMIT + 1));
+        assert_eq!(command(&menu), "env");
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        assert_eq!(command(&menu), "env");
+    }
+
+    #[test]
+    fn leaving_output_view_saves_the_command_draft() {
+        let mut menu = Menu::new(false, None);
+        let mut output = OutputView::new("cnr list".into(), false);
+        output.running = false;
+        menu.output = Some(output);
+        menu.open_prompt(Input::default());
+        menu.paste("config sh");
+        press(&mut menu, KeyCode::Esc);
+        assert!(menu.output.is_none());
+        press(&mut menu, KeyCode::Char(':'));
+        assert_eq!(command(&menu), "config sh");
+    }
+
+    #[test]
+    fn cancelling_history_search_restores_saved_draft() {
+        let mut menu = Menu::new(false, None);
+        menu.history = vec!["config show".into(), "config get".into()];
+        menu.paste("con");
+        press(&mut menu, KeyCode::Esc);
+        let search = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL);
+        assert!(matches!(menu.handle(search), Effect::Redraw));
+        assert_eq!(command(&menu), "config get");
+        menu.handle(search);
+        assert_eq!(command(&menu), "config show");
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        assert_eq!(command(&menu), "con");
+    }
+
+    #[test]
+    fn submitting_history_selection_runs_the_selected_command() {
+        let mut menu = Menu::new(false, None);
+        menu.history.push("config show".into());
+        menu.paste("con");
+        press(&mut menu, KeyCode::Esc);
+        menu.handle(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
+        match press(&mut menu, KeyCode::Enter) {
+            Effect::Run(args) => assert_eq!(args, ["config", "show"]),
+            _ => panic!("selected history entry should run"),
+        }
+    }
+
+    #[test]
+    fn history_search_without_a_match_opens_and_keeps_the_draft() {
+        let mut menu = Menu::new(false, None);
+        menu.history.push("config show".into());
+        menu.paste("env");
+        press(&mut menu, KeyCode::Esc);
+        assert!(matches!(
+            menu.handle(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL)),
+            Effect::Redraw
+        ));
+        assert_eq!(command(&menu), "env");
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        assert_eq!(command(&menu), "env");
+    }
+
+    #[test]
+    fn cancelling_output_history_restores_the_command_draft() {
+        let mut menu = Menu::new(false, None);
+        menu.history.push("config show".into());
+        let mut output = OutputView::new("cnr list".into(), false);
+        output.running = false;
+        menu.output = Some(output);
+        menu.open_prompt(Input::default());
+        menu.paste("co");
+        press(&mut menu, KeyCode::Up);
+        assert_eq!(command(&menu), "config show");
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        assert_eq!(command(&menu), "co");
+    }
+
+    #[test]
+    fn menu_command_preserves_a_draft_when_entering_and_leaving_output() {
+        let mut menu = Menu::new(false, None);
+        menu.paste("env");
+        press(&mut menu, KeyCode::Down);
+        menu.begin_output(&["list".into()]);
+        assert_eq!(command(&menu), "env");
+        menu.output.as_mut().unwrap().running = false;
+        press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        assert_eq!(command(&menu), "env");
+    }
+
+    #[test]
     fn typing_opens_command_and_escape_restores_menu_and_draft() {
         for vi in [false, true] {
             let mut menu = Menu::new(vi, None);
@@ -1282,6 +1438,8 @@ mod tests {
             press(&mut menu, KeyCode::Char(':'));
             assert_eq!(command(&menu), "l");
             press(&mut menu, KeyCode::Esc);
+            press(&mut menu, KeyCode::Char(':'));
+            menu.handle(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
             press(&mut menu, KeyCode::Char('s'));
             assert_eq!(command(&menu), "s");
             press(&mut menu, KeyCode::Esc);
@@ -1319,6 +1477,8 @@ mod tests {
         press(&mut menu, KeyCode::Tab);
         assert_eq!(command(&menu), "search");
         press(&mut menu, KeyCode::Esc);
+        press(&mut menu, KeyCode::Char(':'));
+        menu.handle(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
         menu.paste("cnr workspace b --json");
         menu.prompt.as_mut().unwrap().input.cursor = "cnr workspace b".len();
         press(&mut menu, KeyCode::Tab);
@@ -1414,5 +1574,55 @@ mod tests {
         assert_eq!(command(&menu), "list ");
         assert!(matches!(press(&mut menu, KeyCode::Enter), Effect::Idle));
         assert!(windows_paste(&[Event::Key(key(KeyCode::Enter))], 0).is_none());
+    }
+
+    #[test]
+    fn windows_paste_notice_requires_a_fresh_enter_to_run() {
+        for vi in [false, true] {
+            let mut menu = Menu::new(vi, None);
+            let batch: Vec<_> = "list"
+                .chars()
+                .map(|ch| Event::Key(key(KeyCode::Char(ch))))
+                .chain([Event::Key(key(KeyCode::Enter))])
+                .collect();
+            let inserted = windows_paste(&batch, 0).expect("paste with newline");
+            assert!(matches!(
+                menu.paste_suppressed_newline(&inserted),
+                Effect::Redraw
+            ));
+            assert_eq!(command(&menu), "list ");
+            assert_eq!(
+                menu.prompt.as_ref().unwrap().error,
+                Some(PASTE_NEWLINE_NOTICE)
+            );
+            let frame = view::frame(&mut menu, (120, 30), true, true);
+            let rendered = frame
+                .rows
+                .iter()
+                .map(|line| line.text())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(
+                rendered.contains(text(PASTE_NEWLINE_NOTICE, vi)),
+                "{rendered}"
+            );
+            match press(&mut menu, KeyCode::Enter) {
+                Effect::Run(args) => assert_eq!(args, ["list"]),
+                _ => panic!("fresh Enter should run the inserted command"),
+            }
+        }
+    }
+
+    #[test]
+    fn windows_paste_notice_does_not_replace_errors_or_appear_in_search() {
+        let mut menu = Menu::new(false, None);
+        menu.paste_suppressed_newline(&"x".repeat(COMMAND_LIMIT + 1));
+        assert_eq!(menu.prompt.as_ref().unwrap().error, Some(COMMAND_TOO_LONG));
+
+        let mut search = Menu::new(false, None);
+        press(&mut search, KeyCode::Char('/'));
+        search.paste_suppressed_newline("find ");
+        assert!(search.prompt.is_none());
+        assert_eq!(search.search.unwrap().value, "find ");
     }
 }

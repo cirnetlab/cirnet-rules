@@ -22,9 +22,9 @@ const ORANGE: Color = Color::Rgb {
 };
 
 const SHADOW: Color = Color::Rgb {
-    r: 38,
-    g: 31,
-    b: 35,
+    r: 78,
+    g: 72,
+    b: 76,
 };
 
 const BANNER_COLORS: [Color; 4] = [
@@ -78,7 +78,6 @@ pub(super) enum Tone {
 pub(super) enum PalettePart {
     InputRim,
     InputEdge,
-    SuggestionsEdge,
     Input,
     Detail,
     Suggestion,
@@ -179,14 +178,12 @@ impl Style {
         let input = depth.color((27, 29, 32), 234, DarkGrey);
         let suggestions = depth.color((31, 33, 37), 235, DarkGrey);
         let input_rim = depth.color((78, 80, 86), 240, DarkGrey);
-        let suggestions_edge = depth.color((49, 51, 56), 237, DarkGrey);
         let (color, background) = match part {
             InputRim | InputEdge => (input_rim, None),
-            SuggestionsEdge => (suggestions_edge, None),
             Input => (depth.color((237, 237, 239), 255, White), Some(input)),
-            Detail => (depth.color((194, 195, 199), 251, White), Some(suggestions)),
-            Suggestion => (depth.color((180, 199, 230), 153, White), Some(suggestions)),
-            Selected => (depth.color((212, 225, 250), 189, White), Some(suggestions)),
+            Detail => (depth.color((159, 161, 166), 248, Grey), Some(suggestions)),
+            Suggestion => (depth.color((211, 212, 215), 252, White), Some(suggestions)),
+            Selected => (depth.color((237, 237, 239), 255, White), Some(suggestions)),
         };
         Self {
             color: Some(color),
@@ -395,13 +392,17 @@ impl Frame {
         &'a self,
         previous: Option<&'a Self>,
     ) -> impl Iterator<Item = (u16, &'a Line)> {
+        let resized = previous.is_some_and(|old| old.size != self.size);
         let previous = previous.filter(|old| old.size == self.size);
         self.rows
             .iter()
             .enumerate()
-            .filter(move |(y, line)| match previous {
-                Some(old) => &old.rows[*y] != *line,
-                None => line.0.is_some(),
+            .filter(move |(y, line)| {
+                resized
+                    || match previous {
+                        Some(old) => &old.rows[*y] != *line,
+                        None => line.0.is_some(),
+                    }
             })
             .map(|(y, line)| (y as u16, line))
     }
@@ -436,15 +437,16 @@ impl Painter {
         color: bool,
     ) -> io::Result<()> {
         let previous = self.previous.as_ref();
-        let reset = previous.is_none_or(|old| old.size != frame.size);
-        if reset {
+        let initial = previous.is_none();
+        let resized = previous.is_some_and(|old| old.size != frame.size);
+        if initial {
             queue!(out, MoveTo(0, 0), Clear(ClearType::All))?;
         }
-        let mut changed = reset;
+        let mut changed = initial || resized;
         let mut active = Style::default();
         for (y, line) in frame.changed_rows(previous) {
             let old = previous
-                .filter(|_| !reset)
+                .filter(|_| !resized)
                 .map(|old| &old.rows[usize::from(y)]);
             let (column, dirty) = line.damage(old);
             queue!(out, MoveTo(column, y))?;
@@ -468,7 +470,7 @@ impl Painter {
             } else {
                 queue!(out, Print(&line.contents()[dirty]))?;
             }
-            if old.is_some_and(|old| old.contents().width() > line.contents().width()) {
+            if resized || old.is_some_and(|old| old.contents().width() > line.contents().width()) {
                 let plain = Style::default();
                 plain.write(out, active)?;
                 active = plain;
@@ -571,6 +573,36 @@ mod tests {
             .unwrap();
         assert!(output.status.success(), "{output:?}");
         true
+    }
+
+    #[test]
+    fn resizing_repaints_without_clearing_the_screen_and_erases_stale_rows() {
+        if ran_in_ansi_fixture(
+            "resizing_repaints_without_clearing_the_screen_and_erases_stale_rows",
+        ) {
+            return;
+        }
+        let mut painter = Painter::default();
+        let mut bytes = Vec::new();
+        let mut original = Frame::new((24, 4));
+        original.rows[0].push(Tone::Plain, "Việt 東京");
+        original.rows[2].push(Tone::Plain, "stale content");
+        painter.draw(&mut bytes, original, true).unwrap();
+
+        for size in [(12, 4), (30, 6)] {
+            let mut next = Frame::new(size);
+            next.rows[0].push(Tone::Plain, "Việt 東京");
+            bytes.clear();
+            painter.draw(&mut bytes, next, true).unwrap();
+            let trace = String::from_utf8_lossy(&bytes);
+            assert!(!trace.contains("\x1b[2J"), "{trace:?}");
+            assert!(trace.contains("Việt 東京"), "{trace:?}");
+            assert_eq!(
+                trace.matches("\x1b[K").count(),
+                usize::from(size.1),
+                "{trace:?}"
+            );
+        }
     }
 
     #[test]
@@ -718,6 +750,26 @@ mod tests {
     }
 
     #[test]
+    fn palette_uses_neutral_contrast_for_selection_and_descriptions() {
+        let color = |part| {
+            let style = Style::palette(part, SemanticDepth::Rgb);
+            match style.color.unwrap() {
+                Color::Rgb { r, g, b } => (r, g, b, style.background),
+                _ => panic!("expected RGB palette color"),
+            }
+        };
+        let (dr, dg, db, detail_bg) = color(PalettePart::Detail);
+        let (nr, ng, nb, normal_bg) = color(PalettePart::Suggestion);
+        let (sr, sg, sb, selected_bg) = color(PalettePart::Selected);
+        for (r, g, b) in [(dr, dg, db), (nr, ng, nb), (sr, sg, sb)] {
+            assert!(r.abs_diff(g) <= 8 && g.abs_diff(b) <= 8);
+        }
+        assert!(dr < nr && nr < sr);
+        assert_eq!(detail_bg, normal_bg);
+        assert_eq!(normal_bg, selected_bg);
+    }
+
+    #[test]
     fn palette_background_does_not_leak_to_output_or_cleared_cells() {
         if ran_in_ansi_fixture("palette_background_does_not_leak_to_output_or_cleared_cells") {
             return;
@@ -757,7 +809,7 @@ mod tests {
         }
         let frame = view::frame(&mut menu, (120, 35), true, true);
         let input = usize::from(frame.cursor.unwrap().1);
-        for (index, line) in frame.rows[input - 1..=input + 4].iter().enumerate() {
+        for (index, line) in frame.rows[input - 1..=input + 3].iter().enumerate() {
             let spans: Vec<_> = line
                 .segments()
                 .filter(|(tone, _)| matches!(tone, Tone::Palette(_)))
@@ -767,7 +819,7 @@ mod tests {
             let style = |tone| Style::for_tone(tone, SemanticDepth::Rgb);
             assert!(style(first).background.is_none(), "row {index}, left edge");
             assert!(style(last).background.is_none(), "row {index}, right edge");
-            if matches!(index, 0 | 2 | 5) {
+            if matches!(index, 0 | 4) {
                 assert!(
                     spans
                         .iter()

@@ -198,19 +198,25 @@ struct Palette<'a> {
 }
 
 impl<'a> Palette<'a> {
-    fn new(prompt: &'a Prompt, width: usize, available: u16, show_choices: bool) -> Self {
-        let bordered = width >= 12 && available >= 5;
+    fn new(
+        prompt: &'a Prompt,
+        width: usize,
+        available: u16,
+        show_choices: bool,
+        show_notice: bool,
+    ) -> Self {
+        let bordered = width >= 12 && available >= 4;
         let label_width = prompt
             .completions
             .iter()
             .map(|candidate| candidate.label.width())
             .max()
             .unwrap_or(0);
-        let choices = if !show_choices {
-            0
-        } else if prompt.error.is_some() {
+        let choices = if show_notice && prompt.error.is_some() {
             1
-        } else if prompt.input.value.trim().is_empty()
+        } else if !show_choices
+            || prompt.error.is_some()
+            || prompt.input.value.trim().is_empty()
             || width < label_width.saturating_add(if bordered { 6 } else { 2 })
         {
             0
@@ -220,28 +226,22 @@ impl<'a> Palette<'a> {
         Self {
             prompt,
             width,
-            choices: choices.min(available.saturating_sub(if bordered { 4 } else { 1 })),
+            choices: choices.min(available.saturating_sub(if bordered { 3 } else { 1 })),
             label_width,
             bordered,
         }
     }
 
     fn rows(&self) -> u16 {
-        1 + self.choices
-            + 2 * u16::from(self.bordered)
-            + u16::from(self.bordered && self.choices > 0)
+        1 + self.choices + 2 * u16::from(self.bordered)
     }
 
-    fn draw_cap(&self, line: &mut Line, top: bool, suggestions: bool, color: bool) {
+    fn draw_cap(&self, line: &mut Line, top: bool, color: bool) {
         static RULE: LazyLock<String> = LazyLock::new(|| "─".repeat(MAX_COLUMNS));
 
         let (left, right) = if top { ("╭", "╮") } else { ("╰", "╯") };
         let tone = if color {
-            Tone::Palette(if suggestions {
-                PalettePart::SuggestionsEdge
-            } else {
-                PalettePart::InputRim
-            })
+            Tone::Palette(PalettePart::InputRim)
         } else {
             Tone::Plain
         };
@@ -252,15 +252,9 @@ impl<'a> Palette<'a> {
 
     fn draw(&self, line: &mut Line, row: u16, vi: bool, color: bool) -> Option<usize> {
         use PalettePart::*;
-        if self.bordered {
-            if row == 0 || row == 2 {
-                self.draw_cap(line, row == 0, false, color);
-                return None;
-            }
-            if self.choices > 0 && row == self.rows() - 1 {
-                self.draw_cap(line, false, true, color);
-                return None;
-            }
+        if self.bordered && (row == 0 || row == self.rows() - 1) {
+            self.draw_cap(line, row == 0, color);
+            return None;
         }
 
         let input_row = row == u16::from(self.bordered);
@@ -273,12 +267,7 @@ impl<'a> Palette<'a> {
         let inset = usize::from(self.bordered) * 2;
         let inner = self.width - 2 * inset;
         let (left, right, edge_tone) = if color {
-            let part = if input_row {
-                InputEdge
-            } else {
-                SuggestionsEdge
-            };
-            ("│", "│", Tone::Palette(part))
+            ("│", "│", Tone::Palette(InputEdge))
         } else {
             ("│", "│", Tone::Plain)
         };
@@ -319,7 +308,7 @@ impl<'a> Palette<'a> {
             Tone::Muted
         };
         let focus = self.prompt.accepted.as_ref().map_or(0, |(index, _)| *index);
-        let offset = row - if self.bordered { 3 } else { 1 };
+        let offset = row - if self.bordered { 2 } else { 1 };
         let index = (focus + 1).saturating_sub(usize::from(self.choices)) + usize::from(offset);
         let item = &self.prompt.completions[index];
         let selected = index == focus;
@@ -377,7 +366,13 @@ fn output_frame(menu: &mut Menu, size: (u16, u16), color: bool) -> Frame {
         let available = height.saturating_sub(
             header + u16::from(has_status) + body + u16::from(separate_find) + status_gap,
         );
-        Palette::new(prompt, width, available, find.is_none() && !output.running)
+        Palette::new(
+            prompt,
+            width,
+            available,
+            find.is_none() && !output.running,
+            find.is_none(),
+        )
     });
     let command_row = height - palette.as_ref().map_or(0, Palette::rows);
     let status_row = has_status.then(|| command_row - status_gap - 1);
@@ -458,7 +453,9 @@ fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> F
     let mut row = u16::from(height >= 16);
     if banner && columns >= BANNER_WIDTH && height >= 22 {
         let inset = if width >= BANNER_WIDTH { margin } else { 0 };
-        let lines = menu.banner.lines(inset, color);
+        let lines = menu
+            .banner
+            .lines(inset, color, columns.saturating_sub(inset));
         let start = usize::from(row);
         frame.rows[start..start + lines.len()].clone_from_slice(lines);
         row += lines.len() as u16 + 1;
@@ -535,7 +532,7 @@ fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> F
             wide_start = Some(start);
         } else if available > 0 {
             let menu_rows = (available - 1).min(2);
-            let palette = Palette::new(prompt, width, available - menu_rows, true);
+            let palette = Palette::new(prompt, width, available - menu_rows, true, true);
             end -= palette.rows();
             for offset in 0..palette.rows() {
                 let y = end + offset;
@@ -556,7 +553,7 @@ fn menu_frame(menu: &mut Menu, size: (u16, u16), banner: bool, color: bool) -> F
     let wide_palette = wide_start.zip(menu.prompt.as_ref()).map(|(start, prompt)| {
         (
             start,
-            Palette::new(prompt, right_width, end - row - start, true),
+            Palette::new(prompt, right_width, end - row - start, true, true),
         )
     });
     let items = &menu.items[menu.first..];
@@ -643,13 +640,32 @@ mod tests {
             assert!(panel(row - 1).starts_with('╭'));
             assert!(panel(row - 1).ends_with('╮'));
             assert!(panel(row).starts_with('│'));
-            assert!(panel(row + 1).starts_with('╰'));
-            assert!(panel(row + 1).ends_with('╯'));
-            assert!(panel(row + 2).contains("env plan"));
-            assert!(panel(row + 3).contains("env profiles"));
-            assert!(panel(row + 4).starts_with('╰'));
-            assert!(panel(row + 4).ends_with('╯'));
+            assert!(panel(row + 1).contains("env plan"));
+            assert!(panel(row + 2).contains("env profiles"));
+            assert!(panel(row + 3).starts_with('╰'));
+            assert!(panel(row + 3).ends_with('╯'));
+            let panel_width = panel(row - 1).width();
+            for index in row..=row + 2 {
+                let body = panel(index);
+                assert!(body.starts_with('│') && body.ends_with('│'));
+                assert_eq!(body.width(), panel_width);
+            }
+            assert_eq!(panel(row + 3).width(), panel_width);
         }
+    }
+
+    #[test]
+    fn palette_cursor_tracks_unicode_display_columns() {
+        let mut menu = Menu::new(true, None);
+        menu.open_prompt(Input::default());
+        for ch in "搜索界".chars() {
+            press(&mut menu, KeyCode::Char(ch));
+        }
+        let rendered = frame(&mut menu, (120, 35), true, true);
+        let (x, y) = rendered.cursor.unwrap();
+        let line = &rendered.rows[usize::from(y)].text();
+        let end = line.find("搜索界").unwrap() + "搜索界".len();
+        assert_eq!(usize::from(x), line[..end].width());
     }
 
     #[test]
@@ -662,7 +678,7 @@ mod tests {
             ..Prompt::default()
         };
         for available in [4, 5] {
-            let palette = Palette::new(&prompt, 40, available, true);
+            let palette = Palette::new(&prompt, 40, available, true, true);
             let mut displayed = Vec::new();
             for row in 0..palette.rows() {
                 let mut line = Line::default();
@@ -691,20 +707,19 @@ mod tests {
         let left = usize::from(x) - "│ › env p".width();
         let caps = |line: &str| line.chars().skip(left).collect::<String>();
         let top = caps(&lines[row - 1]);
-        let bottom = caps(&lines[row + 4]);
+        let bottom = caps(&lines[row + 3]);
         assert!(top.starts_with('╭') && top.ends_with('╮'));
         assert!(bottom.starts_with('╰') && bottom.ends_with('╯'));
-        assert!(caps(&lines[row + 1]).starts_with('╰'));
-        for line in [&lines[row], &lines[row + 2], &lines[row + 3]] {
+        for line in &lines[row..row + 3] {
             let body = caps(line);
             assert!(body.starts_with('│') && body.ends_with('│'));
             assert_eq!(body.width(), top.width());
         }
         assert!(lines[row].contains("› env p"));
-        assert!(lines[row + 2].contains("env plan"));
-        assert!(lines[row + 2].contains("Review requirements, version pins and conflicts"));
-        assert!(lines[row + 3].contains("env profiles"));
-        assert!(lines[row + 3].contains("List environment profiles"));
+        assert!(lines[row + 1].contains("env plan"));
+        assert!(lines[row + 1].contains("Review requirements, version pins and conflicts"));
+        assert!(lines[row + 2].contains("env profiles"));
+        assert!(lines[row + 2].contains("List environment profiles"));
     }
 
     #[test]
@@ -747,7 +762,7 @@ mod tests {
         assert!(column >= 40);
         let lines = rows(&opened);
         assert!(lines[usize::from(input_row)].contains("› l"));
-        assert!(lines[usize::from(input_row + 2)].contains("list"));
+        assert!(lines[usize::from(input_row + 1)].contains("list"));
         assert_eq!(lines.last().unwrap().trim(), expected);
         assert_eq!(
             lines
@@ -761,6 +776,34 @@ mod tests {
                 .changed_rows(Some(&initial))
                 .any(|(row, _)| (1..=6).contains(&row))
         );
+    }
+
+    #[test]
+    fn running_command_shows_notice_but_find_hides_it() {
+        for size in [(80, 24), (26, 8)] {
+            for color in [true, false] {
+                let mut menu = Menu::new(false, None);
+                menu.open_prompt(Input::default());
+                menu.prompt.as_mut().unwrap().error = Some(["Wait for command", "Đợi lệnh"]);
+                let mut output = OutputView::new("cnr list".into(), false);
+                output.running = true;
+                menu.output = Some(output);
+                let running = frame(&mut menu, size, true, color);
+                let running_rows = rows(&running).join("\n");
+                assert!(running_rows.contains("Wait for command"));
+                assert!(running.cursor.is_some());
+                menu.output.as_mut().unwrap().find = Some(Input::default());
+                let searching = frame(&mut menu, size, true, color);
+                let search_rows = rows(&searching).join("\n");
+                assert!(search_rows.contains("Find"));
+                assert!(!search_rows.contains("Wait for command"));
+                assert!(
+                    rows(&searching)
+                        .iter()
+                        .all(|line| line.width() < usize::from(size.0))
+                );
+            }
+        }
     }
 
     #[test]
@@ -793,7 +836,7 @@ mod tests {
             }));
             assert_eq!(
                 lines
-                    .get(input_row + 2)
+                    .get(input_row + 1)
                     .is_some_and(|line| line.contains("list")),
                 !running
             );
@@ -902,7 +945,7 @@ mod tests {
         let command = opened.cursor.unwrap().1;
         assert!(command < initial.cursor.unwrap().1);
         assert!(
-            opened.rows[usize::from(command + 2)]
+            opened.rows[usize::from(command + 1)]
                 .text()
                 .contains("list")
         );
@@ -953,7 +996,7 @@ mod tests {
             for (colored, plain) in colored.chars().zip(plain.chars()) {
                 if colored != plain {
                     assert_eq!(plain, ' ');
-                    assert!(matches!(colored, '█' | '▀' | '▄'));
+                    assert!(matches!(colored, '⠛' | '⣤' | '⣿' | '\'' | '.' | ':'));
                 }
             }
         }
@@ -1026,6 +1069,16 @@ mod tests {
         );
         let art = frame(&mut menu, (92, 22), true, true);
         assert!(art.rows[1].text().contains('█'));
+        for size in [(92, 22), (93, 22), (94, 22), (100, 25)] {
+            for color in [true, false] {
+                let frame = frame(&mut menu, size, true, color);
+                assert!(
+                    rows(&frame)
+                        .iter()
+                        .all(|line| line.width() < usize::from(size.0))
+                );
+            }
+        }
         for (size, banner) in [((91, 22), true), ((91, 21), true), ((110, 25), false)] {
             let compact = frame(&mut menu, size, banner, true);
             assert!(rows(&compact).iter().any(|line| line.trim() == NAME));
