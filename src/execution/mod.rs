@@ -3,6 +3,8 @@ mod plan;
 pub(crate) mod process;
 mod resolve;
 
+pub(crate) use cancel::Cancellation;
+
 #[cfg(test)]
 mod tests;
 
@@ -64,7 +66,7 @@ pub fn run_native(command: &mut Command, timeout_ms: u64) -> Result<NativeResult
         return Err("Native process requires an absolute executable".into());
     }
     resolve::executable(Path::new(command.get_program()))?;
-    let cancellation = cancel::Cancellation::begin()?;
+    let cancellation = Cancellation::begin()?;
     process::run_process_with(
         command,
         Duration::from_millis(timeout_ms),

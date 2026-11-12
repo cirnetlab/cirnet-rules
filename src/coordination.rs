@@ -17,6 +17,7 @@ use std::{
     path::Path,
 };
 
+pub(crate) use credential::create as create_private_file;
 pub(crate) use dependencies::{check_dependency_step_inputs, validate_selection};
 pub(crate) use leases::validate_bindings;
 use migration::migrate;

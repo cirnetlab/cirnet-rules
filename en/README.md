@@ -1,5 +1,5 @@
 <!-- doc-id: INDEX -->
-<!-- revision: 4 -->
+<!-- revision: 5 -->
 <a id="index"></a>
 
 # CIRNET RULES
@@ -10,6 +10,12 @@ CIRNETRULES provides a Rust governance core, the `cnr` CLI and an MCP
 server over STDIO. Run coding sessions independently in Codex Desktop,
 Claude Code or Antigravity. Use the English registry and policies to
 resolve task authority and the local task store to track work and evidence.
+
+Open `cnr` in a terminal. Use `cnr check all` to inspect readiness and
+`cnr setup agent` to select an Agent, repository and worktree. Review each
+proposed write and confirm it with the required task authorization. Check
+reports distinguish launch configuration, protocol evidence and native client
+observations. [CNR operator guide](references/cnr.md)
 
 | Area | Start here |
 | --- | --- |

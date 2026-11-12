@@ -372,7 +372,7 @@
         "id": "CNR-OPERATOR",
         "kind": "reference",
         "path": "en/references/cnr.md",
-        "revision": 8,
+        "revision": 9,
         "status": "ACTIVE",
         "depends_on": []
       },

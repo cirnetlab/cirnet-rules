@@ -54,7 +54,7 @@ pub(super) fn read(path: &Path, limit: u64) -> Result<String, String> {
 }
 
 #[cfg(unix)]
-pub(super) fn create(path: &Path) -> Result<File, String> {
+pub(crate) fn create(path: &Path) -> Result<File, String> {
     use std::os::unix::fs::OpenOptionsExt;
     OpenOptions::new()
         .write(true)
@@ -65,7 +65,7 @@ pub(super) fn create(path: &Path) -> Result<File, String> {
 }
 
 #[cfg(windows)]
-pub(super) fn create(path: &Path) -> Result<File, String> {
+pub(crate) fn create(path: &Path) -> Result<File, String> {
     use std::{
         ffi::c_void,
         os::windows::{ffi::OsStrExt, io::FromRawHandle},

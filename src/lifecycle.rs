@@ -270,7 +270,7 @@ fn elevated(task: &Value, snapshot: &Value) -> bool {
             .is_some_and(|items| !items.is_empty())
 }
 
-fn fresh(task: &Value, snapshot: &Value) -> bool {
+pub(crate) fn fresh(task: &Value, snapshot: &Value) -> bool {
     let evidence = task["evidence"].as_array().and_then(|values| values.last());
     evidence.is_some_and(|value| {
         let mut receipt = value.clone();

@@ -21,4 +21,5 @@ pub mod environment;
 pub mod execution;
 pub mod governance;
 pub mod mcp;
+pub mod operator;
 pub mod tooling;

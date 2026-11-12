@@ -13,7 +13,7 @@ pub(crate) struct GovernanceService {
     policy_sha256: String,
 }
 
-fn store_identity(root: &Path) -> Result<(String, String, String), String> {
+pub(crate) fn store_identity(root: &Path) -> Result<(String, String, String), String> {
     let admin = runner::bounded_git_info(root, &["rev-parse", "--absolute-git-dir"])?;
     let common = runner::bounded_git_info(
         root,
@@ -27,7 +27,7 @@ fn store_identity(root: &Path) -> Result<(String, String, String), String> {
     ))
 }
 
-fn policy_hash(root: &Path) -> Result<String, String> {
+pub(crate) fn policy_hash(root: &Path) -> Result<String, String> {
     let mut manifest = BTreeMap::new();
     for source in [
         "governance.yaml",
@@ -43,30 +43,52 @@ fn policy_hash(root: &Path) -> Result<String, String> {
     ))
 }
 
+pub(crate) fn verified_root(root: &Path) -> Result<PathBuf, String> {
+    let root = root
+        .canonicalize()
+        .map_err(|_| "Governance checkout is unavailable")?;
+    let top = runner::bounded_git_info(&root, &["rev-parse", "--show-toplevel"])?;
+    let origin = runner::bounded_git_info(
+        &root,
+        &[
+            "config",
+            "--local",
+            "--no-includes",
+            "--get-all",
+            "remote.origin.url",
+        ],
+    )?;
+    if Path::new(top.trim()).canonicalize().ok().as_ref() != Some(&root)
+        || origin.trim().trim_end_matches(".git") != "https://github.com/cirnetlab/cirnet-rules"
+    {
+        return Err("Selected checkout does not match the governance repository".into());
+    }
+    Ok(root)
+}
+
 impl GovernanceService {
+    pub(crate) fn snapshot_sha256(&self) -> Result<String, String> {
+        Ok(docs::sha256(
+            &serde_json::to_vec(&(&self.identity, &self.policy_sha256))
+                .map_err(|_| "Cannot encode service identity")?,
+        ))
+    }
+
+    pub(crate) fn ensure_current(&self) -> Result<(), String> {
+        if store_identity(&self.root)? != self.identity
+            || workspace::workspace_path(&self.root, Some(&self.workspace))? != self.workspace
+            || policy_hash(&self.root)? != self.policy_sha256
+        {
+            return Err("Governance context changed. Restart the service.".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn open(root: &Path, workspace: &Path) -> Result<Self, String> {
         if !root.is_absolute() || !workspace.is_absolute() {
             return Err("Governance and workspace must be absolute directories".into());
         }
-        let root = root
-            .canonicalize()
-            .map_err(|_| "Governance checkout is unavailable")?;
-        let top = runner::bounded_git_info(&root, &["rev-parse", "--show-toplevel"])?;
-        let origin = runner::bounded_git_info(
-            &root,
-            &[
-                "config",
-                "--local",
-                "--no-includes",
-                "--get-all",
-                "remote.origin.url",
-            ],
-        )?;
-        if Path::new(top.trim()).canonicalize().ok().as_ref() != Some(&root)
-            || origin.trim().trim_end_matches(".git") != "https://github.com/cirnetlab/cirnet-rules"
-        {
-            return Err("Selected checkout does not match the governance repository".into());
-        }
+        let root = verified_root(root)?;
         let workspace = workspace::workspace_path(&root, Some(workspace))?;
         policy::registry(&root)?;
         Ok(Self {
@@ -90,12 +112,7 @@ impl GovernanceService {
         }) {
             return Err("Tool arguments cannot select authority or workspace".into());
         }
-        if store_identity(&self.root)? != self.identity
-            || workspace::workspace_path(&self.root, Some(&self.workspace))? != self.workspace
-            || policy_hash(&self.root)? != self.policy_sha256
-        {
-            return Err("Governance context changed. Restart the service.".into());
-        }
+        self.ensure_current()?;
         let work = self
             .workspace
             .to_str()

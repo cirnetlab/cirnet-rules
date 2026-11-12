@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 8 -->
-<!-- source-sha256: e4c2766e3f7dbddb92dda5df3f8ff1297f3f16f28d1addec983fd09c7eb65fad -->
+<!-- revision: 9 -->
+<!-- source-sha256: 4da0df9cdd0a62f4fb389c3ba0765d79cb9f981822eb1cb50be00dc9d871e0f9 -->
 <!-- translation-status: synchronized -->
 <a id="cnr-cli"></a>
 
@@ -117,6 +117,67 @@ giới hạn và được gửi riêng vào stderr. Mã thoát 0 là thành côn
 và 2 là bị chặn hoặc chưa chạy. Mã 130 là đã hủy. `child_exit_code` báo
 mã của tiến trình con riêng. `cnr completion SHELL` xuất hoàn thành lệnh cho Bash, Zsh,
 Fish hoặc PowerShell.
+
+<a id="system-checks"></a>
+
+## Kiểm tra hệ thống
+
+Mở `cnr` rồi chọn System checks hoặc nhập `cnr check all` trong ô lệnh.
+Chọn một mục như `cnr check bindings` để giới hạn phạm vi kiểm tra. Khi chạy
+headless, `cnr check` mặc định dùng `all`. Dùng `--repo`, `--binding`, `--task`
+và `--agent` để thu hẹp phạm vi bằng chứng. Kết quả phân biệt checkout phát
+hiện được với binding đã xác nhận, cũng như giao thức MCP đã kiểm chứng với
+phiên Agent native. Xem lý do và bước tiếp theo cho từng mục bắt buộc còn thiếu
+bằng chứng.
+
+Dùng `cnr check all --json --non-interactive` để nhận báo cáo có phiên bản.
+Mã thoát 1 báo lỗi, mã 2 báo thiếu kiểm tra bắt buộc hoặc có cảnh báo ở chế độ
+nghiêm ngặt, mã 130 báo đã hủy. Mã 0 cho biết các mục bắt buộc đã đạt và vẫn
+có thể có mục tùy chọn chưa chạy. Check chỉ đọc trạng thái hiện có. Binding,
+xuất bundle, đồng bộ và đăng ký được xử lý bằng các thao tác thiết lập riêng.
+
+<a id="guided-agent-setup"></a>
+
+## Thiết lập Agent có hướng dẫn
+
+Trong `cnr`, chọn Agent setup hoặc nhập `cnr setup agent`. Chọn Codex, Claude
+Code hoặc Antigravity, rồi rà soát Governance root, workspace, repository và
+binding. Checkout tìm thấy cần có binding được rà soát. Nếu có nhiều binding,
+hãy chọn rõ một binding. Lệnh headless `cnr setup agent` yêu cầu `--agent` và
+báo ngữ cảnh đã chọn.
+
+Xem trước và xác nhận bundle hướng dẫn ở thư mục mới nằm ngoài Git và cấu hình
+Agent native. Manifest liệt kê profile, skill và tài liệu tham chiếu được chọn.
+Khi chạy headless, `cnr agent export --dry-run` nhận các lựa chọn xuất và đường
+dẫn đầu ra. Có thể áp dụng bằng digest `--expect` vừa duyệt. Bundle xuất với
+`--binding` cố định binding đã chọn và Git HEAD của worktree đó. Truyền cùng
+binding vào `agent check` hoặc `agent sync` nếu muốn chọn tường minh.
+
+Rà soát kế hoạch đồng bộ cho đúng worktree. Nếu `AGENTS.md` hoặc `CLAUDE.md`
+của người dùng chặn strict sync, chọn xem trước managed block. Bản xem trước
+hiển thị nội dung block đề xuất và digest dữ liệu gốc, không in nội dung người
+dùng. Đọc hướng dẫn mới cùng hướng dẫn local trước khi duyệt. Lần tiếp nhận đầu
+thêm một block riêng theo ký tự xuống dòng đầu tiên tìm thấy, hoặc dùng LF nếu
+chưa có xuống dòng. UTF-8 BOM hiện có và toàn bộ byte ban đầu được giữ nguyên.
+Có thể chọn chuyển đổi từ biên nhận quản lý toàn file đã kiểm chứng. Lần cập
+nhật chỉ sửa block đã xác minh. Marker sai cấu trúc hoặc bị sửa cần rà soát
+local. Skill và tài liệu tham chiếu vẫn dùng cơ chế quản lý file nghiêm ngặt.
+Codex và Antigravity dùng chung một block `AGENTS.md` và không nhân đôi đường
+dẫn `.agents/skills` khi nội dung giống nhau.
+
+Chọn task hiện hành và operator đã khai báo trước khi xác nhận ghi. Bản xem
+trước managed block gắn với revision của task, worktree đích, bundle và dữ liệu
+gốc. Khi chạy headless, dùng `--entry-mode managed-block --dry-run --task` với
+ID task và `--actor` với operator, sau đó áp dụng digest đã duyệt qua
+`--yes --expect`. Dùng `agent rollback` với biên nhận rồi rà soát bản xem trước
+rollback. Nếu entry thay đổi sau khi đồng bộ, rollback dừng và giữ nguyên byte
+hiện tại để rà soát local. Xem `cnr audit agent --receipt` với ID biên nhận
+trước khi phục hồi thao tác bị gián đoạn.
+
+Xuất bundle khởi chạy MCP, rồi rà soát đăng ký phạm vi project hoặc làm theo
+hướng dẫn nhập thủ công cho Agent và phiên bản ứng dụng đã chọn. Chạy kiểm tra
+giao thức trong CNR. Việc Agent native phát hiện skill, nạp cấu hình và gọi
+tool cần bằng chứng riêng từ phiên Agent đã chọn.
 
 <a id="mcp-coordination"></a>
 

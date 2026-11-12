@@ -8,7 +8,7 @@ use std::{
 };
 
 pub(in crate::workspace) use named::run as run_named;
-pub(crate) use named::{freeze_task_bindings, resolve_task, validate_task_bindings};
+pub(crate) use named::{freeze_task_bindings, resolve_named, resolve_task, validate_task_bindings};
 
 #[derive(Debug)]
 pub struct Binding {
@@ -112,15 +112,71 @@ pub(super) fn bind(
     repo: &str,
     relative: &str,
     actor: &str,
+    review: (Option<&str>, Option<&str>),
+) -> Result<Value, String> {
+    let workspace = workspace_path(root, workspace)?;
+    let (git, record, preview) =
+        binding_proposal(root, &workspace, registry, repo, relative, actor, review.0)?;
+    if review
+        .1
+        .is_some_and(|expected| preview["plan_sha256"] != expected)
+    {
+        return Err("Binding preview changed. Review the current worktree again.".into());
+    }
+    if preview["state"] == "UNCHANGED" {
+        return Ok(json!({
+            "status":"PASS","state":"UNCHANGED","repository":repo,"path":relative,
+            "binding":preview["binding"],"linked_worktree":git.linked_worktree
+        }));
+    }
+    let record_path = record_path(&workspace, repo)?;
+    let parent = record_path.rsplit_once('/').unwrap().0;
+    local_directory(root, parent)?;
+    let file = scoped_path(root, &record_path)?;
+    let _coordinator = crate::tasks::lock(root, "_coordination")?;
+    let _lock = LocalLock::acquire(file.parent().unwrap().join(".workspace.lock"))?;
+    let (_, current, fresh) =
+        binding_proposal(root, &workspace, registry, repo, relative, actor, review.0)?;
+    if preview["plan_sha256"] != fresh["plan_sha256"] {
+        return Err("Binding changed while acquiring the write lock. Review again.".into());
+    }
+    write_local(&file, &current)?;
+    Ok(json!({
+        "status":"PASS","state":"CONFIRMED_LOCAL","repository":repo,"path":relative,
+        "binding":record.identity,"linked_worktree":git.linked_worktree,
+        "permissions_granted":false
+    }))
+}
+
+pub(super) fn preview_bind(
+    root: &Path,
+    workspace: Option<&Path>,
+    registry: &Value,
+    repo: &str,
+    relative: &str,
+    actor: &str,
     expected: Option<&str>,
 ) -> Result<Value, String> {
+    let workspace = workspace_path(root, workspace)?;
+    binding_proposal(root, &workspace, registry, repo, relative, actor, expected)
+        .map(|(_, _, preview)| preview)
+}
+
+fn binding_proposal(
+    root: &Path,
+    workspace: &Path,
+    registry: &Value,
+    repo: &str,
+    relative: &str,
+    actor: &str,
+    expected: Option<&str>,
+) -> Result<(GitIdentity, Record, Value), String> {
     repository(registry, repo)?;
     if repo == "cirnet-rules" {
         return Err("The invocation root already binds cirnet-rules".into());
     }
     validate_actor(actor)?;
-    let workspace = workspace_path(root, workspace)?;
-    let path = scoped_path(&workspace, relative)?;
+    let path = scoped_path(workspace, relative)?;
     let git = inspect_git(&path)?;
     if git.path != path || git.path == root {
         return Err("Selected path is not an independent checkout root".into());
@@ -130,12 +186,8 @@ pub(super) fn bind(
     {
         return Err("Checkout does not contain the reviewed registry Git anchor".into());
     }
-    let record_path = record_path(&workspace, repo)?;
-    let parent = record_path.rsplit_once('/').unwrap().0;
-    local_directory(root, parent)?;
+    let record_path = record_path(workspace, repo)?;
     let file = scoped_path(root, &record_path)?;
-    let _coordinator = crate::tasks::lock(root, "_coordination")?;
-    let _lock = LocalLock::acquire(file.parent().unwrap().join(".workspace.lock"))?;
     let prior: Option<Record> = if file
         .try_exists()
         .map_err(|_| "Cannot inspect binding file")?
@@ -144,36 +196,36 @@ pub(super) fn bind(
     } else {
         None
     };
-    if let Some(prior) = &prior
-        && prior.relative == relative
-        && resolve(root, Some(&workspace), repo, registry).is_ok()
-    {
-        return Ok(json!({
-            "status":"PASS","state":"UNCHANGED","repository":repo,"path":relative,
-            "binding":prior.identity,"linked_worktree":git.linked_worktree
-        }));
-    }
-    if expected != prior.as_ref().map(|row| row.identity.as_str()) {
+    let unchanged = prior
+        .as_ref()
+        .is_some_and(|prior| prior.relative == relative)
+        && resolve(root, Some(workspace), repo, registry).is_ok();
+    if !unchanged && expected != prior.as_ref().map(|row| row.identity.as_str()) {
         return Err(
             "Binding changed or exists; use --replace with its current identity after review"
                 .into(),
         );
     }
     let identity = fingerprint(&git, &git.commit)?;
-    named::check_repository_path(root, &workspace, registry, repo, &git)?;
+    named::check_repository_path(root, workspace, registry, repo, &git)?;
     let record = Record {
         schema: 1,
         relative: relative.to_owned(),
-        anchor: git.commit,
+        anchor: git.commit.clone(),
         identity,
         actor: actor.to_owned(),
     };
-    write_local(&file, &record)?;
-    Ok(json!({
-        "status":"PASS","state":"CONFIRMED_LOCAL","repository":repo,"path":relative,
-        "binding":record.identity,"linked_worktree":git.linked_worktree,
+    let mut preview = json!({
+        "status":"PASS","state":if unchanged {"UNCHANGED"} else {"DRY_RUN"},"repository":repo,"path":relative,
+        "binding":prior.as_ref().filter(|_| unchanged).map_or(&record.identity, |record| &record.identity),
+        "previous_binding":prior.as_ref().map(|record| &record.identity),
+        "head":git.commit,"actor":actor,"linked_worktree":git.linked_worktree,
         "permissions_granted":false
-    }))
+    });
+    preview["plan_sha256"] = json!(crate::docs::sha256(
+        &serde_json::to_vec(&preview).map_err(|_| "Cannot encode binding preview")?
+    ));
+    Ok((git, record, preview))
 }
 
 fn validate_actor(actor: &str) -> Result<(), String> {

@@ -300,6 +300,12 @@ impl Grammar {
         if flags.clone().any(|flag| flag == "--all") && flags.clone().any(|flag| flag == "--type") {
             return false;
         }
+        if !flags
+            .clone()
+            .all(|flag| super::super::command_catalog::supports_option(command, words, flag))
+        {
+            return false;
+        }
         if command == "audit"
             && words
                 .first()
@@ -544,7 +550,11 @@ impl Completer {
             .next()
             .unwrap_or_default();
         let mut action_words = context.words.clone();
-        for &action in command_words(&command.name, &words) {
+        let catalog = super::super::command_catalog::action_words(&command.name, &words);
+        let actions = catalog
+            .as_deref()
+            .unwrap_or_else(|| command_words(&command.name, &words));
+        for &action in actions {
             action_words.push(action.into());
             if self
                 .grammar
@@ -785,8 +795,6 @@ fn command_words(command: &str, preceding: &[&str]) -> &'static [&'static str] {
         ("task", ["evidence"]) => &["export", "inspect"],
         ("governance", []) => &["validate", "inspect", "context", "migrate"],
         ("governance", ["migrate"]) => &["inspect", "export", "validate", "import", "rollback"],
-        ("agent", []) => &["list", "export", "check", "mcp-config", "sync", "rollback"],
-        ("agent", ["mcp-config"]) => &["export", "check"],
         ("audit", []) => &["tooling", "task", "migration", "agent", "list"],
         ("ci", []) => &["verify"],
         ("completion", []) => &["bash", "zsh", "fish", "powershell"],
@@ -822,7 +830,7 @@ mod tests {
         for (input, expected) in [
             ("l", &["list"][..]),
             ("i", &["info", "init", "install"]),
-            ("cnr se", &["search"]),
+            ("cnr se", &["search", "setup"]),
             ("env pl", &["plan"]),
             ("workspace b", &["bind", "binding"]),
             ("task ev", &["evidence"]),
@@ -899,6 +907,40 @@ mod tests {
             ]
         );
         assert!(arguments(r#"exec -- "not closed\""#).is_err());
+    }
+
+    #[test]
+    fn operator_completion_is_scoped_to_the_selected_action() {
+        let completer = Completer::new(None, false);
+        for (line, expected) in [
+            ("agent sync --t", &["--target", "--task"][..]),
+            ("agent sync --bu", &["--bundle"]),
+            ("agent mcp-config check --w", &[]),
+            ("agent mcp-config check --bu", &["--bundle"]),
+            ("check m", &["mcp"]),
+            (
+                "check mcp --agent ",
+                &["all", "antigravity", "claude", "codex"],
+            ),
+            ("setup ", &["agent"]),
+            ("setup agent --agent=", &["antigravity", "claude", "codex"]),
+        ] {
+            assert_eq!(choices(&completer, line), expected, "{line}");
+        }
+        let line = "cnr agent sync --dry-run\r\n --bundle 'C:\\Dự án\\bundle' --target \"C:\\Dự án\\repo\"";
+        assert_eq!(
+            arguments(line).unwrap(),
+            [
+                "cnr",
+                "agent",
+                "sync",
+                "--dry-run",
+                "--bundle",
+                r"C:\Dự án\bundle",
+                "--target",
+                r"C:\Dự án\repo"
+            ],
+        );
     }
 
     #[test]

@@ -1,5 +1,9 @@
 use super::{completion::Completer, text, viewport::Buffer};
-use cirnetrules::execution;
+use crate::operator::{CheckRequest, check_request};
+use cirnetrules::{
+    execution,
+    operator::{CheckReport, Status},
+};
 use serde::Deserialize;
 use std::{
     path::{Path, PathBuf},
@@ -19,9 +23,13 @@ const TIMEOUT: Duration = Duration::from_secs(30 * 60);
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub(super) enum Outcome {
     Pass,
+    Warning,
     Fail,
+    Error,
     Blocked,
     NotRun,
+    Unsupported,
+    Skipped,
     Cancelled,
     #[serde(skip_deserializing)]
     TimedOut,
@@ -31,9 +39,13 @@ impl Outcome {
     pub(super) fn label(self) -> &'static str {
         match self {
             Self::Pass => "PASS",
+            Self::Warning => "WARNING",
             Self::Fail => "FAIL",
+            Self::Error => "ERROR",
             Self::Blocked => "BLOCKED",
             Self::NotRun => "NOT_RUN",
+            Self::Unsupported => "UNSUPPORTED",
+            Self::Skipped => "SKIPPED",
             Self::Cancelled => "CANCELLED",
             Self::TimedOut => "TIMED_OUT",
         }
@@ -41,12 +53,39 @@ impl Outcome {
 
     fn expected_exit(self) -> i32 {
         match self {
-            Self::Pass => 0,
-            Self::Fail => 1,
-            Self::Blocked | Self::NotRun | Self::TimedOut => 2,
+            Self::Pass | Self::Warning | Self::Skipped => 0,
+            Self::Fail | Self::Error => 1,
+            Self::Blocked | Self::NotRun | Self::Unsupported | Self::TimedOut => 2,
             Self::Cancelled => 130,
         }
     }
+}
+
+impl From<Status> for Outcome {
+    fn from(status: Status) -> Self {
+        match status {
+            Status::Pass => Self::Pass,
+            Status::Warning => Self::Warning,
+            Status::Error => Self::Error,
+            Status::Blocked => Self::Blocked,
+            Status::NotRun => Self::NotRun,
+            Status::Unsupported => Self::Unsupported,
+            Status::Skipped => Self::Skipped,
+            Status::Cancelled => Self::Cancelled,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+enum OutputContract {
+    #[cfg(test)]
+    External,
+    #[default]
+    Cnr,
+    Check {
+        summary: bool,
+        pretty: bool,
+    },
 }
 
 pub(super) struct RunOutput {
@@ -55,6 +94,7 @@ pub(super) struct RunOutput {
     pub(super) exit_code: Option<i32>,
     pub(super) outcome: Outcome,
     pub(super) completer: Option<Completer>,
+    pub(super) check_report: Option<CheckReport>,
 }
 
 pub(super) struct Runner {
@@ -71,53 +111,113 @@ impl Runner {
         catalog_project: Option<&Path>,
         vi: bool,
     ) -> Result<Self, String> {
-        let refresh_catalog = check_command(&args, vi)?;
+        let mut invocation = prepare(&args, vi)?;
+        if let Some(mut check) = invocation.check.take() {
+            if check.scope.workspace.is_none() {
+                check.scope.workspace = project;
+            }
+            return Ok(Self::spawn_check(check));
+        }
         let refresh = catalog_project
-            .filter(|_| refresh_catalog)
+            .filter(|_| invocation.refresh_catalog)
             .map(PathBuf::from);
         let executable = std::env::current_exe().map_err(|_| "Cannot locate the CNR executable")?;
         let mut command = Command::new(executable);
-        command.arg("--non-interactive");
-        if let Some(project) = project {
+        if !invocation.non_interactive {
+            command.arg("--non-interactive");
+        }
+        if let Some(project) = project.filter(|_| invocation.inherit_project) {
             command.arg("--project").arg(project);
         }
-        if vi {
+        if vi && !invocation.explicit_lang {
             command.args(["--lang", "vi"]);
         }
+        if matches!(invocation.output, OutputContract::Check { .. }) && !invocation.explicit_json {
+            command.arg("--json");
+        }
         command.args(args);
-        Ok(Self::spawn(command, refresh, vi, true))
+        Ok(Self::spawn(command, refresh, vi, invocation.output))
     }
 
-    fn spawn(mut command: Command, refresh: Option<PathBuf>, vi: bool, cnr_stdout: bool) -> Self {
+    fn spawn(
+        mut command: Command,
+        refresh: Option<PathBuf>,
+        vi: bool,
+        contract: OutputContract,
+    ) -> Self {
+        Self::worker(move |signal| {
+            execution::run_quiet_native(&mut command, TIMEOUT, || signal.load(Ordering::Relaxed))
+                .map(|result| {
+                    let (outcome, rendered) = match contract {
+                        #[cfg(test)]
+                        OutputContract::External => (completed_outcome(&result, false), None),
+                        OutputContract::Cnr => (completed_outcome(&result, true), None),
+                        OutputContract::Check { summary, pretty } => {
+                            checked_report(&result, summary, pretty)
+                        }
+                    };
+                    let notice = result
+                        .output_truncated
+                        .then(|| text(["[Output truncated]", "[Đầu ra đã được rút gọn]"], vi));
+                    let buffer = Buffer::from_streams(
+                        sanitize(
+                            rendered
+                                .as_ref()
+                                .map_or(result.output.as_slice(), String::as_bytes),
+                        ),
+                        &sanitize(&result.error),
+                        notice,
+                    );
+                    let completer = refresh
+                        .filter(|_| outcome == Outcome::Pass)
+                        .map(|project| Completer::new(Some(&project), vi));
+                    RunOutput {
+                        buffer,
+                        elapsed_ms: result.elapsed_ms,
+                        exit_code: result.exit_code,
+                        outcome,
+                        completer,
+                        check_report: None,
+                    }
+                })
+        })
+    }
+
+    fn spawn_check(check: CheckRequest) -> Self {
+        Self::worker(move |signal| {
+            let report = check.finalize(cirnetrules::operator::check(
+                &check.target,
+                &check.scope,
+                check.strict,
+                || signal.load(Ordering::Relaxed),
+            ));
+            let exit = i32::from(report.exit_code);
+            let outcome = check_outcome(&report, Some(exit))
+                .ok_or("Check report and exit status disagree.")?;
+            let rendered = if check.machine {
+                serde_json::to_string(&report).map_err(|_| "Cannot encode check report")?
+            } else if check.verbose {
+                serde_json::to_string_pretty(&report).map_err(|_| "Cannot encode check report")?
+            } else {
+                report.render()
+            };
+            Ok(RunOutput {
+                buffer: Buffer::from_streams(sanitize(rendered.as_bytes()), "", None),
+                elapsed_ms: report.duration_ms,
+                exit_code: Some(exit),
+                outcome,
+                completer: None,
+                check_report: Some(report),
+            })
+        })
+    }
+
+    fn worker(run: impl FnOnce(&AtomicBool) -> Result<RunOutput, String> + Send + 'static) -> Self {
         let (sender, receiver) = mpsc::sync_channel(1);
         let cancelled = Arc::new(AtomicBool::new(false));
         let signal = Arc::clone(&cancelled);
         let worker = thread::spawn(move || {
-            let result = execution::run_quiet_native(&mut command, TIMEOUT, || {
-                signal.load(Ordering::Relaxed)
-            })
-            .map(|result| {
-                let outcome = completed_outcome(&result, cnr_stdout);
-                let notice = result
-                    .output_truncated
-                    .then(|| text(["[Output truncated]", "[Đầu ra đã được rút gọn]"], vi));
-                let buffer = Buffer::from_streams(
-                    sanitize(&result.output),
-                    &sanitize(&result.error),
-                    notice,
-                );
-                let completer = refresh
-                    .filter(|_| outcome == Outcome::Pass)
-                    .map(|project| Completer::new(Some(&project), vi));
-                RunOutput {
-                    buffer,
-                    elapsed_ms: result.elapsed_ms,
-                    exit_code: result.exit_code,
-                    outcome,
-                    completer,
-                }
-            });
-            let _ = sender.send(result);
+            let _ = sender.send(run(&signal));
         });
         Self {
             receiver,
@@ -205,7 +305,10 @@ fn cnr_outcome(bytes: &[u8], exit_code: Option<i32>) -> Option<Outcome> {
     }
     // Deserialize only top-level report fields. This avoids retaining a second
     // copy of captured output and rejects duplicate status keys.
-    let report: CnrReport<'_> = serde_json::from_str(body).ok()?;
+    let report: CnrReport<'_> = match serde_json::from_str(body) {
+        Ok(report) => report,
+        Err(_) => return (exit_code == Some(0)).then_some(Outcome::Fail),
+    };
     if header_status.is_some_and(|header| header != report.status.label())
         || exit_code != Some(report.status.expected_exit())
     {
@@ -247,8 +350,72 @@ fn completed_outcome(result: &execution::NativeResult, cnr_stdout: bool) -> Outc
     }
 }
 
-fn check_command(args: &[String], vi: bool) -> Result<bool, String> {
-    let prefix = args.split(|arg| arg == "--").next().unwrap_or(&[]);
+fn check_outcome(report: &CheckReport, exit_code: Option<i32>) -> Option<Outcome> {
+    let outcome = Outcome::from(report.overall_status);
+    (report.schema_version == 1
+        && exit_code == Some(i32::from(report.exit_code))
+        && i32::from(report.exit_code) == outcome.expected_exit())
+    .then_some(outcome)
+}
+
+fn checked_report(
+    result: &execution::NativeResult,
+    summary: bool,
+    pretty: bool,
+) -> (Outcome, Option<String>) {
+    if result.cancelled || result.timed_out {
+        return (completed_outcome(result, true), None);
+    }
+    if !result.output_truncated
+        && let Ok(report) = serde_json::from_slice::<CheckReport>(&result.output)
+    {
+        let Some(outcome) = check_outcome(&report, result.exit_code) else {
+            return (
+                Outcome::Error,
+                Some("Check report and measured exit status disagree.".into()),
+            );
+        };
+        return (
+            outcome,
+            if summary {
+                Some(report.render())
+            } else if pretty {
+                serde_json::to_string_pretty(&report).ok()
+            } else {
+                None
+            },
+        );
+    }
+    // Parser diagnostics still use the legacy failure envelope. A successful
+    // process without a complete versioned check report cannot establish PASS.
+    if !result.output_truncated
+        && let Some(Outcome::Fail | Outcome::Error) = cnr_outcome(&result.output, result.exit_code)
+    {
+        return (Outcome::Error, None);
+    }
+    (
+        Outcome::Error,
+        Some("Check did not return a complete versioned report.".into()),
+    )
+}
+
+#[derive(Default)]
+struct Invocation {
+    inherit_project: bool,
+    refresh_catalog: bool,
+    explicit_json: bool,
+    explicit_lang: bool,
+    non_interactive: bool,
+    output: OutputContract,
+    check: Option<CheckRequest>,
+}
+
+fn prepare(args: &[String], vi: bool) -> Result<Invocation, String> {
+    let boundary = args
+        .iter()
+        .position(|arg| arg == "--")
+        .unwrap_or(args.len());
+    let (prefix, trailing) = args.split_at(boundary);
     let interactive =
         || "Interactive TUI and MCP servers cannot run inside the command view".to_owned();
     let parsed = super::super::parser(vi)
@@ -260,28 +427,70 @@ fn check_command(args: &[String], vi: bool) -> Result<bool, String> {
         {
             Err(interactive())
         } else {
-            Ok(false)
+            Ok(Invocation::default())
         };
     };
     let (name, sub) = parsed.subcommand().ok_or_else(interactive)?;
     if matches!(name, "tui" | "mcp") {
         return Err(interactive());
     }
-    if parsed.get_flag("dry-run") {
-        return Ok(false);
-    }
-    Ok(match name {
-        "init" | "pin" | "use" | "install" | "update" | "remove" => true,
-        "config" | "env" => sub
-            .get_many::<String>("words")
-            .and_then(|mut words| words.next())
-            .is_some_and(|action| {
+    let words: Vec<_> = sub
+        .get_many::<String>("words")
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect();
+    let maintenance = matches!(
+        name,
+        "workspace" | "task" | "governance" | "agent" | "audit" | "ci" | "check" | "setup"
+    );
+    let has_workspace = sub
+        .try_get_one::<String>("workspace")
+        .is_ok_and(|value| value.is_some())
+        || maintenance && trailing.iter().any(|arg| arg == "--workspace");
+    let explicit_project = parsed.get_one::<PathBuf>("project").is_some();
+    let inherit_project = !explicit_project
+        && !has_workspace
+        && super::super::command_catalog::accepts_inherited_project(name, &words);
+    let refresh_catalog = !explicit_project
+        && !parsed.get_flag("dry-run")
+        && match name {
+            "init" | "pin" | "use" | "install" | "update" | "remove" => true,
+            "config" | "env" => words.first().is_some_and(|action| {
                 matches!(
                     (name, action.as_str()),
                     ("config", "set" | "unset") | ("env", "sync" | "import" | "lock")
                 )
             }),
-        _ => false,
+            _ => false,
+        };
+    let explicit_json = parsed.get_flag("json");
+    let check = if name == "check"
+        && trailing.is_empty()
+        && super::super::validate_flags(name, &[], &parsed, false).is_ok()
+        && super::super::command_catalog::preflight(args).is_none()
+    {
+        check_request(sub, &parsed).ok()
+    } else {
+        None
+    };
+    let output = if name == "check" && trailing.is_empty() {
+        let pretty = sub.get_flag("verbose");
+        OutputContract::Check {
+            summary: !explicit_json && !pretty,
+            pretty: pretty && !explicit_json,
+        }
+    } else {
+        OutputContract::Cnr
+    };
+    Ok(Invocation {
+        inherit_project,
+        refresh_catalog,
+        explicit_json,
+        explicit_lang: parsed.value_source("lang") == Some(clap::parser::ValueSource::CommandLine),
+        non_interactive: parsed.get_flag("non-interactive"),
+        output,
+        check,
     })
 }
 
@@ -386,7 +595,7 @@ mod tests {
             "--nocapture",
         ]);
         command.env("CNR_RUNNER_TEST_FIXTURE", mode);
-        Runner::spawn(command, None, false, false)
+        Runner::spawn(command, None, false, OutputContract::External)
     }
 
     #[test]
@@ -458,6 +667,17 @@ mod tests {
             ),
             (r#"{"status":"BLOCKED"}"#, Some(2), Outcome::Blocked),
             (r#"{"status":"CANCELLED"}"#, Some(130), Outcome::Cancelled),
+            (r#"{"status":"WARNING"}"#, Some(0), Outcome::Warning),
+            (
+                r#"{"status":"ERROR","message":"PASS"}"#,
+                Some(1),
+                Outcome::Error,
+            ),
+            (
+                r#"{"status":"ERROR","message":"PASS"}"#,
+                Some(0),
+                Outcome::Fail,
+            ),
             (r#"{"status":"FAIL"}"#, Some(0), Outcome::Fail),
             (r#"{"status":"PASS"}"#, Some(2), Outcome::Fail),
             (
@@ -498,6 +718,16 @@ mod tests {
         result.output_truncated = true;
         assert_eq!(completed_outcome(&result, true), Outcome::Blocked);
 
+        for malformed in [
+            r#"{"status":"UNRECOGNIZED","message":"PASS"}"#,
+            r#"{"status":"PASS","status":"PASS"}"#,
+        ] {
+            assert_eq!(
+                completed_outcome(&captured_result(malformed, Some(0)), true),
+                Outcome::Fail
+            );
+        }
+
         let mut result = captured_result("", Some(0));
         result.error = br#"{"status":"FAIL"}"#.to_vec();
         assert_eq!(completed_outcome(&result, true), Outcome::Pass);
@@ -509,11 +739,11 @@ mod tests {
 
     #[test]
     fn rejects_unbounded_protocol_server() {
-        assert!(check_command(&["mcp".into(), "serve".into()], false).is_err());
-        assert!(check_command(&["--json".into(), "tui".into()], false).is_err());
-        assert!(check_command(&["workspace".into(), "discover".into()], false).is_ok());
+        assert!(prepare(&["mcp".into(), "serve".into()], false).is_err());
+        assert!(prepare(&["--json".into(), "tui".into()], false).is_err());
+        assert!(prepare(&["workspace".into(), "discover".into()], false).is_ok());
         assert!(
-            check_command(
+            prepare(
                 &["exec".into(), "--".into(), "mcp".into(), "serve".into()],
                 false
             )
@@ -524,15 +754,74 @@ mod tests {
     #[test]
     fn refreshes_catalog_after_actual_project_selection_changes() {
         let check = |args: &[&str]| {
-            check_command(
+            prepare(
                 &args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>(),
                 false,
             )
+            .map(|command| command.refresh_catalog)
         };
         assert_eq!(check(&["config", "set", "tools.rust", "1.99.1"]), Ok(true));
         assert_eq!(check(&["env", "import", "selection.json"]), Ok(true));
         assert_eq!(check(&["search", "install"]), Ok(false));
         assert_eq!(check(&["install", "rust@1.99.1", "--dry-run"]), Ok(false));
+    }
+
+    #[test]
+    fn explicit_context_takes_precedence_over_the_terminal_project() {
+        let context = |args: &[&str]| {
+            let args = args
+                .iter()
+                .map(|arg| (*arg).into())
+                .collect::<Vec<String>>();
+            prepare(&args, false).unwrap().inherit_project
+        };
+        assert!(context(&["env", "plan"]));
+        assert!(!context(&["env", "plan", "--project=other"]));
+        assert!(!context(&["agent", "sync", "--workspace", "other"]));
+        assert!(!context(&["agent", "sync", "--", "--workspace", "other"]));
+        assert!(!context(&[
+            "agent",
+            "mcp-config",
+            "check",
+            "--bundle",
+            "bundle"
+        ]));
+        assert!(context(&[
+            "agent",
+            "mcp-config",
+            "export",
+            "--binary",
+            "cnr"
+        ]));
+        assert!(context(&["run", "--", "--workspace", "child-option"]));
+    }
+
+    #[test]
+    fn typed_check_reports_require_schema_status_and_process_exit_agreement() {
+        let report = CheckReport {
+            schema_version: 1,
+            run_id: "fixture".into(),
+            requested_scope: serde_json::json!({"target":"governance"}),
+            resolved_context: serde_json::json!({}),
+            started_at: 0,
+            duration_ms: 7,
+            completion: "COMPLETE".into(),
+            overall_status: Status::Warning,
+            findings: Vec::new(),
+            counts_by_status: Default::default(),
+            coverage: serde_json::json!({}),
+            exit_code: 0,
+        };
+        let mut captured = captured_result(&serde_json::to_string(&report).unwrap(), Some(0));
+        let (outcome, summary) = checked_report(&captured, true, false);
+        assert_eq!(outcome, Outcome::Warning);
+        assert!(summary.unwrap().contains("WARNING"));
+        captured.exit_code = Some(1);
+        assert_eq!(checked_report(&captured, true, false).0, Outcome::Error);
+        let fake = captured_result(r#"{"status":"PASS","message":"PASS"}"#, Some(0));
+        assert_eq!(checked_report(&fake, true, false).0, Outcome::Error);
+        captured.cancelled = true;
+        assert_eq!(checked_report(&captured, true, false).0, Outcome::Cancelled);
     }
 
     #[test]

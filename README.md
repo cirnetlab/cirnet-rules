@@ -51,8 +51,29 @@ cnr --lang vi
 | **Virtual environments** | Quản lý môi trường ảo | `cnr venv list` |
 | **Build, run and test** | Biên dịch, chạy và kiểm thử | `cnr build --dry-run` |
 | **Governance workspace** | Quản lý Repo, Task, Rules và Agent | `cnr workspace discover` |
+| **System checks** | Kiểm tra hệ thống theo phạm vi đã chọn | `cnr check all` |
+| **Agent setup** | Thiết lập chỉ dẫn Agent và MCP theo từng bước | `cnr setup agent` |
 | **Configuration** | Xem/chỉnh cấu hình CNR | `cnr config show` |
 | **Diagnostics** | Kiểm tra tình trạng hệ thống | `cnr doctor` |
+
+### Kiểm tra và thiết lập Agent
+
+1. Mở `cnr`, chọn **Kiểm tra hệ thống** hoặc nhập `cnr check all`. Xem cột **Next action** cho các mục còn thiếu. Báo cáo tự động dùng `cnr check all --json --non-interactive`.
+2. Chọn **Thiết lập Agent** hoặc nhập `cnr setup agent`. Chọn Codex, Claude Code hoặc Antigravity, sau đó chọn repo và binding. Đối chiếu Governance root và worktree đích trước khi xác nhận.
+3. Chọn thư mục gói xuất ngoài Git. Xem trước các file thay đổi. Khi `AGENTS.md` hoặc `CLAUDE.md` đã chứa nội dung của repo, xem phương án managed block và kiểm tra cả nội dung lẫn quyền của task trước khi áp dụng. Trình hướng dẫn dùng digest của bản xem trước vừa xác nhận.
+4. Xem trước cấu hình MCP rồi đăng ký trong phạm vi dự án nếu đủ điều kiện, hoặc nhập template trong Agent theo chỉ dẫn. Chạy probe trong CNR và kiểm tra lại bằng `cnr check mcp`. Kết quả giao thức CNR và bằng chứng Agent native được hiển thị riêng.
+
+Xem [cú pháp và luồng vận hành chi tiết](vi/references/cnr.md).
+
+### Khả năng tích hợp theo Agent
+
+| Agent | Chỉ dẫn và kỹ năng | Đăng ký MCP phạm vi dự án | Phạm vi người dùng | Probe giao thức / Client native |
+| :--- | :--- | :--- | :--- | :--- |
+| Codex | Bundle, kiểm tra và đồng bộ `AGENTS.md`, `.agents/skills` | Chỉ mục `cirnetrules` trong `.codex/config.toml` | Nhập template thủ công trong client | CNR probe qua STDIO / `NOT_RUN` tới khi quan sát client |
+| Claude Code | Bundle, kiểm tra và đồng bộ `CLAUDE.md`, `.claude/skills` | Chỉ mục `cirnetrules` trong `.mcp.json` | Nhập template thủ công trong client | CNR probe qua STDIO / `NOT_RUN` tới khi quan sát client |
+| Antigravity | Bundle, kiểm tra và đồng bộ `AGENTS.md`, `.agents/skills` | `.agents/mcp_config.json` khi đã xác nhận CLI hoặc IDE. Surface khác dùng template thủ công. | Nhập template thủ công trong client | CNR probe qua STDIO / `NOT_RUN` tới khi quan sát client |
+
+Đăng ký tự động cần binding, template khớp executable hiện tại, grant cho file đích, digest vừa xem trước và xác nhận riêng về project trust của client. CNR giữ các server khác và dừng khi mục `cirnetrules` hiện có xung đột. [Codex config](https://learn.chatgpt.com/docs/config-file/config-basic) · [Claude Code MCP](https://code.claude.com/docs/en/mcp) · [Antigravity MCP](https://antigravity.google/docs/mcp)
 
 ---
 
@@ -92,8 +113,9 @@ cnr install <TOOL@VERSION> --dry-run
 cnr install <TOOL@VERSION> --yes
 # kiểm tra các bản cập nhật khả dụng
 cnr update
-# cập nhật tất cả công cụ trong môi trường hiện tại
-cnr update --all
+# xem trước rồi xác nhận cập nhật theo phiên bản đã ghim
+cnr update --all --dry-run
+cnr update --all --yes
 # gỡ cài đặt phiên bản công cụ do dự án sở hữu
 cnr remove <TOOL@VERSION> --yes
 # chẩn đoán điều kiện môi trường cục bộ và trạng thái dự án
@@ -131,33 +153,41 @@ cnr env import <PATH>
 cnr venv list
 # xem thông tin chi tiết một môi trường ảo
 cnr venv info <NAME>
-# tạo môi trường ảo mới
-cnr venv create <NAME> [<VERSION>]
-# chạy lệnh hoặc script bên trong môi trường ảo
-cnr venv run <NAME> -- <ARG...>
-# xóa một môi trường ảo
-cnr venv remove <NAME>
+# xem trước rồi xác nhận tạo môi trường ảo
+cnr venv create <NAME> [<VERSION>] --dry-run
+cnr venv create <NAME> [<VERSION>] --yes
+# xem trước rồi chạy lệnh hoặc script trong môi trường ảo đã kiểm tra
+cnr venv run <NAME> --dry-run -- <ARG...>
+cnr venv run <NAME> --yes -- <ARG...>
+# xem trước rồi xác nhận xóa môi trường ảo
+cnr venv remove <NAME> --dry-run
+cnr venv remove <NAME> --yes
 ```
 
 ### 4. Biên dịch, Chạy, Kiểm thử & Quản lý gói (Build, Run, Test & Package)
 
 ```sh
-# thao tác quản lý gói native (rust, node, python)
-cnr package [rust|node|python] list
-cnr package [rust|node|python] add <PACKAGE>
-cnr package [rust|node|python] remove <PACKAGE>
-cnr package [rust|node|python] sync
-cnr package [rust|node|python] outdated
-# xem trước kế hoạch biên dịch native cho dự án
-cnr build --dry-run
-# biên dịch dự án native (chọn engine: rust, node, python, cmake)
-cnr build [rust|node|python|cmake]
-# chạy dự án native
-cnr run [rust|node|python|cmake]
-# chạy kiểm thử dự án native
-cnr test [rust|node|python|cmake]
-# thực thi lệnh tường minh sau dấu phân cách --
-cnr exec -- <PROGRAM> [ARGS...]
+# xem trước rồi xác nhận thao tác với trình quản lý gói native
+cnr package [rust|node|python] list --dry-run
+cnr package [rust|node|python] list --yes
+cnr package [rust|node|python] add <PACKAGE> --dry-run
+cnr package [rust|node|python] add <PACKAGE> --yes
+cnr package [rust|node|python] remove <PACKAGE> --dry-run
+cnr package [rust|node|python] remove <PACKAGE> --yes
+cnr package [rust|node|python] sync --dry-run
+cnr package [rust|node|python] sync --yes
+cnr package [node|python] outdated --dry-run
+cnr package [node|python] outdated --yes
+# xem trước rồi xác nhận build, chạy dự án hoặc kiểm thử
+cnr build [rust|node|python|cmake] --dry-run
+cnr build [rust|node|python|cmake] --yes
+cnr run [rust|node|python|cmake] --dry-run
+cnr run [rust|node|python|cmake] --yes
+cnr test [rust|node|python|cmake] --dry-run
+cnr test [rust|node|python|cmake] --yes
+# xem trước rồi xác nhận lệnh tường minh sau dấu phân cách --
+cnr exec --dry-run -- <PROGRAM> [ARGS...]
+cnr exec --yes -- <PROGRAM> [ARGS...]
 ```
 
 ### 5. Quản lý Governance & Không gian làm việc (Governance & Workspace)
@@ -244,24 +274,39 @@ cnr task evidence inspect
 
 ### 7. Quản lý Agent, Cache, Audit, CI & MCP
 
+Các giá trị trong dấu `< >` mô tả tham số cần điền. Dùng **Thiết lập Agent** để chọn giá trị thật và xác nhận trực tiếp trong CNR.
+
 ```sh
+# kiểm tra chung hoặc kiểm tra giao thức và trạng thái Agent đã chọn
+cnr check all
+cnr check mcp --agent codex
+# mở hướng dẫn tương tác
+cnr setup agent
 # liệt kê cấu hình chỉ dẫn dành cho AI Agent
 cnr agent list
-# xuất chỉ dẫn Agent ra thư mục bundle
-cnr agent export --repo <NAME> --agents codex,claude,antigravity --output <DIR>
+# xem trước rồi xuất chỉ dẫn Agent ra thư mục bundle
+cnr agent export --repo <NAME> --agents codex,claude,antigravity --output <DIR> --dry-run
+cnr agent export --repo <NAME> --agents codex,claude,antigravity --output <DIR> --expect <DIGEST>
 # kiểm tra tính hợp lệ của bundle chỉ dẫn Agent
 cnr agent check --bundle <DIR>
-# xuất file cấu hình máy chủ MCP cho Agent
-cnr agent mcp-config export --binary <PATH> --workspace <PATH> --output <DIR>
+# xem trước rồi xuất template MCP cho Agent
+cnr agent mcp-config preview-export --binary <PATH> --workspace <PATH> --output <DIR>
+cnr agent mcp-config export --binary <PATH> --workspace <PATH> --output <DIR> --expect <DIGEST>
 # kiểm tra file cấu hình MCP
 cnr agent mcp-config check --bundle <DIR>
+# xem trước rồi đăng ký MCP cho Codex sau khi kiểm tra project trust trong client
+cnr agent mcp-config install --agent codex --repo <NAME> --bundle <DIR> --target <WORKTREE> --task <ID> --actor <NAME> --dry-run
+cnr agent mcp-config install --agent codex --repo <NAME> --bundle <DIR> --target <WORKTREE> --task <ID> --actor <NAME> --yes --expect <DIGEST> --trust-reviewed
+# kiểm tra giao thức bằng CNR client
+cnr agent mcp-config probe --workspace <PATH> --repo <NAME>
 # xem trước đồng bộ chỉ dẫn Agent vào worktree đích
 cnr agent sync --bundle <DIR> --target <WORKTREE> --dry-run
 # xác nhận đồng bộ chỉ dẫn Agent vào worktree đích
 cnr agent sync --bundle <DIR> --target <WORKTREE> --yes --expect <DIGEST> --task <ID> --actor <NAME>
-# khôi phục lại chỉ dẫn Agent theo receipt
+# xem trước rồi khôi phục chỉ dẫn Agent theo receipt
 cnr agent rollback --target <WORKTREE> --receipt <ID> --dry-run
-# kiểm tra và dọn dẹp cache của dự án
+cnr agent rollback --target <WORKTREE> --receipt <ID> --yes --expect <DIGEST> --task <TASK> --actor <NAME>
+# kiểm tra cache của dự án
 cnr cache
 # xem biên nhận audit cho công cụ dự án
 cnr audit tooling [--project <PATH>]
@@ -327,7 +372,7 @@ Bảng liệt kê toàn bộ các lệnh kiểm tra, bảo trì và xác minh c�
 | `task-revise` | `cirnet-governance task-revise --task <ID>` | Sửa đổi nội dung hoặc yêu cầu của task |
 | `task-context` | `cirnet-governance task-context --task <ID>` | Hiển thị ngữ cảnh và ràng buộc thực thi của task |
 | `context-prune` | `cirnet-governance context-prune` | Dọn dẹp ngữ cảnh và dữ liệu cũ không còn hiệu lực |
-| `grant-evaluate` | `cirnet-governance grant-evaluate` | Đánh giá và cấp quyền thực thi cho agent hoặc người dùng |
+| `grant-evaluate` | `cirnet-governance grant-evaluate` | Đánh giá quyền thực thi đã được cấp |
 | `run-step` | `cirnet-governance run-step --step <ID>` | Chạy một bước thực thi đã được phê duyệt trong task |
 | `cancel-step` | `cirnet-governance cancel-step --step <ID>` | Hủy bỏ một bước thực thi đang chạy |
 | `diff-check` | `cirnet-governance diff-check` | Kiểm tra sự khác biệt của các file so với baseline được cấp phép |
@@ -352,7 +397,7 @@ Bảng liệt kê toàn bộ các lệnh kiểm tra, bảo trì và xác minh c�
 # kiểm tra định dạng mã nguồn (format check)
 cargo fmt --all --check
 # kiểm tra chất lượng code và bắt lỗi cảnh báo nghiêm ngặt
-cargo clippy --locked --all-targets -D warnings
+cargo clippy --locked --all-targets -- -D warnings
 # kiểm tra lỗi biên dịch nhanh (không sinh mã máy)
 cargo check --locked --all-targets
 # kiểm tra khả năng tạo tài liệu API Rust

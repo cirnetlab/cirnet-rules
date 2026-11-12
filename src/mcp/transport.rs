@@ -124,11 +124,7 @@ impl Transport<RoleServer> for BoundedStdio {
             let mut decoder = JsonRpcMessageCodec::<ClientJsonRpcMessage>::default();
             let mut data = BytesMut::from(line.as_bytes());
             data.extend_from_slice(b"\n");
-            let mut deserializer = serde_json::Deserializer::from_str(&line);
-            let valid = UniqueJson(JSON_DEPTH)
-                .deserialize(&mut deserializer)
-                .and_then(|()| deserializer.end());
-            let message = match valid {
+            let message = match unique_json(line.as_bytes()) {
                 Ok(()) => decoder.decode(&mut data).ok().flatten(),
                 Err(error) if error.is_data() => None,
                 Err(_) => continue,
@@ -172,6 +168,13 @@ impl Transport<RoleServer> for BoundedStdio {
         self.closed.cancel();
         Ok(())
     }
+}
+
+pub(crate) fn unique_json(bytes: &[u8]) -> Result<(), serde_json::Error> {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    UniqueJson(JSON_DEPTH)
+        .deserialize(&mut deserializer)
+        .and_then(|()| deserializer.end())
 }
 
 #[derive(Default)]

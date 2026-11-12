@@ -5,6 +5,7 @@ mod runner;
 mod terminal;
 mod view;
 mod viewport;
+mod wizard;
 
 use self::{
     banner::Banner,
@@ -130,6 +131,24 @@ const ENTRIES: &[Entry] = &[
             "Xem các lệnh CLI và tùy chọn được hỗ trợ.",
         ],
         command: "--help",
+        prompt: false,
+    },
+    Entry {
+        label: ["System checks", "Kiểm tra hệ thống"],
+        detail: [
+            "Inspect governance, repositories and Agent readiness.",
+            "Kiểm tra governance, repository và mức sẵn sàng của Agent.",
+        ],
+        command: "check all",
+        prompt: false,
+    },
+    Entry {
+        label: ["Agent setup", "Thiết lập Agent"],
+        detail: [
+            "Select an Agent, review a worktree and preview changes.",
+            "Chọn Agent, kiểm tra worktree và xem trước thay đổi.",
+        ],
+        command: "setup agent",
         prompt: false,
     },
     Entry {
@@ -260,6 +279,8 @@ struct OutputView {
     find: Option<Input>,
     query: String,
     hit: Option<Range<usize>>,
+    check_report: Option<cirnetrules::operator::CheckReport>,
+    check_details: bool,
 }
 
 impl OutputView {
@@ -279,6 +300,8 @@ impl OutputView {
             find: None,
             query: String::new(),
             hit: None,
+            check_report: None,
+            check_details: false,
         }
     }
 
@@ -323,6 +346,7 @@ impl OutputView {
         match result {
             Ok(result) => {
                 self.buffer = result.buffer;
+                self.check_report = result.check_report;
                 if !self.query.is_empty() {
                     self.last_page = self
                         .buffer
@@ -354,7 +378,7 @@ impl OutputView {
     ) {
         let (symbol, tone) = match outcome {
             runner::Outcome::Pass => ("✓", Tone::Success),
-            runner::Outcome::Fail => ("✗", Tone::Error),
+            runner::Outcome::Fail | runner::Outcome::Error => ("✗", Tone::Error),
             _ => ("!", Tone::Warning),
         };
         let code = exit_code.map_or_else(|| "?".into(), |code| code.to_string());
@@ -384,6 +408,7 @@ struct Menu {
     draft: Input,
     help: bool,
     output: Option<OutputView>,
+    wizard: Option<wizard::Wizard>,
     history: Vec<String>,
     history_index: Option<usize>,
     history_draft: Input,
@@ -403,6 +428,7 @@ impl Menu {
             draft: Input::default(),
             help: false,
             output: None,
+            wizard: None,
             history: Vec::new(),
             history_index: None,
             history_draft: Input::default(),
@@ -501,6 +527,9 @@ impl Menu {
     }
 
     fn refresh_suggestions(&mut self) {
+        if self.wizard_active() {
+            return;
+        }
         let Some(prompt) = self.prompt.as_mut().filter(|prompt| prompt.edited) else {
             return;
         };
@@ -665,12 +694,17 @@ impl Menu {
                 output.scroll = 0;
                 output.follow = false;
                 output.hit = None;
+                output.check_report = None;
             }
             self.open_prompt(Input::default());
             return Effect::Redraw;
         }
         if args.is_empty() || args[0] == "tui" {
             prompt.error = Some(["Enter a CNR command.", "Nhập một lệnh CNR."]);
+            return Effect::Redraw;
+        }
+        if let Some(diagnostic) = super::command_catalog::preflight_in_prompt(&args) {
+            prompt.error = Some([diagnostic.en, diagnostic.vi]);
             return Effect::Redraw;
         }
         if safe_history(&args) {
@@ -690,6 +724,9 @@ impl Menu {
     }
 
     fn edit_prompt(&mut self, key: KeyEvent) -> Effect {
+        if self.wizard_active() && key.code == KeyCode::Enter && text_modifiers(key) {
+            return self.submit_wizard();
+        }
         match key.code {
             KeyCode::Enter
                 if text_modifiers(key)
@@ -769,8 +806,39 @@ impl Menu {
             if output.running {
                 return Effect::Idle;
             }
+            if self.wizard.is_some() {
+                return self.wizard_back();
+            }
             self.output = None;
             self.close_main_prompt();
+            return Effect::Redraw;
+        }
+        if key.code == KeyCode::Enter
+            && text_modifiers(key)
+            && self
+                .prompt
+                .as_ref()
+                .is_some_and(|prompt| prompt.input.value.trim().is_empty())
+            && let Some(report) = &output.check_report
+        {
+            output.check_details = !output.check_details;
+            let rendered = if output.check_details {
+                serde_json::to_string_pretty(report).unwrap_or_default()
+            } else {
+                report.render()
+            };
+            let hint = text(
+                [
+                    "Enter toggles summary/details.",
+                    "Enter chuyển giữa tóm tắt và chi tiết.",
+                ],
+                self.vi,
+            );
+            output.buffer =
+                Buffer::from_streams(runner::sanitize(rendered.as_bytes()), "", Some(hint));
+            output.scroll = 0;
+            output.follow = false;
+            output.hit = None;
             return Effect::Redraw;
         }
         self.edit_prompt(key)
@@ -785,6 +853,9 @@ impl Menu {
                 output.status = text(["Cancelling…", "Đang hủy…"], self.vi).into();
                 output.tone = Tone::Warning;
                 return Effect::Cancel;
+            }
+            if self.wizard.is_some() {
+                return self.wizard_back();
             }
             return Effect::Exit;
         }
@@ -1121,8 +1192,35 @@ fn show(
                     }
                     redraw = true;
                 }
-                Effect::Run(args) => {
+                Effect::Run(mut args) => {
+                    match super::operator::setup_command(&args, menu.vi, project.clone()) {
+                        Ok(Some(input)) => {
+                            menu.open_wizard(input);
+                            redraw = true;
+                            continue;
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            menu.begin_output(&args);
+                            menu.output
+                                .as_mut()
+                                .expect("output was created")
+                                .finish(Err(error));
+                            redraw = true;
+                            continue;
+                        }
+                    }
+                    let check_choices = args == ["check"];
+                    if check_choices {
+                        args.push("--help".into());
+                    }
                     menu.begin_output(&args);
+                    if check_choices {
+                        menu.open_prompt(Input {
+                            value: "check ".into(),
+                            cursor: "check ".len(),
+                        });
+                    }
                     match runner::Runner::start(args, project.clone(), catalog_project, menu.vi) {
                         Ok(worker) => running = Some(worker),
                         Err(error) => {
@@ -1141,6 +1239,22 @@ fn show(
 }
 
 pub fn run(flags: &ArgMatches, vi: bool) -> ExitCode {
+    run_menu(flags, vi, None)
+}
+
+pub(super) fn run_setup(
+    flags: &ArgMatches,
+    input: cirnetrules::operator::SetupInput,
+    vi: bool,
+) -> ExitCode {
+    run_menu(flags, vi, Some(input))
+}
+
+fn run_menu(
+    flags: &ArgMatches,
+    vi: bool,
+    setup: Option<cirnetrules::operator::SetupInput>,
+) -> ExitCode {
     let color = terminal::color_enabled();
     let banner = !flags.get_flag("no-banner");
     let catalog_project = super::project(flags, true).ok().flatten();
@@ -1148,6 +1262,9 @@ pub fn run(flags: &ArgMatches, vi: bool) -> ExitCode {
         .as_ref()
         .map(cirnetrules::environment::Project::root);
     let mut menu = Menu::new(vi, catalog_project);
+    if let Some(input) = setup {
+        menu.open_wizard(input);
+    }
     match show(
         &mut menu,
         color,
@@ -1258,6 +1375,7 @@ mod tests {
                 exit_code,
                 outcome,
                 completer: None,
+                check_report: None,
             }));
             assert_eq!(output.status, expected);
             assert!(output.tone == tone);

@@ -226,6 +226,82 @@ fn current_stdio_discovery_uses_per_request_metadata() {
 }
 
 #[test]
+fn operator_probe_verifies_both_lifecycles_without_native_client_claims() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let work = Scratch::new();
+    let output = Command::new(env!("CARGO_BIN_EXE_cnr"))
+        .current_dir(&work.0)
+        .args(["agent", "mcp-config", "probe", "--governance-root"])
+        .arg(root)
+        .arg("--workspace")
+        .arg(&work.0)
+        .args(["--repo", "cirnet-rules", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["result"]["mcp_protocol"], "MCP_PROTOCOL_VERIFIED");
+    assert_eq!(result["result"]["native_client"], "NOT_RUN");
+    assert_eq!(
+        result["result"]["protocols"],
+        json!(["2026-07-28", "2025-11-25"])
+    );
+    assert_eq!(result["result"]["tool_count"], 6);
+    assert_eq!(fs::read_dir(&work.0).unwrap().count(), 0);
+}
+
+#[test]
+fn selected_launcher_must_match_the_probed_workspace() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace = Scratch::new();
+    let unrelated = Scratch::new();
+    let bundle = unrelated.0.join("reviewed-mcp-bundle");
+    let cnr = env!("CARGO_BIN_EXE_cnr");
+    let exported = Command::new(cnr)
+        .args(["agent", "mcp-config", "export", "--governance-root"])
+        .arg(&root)
+        .arg("--workspace")
+        .arg(&workspace.0)
+        .args(["--binary", cnr, "--output"])
+        .arg(&bundle)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stdout)
+    );
+    let checked = Command::new(cnr)
+        .args(["check", "mcp", "--governance-root"])
+        .arg(&root)
+        .arg("--workspace")
+        .arg(&unrelated.0)
+        .arg("--mcp-bundle")
+        .arg(bundle)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert_eq!(checked.status.code(), Some(2));
+    let report: Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert!(
+        report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["component"] == "mcp-protocol"
+                    && finding["status"] == "BLOCKED"
+                    && finding["blocked_by"] == json!(["mcp-launch-config"])
+            })
+    );
+}
+
+#[test]
 fn duplicate_arguments_and_overlong_frames_are_bounded() {
     let mut server = Wire::spawn("read-only");
     server.initialize();

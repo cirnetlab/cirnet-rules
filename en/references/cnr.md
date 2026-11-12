@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-OPERATOR -->
-<!-- revision: 8 -->
+<!-- revision: 9 -->
 <a id="cnr-cli"></a>
 
 # CNR operator guide
@@ -118,6 +118,68 @@ bounded and sent separately to stderr. Exit 0 means success, 1 means
 failure, 2 means blocked or unrun, and 130 means cancelled.
 `child_exit_code` reports the child separately. `cnr completion SHELL` emits completion for
 Bash, Zsh, Fish or PowerShell.
+
+<a id="system-checks"></a>
+
+## System checks
+
+Open `cnr` and choose System checks, or enter `cnr check all` in the command
+panel. An individual target such as `cnr check bindings` limits inspection to
+that component. Headless `cnr check` defaults to `all`. Use `--repo`,
+`--binding`, `--task` and `--agent` to narrow the evidence. Check output can
+distinguish a discovered checkout from a confirmed binding and a verified MCP
+protocol exchange from a native Agent session. Review the reason and next
+action for every required item that lacks evidence.
+
+Use `cnr check all --json --non-interactive` for a versioned report. Exit 1
+indicates an error, exit 2 a mandatory gap or a warning in strict mode, and
+exit 130 a cancellation. Exit 0 means the selected required checks passed and
+can coexist with optional gaps. Checks inspect existing state. Setup actions
+handle binding, exports, synchronization and registration separately.
+
+<a id="guided-agent-setup"></a>
+
+## Guided Agent setup
+
+From `cnr`, choose Agent setup or enter `cnr setup agent`. Select Codex,
+Claude Code or Antigravity, then review the Governance root, workspace,
+repository and binding. A discovered checkout needs a reviewed binding.
+If several bindings exist, choose one explicitly. Headless `cnr setup agent`
+requires `--agent` and reports the selected context.
+
+Preview and confirm an instruction bundle in a fresh directory outside Git
+and native Agent configuration. The manifest lists the selected profile,
+skills and references. For headless use, `cnr agent export --dry-run` accepts
+the export selectors and an output path. The export can then take the reviewed
+`--expect` digest. A bundle exported with `--binding` pins the selected binding
+and its Git HEAD. Pass the same binding to `agent check` or `agent sync` when
+you want to select it explicitly.
+
+Review the synchronization plan against the actual worktree. If a user-owned
+`AGENTS.md` or `CLAUDE.md` blocks strict sync, select the managed-block preview.
+It shows the proposed managed content and a preimage digest without printing
+existing user text. Review the new instructions alongside local instructions
+before approval. The first adoption appends a separate block using the first
+observed line ending (LF when no line ending exists). It preserves an existing
+UTF-8 BOM and all prior bytes. A previously verified full-file receipt can be
+converted explicitly. Updates change only the verified managed block, and
+malformed or edited markers require local review. Skills and references retain
+strict file ownership. Codex and Antigravity share a single `AGENTS.md` block
+and deduplicate the shared `.agents/skills` paths when content matches.
+
+Select a current task and its declared operator before confirming a write.
+The managed preview binds the task revision, exact target, bundle and preimage.
+For headless use, include `--entry-mode managed-block --dry-run --task` with
+the task ID and `--actor` with the operator, then apply the reviewed digest
+using `--yes --expect`. Use `agent rollback` with a receipt and review the
+rollback preview. A changed entry after sync blocks rollback and preserves its
+current bytes for local reconciliation. Review `cnr audit agent --receipt`
+with the receipt ID before recovering an interrupted operation.
+
+Export the MCP launch bundle, then review the project registration or follow
+the manual import instructions shown for the selected Agent and surface.
+Run the protocol check in CNR. Native skill discovery, configuration loading
+and tool use require separate observations in the selected Agent session.
 
 <a id="mcp-coordination"></a>
 

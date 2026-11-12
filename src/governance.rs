@@ -47,7 +47,7 @@ pub const COMMANDS: &[&str] = &[
     "release-check",
 ];
 
-fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
+pub(crate) fn governance_root(explicit: Option<String>) -> Result<PathBuf, String> {
     if let Some(path) = explicit
         .map(PathBuf::from)
         .or_else(|| env::var_os(application_identity::GOVERNANCE_ENV).map(PathBuf::from))
@@ -489,6 +489,7 @@ pub fn run(command: &str, argv: impl IntoIterator<Item = String>) -> (u8, Value)
                 | "authority-inspect"
                 | "authority-context"
                 | "agent-list"
+                | "agent-preview-export"
                 | "agent-export"
                 | "agent-check"
                 | "agent-sync"
@@ -505,6 +506,7 @@ pub fn run(command: &str, argv: impl IntoIterator<Item = String>) -> (u8, Value)
         Some("PASS") => ("PASS", 0),
         Some("BLOCKED") => ("BLOCKED", 2),
         Some("NOT_RUN" | "NOT_FOUND") => ("NOT_RUN", 2),
+        Some("CANCELLED") if command == "agent-mcp-config-probe" => ("CANCELLED", 130),
         _ => ("FAIL", 1),
     };
     (

@@ -13,7 +13,7 @@ use std::{
 
 pub use binding::{Binding, resolve};
 pub(crate) use binding::{
-    freeze_task_bindings, resolve_task, validate_task_bindings, workspace_path,
+    freeze_task_bindings, resolve_named, resolve_task, validate_task_bindings, workspace_path,
 };
 pub(crate) use context_packet::contains_known_secrets;
 
@@ -26,6 +26,9 @@ pub fn run(
     let allowed: &[&str] = match command {
         "workspace-discover" => &["workspace"],
         "workspace-bind" => &["workspace", "repo", "path", "actor", "replace"],
+        "workspace-bind-preview" | "workspace-bind-reviewed" => {
+            &["workspace", "repo", "path", "actor", "replace", "expect"]
+        }
         "workspace-health" | "workspace-binding-list" => &["workspace", "repo"],
         "workspace-binding-add" => &["workspace", "repo", "binding", "path", "actor"],
         "workspace-binding-show" | "workspace-binding-validate" => {
@@ -48,7 +51,23 @@ pub fn run(
     };
     match command {
         "workspace-discover" => binding::discover(root, workspace, registry),
-        "workspace-bind" => binding::bind(
+        "workspace-bind" | "workspace-bind-reviewed" => binding::bind(
+            root,
+            workspace,
+            registry,
+            option("repo")?,
+            option("path")?,
+            option("actor")?,
+            (
+                options.get("replace").map(String::as_str),
+                if command == "workspace-bind-reviewed" {
+                    Some(option("expect")?)
+                } else {
+                    None
+                },
+            ),
+        ),
+        "workspace-bind-preview" => binding::preview_bind(
             root,
             workspace,
             registry,
@@ -230,7 +249,7 @@ pub fn scoped_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
     Ok(current)
 }
 
-fn repository<'a>(registry: &'a Value, repo: &str) -> Result<&'a Value, String> {
+pub(crate) fn repository<'a>(registry: &'a Value, repo: &str) -> Result<&'a Value, String> {
     if !valid_id(repo) {
         return Err("Invalid repository ID".into());
     }

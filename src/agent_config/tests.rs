@@ -1,6 +1,42 @@
 use super::*;
 use crate::authority::{AssetKind, Resolved, Source};
 
+#[test]
+fn mcp_project_registration_preserves_user_settings_across_install_and_rollback() {
+    let fixture = GitFixture::new();
+    let configs: [(&str, &str, &[u8]); 3] = [
+        (
+            "codex",
+            ".codex/config.toml",
+            b"# owner comment\r\nmodel_provider = \"fixture\"\r\n[mcp_servers.other]\r\ncommand = \"fixture\"",
+        ),
+        (
+            "claude",
+            ".mcp.json",
+            br#"{"mcpServers":{"other":{"env":{"TOKEN":"fixture-secret"}}},"extra":{"kept":true}}"#,
+        ),
+        (
+            "antigravity",
+            ".agents/mcp_config.json",
+            br#"{"extra":{"kept":true}}"#,
+        ),
+    ];
+    fixture.grant(&configs.map(|(_, path, _)| path));
+    for (agent, path, original) in configs {
+        let config = fixture.product.join(path);
+        fs::create_dir_all(config.parent().unwrap()).unwrap();
+        fs::write(&config, original).unwrap();
+        mcp_config::test_project_registration(
+            &fixture.governance,
+            &fixture.product,
+            &fixture.registry,
+            agent,
+            path,
+        );
+        assert_eq!(fs::read(config).unwrap(), original);
+    }
+}
+
 fn source(id: &str, kind: AssetKind, path: &str, body: &str) -> Source {
     Source {
         id: id.into(),
@@ -245,9 +281,12 @@ impl GitFixture {
             &self.governance,
             None,
             &self.registry,
-            "product",
-            None,
-            None,
+            ExportSelection {
+                repo: "product",
+                task: None,
+                profile: None,
+                binding_id: None,
+            },
             &targets("codex,claude,antigravity").unwrap(),
         )
         .unwrap()
@@ -335,13 +374,280 @@ fn git(path: &Path, args: &[&str]) {
 }
 
 #[test]
+fn reviewed_export_pins_named_binding_and_destination() {
+    let fixture = GitFixture::new();
+    git(
+        &fixture.product,
+        &["worktree", "add", "--detach", "../alternate", "HEAD"],
+    );
+    let alternate = fixture.root.join("alternate");
+    crate::workspace::run(
+        "workspace-binding-add",
+        &fixture.governance,
+        &options(&[
+            ("repo", "product"),
+            ("binding", "alternate"),
+            ("path", "alternate"),
+            ("actor", "operator"),
+        ]),
+        &fixture.registry,
+    )
+    .unwrap();
+    let directory = fixture.root.join("bundle");
+    let bundle = generate(
+        &fixture.governance,
+        None,
+        &fixture.registry,
+        ExportSelection {
+            repo: "product",
+            task: None,
+            profile: None,
+            binding_id: Some("alternate"),
+        },
+        &targets("codex").unwrap(),
+    )
+    .unwrap();
+    let preview = export(&directory, &bundle, true, None).unwrap();
+    assert_eq!(preview["state"], "DRY_RUN");
+    assert_eq!(preview["manifest"]["binding_id"], "alternate");
+    assert!(!directory.exists());
+    let expected = preview["plan_sha256"].as_str();
+    let different = fixture.root.join("different");
+    assert!(
+        export(&different, &bundle, false, expected)
+            .unwrap_err()
+            .contains("preview changed")
+    );
+    assert!(!different.exists());
+    assert_eq!(
+        export(&directory, &bundle, false, expected).unwrap()["state"],
+        "EXPORTED"
+    );
+    let check = |selection| {
+        checked(
+            &fixture.governance,
+            None,
+            &fixture.registry,
+            &directory,
+            selection,
+        )
+    };
+    assert!(check(Some("default")).is_err());
+    assert!(check(Some("alternate")).is_ok());
+    let inspect = options(&[
+        ("bundle", directory.to_str().unwrap()),
+        ("binding", "alternate"),
+        ("target", alternate.to_str().unwrap()),
+        ("dry-run", "true"),
+    ]);
+    assert_eq!(
+        sync::sync(&fixture.governance, None, &fixture.registry, &inspect).unwrap()["state"],
+        "DRY_RUN"
+    );
+    assert!(!alternate.join("AGENTS.md").exists());
+    git(
+        &alternate,
+        &["commit", "--allow-empty", "-qm", "changed target HEAD"],
+    );
+    assert!(check(None).is_err());
+}
+
+#[test]
+fn separate_agent_setups_share_one_agents_block_and_keep_other_agent_files() {
+    let fixture = GitFixture::new();
+    let full = fixture.bundle();
+    fixture.grant(&full.files.keys().map(String::as_str).collect::<Vec<_>>());
+    let sync = |args: &BTreeMap<String, String>| {
+        sync::sync(&fixture.governance, None, &fixture.registry, args).unwrap()
+    };
+    for (agent, status) in [
+        ("codex", "APPLIED"),
+        ("claude", "APPLIED"),
+        ("antigravity", "UNCHANGED"),
+    ] {
+        let bundle = generate(
+            &fixture.governance,
+            None,
+            &fixture.registry,
+            ExportSelection {
+                repo: "product",
+                task: None,
+                profile: None,
+                binding_id: None,
+            },
+            &targets(agent).unwrap(),
+        )
+        .unwrap();
+        let directory = fixture.root.join(format!("bundle-{agent}"));
+        export(&directory, &bundle, false, None).unwrap();
+        let mut args = options(&[
+            ("bundle", directory.to_str().unwrap()),
+            ("target", fixture.product.to_str().unwrap()),
+            (
+                "entry-mode",
+                if agent == "claude" {
+                    "strict"
+                } else {
+                    "managed-block"
+                },
+            ),
+            ("keep-unselected", "true"),
+            ("dry-run", "true"),
+            ("task", "config"),
+            ("actor", "worker"),
+        ]);
+        let preview = sync(&args);
+        args.remove("dry-run");
+        args.insert("yes".into(), "true".into());
+        args.insert(
+            "expect".into(),
+            preview["plan_sha256"].as_str().unwrap().into(),
+        );
+        let result = sync(&args);
+        assert_eq!(result["state"], status, "{agent} {result}");
+    }
+    let agents = fs::read_to_string(fixture.product.join("AGENTS.md")).unwrap();
+    assert_eq!(
+        agents.matches("CIRNETRULES:BEGIN managed-context").count(),
+        1
+    );
+    assert!(
+        fixture
+            .product
+            .join(".agents/skills/work/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        fixture
+            .product
+            .join(".claude/skills/work/SKILL.md")
+            .is_file()
+    );
+    assert!(fixture.product.join("CLAUDE.md").is_file());
+}
+
+#[test]
+fn managed_entries_preserve_user_bytes_and_bind_preview_to_the_task_revision() {
+    let fixture = GitFixture::new();
+    let bundle = fixture.bundle();
+    fixture.grant(&bundle.files.keys().map(String::as_str).collect::<Vec<_>>());
+    let directory = fixture.root.join("bundle");
+    export(&directory, &bundle, false, None).unwrap();
+    let agents = fixture.product.join("AGENTS.md");
+    let claude = fixture.product.join("CLAUDE.md");
+    let agents_before = b"\xef\xbb\xbf# User instructions\r\nKeep this exact";
+    let claude_before = b"# Claude instructions\n";
+    fs::write(&agents, agents_before).unwrap();
+    fs::write(&claude, claude_before).unwrap();
+    let mut preview = options(&[
+        ("bundle", directory.to_str().unwrap()),
+        ("target", fixture.product.to_str().unwrap()),
+        ("dry-run", "true"),
+        ("task", "config"),
+        ("actor", "worker"),
+    ]);
+    let run = |action, args: &BTreeMap<String, String>| match action {
+        "sync" => sync::sync(&fixture.governance, None, &fixture.registry, args),
+        "rollback" => sync::rollback(&fixture.governance, None, &fixture.registry, args),
+        _ => unreachable!(),
+    };
+    assert_eq!(run("sync", &preview).unwrap()["state"], "CONFLICT");
+    preview.insert("entry-mode".into(), "managed-block".into());
+    let dry = run("sync", &preview).unwrap();
+    assert_eq!(dry["state"], "DRY_RUN", "{dry}");
+    assert!(!dry.to_string().contains("Keep this exact"));
+    assert_eq!(fs::read(&agents).unwrap(), agents_before);
+    assert_eq!(fs::read(&claude).unwrap(), claude_before);
+    let mut unauthorized = preview.clone();
+    unauthorized.insert("actor".into(), "impostor".into());
+    let denied_preview = run("sync", &unauthorized).unwrap();
+    unauthorized.remove("dry-run");
+    unauthorized.insert("yes".into(), "true".into());
+    unauthorized.insert(
+        "expect".into(),
+        denied_preview["plan_sha256"].as_str().unwrap().into(),
+    );
+    assert!(
+        run("sync", &unauthorized)
+            .unwrap_err()
+            .contains("declared owner")
+    );
+    assert!(
+        !fixture
+            .governance
+            .join(".cirnetrules/agent-config")
+            .exists()
+    );
+    let mut apply = preview.clone();
+    apply.remove("dry-run");
+    apply.insert("yes".into(), "true".into());
+    apply.insert("expect".into(), dry["plan_sha256"].as_str().unwrap().into());
+    crate::tasks::update(&fixture.governance, "config", 3, |_| Ok(())).unwrap();
+    assert!(run("sync", &apply).unwrap_err().contains("preview changed"));
+    assert_eq!(fs::read(&agents).unwrap(), agents_before);
+    let dry = run("sync", &preview).unwrap();
+    apply.insert("expect".into(), dry["plan_sha256"].as_str().unwrap().into());
+    let result = run("sync", &apply).unwrap();
+    assert_eq!(result["state"], "APPLIED", "{result}");
+    let applied = fs::read(&agents).unwrap();
+    assert!(applied.starts_with(agents_before));
+    assert!(
+        String::from_utf8_lossy(&applied)
+            .contains("\r\n<!-- CIRNETRULES:BEGIN managed-context -->\r\n")
+    );
+    assert!(fs::read(&claude).unwrap().starts_with(claude_before));
+    assert_eq!(run("sync", &apply).unwrap()["state"], "UNCHANGED");
+    assert_eq!(run("sync", &preview).unwrap()["state"], "UNCHANGED");
+
+    let mut edited = applied.clone();
+    edited.extend_from_slice(b"\r\nAdditional user instructions\r\n");
+    fs::write(&agents, &edited).unwrap();
+    assert_eq!(run("sync", &preview).unwrap()["state"], "UNCHANGED");
+    let mut reverse = options(&[
+        ("target", fixture.product.to_str().unwrap()),
+        ("receipt", result["receipt"].as_str().unwrap()),
+        ("dry-run", "true"),
+        ("task", "config"),
+        ("actor", "worker"),
+    ]);
+    let blocked = run("rollback", &reverse).unwrap();
+    assert_eq!(blocked["state"], "CONFLICT");
+    assert_eq!(fs::read(&agents).unwrap(), edited);
+
+    let tampered = String::from_utf8(applied.clone())
+        .unwrap()
+        .replace("CIRNETRULES:END", "CIRNETRULES:BROKEN");
+    fs::write(&agents, tampered).unwrap();
+    assert_eq!(run("sync", &preview).unwrap()["state"], "CONFLICT");
+    fs::write(&agents, &applied).unwrap();
+    let reverse_dry = run("rollback", &reverse).unwrap();
+    assert_eq!(reverse_dry["state"], "DRY_RUN", "{reverse_dry}");
+    reverse.remove("dry-run");
+    reverse.extend(options(&[
+        ("yes", "true"),
+        ("expect", reverse_dry["plan_sha256"].as_str().unwrap()),
+        ("task", "config"),
+        ("actor", "worker"),
+    ]));
+    assert_eq!(run("rollback", &reverse).unwrap()["state"], "ROLLED_BACK");
+    assert_eq!(fs::read(&agents).unwrap(), agents_before);
+    assert_eq!(fs::read(&claude).unwrap(), claude_before);
+}
+
+#[test]
 fn real_fixture_grant_owns_only_installed_paths_and_can_rollback() {
     let fixture = GitFixture::new();
     let bundle = fixture.bundle();
     fixture.grant(&bundle.files.keys().map(String::as_str).collect::<Vec<_>>());
     let dir = fixture.root.join("bundle");
-    assert_eq!(export(&dir, &bundle).unwrap()["state"], "EXPORTED");
-    assert_eq!(export(&dir, &bundle).unwrap()["state"], "UNCHANGED");
+    assert_eq!(
+        export(&dir, &bundle, false, None).unwrap()["state"],
+        "EXPORTED"
+    );
+    assert_eq!(
+        export(&dir, &bundle, false, None).unwrap()["state"],
+        "UNCHANGED"
+    );
     let args = options(&[
         ("bundle", dir.to_str().unwrap()),
         ("target", fixture.product.to_str().unwrap()),
@@ -439,14 +745,14 @@ fn real_fixture_grant_owns_only_installed_paths_and_can_rollback() {
     let source = fixture.governance.join("en/rules/fixture.md");
     fs::write(&source, b"# Changed rule\n").unwrap();
     assert!(
-        checked(&fixture.governance, None, &fixture.registry, &dir)
+        checked(&fixture.governance, None, &fixture.registry, &dir, None)
             .err()
             .unwrap()
             .contains("authority")
     );
     fs::write(&source, b"# Fixture rule\n").unwrap();
     fs::write(dir.join("AGENTS.md"), b"Tampered payload\n").unwrap();
-    assert!(checked(&fixture.governance, None, &fixture.registry, &dir).is_err());
+    assert!(checked(&fixture.governance, None, &fixture.registry, &dir, None).is_err());
 }
 
 #[test]
@@ -462,17 +768,20 @@ fn task_bound_bundle_requires_current_plan_spec_and_approval() {
             &fixture.governance,
             None,
             &fixture.registry,
-            "product",
-            Some("config"),
-            None,
+            ExportSelection {
+                repo: "product",
+                task: Some("config"),
+                profile: None,
+                binding_id: None,
+            },
             &agents,
         )
         .unwrap()
     };
     let first = generate();
     let dir = fixture.root.join("task-bundle");
-    export(&dir, &first).unwrap();
-    let check = || checked(&fixture.governance, None, &fixture.registry, &dir);
+    export(&dir, &first, false, None).unwrap();
+    let check = || checked(&fixture.governance, None, &fixture.registry, &dir, None);
     assert!(check().is_ok());
 
     let task = |command: &str, args: &[(&str, &str)]| {

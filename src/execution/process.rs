@@ -62,6 +62,44 @@ fn wait_bounded(child: &mut Child) -> Result<ExitStatus, String> {
     }
 }
 
+pub(crate) fn with_owned_stdio<T, E: From<String>>(
+    command: &mut Command,
+    communicate: impl FnOnce(&mut Child) -> Result<T, E>,
+) -> Result<T, E> {
+    command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let (mut child, tree) = owned::spawn(command, true)?;
+    let result = communicate(&mut child);
+    if result.is_ok() {
+        let deadline = Instant::now() + CLEANUP_LIMIT;
+        while Instant::now() < deadline {
+            match tree.poll(&mut child) {
+                Ok(Some(exit)) if exit.success() => return result,
+                Ok(Some(_)) => {
+                    return Err("The owned protocol process exited unsuccessfully"
+                        .to_owned()
+                        .into());
+                }
+                Ok(None) => thread::sleep(Duration::from_millis(10)),
+                Err(reason) => {
+                    let _ = tree.stop();
+                    let _ = wait_bounded(&mut child);
+                    return Err(reason.into());
+                }
+            }
+        }
+    }
+    tree.stop()?;
+    wait_bounded(&mut child)?;
+    result.and_then(|_| {
+        Err("The owned protocol process did not shut down cleanly"
+            .to_owned()
+            .into())
+    })
+}
+
 fn start_capture(reader: impl Read + Send + 'static, limit: usize) -> Receiver<io::Result<Output>> {
     let (sender, receiver) = mpsc::sync_channel(1);
     thread::spawn(move || {

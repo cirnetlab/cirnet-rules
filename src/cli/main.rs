@@ -1,4 +1,6 @@
+mod command_catalog;
 mod menu;
+mod operator;
 
 use cirnetrules::{environment, execution, governance, mcp, tooling};
 use clap::{Arg, ArgAction, ArgMatches, Command, error::ErrorKind, value_parser};
@@ -108,6 +110,12 @@ const COMMANDS: &[(&str, &str, &str)] = &[
         "Xuất và đồng bộ chỉ dẫn Agent",
     ),
     (
+        "check",
+        "Inspect system readiness",
+        "Kiểm tra trạng thái hệ thống",
+    ),
+    ("setup", "Guide Agent setup", "Hướng dẫn thiết lập Agent"),
+    (
         "cache",
         "Inspect or maintain project caches",
         "Kiểm tra hoặc bảo trì cache dự án",
@@ -177,6 +185,9 @@ const GOVERNANCE_OPTIONS: &[&str] = &[
     "candidate",
     "confirm",
     "stopped",
+    "entry-mode",
+    "surface",
+    "mcp-bundle",
 ];
 
 fn parser(vi: bool) -> Command {
@@ -255,14 +266,40 @@ fn parser(vi: bool) -> Command {
             *name,
             "workspace" | "task" | "governance" | "agent" | "audit" | "ci"
         ) {
-            for option in GOVERNANCE_OPTIONS {
-                sub = sub.arg(
-                    Arg::new(*option)
-                        .long(*option)
-                        .value_name("VALUE")
-                        .hide(*option != "governance-root"),
-                );
+            for &option in GOVERNANCE_OPTIONS {
+                sub = sub.arg(option_arg(option, name).hide(
+                    option != "governance-root"
+                        && (*name != "agent" || !command_catalog::uses_agent_option(option)),
+                ));
             }
+        }
+        if matches!(*name, "check" | "setup") {
+            for &option in command_catalog::OPERATOR_OPTIONS {
+                if command_catalog::operator_option_allowed(name, option) {
+                    sub = sub.arg(option_arg(option, name));
+                }
+            }
+            if *name == "check" {
+                sub = sub
+                    .arg(
+                        Arg::new("verbose")
+                            .long("verbose")
+                            .action(ArgAction::SetTrue)
+                            .help("Show check evidence and coverage details"),
+                    )
+                    .arg(
+                        Arg::new("strict")
+                            .long("strict")
+                            .action(ArgAction::SetTrue)
+                            .help("Treat warnings as blocking"),
+                    );
+            }
+        }
+        if *name == "agent" {
+            sub = sub.arg(Arg::new("trust-reviewed")
+                .long("trust-reviewed")
+                .action(ArgAction::SetTrue)
+                .help("Confirm independent review of the native project trust for MCP registration"));
         }
         command = command.subcommand(sub);
     }
@@ -292,6 +329,49 @@ fn parser(vi: bool) -> Command {
     )
 }
 
+fn option_arg(option: &'static str, command: &str) -> Arg {
+    let help = match option {
+        "agent" => "Select the Agent adapter",
+        "actor" => "Use the authorized task actor",
+        "agents" => "Select a comma-separated list of Agent adapters",
+        "binary" => "Select the CNR executable for MCP launch export",
+        "binding" => "Select the named worktree binding",
+        "bundle" => "Select the existing export bundle",
+        "entry-mode" => "Choose strict ownership or reviewed managed-block reconciliation",
+        "expect" => "Confirm the digest of the displayed preview",
+        "governance-root" => "Select the governance authority checkout",
+        "mcp-bundle" => "Select the MCP launch bundle",
+        "output" => "Select the export directory",
+        "profile" => "Select a governance context profile",
+        "receipt" => "Select an existing receipt",
+        "repo" => "Select a repository ID from the governance registry",
+        "report" => "Save the check report to a new file",
+        "surface" => "Select the documented client surface",
+        "target" => "Select the exact bound worktree",
+        "task" => "Select a task ID",
+        "workspace" => "Select the maintenance workspace",
+        _ => "",
+    };
+    let mut arg = Arg::new(option).long(option).value_name("VALUE").help(help);
+    if option == "agent" && command == "check" {
+        return arg.value_parser(clap::builder::PossibleValuesParser::new(
+            command_catalog::AGENTS.iter().copied().chain(["all"]),
+        ));
+    }
+    let choices = match option {
+        "agent" if matches!(command, "agent" | "setup") => Some(command_catalog::AGENTS),
+        "entry-mode" => Some(command_catalog::ENTRY_MODES),
+        "surface" => Some(command_catalog::SURFACES),
+        _ => None,
+    };
+    if let Some(choices) = choices {
+        arg = arg.value_parser(clap::builder::PossibleValuesParser::new(
+            choices.iter().copied(),
+        ));
+    }
+    arg
+}
+
 fn usage_notes(name: &str, vi: bool) -> &'static str {
     match name {
         "install" | "update" | "remove" if vi => {
@@ -316,7 +396,13 @@ fn usage_notes(name: &str, vi: bool) -> &'static str {
             "validate | inspect | context --repo NAME [--task ID] [--profile ID]\nmigrate inspect --source FILE | export --source FILE --destination DIR | validate --archive DIR\nmigrate import --archive DIR --dry-run [--preview-out DIR] | --yes --expected-digest DIGEST\nmigrate rollback --expected-digest DIGEST --yes"
         }
         "agent" => {
-            "list | export --repo NAME --agents codex,claude,antigravity --output DIR | check --bundle DIR\nmcp-config export --binary PATH --workspace PATH --output DIR | mcp-config check --bundle DIR\nsync --bundle DIR --target WORKTREE --dry-run | --yes --expect DIGEST --task ID --actor NAME\nrollback --target WORKTREE --receipt ID --dry-run | --yes --expect DIGEST --task ID --actor NAME"
+            "list | export --repo NAME --agents codex,claude,antigravity --output DIR | check --bundle DIR\nmcp-config export --binary PATH --workspace PATH --output DIR | check --bundle DIR\nmcp-config install --agent AGENT --repo NAME --bundle DIR --target WORKTREE --dry-run\nmcp-config rollback --agent AGENT --target WORKTREE --receipt ID --dry-run\nmcp-config inspect | probe | preview-export\nsync --bundle DIR --target WORKTREE --dry-run [--entry-mode strict|managed-block]\nrollback --target WORKTREE --receipt ID --dry-run\nApply a reviewed sync, rollback or MCP registration with --yes --expect DIGEST --task ID --actor NAME."
+        }
+        "check" => {
+            "Defaults to all. Select governance, registry, policies, rules, skills, profiles, references, hooks, repositories, bindings, routing, task, diff, verification, audit, environment, agent-config, agent, or mcp.\nChecks inspect the selected scope. Native client evidence is reported separately."
+        }
+        "setup" => {
+            "setup agent [--repo NAME] [--agent codex|claude|antigravity]\nThe terminal offers a chooser. Headless setup requires one explicit Agent and inspects the supplied context."
         }
         "audit" => {
             "tooling [--project PATH] | task --task ID | migration --receipt DIGEST | agent --receipt ID\nThe existing audit list form keeps its tooling output."
@@ -350,6 +436,11 @@ fn run(args: &[String]) -> ExitCode {
     let mcp_stdio = flags.windows(2).any(|pair| pair == ["mcp", "serve"]);
     let vi = flags.windows(2).any(|pair| pair == ["--lang", "vi"])
         || flags.iter().any(|arg| arg == "--lang=vi");
+    let preflight = if mcp_stdio {
+        None
+    } else {
+        command_catalog::preflight(args)
+    };
     let command = parser(vi);
     let matched = match command
         .clone()
@@ -378,11 +469,45 @@ fn run(args: &[String]) -> ExitCode {
             eprint!("{problem}");
             return ExitCode::FAILURE;
         }
-        Err(problem) => return emit("cnr", error(&problem.to_string()), json_mode),
+        Err(problem) => {
+            return emit(
+                "cnr",
+                preflight
+                    .as_ref()
+                    .filter(|diagnostic| diagnostic.is_unresolved())
+                    .map_or_else(
+                        || error(&problem.to_string()),
+                        |diagnostic| diagnostic.envelope(vi),
+                    ),
+                json_mode,
+            );
+        }
     };
     let (name, sub) = matched.subcommand().unwrap_or(("tui", &matched));
     if name == "mcp" {
         return mcp_command(&matched, sub, trailing);
+    }
+    if let Some(diagnostic) = preflight {
+        let mut result = diagnostic.envelope(vi);
+        if name == "agent"
+            && let Some(words) = sub.get_many::<String>("words")
+            && let Some(command) = command_catalog::agent_command(
+                &words.map(String::as_str).collect::<Vec<_>>(),
+                matched.get_flag("dry-run"),
+            )
+            && let Value::Object(mut envelope) = result.clone()
+        {
+            envelope.insert("command".into(), command.into());
+            envelope.insert("result".into(), result);
+            result = Value::Object(envelope);
+        }
+        return emit(name, result, json_mode);
+    }
+    if matches!(name, "check" | "setup") {
+        if let Err(reason) = validate_flags(name, &[], &matched, false) {
+            return emit(name, error(reason), json_mode);
+        }
+        return operator::run(name, sub, &matched, trailing);
     }
     let words: Vec<_> = sub
         .try_get_many::<String>("words")
@@ -497,7 +622,17 @@ fn validate_flags(
     {
         return Err("--timeout-ms only applies to build, run, test, exec and package");
     }
-    if flags.value_source("scope") == Some(clap::parser::ValueSource::CommandLine)
+    let mcp_scope = name == "agent"
+        && matches!(
+            words
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .as_slice(),
+            ["mcp-config", "install" | "rollback" | "inspect"]
+        );
+    if !mcp_scope
+        && flags.value_source("scope") == Some(clap::parser::ValueSource::CommandLine)
         && (governance_group || !(provider || process || environment))
     {
         return Err("--scope is unavailable for this command");
@@ -810,13 +945,14 @@ fn governance_command(
         ("task", ["coordination", "migrate"]) => "coordination-migrate".into(),
         ("task", ["dependency", "check"]) => "coordination-dependency-check".into(),
         ("task", ["evidence", action @ ("export" | "inspect")]) => format!("ci-evidence-{action}"),
-        ("agent", ["mcp-config", action @ ("export" | "check")]) => {
-            format!("agent-mcp-config-{action}")
-        }
+        ("agent", action) => match command_catalog::agent_command(action, dry_run) {
+            Some(command) => command,
+            None => return emit(group, error("Choose a supported Agent action"), json_mode),
+        },
         ("ci", ["verify"]) if sub.get_one::<String>("governance-root").is_some() => {
             "ci-verify".into()
         }
-        (group @ ("agent" | "audit"), [action]) => format!("{group}-{action}"),
+        ("audit", [action]) => format!("audit-{action}"),
         ("governance", ["inspect"]) => "authority-inspect".into(),
         ("governance", ["context"]) if trailing.is_empty() => "authority-context".into(),
         (group, [action]) => {
@@ -859,11 +995,24 @@ fn governance_command(
             native.extend([format!("--{option}"), value.to_owned()]);
         }
     }
-    if dry_run && command != "migration-preview" {
+    if dry_run
+        && !matches!(
+            command.as_str(),
+            "migration-preview" | "agent-preview-export"
+        )
+    {
         native.push("--dry-run".into());
     }
     if yes {
         native.push("--yes".into());
+    }
+    if flags.value_source("scope") == Some(clap::parser::ValueSource::CommandLine)
+        && let Some(scope) = flags.get_one::<String>("scope")
+    {
+        native.extend(["--scope".into(), scope.clone()]);
+    }
+    if group == "agent" && sub.get_flag("trust-reviewed") {
+        native.extend(["--trust-reviewed".into(), "true".into()]);
     }
     if let Some(path) = flags.get_one::<PathBuf>("project") {
         if native.iter().any(|arg| arg == "--workspace") {

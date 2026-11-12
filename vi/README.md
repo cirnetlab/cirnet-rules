@@ -1,6 +1,6 @@
 <!-- doc-id: INDEX -->
-<!-- revision: 4 -->
-<!-- source-sha256: 5fbe8732dc6e4626bf0cd9f29d9d2777956a3713a0f21ef4ccb47b5c23a60bf5 -->
+<!-- revision: 5 -->
+<!-- source-sha256: f52e8755b15043120654ec79dbdd24265499e01bb9b9883d9b13f83a63d49817 -->
 <!-- translation-status: synchronized -->
 <a id="index"></a>
 
@@ -12,6 +12,12 @@ CIRNETRULES cung cấp lõi governance bằng Rust, CLI `cnr` và máy chủ MCP
 qua STDIO. Chạy phiên lập trình độc lập trong Codex Desktop, Claude Code
 hoặc Antigravity. Dùng registry và chính sách tiếng Anh để xác định thẩm
 quyền của task, rồi dùng kho task cục bộ để theo dõi công việc và bằng chứng.
+
+Mở `cnr` trong terminal. Chạy `cnr check all` để kiểm tra mức độ sẵn sàng,
+rồi dùng `cnr setup agent` để chọn Agent, repo và worktree. Xem trước từng
+thay đổi và xác nhận bằng quyền của task tương ứng. Báo cáo tách riêng cấu
+hình khởi chạy, bằng chứng giao thức và quan sát từ client native.
+[Hướng dẫn vận hành CNR](references/cnr.md)
 
 | Phạm vi | Tài liệu |
 | --- | --- |

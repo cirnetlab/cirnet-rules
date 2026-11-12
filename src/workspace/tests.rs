@@ -115,6 +115,37 @@ fn binding_options(repo: &str, path: &str) -> BTreeMap<String, String> {
     ])
 }
 
+#[test]
+fn reviewed_binding_preview_is_read_only_and_rejects_changed_head() {
+    let fixture = Fixture::new();
+    let root = fixture.0.join("governance");
+    let target = fixture.0.join("worktree");
+    repo(&root);
+    repo(&target);
+    let registry = config();
+    let mut args = binding_options("web", "worktree");
+    let plan = run("workspace-bind-preview", &root, &args, &registry).unwrap();
+    assert_eq!(plan["state"], "DRY_RUN");
+    assert!(!root.join(".cirnetrules").exists());
+    args.insert(
+        "expect".into(),
+        plan["plan_sha256"].as_str().unwrap().into(),
+    );
+    git(&target, &["commit", "--allow-empty", "-qm", "changed"]);
+    let error = run("workspace-bind-reviewed", &root, &args, &registry).unwrap_err();
+    assert!(error.contains("preview changed"), "{error}");
+    assert!(!root.join(".cirnetrules").exists());
+    args.remove("expect");
+    let plan = run("workspace-bind-preview", &root, &args, &registry).unwrap();
+    args.insert(
+        "expect".into(),
+        plan["plan_sha256"].as_str().unwrap().into(),
+    );
+    let installed = run("workspace-bind-reviewed", &root, &args, &registry).unwrap();
+    assert_eq!(installed["state"], "CONFIRMED_LOCAL");
+    assert_eq!(installed["permissions_granted"], false);
+}
+
 fn english(gov: &Path) {
     for path in [
         "en/AGENTS.md",

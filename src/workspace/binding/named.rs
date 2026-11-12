@@ -485,6 +485,22 @@ pub(crate) fn freeze_task_bindings(
     Ok(bindings)
 }
 
+pub(crate) fn resolve_named(
+    root: &Path,
+    workspace: &Path,
+    repo: &str,
+    registry: &Value,
+    id: &str,
+) -> Result<Binding, String> {
+    repository(registry, repo)?;
+    if id == DEFAULT {
+        return resolve(root, Some(workspace), repo, registry);
+    }
+    let record = read_record(root, workspace, repo, id)?;
+    let git = inspect_record(workspace, &record)?;
+    Ok(git.binding(record.identity))
+}
+
 pub(crate) fn resolve_task(
     root: &Path,
     workspace: Option<&Path>,

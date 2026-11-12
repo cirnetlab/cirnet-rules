@@ -96,7 +96,7 @@ pub(super) fn directory(input: &Path) -> Result<PathBuf, String> {
         .map_err(|_| "Cannot resolve selected directory".into())
 }
 
-fn contains(root: &Path, path: &Path) -> bool {
+pub(super) fn contains(root: &Path, path: &Path) -> bool {
     let mut parts = path.components();
     root.components().all(|expected| {
         parts.next().is_some_and(|actual| {
@@ -111,7 +111,7 @@ fn contains(root: &Path, path: &Path) -> bool {
     })
 }
 
-pub(super) fn export_path(input: &Path) -> Result<PathBuf, String> {
+pub(crate) fn export_path(input: &Path) -> Result<PathBuf, String> {
     let path = explicit(input)?;
     let name = path
         .file_name()
@@ -152,6 +152,34 @@ pub(super) fn export_path(input: &Path) -> Result<PathBuf, String> {
     check_case(&parent, name)?;
     let _ = metadata(&path)?;
     Ok(path)
+}
+
+#[derive(PartialEq, Eq, Serialize)]
+pub(super) struct ExportLocation {
+    pub(super) path: PathBuf,
+    pub(super) parent_identity: [u64; 2],
+    pub(super) existing: Option<[u64; 2]>,
+}
+
+pub(super) fn export_location(input: &Path) -> Result<ExportLocation, String> {
+    let path = export_path(input)?;
+    let parent = path.parent().ok_or("Bundle output has no parent")?;
+    let parent_meta = metadata(parent)?
+        .filter(Metadata::is_dir)
+        .ok_or("Bundle output parent is missing")?;
+    let existing = metadata(&path)?
+        .map(|meta| {
+            if !meta.is_dir() {
+                return Err("Bundle output is occupied by a file".into());
+            }
+            file_id(&path, &meta)
+        })
+        .transpose()?;
+    Ok(ExportLocation {
+        parent_identity: file_id(parent, &parent_meta)?,
+        path,
+        existing,
+    })
 }
 
 fn check_case(parent: &Path, expected: &str) -> Result<(), String> {
@@ -354,7 +382,7 @@ pub(super) fn nonce() -> Result<u128, String> {
         .as_nanos())
 }
 
-pub(super) fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if bytes.len() as u64 > MAX_FILE {
         return Err("Agent configuration data exceeds its file size limit".into());
     }
@@ -432,6 +460,49 @@ pub(super) fn replace_journaled(
     bytes: Option<&[u8]>,
     record: impl FnOnce(Observation) -> Result<(), String>,
 ) -> Result<(), String> {
+    replace_journaled_with(root, relative, staged, expected, bytes, write_new, record)
+}
+
+pub(super) fn replace_private_journaled(
+    root: &Path,
+    relative: &str,
+    staged: &str,
+    expected: &Observation,
+    bytes: Option<&[u8]>,
+    record: impl FnOnce(Observation) -> Result<(), String>,
+) -> Result<(), String> {
+    replace_journaled_with(
+        root,
+        relative,
+        staged,
+        expected,
+        bytes,
+        write_private,
+        record,
+    )
+}
+
+pub(super) fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() as u64 > MAX_FILE {
+        return Err("Agent configuration data exceeds its file size limit".into());
+    }
+    ordinary_ancestors(path.parent().ok_or("Invalid private file destination")?)?;
+    let mut file = crate::coordination::create_private_file(path)
+        .map_err(|_| "Cannot create an owner-restricted configuration file")?;
+    file.write_all(bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "Cannot persist owner-restricted configuration data".into())
+}
+
+fn replace_journaled_with(
+    root: &Path,
+    relative: &str,
+    staged: &str,
+    expected: &Observation,
+    bytes: Option<&[u8]>,
+    write_stage: impl FnOnce(&Path, &[u8]) -> Result<(), String>,
+    record: impl FnOnce(Observation) -> Result<(), String>,
+) -> Result<(), String> {
     if &observe(root, relative)? != expected {
         return Err("Agent configuration destination changed since preview".into());
     }
@@ -450,7 +521,7 @@ pub(super) fn replace_journaled(
             directories(root, parent)?;
         }
         let stage = root.join(staged);
-        write_new(&stage, bytes)?;
+        write_stage(&stage, bytes)?;
         let staged_state = observe(root, staged)?;
         let result = (|| {
             let current = observe(root, relative)?;

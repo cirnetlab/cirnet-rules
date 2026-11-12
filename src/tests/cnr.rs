@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Output},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -27,6 +27,51 @@ impl Fixture {
             .output()
             .unwrap()
     }
+
+    fn governance(&self) -> PathBuf {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = self.0.join("cirnet-rules");
+        fs::create_dir(&root).unwrap();
+        for relative in git(source, &["ls-files", "-z"])
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|name| !name.is_empty())
+        {
+            let relative = std::str::from_utf8(relative).unwrap();
+            let target = root.join(relative);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::copy(source.join(relative), target).unwrap();
+        }
+        git(&root, &["init", "--quiet"]);
+        git(&root, &["add", "--all"]);
+        git(
+            &root,
+            &[
+                "-c",
+                "user.name=CNR Fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "-c",
+                "core.hooksPath=.git/no-hooks",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--quiet",
+                "-m",
+                "Isolated authority",
+            ],
+        );
+        git(
+            &root,
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/cirnetlab/cirnet-rules.git",
+            ],
+        );
+        root
+    }
 }
 
 impl Drop for Fixture {
@@ -44,6 +89,20 @@ fn json(output: &Output, exit: i32) -> Value {
         String::from_utf8_lossy(&output.stderr)
     );
     serde_json::from_slice(&output.stdout).unwrap()
+}
+
+fn git(root: &Path, args: &[&str]) -> Output {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
 }
 
 #[test]
@@ -215,6 +274,229 @@ fn governance_native_flags_reject_unknown_and_duplicate_options() {
         args.extend(extra);
         assert_eq!(json(&fixture.run(&args), 1)["status"], "FAIL");
     }
+}
+
+#[test]
+fn agent_preflight_returns_missing_fields_and_rejects_unexpanded_values() {
+    let fixture = Fixture::new();
+    let missing = json(&fixture.run(&["agent", "sync", "--dry-run", "--json"]), 1);
+    assert_eq!(missing["code"], "CNR_ARGUMENT_MISSING_TARGET");
+    assert_eq!(missing["command"], "agent-sync");
+    assert_eq!(missing["result"]["status"], "FAIL");
+    assert_eq!(
+        missing["missing_fields"],
+        serde_json::json!(["target", "bundle"])
+    );
+    for (key, value) in [
+        ("target", "$Target"),
+        ("expect", "<plan_sha256>"),
+        ("task", "<approved-task-id>"),
+    ] {
+        let assignment = format!("--{key}={value}");
+        let report = json(
+            &fixture.run(&["agent", "sync", "--dry-run", "--json", &assignment]),
+            1,
+        );
+        assert_eq!(report["code"], "CNR_ARGUMENT_UNRESOLVED");
+        assert_eq!(report["invalid_field"], key);
+    }
+    let shell = json(&fixture.run(&["&", "$Cnr", "agent", "sync", "--json"]), 1);
+    assert_eq!(shell["code"], "CNR_ARGUMENT_UNRESOLVED");
+    assert!(!shell.to_string().contains("$Cnr"));
+    let legacy = json(
+        &fixture.run(&[
+            "agent",
+            "sync",
+            "--dry-run",
+            "--json",
+            "--",
+            "--target",
+            "$Target",
+        ]),
+        1,
+    );
+    assert_eq!(legacy["invalid_field"], "target");
+}
+
+#[test]
+fn operator_help_lists_supported_agents_and_confirmed_setup_spelling() {
+    let fixture = Fixture::new();
+    for command in ["check", "setup"] {
+        let report = json(&fixture.run(&[command, "--help", "--json"]), 0);
+        let help = report["help"].as_str().unwrap();
+        for agent in ["codex", "claude", "antigravity"] {
+            assert!(help.contains(agent), "{command}: {help}");
+        }
+        assert!(!help.contains("setup codex"));
+    }
+}
+
+#[test]
+fn check_all_reports_read_only_coverage_and_keeps_agents_separate() {
+    let fixture = Fixture::new();
+    let governance = fixture.governance();
+    let candidate = fixture.0.join("cirnet-interface");
+    fs::create_dir(&candidate).unwrap();
+    git(&candidate, &["init", "--quiet"]);
+    let report = json(
+        &fixture.run(&[
+            "check",
+            "all",
+            "--repo",
+            "cirnet-interface",
+            "--agent",
+            "all",
+            "--governance-root",
+            governance.to_str().unwrap(),
+            "--workspace",
+            fixture.0.to_str().unwrap(),
+            "--json",
+            "--non-interactive",
+        ]),
+        2,
+    );
+    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["overall_status"], "BLOCKED");
+    assert_eq!(report["requested_scope"]["repo"], "cirnet-interface");
+    let rows = report["findings"].as_array().unwrap();
+    let counts = report["counts_by_status"].as_object().unwrap();
+    assert_eq!(
+        counts
+            .values()
+            .map(|count| count.as_u64().unwrap())
+            .sum::<u64>(),
+        rows.len() as u64
+    );
+    assert_eq!(
+        report["coverage"]["total"].as_u64(),
+        Some(rows.len() as u64)
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row["component"] == "registry" && row["status"] == "PASS")
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row["code"] == "CANDIDATE_FOUND" && row["observed"]["trusted"] == false)
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row["component"] == "bindings" && row["status"] == "BLOCKED")
+    );
+    for agent in ["codex", "claude", "antigravity"] {
+        assert!(
+            rows.iter().any(|row| row["component"] == "native-client"
+                && row["agent_id"] == agent
+                && row["status"] == "NOT_RUN"),
+            "{agent}"
+        );
+    }
+    for component in ["task", "diff", "verification"] {
+        assert!(
+            rows.iter()
+                .any(|row| row["component"] == component && row["status"] == "NOT_RUN"),
+            "{component}"
+        );
+    }
+    for root in [&fixture.0, &governance, &candidate] {
+        for state in [
+            ".cirnetrules",
+            ".cnr",
+            ".agents",
+            ".codex",
+            ".claude",
+            ".mcp.json",
+        ] {
+            let path = root.join(state);
+            if root == &governance
+                && !git(&governance, &["ls-files", "--", state])
+                    .stdout
+                    .is_empty()
+            {
+                continue;
+            }
+            assert!(!path.exists(), "Check wrote {path:?}");
+        }
+    }
+    assert!(
+        git(
+            &governance,
+            &["status", "--porcelain", "--untracked-files=all"]
+        )
+        .stdout
+        .is_empty()
+    );
+    assert!(
+        git(
+            &candidate,
+            &["status", "--porcelain", "--untracked-files=all"]
+        )
+        .stdout
+        .is_empty()
+    );
+}
+
+#[test]
+fn invalid_authority_blocks_dependants_but_keeps_independent_findings() {
+    let fixture = Fixture::new();
+    let governance = fixture.governance();
+    let missing = fixture.0.join("missing-authority");
+    let report = |root: &Path, exit| {
+        json(
+            &fixture.run(&[
+                "check",
+                "all",
+                "--governance-root",
+                root.to_str().unwrap(),
+                "--workspace",
+                fixture.0.to_str().unwrap(),
+                "--json",
+                "--non-interactive",
+            ]),
+            exit,
+        )
+    };
+    let unavailable = report(&missing, 2);
+    assert_eq!(unavailable["overall_status"], "BLOCKED");
+    fs::write(governance.join("governance.yaml"), b"invalid: [\n").unwrap();
+    let malformed = report(&governance, 1);
+    assert_eq!(malformed["overall_status"], "ERROR");
+    for report in [unavailable, malformed] {
+        assert_eq!(report["schema_version"], 1);
+        let rows = report["findings"].as_array().unwrap();
+        assert!(
+            rows.iter()
+                .any(|row| row["component"] == "host" && row["status"] == "PASS")
+        );
+        assert!(rows.iter().any(|row| row["component"] == "bindings"
+            && row["status"] == "BLOCKED"
+            && !row["blocked_by"].as_array().unwrap().is_empty()));
+        assert!(!report.to_string().contains("missing-authority"));
+    }
+}
+
+#[test]
+fn headless_setup_requires_an_agent_and_supports_the_codex_shortcut() {
+    let fixture = Fixture::new();
+    let report = json(
+        &fixture.run(&["setup", "agent", "--non-interactive", "--json"]),
+        1,
+    );
+    assert_eq!(report["code"], "CNR_ARGUMENT_MISSING_AGENT");
+    let missing = fixture.0.join("missing-authority");
+    let report = json(
+        &fixture.run(&[
+            "setup",
+            "codex",
+            "--governance-root",
+            missing.to_str().unwrap(),
+            "--non-interactive",
+            "--json",
+        ]),
+        2,
+    );
+    assert_eq!(report["requested_scope"]["target"], "setup");
+    assert_eq!(report["requested_scope"]["agent"], "codex");
 }
 
 #[test]

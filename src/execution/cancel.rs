@@ -16,10 +16,10 @@ struct Active {
     previous: Option<libc::sigaction>,
 }
 
-pub(super) struct Cancellation(usize);
+pub(crate) struct Cancellation(usize);
 
 impl Cancellation {
-    pub(super) fn begin() -> Result<Self, String> {
+    pub(crate) fn begin() -> Result<Self, String> {
         let observed = INTERRUPTS.load(Ordering::Relaxed);
         let mut active = ACTIVE
             .lock()
@@ -31,7 +31,7 @@ impl Cancellation {
         Ok(Self(observed))
     }
 
-    pub(super) fn requested(&self) -> bool {
+    pub(crate) fn requested(&self) -> bool {
         self.0 != INTERRUPTS.load(Ordering::Relaxed)
     }
 }

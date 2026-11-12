@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-MCP-STDIO -->
-<!-- revision: 1 -->
-<!-- source-sha256: eaf9b987d3e2ffb90a31941ee02c38c442b278a609244c35fc8749ec48af3a12 -->
+<!-- revision: 2 -->
+<!-- source-sha256: dada05429c8a76215b8792665a0486f9acc96e057fa234b0ee505a5d32fff9eb -->
 <!-- translation-status: synchronized -->
 <a id="stdio"></a>
 
@@ -11,7 +11,8 @@ mẫu bằng đường dẫn thật. Đặt đường dẫn chứa khoảng tr�
 
 ```sh
 cnr mcp serve --governance-root AUTHORITY --workspace WORKSPACE --access read-only
-cnr agent mcp-config export --governance-root AUTHORITY --workspace WORKSPACE --binary CNR_EXECUTABLE --output NEW_BUNDLE --json
+cnr agent mcp-config preview-export --governance-root AUTHORITY --workspace WORKSPACE --binary CNR_EXECUTABLE --output NEW_BUNDLE --json
+cnr agent mcp-config export --governance-root AUTHORITY --workspace WORKSPACE --binary CNR_EXECUTABLE --output NEW_BUNDLE --expect BUNDLE_PLAN_DIGEST --json
 cnr agent mcp-config check --governance-root AUTHORITY --bundle NEW_BUNDLE --json
 ```
 
@@ -20,7 +21,32 @@ và manifest. Ghép bảng trong `codex.toml` vào cấu hình dự án Codex c�
 dùng `claude.mcp.json` làm mẫu MCP dự án Claude Code, hoặc dùng
 `antigravity.mcp_config.json` trong trình chỉnh sửa MCP của Antigravity. Các
 tệp chứa đường dẫn tuyệt đối local và đối số khởi chạy chỉ đọc. Giữ tệp riêng
-của máy ngoài Git.
+của máy ngoài Git. Manifest mới gắn launcher với digest của CNR, định danh
+checkout Git, HEAD và snapshot governance. Xuất lại khi các đầu vào này thay đổi.
+
+Dùng **Thiết lập Agent** trong CNR để xem trước đăng ký cấp dự án. Thao tác
+ghi tự động cần worktree đã xác nhận, bundle đã duyệt từ CNR đang chạy, quyền
+ghi đúng tệp từ task hiện hành và xác nhận của người vận hành. Xác nhận mức
+tin cậy của dự án và phê duyệt server riêng trong giao diện Agent.
+
+| Agent | Cấu hình dự án | Phạm vi người dùng và nhập thủ công |
+| --- | --- | --- |
+| Codex | `.codex/config.toml` trong dự án tin cậy | Ghép `codex.toml` bằng giao diện native. Cấu hình hiệu lực phụ thuộc host và `CODEX_HOME`. |
+| Claude Code | `.mcp.json` | Ghép `claude.mcp.json` qua cấu hình MCP của client đã cài. Claude Code quản lý phê duyệt dự án. |
+| Antigravity | `.agents/mcp_config.json` khi chọn rõ CLI hoặc IDE | Nhập `antigravity.mcp_config.json` qua trình quản lý MCP cho App, phạm vi người dùng hoặc bề mặt chưa xác nhận. |
+
+Trên dòng lệnh, xem trước bằng `cnr agent mcp-config install --agent AGENT
+--repo REPO --bundle BUNDLE --target WORKTREE --task TASK --actor OPERATOR
+--dry-run`. Với Antigravity CLI hoặc IDE, thêm `--surface cli` hoặc
+`--surface ide`. Duyệt tệp đích và mẫu khởi chạy rồi thay `--dry-run` bằng
+`--yes --expect PLAN_DIGEST --trust-reviewed`. Xem biên nhận bằng
+`cnr audit agent --receipt RECEIPT`. Xem trước hoàn tác bằng
+`cnr agent mcp-config rollback --agent AGENT --target WORKTREE --receipt
+RECEIPT --task TASK --actor OPERATOR --dry-run`, rồi xác nhận bằng digest
+trả về. Nếu mục `cirnetrules` hoặc tệp đã cài thay đổi, thao tác bị chặn
+để người dùng rà soát. Đăng ký giữ nguyên các byte khác trong tệp. Tệp được
+ghi và biên nhận có quyền truy cập giới hạn cho chủ sở hữu. Biên nhận chỉ
+lưu đoạn đã chèn và digest tệp để hoàn tác.
 
 Server dùng Rust MCP SDK chính thức `rmcp` 3.6.0 với Tokio 1.54.1. Transport
 hỗ trợ discovery STDIO theo `2026-07-28` và lifecycle trước đây
@@ -38,10 +64,15 @@ local do operator có quyền chuẩn bị. Truyền đường dẫn bằng `--s
 khi khởi chạy. Giữ tệp riêng tư. Mỗi phiên task được cấp quyền dùng một tệp.
 Schema tool không chứa token và không cho caller chọn actor hay gốc khác.
 
-`STATIC_CONFIG_VALIDATED` mô tả các tệp đã xuất. `MCP_PROTOCOL_VERIFIED`
-mô tả kiểm thử giao thức qua tiến trình. `NATIVE_CLIENT_VERIFIED` cần quan sát
-kết nối trong Agent đã cài. Quyền sở hữu tệp, quyền ghi OS và sandbox native
-là các cơ chế kiểm soát riêng.
+`cnr check mcp` thử CNR đang chạy qua đường ống riêng với profile chỉ đọc.
+Phép thử kiểm tra cả hai lifecycle, đúng sáu tool và các lời gọi có cấu trúc
+để đọc chính sách và repo. Nếu có task, phép thử đọc trạng thái và context
+tại revision vừa nhận. Phép thử có thời hạn và dọn tiến trình do nó khởi chạy.
+
+`STATIC_CONFIG_VALIDATED` xác nhận tệp đã xuất, `CONFIG_REGISTERED` xác nhận
+mục cấu hình dự án khớp, và `MCP_PROTOCOL_VERIFIED` xác nhận probe qua đường
+ống CNR. `NATIVE_CLIENT_VERIFIED` cần quan sát riêng kết nối của từng Agent
+đã cài tại worktree được chọn.
 
 [Quy trình phối hợp](shared-task-coordination.md) ·
 [Rust SDK](https://docs.rs/rmcp/3.6.0/rmcp/) ·

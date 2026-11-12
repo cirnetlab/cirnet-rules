@@ -509,7 +509,15 @@ pub(crate) fn resolve(
     task: Option<&str>,
     profile: Option<&str>,
 ) -> Result<Resolved, String> {
-    resolve_with_manual(root, workspace, registry, repository, task, profile, false)
+    resolve_selected(
+        root,
+        workspace,
+        registry,
+        repository,
+        task,
+        profile,
+        ResolveOptions::default(),
+    )
 }
 
 pub(crate) fn resolve_for_export(
@@ -520,24 +528,55 @@ pub(crate) fn resolve_for_export(
     task: Option<&str>,
     profile: Option<&str>,
 ) -> Result<Resolved, String> {
-    resolve_with_manual(root, workspace, registry, repository, task, profile, true)
+    resolve_for_export_binding(root, workspace, registry, repository, task, profile, None)
 }
 
-fn resolve_with_manual(
+pub(crate) fn resolve_for_export_binding(
     root: &Path,
     workspace: Option<&Path>,
     registry: &Value,
     repository: &str,
     task: Option<&str>,
     profile: Option<&str>,
+    binding_id: Option<&str>,
+) -> Result<Resolved, String> {
+    resolve_selected(
+        root,
+        workspace,
+        registry,
+        repository,
+        task,
+        profile,
+        ResolveOptions {
+            preserve_manual: true,
+            binding_id,
+        },
+    )
+}
+
+#[derive(Default)]
+struct ResolveOptions<'a> {
     preserve_manual: bool,
+    binding_id: Option<&'a str>,
+}
+
+fn resolve_selected(
+    root: &Path,
+    workspace: Option<&Path>,
+    registry: &Value,
+    repository: &str,
+    task: Option<&str>,
+    profile: Option<&str>,
+    options: ResolveOptions<'_>,
 ) -> Result<Resolved, String> {
     if repository == "_workspace" && task.is_none() {
         return Err("Workspace context requires a parent task".into());
     }
-    let workspace = workspace
-        .map(|path| workspace::workspace_path(root, Some(path)))
-        .transpose()?;
+    let workspace = if workspace.is_some() || options.binding_id.is_some() {
+        Some(workspace::workspace_path(root, workspace)?)
+    } else {
+        None
+    };
     let catalog = Catalog::load(registry)?;
     let limits = default_limits(registry)?;
     let registry_sha256 = registry_digest(root, registry)?;
@@ -572,7 +611,7 @@ fn resolve_with_manual(
         .map(TaskProvenance::from_current)
         .transpose()?;
     let mut manual_assets = Vec::new();
-    if preserve_manual {
+    if options.preserve_manual {
         let by_id = catalog.by_id();
         let mut complete = selection
             .included
@@ -619,16 +658,32 @@ fn resolve_with_manual(
                 .map_err(|_| "Cannot encode manual export references")?;
         docs::sha256(&input)
     };
+    let named_binding = || {
+        options
+            .binding_id
+            .map(|id| {
+                let work = workspace
+                    .as_deref()
+                    .ok_or("Workspace for selected binding is unavailable")?;
+                workspace::resolve_named(root, work, repository, registry, id)
+            })
+            .transpose()
+    };
     let binding = if repository == "_workspace" {
         None
     } else if let Some(state) = &state {
-        Some(workspace::resolve_task(
-            root,
-            workspace.as_deref(),
-            repository,
-            registry,
-            state,
-        )?)
+        let pinned =
+            workspace::resolve_task(root, workspace.as_deref(), repository, registry, state)?;
+        if named_binding()?.is_some_and(|named| {
+            named.identity != pinned.identity
+                || named.commit != pinned.commit
+                || named.path != pinned.path
+        }) {
+            return Err("Selected binding differs from the current task binding".into());
+        }
+        Some(pinned)
+    } else if options.binding_id.is_some() {
+        named_binding()?
     } else {
         workspace::resolve(root, workspace.as_deref(), repository, registry).ok()
     };
@@ -655,6 +710,15 @@ fn resolve_with_manual(
         if current.identity != expected.identity || current.commit != expected.commit {
             return Err("Task binding changed while resolving authority".into());
         }
+    }
+    if let Some(expected) = binding.as_ref()
+        && named_binding()?.is_some_and(|named| {
+            named.identity != expected.identity
+                || named.commit != expected.commit
+                || named.path != expected.path
+        })
+    {
+        return Err("Selected binding changed while resolving authority".into());
     }
     Ok(Resolved {
         repository: repository.into(),

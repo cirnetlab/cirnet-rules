@@ -683,6 +683,41 @@ fn create(root: &Path, record: Value, registry: &Value) -> Result<Value, String>
     Ok(value)
 }
 
+pub(crate) fn preview_proposal(
+    root: &Path,
+    record: &Value,
+    registry: &Value,
+) -> Result<Value, String> {
+    if record["authorization"]["actions"] != json!([])
+        || legacy_operation_blocked("task-create", root, &BTreeMap::new())?
+    {
+        return Err("A setup proposal requires empty grants and a current task store".into());
+    }
+    descriptor(root, record, registry)?;
+    let id = text(&record["id"]).to_ascii_lowercase();
+    let path = crate::workspace::scoped_path(root, &format!("{STORE}/{id}.json"))?;
+    if path
+        .try_exists()
+        .map_err(|_| "Cannot inspect proposal ID")?
+    {
+        return Err("Task ID is already in use".into());
+    }
+    new_record(root, record.clone(), registry)
+}
+
+pub(crate) fn create_proposal(
+    root: &Path,
+    record: Value,
+    registry: &Value,
+) -> Result<Value, String> {
+    preview_proposal(root, &record, registry)?;
+    let task = create(root, record, registry)?;
+    Ok(
+        json!({"status":"PASS","state":"PROPOSED","id":task["descriptor"]["id"],"revision":task["revision"],
+        "next":"Ask the authorization owner to review and approve exact scope. No grant was added."}),
+    )
+}
+
 fn check_expiry(authorization: &Value) -> Result<(), String> {
     if let Some(expires) = authorization["expires_at"].as_u64()
         && SystemTime::now()

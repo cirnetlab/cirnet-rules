@@ -1,5 +1,9 @@
+mod probe;
 mod tools;
 mod transport;
+
+pub use probe::{ProbeFailure, probe, probe_with_cancel};
+pub(crate) use transport::unique_json;
 
 use crate::{coordination, service::GovernanceService};
 use rmcp::{
