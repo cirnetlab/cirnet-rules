@@ -123,6 +123,120 @@ fn read_only_git_guard_suppresses_checkout_callbacks() {
 }
 
 #[test]
+fn system_git_line_endings_read_only_the_allowed_setting() {
+    use super::snapshot::{git_command, system_autocrlf};
+    use std::fs;
+
+    let fixture = crate::test_support::temporary_directory("cirnetrules-git-system").unwrap();
+    let root = fixture.join("governance");
+    let checkout = fixture.join("checkout");
+    fs::create_dir(&root).unwrap();
+    fs::create_dir(&checkout).unwrap();
+    let config = checkout.join("system.conf");
+    let included = checkout.join("included.conf");
+    fs::write(&included, "[core]\n  autocrlf = false\n").unwrap();
+    let read = || {
+        let mut command = git_command(&root, &checkout).unwrap();
+        command.env("GIT_CONFIG_SYSTEM", "system.conf");
+        system_autocrlf(command)
+    };
+    fs::write(
+        &config,
+        "[core]\n  autocrlf = yes\n[include]\n  path = included.conf\n",
+    )
+    .unwrap();
+    assert_eq!(read().unwrap(), Some("true"));
+    fs::write(&config, "[core]\n  autocrlf = input\n").unwrap();
+    assert_eq!(read().unwrap(), Some("input"));
+    fs::write(&config, "[core]\n  autocrlf = unreviewed\n").unwrap();
+    assert!(read().is_err());
+    fs::write(&config, "[include]\n  path = included.conf\n").unwrap();
+    assert_eq!(read().unwrap(), None);
+    let _ = fs::remove_dir_all(fixture);
+}
+
+#[cfg(windows)]
+#[test]
+fn read_only_git_guard_respects_windows_checkout_line_endings() {
+    use super::snapshot::{git_command, load_input};
+    use std::fs;
+
+    let fixture = crate::test_support::temporary_directory("cirnetrules-git-eol").unwrap();
+    let root = fixture.join("governance");
+    let checkout = fixture.join("checkout");
+    fs::create_dir(&root).unwrap();
+    fs::create_dir(&checkout).unwrap();
+    let mut system = git_command(&root, &checkout).unwrap();
+    let system = system
+        .args([
+            "config",
+            "--system",
+            "--no-includes",
+            "--type=bool-or-str",
+            "--get",
+            "core.autocrlf",
+        ])
+        .output()
+        .unwrap();
+    if !system.status.success() || !matches!(system.stdout.as_slice(), b"true\n" | b"true\r\n") {
+        // The real Windows regression applies where Git's installer selected CRLF.
+        let _ = fs::remove_dir_all(fixture);
+        return;
+    }
+    let git = |args: &[&str]| {
+        let output = git_command(&root, &checkout)
+            .unwrap()
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "Git fixture setup failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "--quiet"]);
+    let file = checkout.join("view.txt");
+    fs::write(&file, b"first\r\n").unwrap();
+    git(&["-c", "core.autocrlf=true", "add", "--", "view.txt"]);
+    git(&[
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.test",
+        "commit",
+        "--quiet",
+        "-m",
+        "Fixture",
+    ]);
+    // Retain the physical CRLF length recorded by a normal checkout and force
+    // Git to compare content rather than reusing the cached timestamp.
+    let invalidate_stat = || {
+        fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(std::time::UNIX_EPOCH + Duration::from_secs(1_700_000_000))
+            .unwrap();
+    };
+    invalidate_stat();
+    assert_eq!(
+        load_input(&checkout, "view.txt").unwrap().unwrap(),
+        b"first\r\n"
+    );
+    assert!(git_state(&root, &checkout).unwrap().dirty.is_empty());
+
+    fs::write(&file, b"other\r\n").unwrap();
+    invalidate_stat();
+    assert_eq!(git_state(&root, &checkout).unwrap().dirty["view.txt"], " M");
+    fs::write(&file, b"first\r\n").unwrap();
+    invalidate_stat();
+    git(&["config", "--local", "core.autocrlf", "false"]);
+    assert_eq!(git_state(&root, &checkout).unwrap().dirty["view.txt"], " M");
+    let _ = fs::remove_dir_all(fixture);
+}
+
+#[test]
 fn runner_captures_bounded_output_without_exposing_secret_bytes() {
     let mut command = fixture_command("emit");
     let result = run_process(&mut command, Duration::from_secs(10), 64, None).unwrap();

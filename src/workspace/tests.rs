@@ -1,5 +1,14 @@
-use super::context_packet::context;
 use super::*;
+
+fn context(
+    root: &Path,
+    workspace: Option<&Path>,
+    registry: &Value,
+    state: &Value,
+    session: Option<&str>,
+) -> Result<Value, String> {
+    context_packet::context(root, workspace, registry, state, session, || true)
+}
 
 #[test]
 fn an_initiative_routes_only_explicit_child_repository_inputs() {
@@ -247,9 +256,19 @@ fn context_is_narrow_and_delta_detects_dirty_delete_untracked() {
     let full = get("session-one");
     assert_eq!(full["metrics"]["product_files_read"], 1);
     assert_eq!(full["metrics"]["repos_accessed"], 1);
+    assert_eq!(
+        full["task_scope"]["read_scope"],
+        task["descriptor"]["read_scope"]
+    );
+    assert_eq!(
+        full["authorization_summary"]["status"],
+        "WRITE_NOT_AUTHORIZED"
+    );
     let warm = get("session-one");
     assert_eq!(warm["metrics"]["emitted_bytes"], 0);
     assert_eq!(warm["metrics"]["cache_hits"], 4);
+    assert_eq!(warm["task_scope"], full["task_scope"]);
+    assert!(warm["metrics"]["task_metadata_bytes"].as_u64().unwrap() > 0);
     println!("UI full={} warm={}", full["metrics"], warm["metrics"]);
     let other = get("session-two");
     assert!(other["metrics"]["emitted_bytes"].as_u64().unwrap() > 0);
@@ -326,6 +345,75 @@ fn api_and_release_packets_record_only_explicit_inputs() {
     assert_eq!(blocked["status"], "BLOCKED");
     assert_eq!(blocked["metrics"]["emitted_bytes"], 0);
     assert!(!gov.join(".cirnetrules/cache").exists());
+}
+
+fn bound_context_fixture() -> (Fixture, Value) {
+    let f = Fixture::new();
+    let gov = f.0.join("rules");
+    let web = f.0.join("web");
+    fs::create_dir(&gov).unwrap();
+    repo(&web);
+    english(&gov);
+    let registry = config();
+    run(
+        "workspace-bind",
+        &gov,
+        &binding_options("web", "web"),
+        &registry,
+    )
+    .unwrap();
+    (f, registry)
+}
+
+#[test]
+fn context_blocks_if_exact_scope_metadata_exceeds_its_budget() {
+    let (fixture, registry) = bound_context_fixture();
+    let gov = fixture.0.join("rules");
+    let mut task = descriptor("entry.txt");
+    task["descriptor"]["acceptance"] = json!(["A".repeat(1024)]);
+    task["descriptor"]["budget"]["context_bytes"] = json!(512);
+
+    let packet = context(&gov, None, &registry, &task, Some("oversize")).unwrap();
+    assert_eq!(packet["status"], "BLOCKED");
+    assert!(packet["reason"].as_str().unwrap().contains("metadata"));
+    assert!(packet.get("task_scope").is_none());
+    assert!(!gov.join(".cirnetrules/cache").exists());
+}
+
+#[test]
+fn context_blocks_if_exact_metadata_contains_a_session_capability() {
+    let (fixture, registry) = bound_context_fixture();
+    let gov = fixture.0.join("rules");
+    let mut task = descriptor("entry.txt");
+    let secret = "a".repeat(64);
+    task["descriptor"]["acceptance"] = json!([format!("Pasted capability other-task.{secret}.")]);
+
+    let packet = context(&gov, None, &registry, &task, None).unwrap();
+    assert_eq!(packet["status"], "BLOCKED");
+    assert_eq!(
+        packet["reason"],
+        "Exact task context metadata contains sensitive text"
+    );
+    assert!(!packet.to_string().contains(&secret));
+    assert!(packet.get("task_scope").is_none());
+}
+
+#[test]
+fn context_does_not_cache_a_packet_that_fails_final_validation() {
+    let (fixture, registry) = bound_context_fixture();
+    let gov = fixture.0.join("rules");
+    let task = descriptor("entry.txt");
+    let session = Some("retry-session");
+
+    let packet = context_packet::context(&gov, None, &registry, &task, session, || false).unwrap();
+    assert_eq!(packet["status"], "BLOCKED");
+    assert!(!gov.join(".cirnetrules/cache").exists());
+
+    let retried = context(&gov, None, &registry, &task, session).unwrap();
+    assert_eq!(retried["status"], "PASS");
+    assert_eq!(retried["delta"], false);
+    assert_eq!(retried["metrics"]["cache_hits"], 0);
+    assert!(!retried["sources"].as_array().unwrap().is_empty());
 }
 
 #[test]
@@ -484,6 +572,13 @@ fn named_bindings_keep_tasks_in_distinct_worktrees_of_one_repo() {
         );
         let packet = context(&gov, None, &reg, &task, None).unwrap();
         assert_eq!(packet["status"], "PASS");
+        assert_eq!(packet["execution_bindings"]["web"]["binding_id"], id);
+        assert_eq!(packet["execution_bindings"]["web"]["frozen"], true);
+        assert_eq!(
+            packet["execution_bindings"]["web"]["identity"],
+            packet["worktrees"]["web"]["identity"]
+        );
+        assert!(packet["execution_bindings"]["web"].get("path").is_none());
         assert!(packet["sources"].as_array().unwrap().iter().any(|source| {
             source["repository"] == "web"
                 && source["path"] == "entry.txt"

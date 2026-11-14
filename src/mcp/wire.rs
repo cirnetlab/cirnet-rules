@@ -535,7 +535,7 @@ fn coordinated_wire_and_cli_share_lease_revision_report_and_audit() {
         "primary_repo":"cirnet-interface","hints":[target],
         "read_scope":{"cirnet-interface":[target]},"write_scope":{"cirnet-interface":[target]},
         "verification_scope":{"cirnet-interface":[target]},"documentation_scope":{},"risk":"low","role":"implementer","mode":"WORK","owner":"builder",
-        "authorization":{"owner":"maintainer","basis":"Test local coordination","actions":["read","write","verify"]},
+        "authorization":{"owner":"maintainer","basis":"Test local coordination","actions":["read","write","verify"],"expires_at":4102444800_u64},
         "spec":spec,"plan":plan,"acceptance":["Observe one shared lease"],"commands":["interface-diff"],
         "docs_targets":[],"docs_not_required":"Fixture has no documentation changes"
     })).unwrap()).unwrap();
@@ -632,6 +632,7 @@ fn coordinated_wire_and_cli_share_lease_revision_report_and_audit() {
         json!({"task_id":"mcp-fixture","expected_revision":session["revision"]}),
     );
     assert_eq!(stale["status"], "BLOCKED", "{stale}");
+    assert!(stale["data"].get("task_scope").is_none());
     let context = call(
         &mut reader,
         5,
@@ -641,11 +642,70 @@ fn coordinated_wire_and_cli_share_lease_revision_report_and_audit() {
     assert_eq!(context["status"], "PASS", "{context}");
     assert_eq!(context["data"]["cached"], false, "{context}");
     assert!(!root.join(".cirnetrules/cache").exists());
+    let task_scope = json!({
+        "read_scope":{"cirnet-interface":[target]},
+        "write_scope":{"cirnet-interface":[target]},
+        "verification_scope":{"cirnet-interface":[target]},
+        "documentation_scope":{}
+    });
+    let packet = &context["data"];
+    assert_eq!(packet["task_scope"], task_scope);
+    assert_eq!(packet["scope"], "read-only context");
+    assert_eq!(packet["primary_repo"], "cirnet-interface");
+    assert_eq!(packet["spec_revision"], local["revision"]);
+    assert_eq!(packet["approval_epoch"], local["approval_epoch"]);
+    assert_eq!(packet["descriptor_sha256"].as_str().unwrap().len(), 64);
+    assert_eq!(
+        packet["authorization_summary"]["actions"],
+        json!(["read", "write", "verify"])
+    );
+    assert_eq!(
+        packet["authorization_summary"]["expires_at"],
+        4102444800_u64
+    );
+    assert_eq!(
+        packet["authorization_summary"]["status"],
+        "WRITE_REQUIRES_GRANT_EVALUATION"
+    );
+    assert_eq!(packet["acceptance"], json!(["Observe one shared lease"]));
+    assert_eq!(packet["allowed_command_ids"], json!(["interface-diff"]));
+    let binding = &packet["execution_bindings"]["cirnet-interface"];
+    assert_eq!(binding["binding_id"], "default");
+    assert_eq!(
+        binding["identity"],
+        packet["worktrees"]["cirnet-interface"]["identity"]
+    );
+    assert_eq!(
+        binding["commit"],
+        packet["worktrees"]["cirnet-interface"]["commit"]
+    );
+    assert_eq!(binding["frozen"], true);
+    assert!(!context.to_string().contains(token.trim()));
+    assert!(!context.to_string().contains("Test local coordination"));
+    let context_tool = tools["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|tool| tool["name"] == "cirnet_task_context")
+        .unwrap();
+    assert!(
+        jsonschema::validator_for(&context_tool["outputSchema"])
+            .unwrap()
+            .is_valid(&context)
+    );
     let snapshot = operator(
         &root,
         &work.0,
         &["task", "diff-check", "--task", "mcp-fixture"],
     );
+    let stale_diff = call(
+        &mut reader,
+        60,
+        "cirnet_diff_check",
+        json!({"task_id":"mcp-fixture","expected_snapshot_sha256":"0".repeat(64)}),
+    );
+    assert_eq!(stale_diff["status"], "BLOCKED", "{stale_diff}");
+    assert!(stale_diff["data"].get("repositories").is_none());
     let diff = call(
         &mut reader,
         6,

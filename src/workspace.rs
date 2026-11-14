@@ -162,6 +162,19 @@ pub fn run(
                 registry,
                 &state,
                 options.get("session").map(String::as_str),
+                || {
+                    crate::tasks::load_current(root, id).is_ok_and(|current| {
+                        [
+                            "revision",
+                            "state",
+                            "approval_epoch",
+                            "descriptor_sha256",
+                            "execution_bindings",
+                        ]
+                        .iter()
+                        .all(|field| current[*field] == state[*field])
+                    })
+                },
             )
         }
         _ => context_packet::prune(root, registry),

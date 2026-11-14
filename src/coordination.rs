@@ -21,7 +21,9 @@ pub(crate) use credential::create as create_private_file;
 pub(crate) use dependencies::{check_dependency_step_inputs, validate_selection};
 pub(crate) use leases::validate_bindings;
 use migration::migrate;
-pub(crate) use session::{check as check_session, read_token as session_token};
+pub(crate) use session::{
+    check as check_session, contains_session_capability, read_token as session_token,
+};
 
 pub(crate) fn empty_record() -> Result<Value, String> {
     serde_json::to_value(Coordination::default())

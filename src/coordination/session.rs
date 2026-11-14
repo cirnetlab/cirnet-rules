@@ -34,6 +34,32 @@ fn token_parts(token: &str) -> Result<(&str, &str), String> {
     Ok((task, secret))
 }
 
+pub(crate) fn contains_session_capability(value: &Value) -> bool {
+    fn in_text(text: &str) -> bool {
+        text.split(|character: char| {
+            !character.is_ascii_alphanumeric() && !matches!(character, '-' | '_' | '.')
+        })
+        .any(|word| {
+            let mut parts = word.split('.');
+            let mut task = parts.next().unwrap_or_default();
+            parts.any(|secret| {
+                let capability = hex(secret) && tasks::valid_id(task).is_ok();
+                task = secret;
+                capability
+            })
+        })
+    }
+
+    match value {
+        Value::String(text) => in_text(text),
+        Value::Array(items) => items.iter().any(contains_session_capability),
+        Value::Object(fields) => fields
+            .iter()
+            .any(|(name, value)| in_text(name) || contains_session_capability(value)),
+        _ => false,
+    }
+}
+
 fn workspace_scope(root: &Path, workspace: Option<&Path>) -> Result<String, String> {
     let authority = workspace::workspace_path(root, Some(root))?;
     let work = workspace::workspace_path(root, workspace)?;

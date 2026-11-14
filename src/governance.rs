@@ -374,6 +374,11 @@ fn task_bootstrap(
     if packet["status"] != "PASS" {
         return Ok(packet);
     }
+    if packet["spec_revision"] != state["revision"] {
+        return Ok(json!({
+            "status":"BLOCKED","reason":"Task revision changed while preparing the handoff"
+        }));
+    }
     packet["scope_summary"] = json!({
         "read":descriptor["read_scope"],"write":descriptor["write_scope"],
         "verify":descriptor["verification_scope"],"documentation":descriptor["documentation_scope"],

@@ -31,7 +31,34 @@ fn output_schema(command: &str) -> Arc<JsonObject> {
             json!({"repository":{"type":"string"},"authority_sha256":{"pattern":SHA256},"included":objects,"excluded":objects,"deferred":objects})
         }
         "task-context" => {
-            json!({"spec_revision":revision,"sources":objects,"worktrees":{"type":"object"},"authority_snapshot":{"type":["object","null"]}})
+            let scope_map = json!({
+                "type":"object","additionalProperties":{"type":"array","items":{"type":"string"}}
+            });
+            let string_array = json!({"type":"array","items":{"type":"string"}});
+            json!({
+                "scope":{"const":"read-only context"},
+                "spec_revision":revision,
+                "primary_repo":{"type":"string"},
+                "descriptor_sha256":{"type":"string","pattern":SHA256},
+                "approval_epoch":{"type":["integer","null"],"minimum":1},
+                "task_scope":input(json!({
+                    "read_scope":scope_map,"write_scope":scope_map,
+                    "verification_scope":scope_map,"documentation_scope":scope_map
+                }), &["read_scope","write_scope","verification_scope","documentation_scope"]),
+                "authorization_summary":input(json!({
+                    "actions":string_array,"expires_at":{"type":["integer","null"],"minimum":1},
+                    "status":{"enum":["WRITE_NOT_AUTHORIZED","WRITE_REQUIRES_ACTIVE_TASK","WRITE_REQUIRES_GRANT_EVALUATION"]}
+                }), &["actions","expires_at","status"]),
+                "execution_bindings":{"type":"object","additionalProperties":input(json!({
+                    "binding_id":{"type":"string"},"identity":{"type":"string","pattern":SHA256},
+                    "commit":{"type":"string"},"frozen":{"type":"boolean"}
+                }), &["binding_id","identity","commit","frozen"])},
+                "acceptance":string_array,
+                "allowed_command_ids":string_array,
+                "sources":objects,
+                "worktrees":{"type":"object"},
+                "authority_snapshot":{"type":["object","null"]}
+            })
         }
         "diff-check" => {
             json!({"sha256":{"pattern":SHA256},"repositories":objects,"violations":{"type":"array"}})
@@ -131,7 +158,7 @@ pub(super) fn routes(coordinated: bool) -> Result<Vec<Route>, String> {
     )?;
     add(
         "cirnet_task_context",
-        "Read the full bounded context for the specified current task revision.",
+        "Read the bounded context, exact task scopes and authorization assessment for the specified current revision.",
         "task-context",
         false,
         input(
@@ -289,6 +316,23 @@ impl Route {
                 return Err("Scoped diff snapshot changed. Reload the expected digest.".into());
             }
             _ => {}
+        }
+        if self.command == "task-context"
+            && result["status"] == "PASS"
+            && capability.is_some()
+            && [
+                "primary_repo",
+                "descriptor_sha256",
+                "task_scope",
+                "authorization_summary",
+                "execution_bindings",
+                "acceptance",
+                "allowed_command_ids",
+            ]
+            .iter()
+            .any(|field| contains_capability(&result[*field].to_string(), capability))
+        {
+            return Err("Exact task context metadata contains sensitive text".into());
         }
         redact(&mut result, capability);
         Ok(result)

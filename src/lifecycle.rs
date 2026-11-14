@@ -41,10 +41,19 @@ pub fn run(
         if packet["status"] != "PASS" {
             return Ok(packet);
         }
+        if packet["spec_revision"] != task["revision"] {
+            return Ok(blocked("Task revision changed while preparing the handoff"));
+        }
         let limit = packet["metrics"]["limits"]["context_bytes"]
             .as_u64()
             .unwrap_or(0);
-        let used = packet["metrics"]["read_bytes"].as_u64().unwrap_or(0);
+        let used = packet["metrics"]["read_bytes"].as_u64().unwrap_or(0)
+            + packet["metrics"]["task_metadata_bytes"]
+                .as_u64()
+                .unwrap_or(0)
+            + packet["checkpoint"]["next_action"]
+                .as_str()
+                .map_or(0, |value| value.len() as u64);
         let mut review = json!({
             "acceptance":task["descriptor"]["acceptance"], "changed":snapshot["repositories"],
             "evidence":task["evidence"].as_array().and_then(|records| records.last()),

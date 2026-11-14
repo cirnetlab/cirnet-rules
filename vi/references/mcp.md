@@ -1,6 +1,6 @@
 <!-- doc-id: CNR-MCP-STDIO -->
-<!-- revision: 2 -->
-<!-- source-sha256: dada05429c8a76215b8792665a0486f9acc96e057fa234b0ee505a5d32fff9eb -->
+<!-- revision: 3 -->
+<!-- source-sha256: 2a7a9e9781188037712eece7a6605ef29ced39dfb981a48251ecfa2aaeb3cda4 -->
 <!-- translation-status: synchronized -->
 <a id="stdio"></a>
 
@@ -63,6 +63,35 @@ schema có giới hạn và nhóm worker cố định. Truy cập phối hợp c
 local do operator có quyền chuẩn bị. Truyền đường dẫn bằng `--session-file`
 khi khởi chạy. Giữ tệp riêng tư. Mỗi phiên task được cấp quyền dùng một tệp.
 Schema tool không chứa token và không cho caller chọn actor hay gốc khác.
+
+<a id="task-context"></a>
+
+## Context và phạm vi chính xác của task
+
+Đọc `cirnet_task_status` trước. Dùng revision nhận được làm
+`expected_revision` cho `cirnet_task_context`. Task cần quyền đọc còn hiệu
+lực. CLI `cnr task context` và MCP trả cùng metadata bên cạnh các tệp nguồn
+được định tuyến.
+
+- `primary_repo`, `spec_revision`, `descriptor_sha256` và `approval_epoch`
+  xác định task cùng trạng thái thẩm quyền.
+- `task_scope` chứa đầy đủ các ánh xạ `read_scope`, `write_scope`,
+  `verification_scope` và `documentation_scope`. `acceptance` và
+  `allowed_command_ids` đến từ cùng descriptor.
+- `execution_bindings` xác định các binding đã kiểm tra theo repository,
+  ID binding, danh tính và commit. Trường `frozen` cho biết task đã ghi
+  nhận binding để thực thi. Đường dẫn checkout tuyệt đối chỉ dùng cục bộ.
+- `authorization_summary` báo các thao tác đã khai báo và hạn dùng.
+  Đánh giá quyền ghi gồm `WRITE_NOT_AUTHORIZED`, `WRITE_REQUIRES_ACTIVE_TASK`
+  hoặc `WRITE_REQUIRES_GRANT_EVALUATION`. Chạy `cnr task grant-evaluate`
+  với đúng đường dẫn và actor trước khi sửa.
+
+Trường `scope` hiện hữu vẫn là chuỗi `read-only context`. Toàn bộ metadata
+được tính vào ngân sách byte của context. CLI báo chi phí này tại
+`metrics.task_metadata_bytes`, kể cả trong phản hồi delta. Context trả
+`BLOCKED` khi metadata chính xác chưa thể được công bố đầy đủ. Với
+`cirnet_diff_check`, lấy digest dự kiến từ lần chạy `cnr task diff-check`
+hiện hành sau khi sửa.
 
 `cnr check mcp` thử CNR đang chạy qua đường ống riêng với profile chỉ đọc.
 Phép thử kiểm tra cả hai lifecycle, đúng sáu tool và các lời gọi có cấu trúc

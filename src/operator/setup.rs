@@ -7,6 +7,9 @@ use crate::{agent_config, docs, runner, tasks, workspace};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SetupAction {
     Bind,
@@ -473,7 +476,8 @@ fn propose(
         "risk":"normal","role":"developer","mode":"WORK","owner":actor,
         "authorization":{"basis":"Pending independent owner approval.","owner":actor,"actions":[]},
         "spec":spec,"plan":plan,"acceptance":["Review exact sync and MCP registration plans; verify resulting bytes."],
-        "commands":[],"docs_targets":[]
+        "commands":[],"docs_targets":[],
+        "docs_not_required":"This proposal is limited to generated Agent instructions and the project MCP entry. The central spec and plan document the setup without a separate documentation sync."
     });
     let candidate = tasks::preview_proposal(&context.root, &descriptor, &context.registry)?;
     let digest = docs::sha256(&serde_json::to_vec(&json!({

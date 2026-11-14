@@ -1,5 +1,5 @@
 <!-- doc-id: CNR-MCP-STDIO -->
-<!-- revision: 2 -->
+<!-- revision: 3 -->
 <a id="stdio"></a>
 
 # CIRNETRULES MCP over STDIO
@@ -63,6 +63,35 @@ by an authorized operator is required for coordinated access. Pass its
 path with `--session-file` when launching the server. Keep the file private.
 Use one file per authorized task session. The tool schema never carries its
 token or lets a caller select an actor or an alternate root.
+
+<a id="task-context"></a>
+
+## Task context and exact scopes
+
+Read `cirnet_task_status` first. Supply its revision as `expected_revision`
+to `cirnet_task_context`. The context requires current read authorization.
+The CLI `cnr task context` and MCP return the same task metadata alongside
+the routed source files.
+
+- `primary_repo`, `spec_revision`, `descriptor_sha256` and `approval_epoch`
+  identify the task and its authority.
+- `task_scope` contains the complete `read_scope`, `write_scope`,
+  `verification_scope` and `documentation_scope` maps. `acceptance` and
+  `allowed_command_ids` come from the same descriptor.
+- `execution_bindings` identifies verified bindings by repository, binding
+  ID, identity and commit. A binding is marked `frozen` when the task
+  recorded it for execution. Absolute checkout paths stay local.
+- `authorization_summary` reports declared actions and expiration. The
+  write assessment is `WRITE_NOT_AUTHORIZED`, `WRITE_REQUIRES_ACTIVE_TASK`
+  or `WRITE_REQUIRES_GRANT_EVALUATION`. Run `cnr task grant-evaluate` for
+  the exact path and actor before an edit.
+
+The existing `scope` field remains the string `read-only context`.
+The complete metadata counts toward the context byte budget. The CLI
+reports this cost in `metrics.task_metadata_bytes`, including in delta
+responses. Context returns `BLOCKED` when exact metadata cannot be
+disclosed in full. For `cirnet_diff_check`, get the expected digest
+from a current `cnr task diff-check` observation after the edit.
 
 `cnr check mcp` probes the running CNR executable through private pipes with
 the read-only profile. It checks both lifecycles, the exact six tools and

@@ -710,18 +710,44 @@ pub(crate) fn test_project_registration(
     assert_eq!(std::fs::read(product.join(relative)).unwrap(), original);
     options.remove("dry-run");
     options.insert("yes".into(), "true".into());
-    options.insert(
-        "expect".into(),
-        preview["plan_sha256"].as_str().unwrap().into(),
+    let reviewed_digest = preview["plan_sha256"].as_str().unwrap();
+    let reviewed_receipt = root.join(receipt_path(reviewed_digest).unwrap());
+    options.insert("expect".into(), reviewed_digest.into());
+    assert_eq!(
+        install(&options).unwrap_err(),
+        "Confirm the installed client's project trust separately, then use --trust-reviewed."
     );
-    assert!(install(&options).is_err());
     assert_eq!(std::fs::read(product.join(relative)).unwrap(), original);
+    assert!(!reviewed_receipt.exists());
+
     options.insert("trust-reviewed".into(), "true".into());
-    let changed_launch = Request::new(&root, work, registry, "product", agent, &options)
-        .unwrap()
-        .install("fixture-authority", "rebuilt-launch", template, || Ok(()));
-    assert!(changed_launch.is_err());
+    let mut user_scope = options.clone();
+    user_scope.insert("agent".into(), agent.into());
+    user_scope.insert("repo".into(), "product".into());
+    user_scope.insert("scope".into(), "user".into());
+    let handoff = super::run(&root, "install", &user_scope).unwrap();
+    assert_eq!(handoff["status"], "NOT_RUN");
+    assert_eq!(handoff["registration"], "UNSUPPORTED");
+    assert_eq!(handoff["scope"], "user");
+    assert_eq!(handoff["native_client"], "NOT_RUN");
     assert_eq!(std::fs::read(product.join(relative)).unwrap(), original);
+    assert!(!reviewed_receipt.exists());
+
+    let request = Request::new(&root, work, registry, "product", agent, &options).unwrap();
+    for (authority, launch) in [
+        ("fixture-authority", "rebuilt-launch"),
+        ("changed-authority", "fixture-launch"),
+    ] {
+        assert_eq!(
+            request
+                .install(authority, launch, template, || Ok(()))
+                .unwrap_err(),
+            "Agent configuration preview changed. Review a new --dry-run."
+        );
+        assert_eq!(std::fs::read(product.join(relative)).unwrap(), original);
+        assert!(!reviewed_receipt.exists());
+    }
+
     let applied = install(&options).unwrap();
     assert_eq!(applied["registration"], "CONFIG_REGISTERED");
     let id = applied["receipt"].as_str().unwrap();

@@ -228,11 +228,53 @@ pub(super) fn git_version(governance: &Path, checkout: &Path) -> Result<String, 
     Ok(format!("git version {token}"))
 }
 
+pub(super) fn system_autocrlf(mut config: Command) -> Result<Option<&'static str>, String> {
+    config.args([
+        "config",
+        "--system",
+        "--no-includes",
+        "--type=bool-or-str",
+        "--get",
+        "core.autocrlf",
+    ]);
+    let output = run_process(&mut config, Duration::from_secs(5), 64, None)?;
+    if output.timed_out || output.output.truncated || output.error.truncated {
+        return Err("System Git line ending configuration exceeds the resource bound".into());
+    }
+    if output.exit.code() == Some(1)
+        && output.output.prefix.is_empty()
+        && output.error.prefix.is_empty()
+    {
+        return Ok(None);
+    }
+    if !output.exit.success() {
+        return Err("Cannot read system Git line ending configuration".into());
+    }
+    let value = std::str::from_utf8(&output.output.prefix)
+        .map_err(|_| "Invalid system Git line ending configuration")?
+        .trim_end_matches(['\r', '\n']);
+    ["true", "false", "input"]
+        .into_iter()
+        .find(|allowed| value.eq_ignore_ascii_case(allowed))
+        .map(Some)
+        .ok_or_else(|| "Unsupported system Git line ending configuration".into())
+}
+
 pub(super) fn no_filters(governance: &Path, checkout: &Path) -> Result<Command, String> {
     let mut config = git_command(governance, checkout)?;
     let keys = metadata(config.args(["config", "--list", "--name-only", "--null"]))?;
     let keys = std::str::from_utf8(&keys).map_err(|_| "Invalid Git filter keys")?;
     let mut command = git_command(governance, checkout)?;
+    // Git for Windows can set built-in CRLF conversion in its installer config.
+    // Keep system config disabled during Git operations and replay only this setting.
+    if cfg!(windows)
+        && !keys
+            .split_terminator('\0')
+            .any(|key| key.eq_ignore_ascii_case("core.autocrlf"))
+        && let Some(value) = system_autocrlf(git_command(governance, checkout)?)?
+    {
+        command.args(["-c", &format!("core.autocrlf={value}")]);
+    }
     let mut filters = 0;
     for key in keys.split_terminator('\0').collect::<BTreeSet<_>>() {
         if !key.starts_with("filter.") {
