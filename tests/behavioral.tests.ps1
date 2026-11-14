@@ -38,10 +38,14 @@ try {
 $ErrorActionPreference = 'Stop'
 if ($args -contains '--version') { 'codex fixture-shim'; exit 0 }
 if ($args -contains '--help') {
-    '--json --ephemeral --sandbox workspace-write --output-last-message --cd --ask-for-approval never --config --model'
+    '--json --ephemeral --sandbox workspace-write --output-last-message --cd --ask-for-approval never --config --model --disable'
     exit 0
 }
-if ($args -contains 'login') { 'Logged in with fixture'; exit 0 }
+if ($args -contains 'login') {
+    if ($env:CODEX_API_KEY) { throw 'Caller key reached unsigned-in client.' }
+    if ($PWD.Path.Replace('\','/') -match '/logged-out/') { 'Not logged in'; exit 1 }
+    'Logged in with fixture'; exit 0
+}
 $arguments = [string[]]$args
 $position = [array]::IndexOf($arguments, '--output-last-message')
 if ($position -lt 0 -or $arguments -notcontains 'workspace-write' -or $arguments -notcontains 'never') { exit 4 }
@@ -54,6 +58,8 @@ $scenario = $messagePath.Replace('\','/')
 if ($scenario -match '/fatal/') { [Console]::Error.WriteLine('test process error'); exit 7 }
 if ($scenario -match '/timeout/') { Start-Sleep -Seconds 8; exit 8 }
 if ($scenario -match '/truncated/') { exit 0 }
+if ($scenario -match '/tool-policy/') { [Console]::Error.WriteLine('exec_command failed: CreateProcess rejected: blocked by policy') }
+if ($scenario -match '/mxc-unavailable/') { [Console]::Error.WriteLine('exec_command failed: UnsupportedOperation("MXC requires nonempty Unicode host SystemDrive")') }
 if ($scenario -match '/denied/') {
     '{"type":"item.completed","item":{"id":"test-denial","type":"command_execution","command":"Set-Content ../producer/releases/card-summary-1.0.0.json synthetic","aggregated_output":"Permission denied","exit_code":1,"status":"failed"}}'
 }
@@ -65,7 +71,45 @@ if ($scenario -match '/denied/') {
     $sourceRevision = (& git --no-optional-locks -C $repo rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect toolkit revision.' }
     $common = @{ Cohort='Baseline'; RulesRoot=$repo; OutputRoot=$output; SourceRevision=$sourceRevision; CodexPath=$fake; CaseId='E01' }
-    & $runner @common -Session preview | Out-Null
+    function Assert-Rejected([string]$Name, [string]$AuthPath, [string]$ExpectedError) {
+        try { & $runner @common -Session $Name -AuthHome $AuthPath -Execute }
+        catch {
+            if ($_.Exception.Message -notmatch $ExpectedError) { throw }
+            if (Test-Path -LiteralPath (Join-Path $output $Name)) { throw 'Invalid auth home allocated evaluation output.' }
+            return
+        }
+        throw "Unsafe auth home accepted: $Name."
+    }
+    Assert-Rejected invalid-auth $repo 'evaluation-only directory under the OS temporary directory'
+    $configuredHome = Join-Path $output 'prior-profile'
+    [void][IO.Directory]::CreateDirectory($configuredHome)
+    New-Item -ItemType File -Path (Join-Path $configuredHome 'config.toml') | Out-Null
+    Assert-Rejected configured-auth $configuredHome 'config.toml'
+    $authHome = Join-Path $output 'scratch-auth'
+    [void][IO.Directory]::CreateDirectory($authHome)
+    Assert-Rejected shim-auth $authHome 'supported only with the native CLI'
+
+    $noAuth = $common.Clone()
+    $noAuth.CaseId = 'E01,E02'
+    $priorKey = $env:CODEX_API_KEY
+    try {
+        $env:CODEX_API_KEY = 'SYNTHETIC-KEY-MUST-STAY-IN-CALLER'
+        & $runner @noAuth -Session logged-out -Execute | Out-Null
+    } finally { $env:CODEX_API_KEY = $priorKey }
+    foreach ($id in @('E01','E02')) {
+        $loggedOut = Read-Evidence logged-out $id
+        if ($loggedOut.execution -ne 'BLOCKED' -or $loggedOut.process -or $loggedOut.reason -notmatch 'not logged in') {
+            throw 'Logged-out CLI attempted a turn or lost its authentication blocker.'
+        }
+    }
+    try { & $runner @common -Session invalid-tools -ToolPath $repo }
+    catch {
+        if ($_.Exception.Message -notmatch '-ToolPath must be an evaluation-only directory') { throw }
+    }
+    if (Test-Path -LiteralPath (Join-Path $output 'invalid-tools')) { throw 'Unexpected tool directory was accepted.' }
+    $tools = Join-Path $output 'scratch-tools'
+    [void][IO.Directory]::CreateDirectory($tools)
+    & $runner @common -Session preview -ToolPath $tools | Out-Null
     $preview = Read-Evidence preview E01
     if ($preview.execution -ne 'NOT_RUN' -or $preview.verdict -ne 'NOT_RUN') { throw 'Preview ran a client or inferred a verdict.' }
     $previewFixture = Join-Path $output 'preview/E01/fixture'
@@ -85,11 +129,27 @@ if ($scenario -match '/denied/') {
     if ($completed.execution -ne 'COMPLETED' -or $completed.verdict -eq 'PASS' -or $completed.objective.status -ne 'PASS') {
         throw 'Completed shim evidence did not preserve the distinction between objective checks and native verdict.'
     }
+    foreach ($setting in @('plugins', 'remote_plugin', 'skills.bundled.enabled=false')) {
+        if ($completed.command -cnotcontains $setting) { throw "Missing evaluation-only context control: $setting." }
+    }
 
     $badCase = $common.Clone()
     $badCase.CaseId = 'E02'
     & $runner @badCase -Session known-bad -Execute | Out-Null
     if ((Read-Evidence known-bad E02).objective.status -ne 'FAIL') { throw 'An unfixed fixture passed objective grading.' }
+    & $runner @badCase -Session tool-policy -Execute | Out-Null
+    $policyBlock = Read-Evidence tool-policy E02
+    if ($policyBlock.verdict -ne 'BLOCKED' -or $policyBlock.execution -ne 'BLOCKED' -or
+        $policyBlock.reason -notmatch 'tool execution policy' -or $policyBlock.objective.status -ne 'FAIL') {
+        throw 'A completed response without working tool access lost its runtime blocker.'
+    }
+    & $runner @noAuth -Session mxc-unavailable -Execute | Out-Null
+    $mxcBlock = Read-Evidence mxc-unavailable E01
+    $mxcRemaining = Read-Evidence mxc-unavailable E02
+    if ($mxcBlock.verdict -ne 'BLOCKED' -or $mxcBlock.reason -notmatch 'MXC sandbox' -or
+        $mxcRemaining.verdict -ne 'BLOCKED' -or $mxcRemaining.process) {
+        throw 'MXC initialization failures must stop the remaining evaluations.'
+    }
 
     $deniedCase = $common.Clone()
     $deniedCase.CaseId = 'E04'

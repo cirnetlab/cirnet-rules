@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Support isolated native Codex authentication, portable tool paths and Windows
+  MXC execution. Record matched evaluation outcomes and correct related-docs grading.
 - Integrate four engineering behavior principles into the baseline and existing
   skills. Include on-demand Before/After examples and a synthetic Codex
   evaluation suite with offline harness checks.

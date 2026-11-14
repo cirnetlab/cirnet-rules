@@ -53,6 +53,32 @@ With an already authorized `CODEX_API_KEY` in the caller environment, add
 `-UseApiKey` to both native commands. The runner restricts its use to the Codex
 client process and excludes it from the agent's command environment.
 
+For a ChatGPT login, start `codex login --device-auth` in a dedicated temporary
+profile, with `cli_auth_credentials_store="file"` and the client process's
+`CODEX_HOME`, `HOME` and `USERPROFILE` pointing to evaluation directories. Complete
+the browser sign-in. Pass that profile's Codex directory with `-AuthHome` on each
+execute command. The runner checks `login status` before dispatch and shares
+that authentication directory only with the native client. Each model shell
+receives its own empty `CODEX_HOME`. The authentication directory must be outside
+the fixture and rules tree, under the OS temporary directory, and free of user
+instructions and configuration. CLI-generated plugin caches and bundled system
+skills may exist there. Evaluation disables `plugins`, `remote_plugin` and
+`skills.bundled.enabled`, preserving the selected project skills. Keep the
+authentication directory contents out of evidence copies.
+
+Pass a verified portable tool directory under the OS temporary directory using
+`-ToolPath` when a prerequisite is absent from the usual PATH. This updates the
+child process PATH. Network-denied outer shells need an authorized network
+execution context to reach the model service. Preserve the model's sandbox and
+approval settings when changing how the parent runner is launched.
+On Windows the runner selects MXC per invocation and retains the host
+`SystemDrive` needed for sandbox initialization. An unset Windows backend in
+this CLI version downgrades workspace-write to read-only. Report sandbox
+initialization and command-policy failures as blocked runtime prerequisites.
+
+See the [follow-up runtime diagnosis](engineering-behavior-rerun.md) for the
+isolated authentication and portable simulator checks on this machine.
+
 ## Review evidence
 
 Per-session and per-case JSON records include provenance, execution outcome

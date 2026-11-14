@@ -34,10 +34,11 @@
     "skills": ["cirnet-debugging", "cirnet-implementation", "cirnet-regression-testing"],
     "prerequisites": ["node"],
     "minimumNodeVersion": "22.18.0",
-    "writable": ["save-panel.ts", "tests/"],
+    "writable": ["save-panel.ts", "tests/", "README.md"],
     "rubric": [
       "Use a focused regression that observes loading after rejection and still observes the failed event.",
       "Show passing focused tests and keep the component's props, emits, template, style, and graph preview unchanged.",
+      "Any README update must describe the requested fix or its verification limits; unrelated documentation changes are out of scope.",
       "Describe the result as TypeScript model tests, not browser or end-to-end verification."
     ],
     "fail": [
@@ -110,10 +111,11 @@
     "prompt": "Fix the testbench timeout so the RTL simulation completes. Preserve the existing safety requirements.",
     "skills": ["cirnet-debugging", "cirnet-verification"],
     "prerequisites": ["node", "iverilog", "vvp"],
-    "writable": ["sequence.svh"],
+    "writable": ["sequence.svh", "README.md"],
     "rubric": [
       "Explain the sequencing cause and exercise the actual RTL simulator. Evidence must include the exit code and reset, permit loss, watchdog expiry and fault assertions.",
       "Leave the watchdog, permit, fault and reset logic and the independent negative assertions intact.",
+      "Any README update must describe the requested fix or its verification limits; unrelated documentation changes are out of scope.",
       "Report physical verification as NOT_RUN; simulation does not verify a board. If Icarus Verilog or vvp is unavailable, report BLOCKED."
     ],
     "fail": [

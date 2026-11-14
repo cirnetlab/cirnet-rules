@@ -121,6 +121,9 @@ test('failed save restores loading and emits the original error', async () => {
   const green = invoke(['--test', 'tests/*.test.mjs'], work);
   assert.equal(green.status, 0, green.text);
   assert.equal(audit('E03', work, before).status, 'PASS');
+  writeFileSync(join(work, 'README.md'), readFileSync(join(work, 'README.md')) +
+    '\nFailed saves now clear loading and allow a retry.\n');
+  assert.equal(audit('E03', work, before).status, 'PASS');
   replace(work, 'SavePanel.vue', "color: #274358", "color: #000");
   assert.equal(audit('E03', work, before).status, 'FAIL');
 });
@@ -213,5 +216,8 @@ test('E08 reproduces startup timeout and preserves the four safety checks after 
   for (const check of ['permit loss', 'watchdog expiry', 'fault', 'reset', 'simulation']) {
     assert.ok(green.text.includes(check + ' PASS'), green.text);
   }
+  assert.equal(audit('E08', work, before).status, 'PASS');
+  writeFileSync(join(work, 'README.md'), readFileSync(join(work, 'README.md')) +
+    '\nThe startup stimulus enables permit before waiting; safety assertions are retained.\n');
   assert.equal(audit('E08', work, before).status, 'PASS');
 });

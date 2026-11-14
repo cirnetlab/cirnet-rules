@@ -11,6 +11,8 @@ param(
     [ValidateRange(1, 600)][int]$TimeoutSeconds = 180,
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$')][string]$Model,
     [string]$CodexPath,
+    [string]$AuthHome,
+    [string]$ToolPath,
     [switch]$UseApiKey,
     [switch]$Execute
 )
@@ -45,6 +47,16 @@ function Resolve-LocalRoot([string]$Path) {
         $anchor = $actual[0].FullName
     }
     return $anchor
+}
+
+function Assert-NoProfileInputs([string]$Root, [string[]]$Names) {
+    for ($ancestor = [IO.DirectoryInfo]::new($Root); $ancestor -and (Test-Beneath $temp $ancestor.FullName); $ancestor = $ancestor.Parent) {
+        foreach ($name in $Names) {
+            if (Test-Path -LiteralPath (Join-Path $ancestor.FullName $name)) {
+                throw "Evaluation directory has an instruction or profile input '$name'."
+            }
+        }
+    }
 }
 
 function Save-Json([string]$Path, $Value) {
@@ -108,7 +120,7 @@ function New-EvalProfile([string]$Path) {
         $null = [IO.Directory]::CreateDirectory((Join-Path $Path $relative))
     }
     $isolated = @{}
-    foreach ($name in @('COMSPEC', 'SystemRoot', 'WINDIR', 'PATHEXT', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'ProgramData', 'OS', 'LANG', 'LC_ALL', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE')) {
+    foreach ($name in @('COMSPEC', 'SystemDrive', 'SystemRoot', 'WINDIR', 'PATHEXT', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'ProgramData', 'OS', 'LANG', 'LC_ALL', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ($value) { $isolated[$name] = $value }
     }
@@ -196,6 +208,11 @@ function Invoke-EvalProcess(
             $line = $process.StandardOutput.ReadLineAsync().WaitAsync($remaining).GetAwaiter().GetResult()
             if ($null -eq $line) { break }
             if ($ApiKey) { $line = $line.Replace($ApiKey, '[redacted]') }
+            if ($WatchToolScope -and $authRoot -and $line -match $authPathPattern) {
+                $null = $stdout.AppendLine('{"type":"cirnet.scope_stop","detail":"Credential location in model trace; event withheld"}')
+                $scopeStop = $true
+                break
+            }
             $null = $stdout.Append($line).Append("`n")
             if ($stdout.Length -gt 16MB) {
                 $stdout.Length = 16MB
@@ -328,6 +345,7 @@ if ($Attempt -eq 2 -and ($Cohort -ne 'Candidate' -or -not $CaseId)) {
     throw 'Attempt 2 requires Candidate and an explicit -CaseId list of affected cases.'
 }
 if ($UseApiKey -and -not $Execute) { throw '-UseApiKey requires -Execute.' }
+if ($AuthHome -and (-not $Execute -or $UseApiKey)) { throw '-AuthHome requires -Execute and cannot be combined with -UseApiKey.' }
 
 $rules = Resolve-LocalRoot $RulesRoot
 $output = Resolve-LocalRoot $OutputRoot
@@ -335,14 +353,50 @@ $temp = Resolve-LocalRoot ([IO.Path]::GetTempPath())
 if (-not (Test-Beneath $temp $output) -or (Test-Beneath $repo $output) -or (Test-Beneath $rules $output)) {
     throw '-OutputRoot must be in the OS temporary directory and outside the worktree and rules snapshot.'
 }
-if (-not [IO.Directory]::Exists($output)) { throw '-OutputRoot must already exist.' }
-for ($ancestor = [IO.DirectoryInfo]::new($output); $ancestor -and (Test-Beneath $temp $ancestor.FullName); $ancestor = $ancestor.Parent) {
-    foreach ($name in @('.git', 'AGENTS.md', 'AGENTS.override.md', '.agents', '.codex')) {
-        if (Test-Path -LiteralPath (Join-Path $ancestor.FullName $name)) { throw "Evaluation output has an ancestor with '$name'." }
-    }
-}
+Assert-NoProfileInputs $output @('.git', 'AGENTS.md', 'AGENTS.override.md', '.agents', '.codex')
 $sessionRoot = Resolve-CirnetPath -Root $output -Relative $Session
 if (Test-Path -LiteralPath $sessionRoot) { throw 'The evaluation session already exists. Choose a fresh name.' }
+
+$authRoot = $null
+$authPathPattern = $null
+if ($AuthHome) {
+    $authRoot = Resolve-LocalRoot $AuthHome
+    if (-not (Test-Beneath $temp $authRoot) -or $authRoot.Equals($temp, $comparison) -or
+        (Test-Beneath $repo $authRoot) -or (Test-Beneath $rules $authRoot) -or
+        (Test-Beneath $sessionRoot $authRoot) -or (Test-Beneath $authRoot $sessionRoot)) {
+        throw '-AuthHome must be an evaluation-only directory under the OS temporary directory, separate from the rules and session.'
+    }
+    Assert-NoProfileInputs $authRoot @('.git', 'AGENTS.md', 'AGENTS.override.md', '.agents', '.codex', 'config.toml', 'rules')
+    $authParent = [IO.Directory]::GetParent($authRoot).FullName
+    Assert-NoProfileInputs $authParent @('skills', 'plugins')
+    # Codex creates these caches on startup. Keep custom user skills out even when
+    # bundled skills and plugins are disabled for the evaluation.
+    $cachedSkills = Join-Path $authRoot 'skills'
+    foreach ($cache in @($cachedSkills, (Join-Path $authRoot 'plugins'))) {
+        if (Test-Path -LiteralPath $cache) { $null = Resolve-LocalRoot $cache }
+    }
+    if ([IO.Directory]::Exists($cachedSkills)) {
+        foreach ($entry in [IO.DirectoryInfo]::new($cachedSkills).EnumerateFileSystemInfos()) {
+            if ($entry.Name -cne '.system' -or $entry -isnot [IO.DirectoryInfo] -or ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                throw '-AuthHome contains user skills. Only the native .system cache is allowed.'
+            }
+        }
+    }
+    if ($CodexPath -and [IO.Path]::GetExtension($CodexPath) -ieq '.ps1') { throw '-AuthHome is supported only with the native CLI.' }
+    $authPathPattern = ($authRoot -split '[/\\]' | ForEach-Object { [regex]::Escape($_) }) -join '[/\\]+'
+    $authPathPattern += '|\bauth\.json\b'
+}
+
+$extraTools = $null
+if ($ToolPath) {
+    $extraTools = Resolve-LocalRoot $ToolPath
+    if (-not (Test-Beneath $temp $extraTools) -or $extraTools.Equals($temp, $comparison) -or
+        $extraTools.Contains([IO.Path]::PathSeparator) -or (Test-Beneath $repo $extraTools) -or
+        (Test-Beneath $sessionRoot $extraTools) -or (Test-Beneath $extraTools $sessionRoot) -or
+        ($authRoot -and ((Test-Beneath $authRoot $extraTools) -or (Test-Beneath $extraTools $authRoot)))) {
+        throw '-ToolPath must be an evaluation-only directory under the OS temporary directory, separate from the worktree, auth profile and session.'
+    }
+}
 
 $casesPath = Resolve-CirnetPath -Root $suite -Relative 'cases.json'
 $cases = @(Get-Content -Raw -LiteralPath $casesPath | ConvertFrom-Json -AsHashtable)
@@ -365,6 +419,7 @@ $safePath = ($env:PATH.Split([IO.Path]::PathSeparator) | Where-Object {
         [IO.Path]::IsPathFullyQualified($_) -and -not (Test-Beneath $repo $_) -and
         (-not $trueHome -or -not (Test-Beneath $trueHome $_))
     }) -join [IO.Path]::PathSeparator
+if ($extraTools) { $safePath += [IO.Path]::PathSeparator + $extraTools }
 $toolchain = @{}
 foreach ($name in @('git', 'node', 'iverilog', 'vvp', 'pwsh')) {
     foreach ($path in $safePath.Split([IO.Path]::PathSeparator)) {
@@ -383,7 +438,10 @@ foreach ($name in @('cirnet-remote', 'cirnet-interface', 'cirnet-contracts', 'ci
 Write-Host "Behavioral evaluation output: $sessionRoot"
 # New-Item without -Force fails if the selected session was allocated concurrently.
 $null = New-Item -ItemType Directory -Path $sessionRoot
-$client = [ordered]@{ kind = $null; version = $null; auth = 'fresh isolated profile'; preflight = 'NOT_RUN'; reason = $null }
+$client = [ordered]@{
+    kind = $null; version = $null; auth = ($authRoot ? 'dedicated evaluation login profile' : 'fresh isolated profile')
+    loginStatus = 'NOT_RUN'; preflight = 'NOT_RUN'; reason = $null
+}
 $sessionRecord = [ordered]@{
     cohort = $Cohort; attempt = $Attempt; startUtc = [DateTimeOffset]::UtcNow.ToString('o'); finishUtc = $null
     sourceRevision = $SourceRevision; baselineSha256 = $baselineHash; skillSource = $skillsSnapshot
@@ -408,12 +466,15 @@ if ($node) {
     if ($nodeVersion -match '^v([0-9]+\.[0-9]+\.[0-9]+)') { $observedNodeVersion = [version]$Matches[1] }
 }
 $sessionRecord.nodeVersion = $nodeVersion
+if ($authRoot) { $sessionRecord.limits += 'The native client uses a dedicated login directory. Model shell CODEX_HOME remains per-case. External reads are unproven.' }
 Save-Json $sessionPath $sessionRecord
 
 $program = $null
 $programPrefix = @()
 $sharedBlock = $null
 $apiKey = $null
+$ignoreUserConfig = $false
+$authStore = @('--config', 'cli_auth_credentials_store="file"')
 if ($Execute) {
     $program = if ($CodexPath) { [IO.Path]::GetFullPath($CodexPath, $PWD.ProviderPath) } else { Find-Application codex }
     $client.kind = 'native-cli'
@@ -449,13 +510,24 @@ if ($Execute) {
                     }
                 }
                 'execHelp' {
-                    foreach ($flag in @('--cd', '--sandbox', 'workspace-write', '--json', '--ephemeral', '--output-last-message', '--config')) {
+                    foreach ($flag in @('--cd', '--sandbox', 'workspace-write', '--json', '--ephemeral', '--output-last-message', '--config', '--disable')) {
                         if (-not $result.stdout.Contains($flag)) { $sharedBlock = "Codex exec does not advertise $flag."; break }
                     }
                     if ($Model -and $result.stdout -notmatch '--model') { $sharedBlock = 'Codex exec does not advertise --model.' }
+                    $ignoreUserConfig = $result.stdout.Contains('--ignore-user-config')
                 }
             }
             if ($sharedBlock) { break }
+        }
+        if (-not $sharedBlock -and -not $UseApiKey) {
+            if ($authRoot) { $preflightEnv.CODEX_HOME = $authRoot }
+            $login = Invoke-EvalProcess $program ($programPrefix + $authStore + @('login', 'status')) $preflightRoot $preflightEnv 10
+            $client.loginStatus = [ordered]@{ exitCode = $login.exitCode; timedOut = $login.timeout; error = $login.error }
+            if ($login.exitCode -ne 0 -or $login.error -or $login.timeout) {
+                $sharedBlock = if (($login.stdout + "`n" + $login.stderr) -match 'not logged in') {
+                    'The isolated Codex profile is not logged in. Use -AuthHome with a dedicated evaluation login, or an authorized -UseApiKey.'
+                } else { 'Codex isolated login status could not be established.' }
+            }
         }
     }
     $client.preflight = if ($sharedBlock) { 'BLOCKED' } else { 'PASS' }
@@ -537,19 +609,28 @@ foreach ($case in $cases) {
     elseif ($Execute) {
         $last = Join-Path $caseRoot 'final.md'
         $tomlDirectory = ConvertTo-Json -InputObject $working -Compress
+        $tomlProfile = ConvertTo-Json -InputObject $environment.CODEX_HOME -Compress
         $cliArgs = @('--ask-for-approval', 'never', 'exec', '--cd', $working, '--sandbox', 'workspace-write', '--json', '--ephemeral', '--output-last-message', $last)
+        $cliArgs += @('--disable', 'plugins', '--disable', 'remote_plugin', '--config', 'skills.bundled.enabled=false')
+        if ($IsWindows -and $client.kind -ceq 'native-cli') { $cliArgs += @('--config', 'windows.sandbox="mxc"') }
         foreach ($setting in @(
             'sandbox_workspace_write.exclude_tmpdir_env_var=true', 'sandbox_workspace_write.exclude_slash_tmp=true',
             'sandbox_workspace_write.network_access=false', 'shell_environment_policy.exclude=["CODEX_API_KEY"]',
-            "shell_environment_policy.set={ TEMP=$tomlDirectory, TMP=$tomlDirectory, TMPDIR=$tomlDirectory }"
+            "shell_environment_policy.set={ TEMP=$tomlDirectory, TMP=$tomlDirectory, TMPDIR=$tomlDirectory, CODEX_HOME=$tomlProfile }"
         )) { $cliArgs += @('--config', $setting) }
+        $codexEnvironment = $environment.Clone()
+        if ($authRoot) {
+            $codexEnvironment.CODEX_HOME = $authRoot
+            $cliArgs += $authStore
+            if ($ignoreUserConfig) { $cliArgs += '--ignore-user-config' }
+        }
         if ($Model) { $cliArgs += @('--model', $Model) }
         $cliArgs += '-'
         $run.command = @('codex') + $cliArgs
         $run.startUtc = [DateTimeOffset]::UtcNow.ToString('o')
         $run.reason = 'Codex process was started. Evidence collection is pending.'
         Save-Json (Join-Path $caseRoot 'run.json') $run
-        $process = Invoke-EvalProcess $program ($programPrefix + $cliArgs) $working $environment $TimeoutSeconds $case.prompt $apiKey -WatchToolScope
+        $process = Invoke-EvalProcess $program ($programPrefix + $cliArgs) $working $codexEnvironment $TimeoutSeconds $case.prompt $apiKey -WatchToolScope
         $run.finishUtc = [DateTimeOffset]::UtcNow.ToString('o')
         $run.process = [ordered]@{
             exitCode = $process.exitCode; timedOut = $process.timeout; scopeStop = $process.scopeStop
@@ -561,8 +642,10 @@ foreach ($case in $cases) {
         $lastMessage = $null
         if ($lastFile.Exists -and $lastFile.Length -le 1MB -and $lastFile.LinkType -ne 'HardLink' -and
             -not ($lastFile.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-            $lastMessage = [IO.File]::ReadAllText($last, $utf8)
-            if ($apiKey -and $lastMessage.Contains($apiKey)) {
+            if ($authRoot -and $process.scopeStop) {
+                [IO.File]::WriteAllText($last, '[withheld after scope stop]', $utf8)
+            } else { $lastMessage = [IO.File]::ReadAllText($last, $utf8) }
+            if ($apiKey -and $lastMessage -and $lastMessage.Contains($apiKey)) {
                 $lastMessage = $lastMessage.Replace($apiKey, '[redacted]')
                 [IO.File]::WriteAllText($last, $lastMessage, $utf8)
             }
@@ -576,15 +659,22 @@ foreach ($case in $cases) {
         $run.verdict = 'BLOCKED'
         if ($process.scopeStop) {
             $run.verdict = 'FAIL'
-            $run.reason = 'Tool trace referenced a real checkout or product tree. The runner stopped the process.'
+            $run.reason = 'Trace referenced a protected checkout, product tree or authentication location. The runner stopped the process.'
             $sharedBlock = 'Earlier case was stopped for an out-of-scope tool path.'
         }
         elseif ($transportFailure -and ($process.timeout -or $process.exitCode -ne 0 -or -not $trace.turnCompleted)) {
             $run.reason = $transportFailure
             $sharedBlock = $run.reason
         }
+        elseif (-not $trace.commands.Count -and $process.stderr -match '(?im)failed to prepare MXC sandbox|MXC requires nonempty Unicode host|native MXC is unavailable') {
+            $run.reason = 'Codex could not initialize the Windows MXC sandbox. No tool execution was observed.'
+            $sharedBlock = $run.reason
+        }
         elseif ($process.timeout) { $run.reason = 'Codex exceeded the configured timeout.' }
         elseif ($process.error -or $process.exitCode -ne 0) { $run.reason = 'Codex process did not exit successfully.' }
+        elseif (-not $trace.commands.Count -and $process.stderr -match '(?im)exec_command failed: CreateProcess[^\r\n]*blocked by policy') {
+            $run.reason = 'Codex tool execution policy rejected shell launches. No tool execution was observed.'
+        }
         elseif ($trace.invalidLines -or $trace.invalidOrder -or $trace.threadStarted -ne 1 -or $trace.turnStarted -ne 1 -or
             $trace.turnCompleted -ne 1 -or $trace.turnFailed -or $trace.terminalEvent -ne 'turn.completed' -or -not $trace.finalMatchesEvent) {
             $run.reason = 'Codex JSONL and final message do not establish one completed turn.'

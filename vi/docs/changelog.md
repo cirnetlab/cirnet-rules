@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Hỗ trợ xác thực Codex native cô lập, đường dẫn công cụ portable và thực thi
+  Windows MXC. Ghi kết quả đánh giá theo cặp và sửa cách chấm tài liệu liên quan.
 - Tích hợp bốn nguyên tắc hành vi kỹ thuật vào baseline và skill hiện có.
   Thêm ví dụ Before/After nạp khi cần và bộ đánh giá Codex giả lập có kiểm tra
   harness offline.
@@ -21,4 +23,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 2467e2a5ce0f51e54617049d68147dbe02a0e9ceb6585b245afeea9b4c4e2784 -->
+<!-- source-sha256: a37be9fb5e5d8588e47d082f724e13ba87c101693283ea79595ba9c12afd1759 -->
