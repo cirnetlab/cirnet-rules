@@ -26,8 +26,8 @@
 Lệnh build/test, version, contracts, release được chọn, cấu hình board và quy ước
 plan local vẫn thuộc repo sản phẩm. Repo này không có dịch vụ điều phối, database
 task, CLI bắt buộc hay approval engine.
-Đọc chỉ dẫn không cần runtime. Checker tùy chọn dùng thư viện chuẩn Python,
-không sửa file hoặc cài hook.
+Các chỉ dẫn này là tài liệu Markdown độc lập. Checker tùy chọn chỉ đọc, chỉ dùng
+thư viện chuẩn Rust và cần bộ công cụ Rust đã cài để biên dịch.
 
 ## Bảo trì và bằng chứng
 
@@ -44,4 +44,4 @@ không thuộc runtime của bộ common rules.
 [Giấy phép](../LICENSE) · [Thông báo bên thứ ba](../THIRD_PARTY_NOTICES.md).
 
 <!-- source: en/README.md -->
-<!-- source-sha256: bd84871997a3841ae4604e97c72ae12ba9d3cd97117317b6f6a4dbcc2bfd8699 -->
+<!-- source-sha256: b71e125be97fa6937ac8a6df59146db69f9e16ecd31fd6f254598ee61efb0990 -->

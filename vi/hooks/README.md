@@ -12,26 +12,32 @@ không phải lớp context bổ sung.
 
 ## Kiểm tra thực thi local tùy chọn
 
-Chạy từ root repository common-rules, dùng Python 3.10+ đã có:
+Chạy các lệnh sau từ root repository common-rules với Cargo và Rust 1.88 trở lên.
 
 ```powershell
-python -B hooks/check_docs.py
-python -B -m unittest discover -s tests -p 'test_*.py' -v
+cargo run --offline --locked --bin check-docs
+cargo test --offline --locked
 git diff --check
 ```
 
-Script tự xác định root repo của nó. Tham số chỉ đọc `--root PATH` dùng cho
-fixture kiểm tra hoặc checkout common-rules được chỉ định rõ.
-Script không cài tool, dịch nội dung, stamp hash, sửa Git hay truy cập mạng.
-Unit test chỉ ghi fixture dưới `.superpowers/bilingual-tests/` đã được ignore
-của repo này.
+Checker mặc định kiểm tra checkout đã dùng để biên dịch. Để kiểm tra
+fixture hoặc một checkout common-rules cụ thể, truyền `--root` sau `--`.
+
+```powershell
+cargo run --offline --locked --bin check-docs -- --root PATH
+```
+
+Checker trong `hooks/check_docs.rs` chạy offline và chỉ đọc. Checker và các bài
+kiểm tra trong `tests/check_docs.rs` chỉ dùng thư viện chuẩn Rust. Theo mặc định,
+Cargo ghi đầu ra build vào `target/` đã được ignore. Các bài kiểm tra chỉ ghi
+fixture dưới `.superpowers/bilingual-tests/` đã được ignore của repo này.
 
 Kiểm tra bao gồm cặp đường dẫn, nguồn/hash bản dịch còn khớp, UTF-8/LF,
 whitespace, link/fragment Markdown local, bản baseline root, adapter Claude và
 ba định nghĩa skill tiếng Anh. Hash khớp không chứng minh đúng nghĩa.
-Exit 0 là PASS, 1 là kiểm tra thất bại, 2 là input không hợp lệ.
-Thiếu Python nghĩa là kiểm tra thực thi BLOCKED; review thủ công không phải PASS
-của lệnh đã chạy.
+Checker trả mã thoát 0 khi PASS, 1 khi kiểm tra thất bại và 2 khi đầu vào không
+hợp lệ. Thiếu bộ công cụ Rust thì kiểm tra thực thi ở trạng thái BLOCKED. Ghi kết
+quả review thủ công riêng.
 
 ## Kết nối với Agent sau này
 
@@ -46,4 +52,4 @@ entrypoint của common-rules. Kiểm tra sản phẩm và bộ cấp phát outp
 Xem [chính sách tài liệu](../policies/documentation.md) về nghĩa vụ cập nhật.
 
 <!-- source: en/hooks/README.md -->
-<!-- source-sha256: 29d6b4145f1693920428e20d0b04c750e73c736d9baaba6aeb005856d63e4c87 -->
+<!-- source-sha256: 0357d7f164b02e4066a2d9f2fa2922e7b1ddb981815954cd6db76679c104c0ec -->

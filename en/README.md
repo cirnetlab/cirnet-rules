@@ -26,8 +26,8 @@
 Build/test commands, versions, contracts, release selection, board configuration
 and local planning conventions remain owned by each product. This repository
 contains no orchestration service, task database, mandatory CLI or approval engine.
-Reading these instructions needs no runtime. The optional checker uses Python's
-standard library and never changes files or installs hooks.
+These instructions are standalone Markdown. The optional read-only checker uses
+only the Rust standard library and requires an installed Rust toolchain to build.
 
 ## Maintenance and evidence
 

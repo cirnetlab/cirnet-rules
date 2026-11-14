@@ -23,16 +23,18 @@ và chạy hook kiểm tra. Không nạp bản Việt thành nguồn mệnh lệ
 Run from this checkout / Chạy tại checkout này:
 
 ```powershell
-python -B hooks/check_docs.py
-python -B -m unittest discover -s tests -p 'test_*.py' -v
+cargo run --offline --locked --bin check-docs
+cargo test --offline --locked
 git diff --check
 ```
 
-The optional local checker needs installed Python; reading the rules does not.
+The optional local checker requires an installed Rust toolchain. The rules are
+standalone Markdown.
 No native/global hooks are installed. Product repositories retain their own
 architecture, build/test, contracts, release and physical-safety decisions.
 
-Checker local là tùy chọn và cần Python đã có; đọc rules không cần runtime.
+Checker local là tùy chọn và cần bộ công cụ Rust đã cài. Bộ quy tắc là tài liệu
+Markdown độc lập.
 Không cài hook native/global. Mỗi repo sản phẩm vẫn giữ quyền quyết định riêng.
 
 [LICENSE](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md) ·

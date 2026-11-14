@@ -12,25 +12,33 @@ human review, not an additional context layer.
 
 ## Optional local executable check
 
-From the common-rules repository root, using an already installed Python 3.10+:
+Run these commands from the common-rules repository root with Cargo and Rust
+1.88 or later.
 
 ```powershell
-python -B hooks/check_docs.py
-python -B -m unittest discover -s tests -p 'test_*.py' -v
+cargo run --offline --locked --bin check-docs
+cargo test --offline --locked
 git diff --check
 ```
 
-The script resolves its own repository root. A read-only `--root PATH` override
-exists for validation fixtures or an explicitly chosen common-rules checkout.
-It does not install tools, translate content, stamp hashes, modify Git or contact
-the network. Unit tests write fixtures only under this repo's ignored
-`.superpowers/bilingual-tests/`.
+The compiled checker defaults to the checkout where it was built. To check a
+fixture or a specific common-rules checkout, pass `--root` after `--`.
+
+```powershell
+cargo run --offline --locked --bin check-docs -- --root PATH
+```
+
+The checker in `hooks/check_docs.rs` runs offline and is read-only. It and the
+tests in `tests/check_docs.rs` use only the Rust standard library. Cargo places
+build output in ignored `target/` by default. Tests write fixtures only under
+this repo's ignored `.superpowers/bilingual-tests/`.
 
 The check covers paired paths, translation source/hash freshness, UTF-8/LF,
 whitespace, local Markdown links/fragments, the root baseline mirror, Claude
 adapter and the three English skill definitions. Hash matching cannot prove meaning.
-Exit 0 is PASS, 1 is a failed check, 2 is invalid input. A missing Python runtime
-means the executable check is BLOCKED; manual review is not its executed PASS.
+The checker exits with 0 for PASS, 1 for a failed check and 2 for invalid input.
+A missing Rust toolchain leaves the executable check BLOCKED. Record manual
+review separately.
 
 ## Connect to an agent later
 

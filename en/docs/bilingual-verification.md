@@ -45,3 +45,10 @@ also identifies the original optional checker without adding bundled dependencie
 
 The [initial rebuild report](rebuild-verification.md) is historical.
 Its file/link counts and test results describe that earlier snapshot only.
+
+## Rust checker verification
+
+The commands above describe the original Python runs. Follow the
+[current hook instructions](../hooks/README.md) to build and run the Rust checker.
+The Rust checker passed on this checkout. The ported Cargo suite recorded 27
+passes and one ignored Windows symlink test that requires symlink privileges.

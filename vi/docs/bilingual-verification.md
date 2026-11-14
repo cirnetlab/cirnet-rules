@@ -45,5 +45,12 @@ tùy chọn do repo tự viết, không thêm dependency đóng gói.
 [Báo cáo rebuild ban đầu](rebuild-verification.md) là lịch sử.
 Số file/link và kết quả test trong đó chỉ mô tả snapshot cũ.
 
+## Kiểm chứng checker Rust
+
+Các lệnh ở trên ghi lại lần chạy Python ban đầu. Xem
+[hướng dẫn hook hiện tại](../hooks/README.md) để biên dịch và chạy checker Rust.
+Checker Rust đã kiểm tra thành công checkout này. Bộ test chuyển sang Cargo có
+27 test đạt và bỏ qua một test Windows cần quyền tạo symlink.
+
 <!-- source: en/docs/bilingual-verification.md -->
-<!-- source-sha256: 6d62fa86b03073e2fe3eb9edf105a071c8d75e3445e55cd268db603fae4239ad -->
+<!-- source-sha256: b8b88817d7bfad3315da8e26267f34c2e317c5fd547cb742d3715e2aac325b16 -->
