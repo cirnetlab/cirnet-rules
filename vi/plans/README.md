@@ -14,7 +14,8 @@ của owner, kể cả quy ước `.superpowers` hiện có; thư mục trung t�
 không thay thế quy tắc đó.
 
 Hồ sơ task: [rebuild ban đầu](cirnet-rules/rules-common/plan.md) (lịch sử),
-[nâng cấp song ngữ](cirnet-rules/bilingual-upgrade/plan.md).
+[nâng cấp song ngữ](cirnet-rules/bilingual-upgrade/plan.md),
+[nâng cấp toolkit](cirnet-rules/toolkit-upgrade/plan.md).
 
 <!-- source: en/plans/README.md -->
-<!-- source-sha256: 01b0ccdb5e4098a9943aef2393c1dad842754ca0278c398782f4e9818f1bb565 -->
+<!-- source-sha256: 92b0d706c2b881424f3a5ca2a4c01b6de5738646fff8a4d4a65814502f33c44e -->

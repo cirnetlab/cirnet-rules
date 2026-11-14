@@ -1,10 +1,13 @@
 # Third-party notices
 
-The common rules distribution contains Markdown, the source for an optional Rust
-documentation checker and its tests, and the unchanged root [LICENSE](LICENSE).
-The checker and tests use only the Rust standard library and require a separately
-installed Rust toolchain to build.
-Official client documentation is linked for setup; it is not redistributed here.
+The toolkit includes Markdown, the original Rust documentation checker and
+tests, and local PowerShell packaging and installation scripts. The checker uses
+the Rust standard library. Scripts use PowerShell 7, its .NET runtime and local
+Git for packaging provenance. See [LICENSE](LICENSE).
+
+CI pins [actions/checkout v4.2.2](https://github.com/actions/checkout/releases/tag/v4.2.2).
+The action runs on the hosted runner. Client documentation is linked in the setup
+guide.
 
 The former Governance CLI used SQLite through rusqlite (SQLite public domain),
 the Rust MCP SDK (Apache-2.0), Tokio (MIT) and unicode-segmentation

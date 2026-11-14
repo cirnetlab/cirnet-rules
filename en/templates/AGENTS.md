@@ -8,6 +8,7 @@ Remove prompts that do not apply. Keep common behavior in the shared baseline.
 
 State this repository's purpose, owned interfaces and canonical upstream sources.
 Name protected or generated paths and their owning generation commands.
+Use the [repository map](repository-map.md) for details needed outside startup.
 
 ## Architecture and commands
 

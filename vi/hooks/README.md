@@ -33,10 +33,18 @@ Cargo ghi đầu ra build vào `target/` đã được ignore. Các bài kiểm 
 fixture dưới `.superpowers/bilingual-tests/` đã được ignore của repo này.
 
 Kiểm tra bao gồm cặp đường dẫn, nguồn/hash bản dịch còn khớp, UTF-8/LF,
-whitespace, link/fragment Markdown local, bản baseline root, adapter Claude và
-ba định nghĩa skill tiếng Anh. Hash khớp không chứng minh đúng nghĩa.
-Checker trả mã thoát 0 khi PASS, 1 khi kiểm tra thất bại và 2 khi đầu vào không
-hợp lệ. Thiếu bộ công cụ Rust thì kiểm tra thực thi ở trạng thái BLOCKED. Ghi kết
+whitespace, link/fragment Markdown local, bản baseline root, adapter Claude,
+sự thống nhất phiên bản toolkit và skill tiếng Anh được khám phá tự động.
+Subset frontmatter portable có fence `---` chính xác và một dòng `name`,
+một dòng `description` không thụt lề. Dùng chuỗi thuần một dòng hoặc chuỗi
+nháy đơn không escape. Dẫn file bắt buộc bằng link Markdown trong cùng thư mục
+skill. Path phải đúng chữ hoa thường và dùng dấu gạch chéo xuôi. Dẫn nguồn HTTP,
+HTTPS và mailto được phép. URI file và path ra khỏi skill làm kiểm tra thất bại.
+
+ERROR làm kiểm tra thất bại. WARN báo ngân sách context và dấu hiệu trùng lặp.
+INFO báo số đo văn bản. Hash bản dịch và heuristic văn bản cần review nghĩa riêng.
+Mã thoát 0 là PASS, 1 là kiểm tra thất bại và 2 là cách gọi không hợp lệ.
+Thiếu bộ công cụ Rust thì kiểm tra thực thi ở trạng thái BLOCKED. Ghi kết
 quả review thủ công riêng.
 
 ## Kết nối với Agent sau này
@@ -52,4 +60,4 @@ entrypoint của common-rules. Kiểm tra sản phẩm và bộ cấp phát outp
 Xem [chính sách tài liệu](../policies/documentation.md) về nghĩa vụ cập nhật.
 
 <!-- source: en/hooks/README.md -->
-<!-- source-sha256: 0357d7f164b02e4066a2d9f2fa2922e7b1ddb981815954cd6db76679c104c0ec -->
+<!-- source-sha256: 47919860950df227232e7984863bf111eb1b3db0a2bf98d70994697bc9b0b2e7 -->

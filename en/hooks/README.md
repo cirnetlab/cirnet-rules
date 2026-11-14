@@ -35,8 +35,17 @@ this repo's ignored `.superpowers/bilingual-tests/`.
 
 The check covers paired paths, translation source/hash freshness, UTF-8/LF,
 whitespace, local Markdown links/fragments, the root baseline mirror, Claude
-adapter and the three English skill definitions. Hash matching cannot prove meaning.
-The checker exits with 0 for PASS, 1 for a failed check and 2 for invalid input.
+adapter, toolkit version agreement and discovered English skill definitions.
+The portable frontmatter subset has exact `---` fences and one unindented
+`name` and `description` each. Use a one-line plain string or single-quoted
+literal with no escape syntax. Link required files in Markdown within the same
+skill directory. Paths require exact casing and forward slashes. HTTP, HTTPS
+and mailto citations are allowed. File URIs and out-of-skill paths fail validation.
+
+ERROR diagnostics fail the check. WARN diagnostics flag context budgets and
+potential duplication. INFO reports text measurements. Translation hashes and
+text heuristics require separate review of meaning. Exit codes are 0 for PASS,
+1 for failed checks and 2 for invalid invocation.
 A missing Rust toolchain leaves the executable check BLOCKED. Record manual
 review separately.
 

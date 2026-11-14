@@ -30,5 +30,7 @@ Phân biệt đầu vào của bản phát hành ứng viên với bản đượ
 không sẵn có. Trỏ đến thông tin thực tế do chủ sở hữu duy trì; tránh sao chép thông
 tin từ bên sử dụng hoặc dữ liệu lịch sử.
 
+Dùng [bản đồ repository](repository-map.md) cho chi tiết khi task cần đọc thêm.
+
 <!-- source: en/templates/AGENTS.md -->
-<!-- source-sha256: 747f34150a51d6e2304477dcd081be650e5948fcfa0d824c71df1b2201823a8b -->
+<!-- source-sha256: 697531f1a7bf3b5fd7c857eb42db3e38019e2072073eb4f9ba3fa758e8d2539e -->

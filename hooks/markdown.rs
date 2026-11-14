@@ -55,7 +55,7 @@ fn closing_ticks(mut text: &str, length: usize) -> Option<usize> {
     None
 }
 
-fn prose(text: &str, keep_inline_code: bool) -> String {
+pub(super) fn prose(text: &str, keep_inline_code: bool) -> String {
     let lines = without_fences(text);
     let mut output = String::with_capacity(lines.len());
     let mut text = lines.as_str();
@@ -190,15 +190,12 @@ fn replace_brackets<'a>(
 pub(super) fn links(text: &str) -> (Vec<String>, Vec<String>) {
     let clean = prose(text, false);
     let mut targets = Vec::new();
-    let mut definitions = HashMap::new();
+    let mut definitions = HashSet::new();
     let mut body = String::with_capacity(clean.len());
     for line in clean.split_inclusive('\n') {
         if let Some((label, target, rest)) = definition(line) {
-            let index = *definitions.entry(normalize(label)).or_insert(targets.len());
-            if index == targets.len() {
+            if definitions.insert(normalize(label)) {
                 targets.push(target.to_owned());
-            } else {
-                targets[index] = target.to_owned();
             }
             body.push_str(rest);
         } else {
@@ -222,7 +219,7 @@ pub(super) fn links(text: &str) -> (Vec<String>, Vec<String>) {
                 } else {
                     reference
                 });
-                if !definitions.contains_key(&label) {
+                if !definitions.contains(&label) {
                     undefined.push(label);
                 }
                 text = rest;
@@ -234,7 +231,7 @@ pub(super) fn links(text: &str) -> (Vec<String>, Vec<String>) {
     (targets, undefined)
 }
 
-fn frontmatter(text: &str) -> Option<(&str, &str)> {
+pub(super) fn frontmatter(text: &str) -> Option<(&str, &str)> {
     let text = text.strip_prefix("---\n")?;
     text.match_indices("\n---").find_map(|(index, delim)| {
         let rest = &text[index + delim.len()..];
@@ -255,6 +252,16 @@ fn atx_title(line: &str) -> Option<&str> {
     }
     let title = rest.trim();
     (!title.is_empty()).then(|| title.trim_end_matches('#').trim_end())
+}
+
+pub(super) fn first_level_two_heading(text: &str) -> Option<String> {
+    prose(text, false).lines().find_map(|line| {
+        let title = unindent(line)?.strip_prefix("##")?;
+        if !title.starts_with(char::is_whitespace) {
+            return None;
+        }
+        atx_title(line).map(str::to_owned)
+    })
 }
 
 fn setext_underline(line: &str) -> bool {
@@ -320,46 +327,80 @@ fn plain_scalar(value: &str) -> bool {
     let Some(first) = value.chars().next() else {
         return false;
     };
-    if value.trim().is_empty()
+    if value.trim() != value
         || "[]{}'\"&*!|>@`#%".contains(first)
+        || value.contains(char::is_control)
         || value.contains(": ")
+        || value.ends_with(':')
         || value.contains(" #")
+        || matches!(value, "-" | "?")
         || (matches!(first, '-' | '?' | ':')
             && value.chars().nth(1).is_some_and(char::is_whitespace))
         || matches!(
             value.to_ascii_lowercase().as_str(),
-            "true" | "false" | "yes" | "no" | "on" | "off" | "null" | "~"
+            "true"
+                | "false"
+                | "yes"
+                | "no"
+                | "on"
+                | "off"
+                | "null"
+                | "~"
+                | ".nan"
+                | ".inf"
+                | "+.inf"
+                | "-.inf"
         )
     {
         return false;
     }
-    let number = value.strip_prefix(['-', '+']).unwrap_or(value);
-    let digits = |text: &str| !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit());
-    let numeric = number.split_once('.').map_or_else(
-        || digits(number),
-        |(whole, fraction)| digits(whole) && digits(fraction),
-    );
-    !numeric
+    let number = value.replace('_', "");
+    if number.parse::<f64>().is_ok() {
+        return false;
+    }
+    let number = number.strip_prefix(['-', '+']).unwrap_or(&number);
+    ![("0b", 2), ("0o", 8), ("0x", 16)]
+        .iter()
+        .any(|(prefix, radix)| {
+            number.strip_prefix(prefix).is_some_and(|digits| {
+                !digits.is_empty() && digits.chars().all(|digit| digit.is_digit(*radix))
+            })
+        })
 }
 
-pub(super) fn valid_skill(text: &str, name: &str) -> bool {
-    let Some((metadata, _)) = frontmatter(text) else {
-        return false;
-    };
-    let mut name_seen = false;
-    let mut description_seen = false;
+fn skill_scalar(value: &str) -> Option<&str> {
+    // Support literal single-quoted strings without escapes as well as plain
+    // scalars. In particular a digits-only name needs quoting to be a string.
+    if let Some(value) = value.strip_prefix('\'') {
+        return value
+            .strip_suffix('\'')
+            .filter(|value| !value.contains('\'') && !value.contains(char::is_control));
+    }
+    plain_scalar(value).then_some(value)
+}
+
+pub(super) fn skill_metadata(text: &str) -> Result<(&str, &str, &str), String> {
+    let (metadata, body) = frontmatter(text).ok_or("missing --- delimited frontmatter")?;
+    let mut name = None;
+    let mut description = None;
     for line in metadata.lines() {
-        let Some((key, value)) = line.split_once(": ") else {
-            return false;
+        let (key, value) = line
+            .split_once(": ")
+            .ok_or("expected an unindented key: value frontmatter line")?;
+        let field = match key {
+            "name" => &mut name,
+            "description" => &mut description,
+            _ => return Err(format!("unsupported frontmatter field {key:?}")),
         };
-        if !plain_scalar(value) {
-            return false;
-        }
-        match key {
-            "name" if !name_seen && value == name => name_seen = true,
-            "description" if !description_seen => description_seen = true,
-            _ => return false,
+        let value = skill_scalar(value)
+            .ok_or_else(|| format!("{key} must be a supported single-line string"))?;
+        if field.replace(value).is_some() {
+            return Err(format!("duplicate frontmatter field {key:?}"));
         }
     }
-    name_seen && description_seen
+    Ok((
+        name.ok_or("missing frontmatter name")?,
+        description.ok_or("missing frontmatter description")?,
+        body,
+    ))
 }

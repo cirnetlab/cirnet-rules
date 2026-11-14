@@ -14,4 +14,5 @@ owner's planning location, including existing `.superpowers` conventions; this
 central directory does not replace those rules.
 
 Task records: [initial rebuild](cirnet-rules/rules-common/plan.md) (historical),
-[bilingual upgrade](cirnet-rules/bilingual-upgrade/plan.md).
+[bilingual upgrade](cirnet-rules/bilingual-upgrade/plan.md),
+[toolkit upgrade](cirnet-rules/toolkit-upgrade/plan.md).
