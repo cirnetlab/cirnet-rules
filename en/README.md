@@ -1,9 +1,5 @@
 # CIRNET Common Agent Rules & Skills
 
-English is the canonical instruction language. Vietnamese documents under
-`vi/` are human translations; agents consult them only for translation/review.
-Use one chosen coding agent in a product repository, with that repo's local rules.
-
 ## Start here
 
 1. Use the standalone [baseline](AGENTS.md); the root `AGENTS.md` is its identical

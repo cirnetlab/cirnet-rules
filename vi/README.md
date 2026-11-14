@@ -1,9 +1,5 @@
 # CIRNET Common Agent Rules & Skills
 
-Tiếng Anh là ngôn ngữ chỉ dẫn chuẩn. Tài liệu dưới `vi/` là bản dịch cho người đọc;
-Agent chỉ dùng khi dịch hoặc review bản dịch.
-Chọn một coding agent làm việc tại repo sản phẩm và tuân quy tắc local của repo đó.
-
 ## Bắt đầu
 
 1. Dùng [baseline độc lập](AGENTS.md); `AGENTS.md` ở root là bản phân phối tiếng Anh
