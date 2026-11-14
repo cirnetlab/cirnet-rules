@@ -1,13 +1,12 @@
-# CIRNETRULES third-party notices
+# Third-party notices
 
-The CLI uses bundled SQLite through rusqlite to inspect and archive legacy
-data. SQLite is dedicated to the public domain. The exact Rust dependency
-versions and package sources are recorded in Cargo.lock.
+The common rules distribution contains Markdown and the unchanged root
+[LICENSE](LICENSE). It does not bundle the removed runtime or its dependencies.
+Official client documentation is linked for setup; it is not redistributed here.
 
-Review the exact distribution contents and retain the applicable upstream
-license texts and notices before redistributing binaries.
-
-The STDIO server uses the official [Rust MCP SDK](https://docs.rs/crate/rmcp/3.6.0) under Apache-2.0 and Tokio under MIT. The resolved packages and versions are recorded in Cargo.lock.
-
-The TUI uses [unicode-segmentation](https://docs.rs/unicode-segmentation/1.13.2/unicode_segmentation/)
-under MIT or Apache-2.0 for Unicode grapheme boundaries.
+The former Governance CLI used SQLite through rusqlite (SQLite public domain),
+the Rust MCP SDK (Apache-2.0), Tokio (MIT) and unicode-segmentation
+(MIT or Apache-2.0). Their dependency records and original notices remain in the
+[preserved Governance revision](https://github.com/cirnetlab/cirnet-rules/tree/646afa38516bbfd276b0aecb7a138ab427df5fa9).
+Anyone distributing that runtime must review its own contents and applicable
+upstream notices. This note does not replace those notices or license terms.
