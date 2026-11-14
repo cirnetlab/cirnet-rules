@@ -9,6 +9,11 @@ CI pins [actions/checkout v4.2.2](https://github.com/actions/checkout/releases/t
 The action runs on the hosted runner. Client documentation is linked in the setup
 guide.
 
+The engineering principles draw on observations by Andrej Karpathy as collected
+by the contributors to [multica-ai/andrej-karpathy-skills at 2c60614](https://github.com/multica-ai/andrej-karpathy-skills/tree/2c606141936f1eeef17fa3043a72095b4765b9c2).
+That upstream project lists an MIT license. CIRNET's wording, synthetic examples
+and evaluation fixtures were written for this toolkit.
+
 The former Governance CLI used SQLite through rusqlite (SQLite public domain),
 the Rust MCP SDK (Apache-2.0), Tokio (MIT) and unicode-segmentation
 (MIT or Apache-2.0). Their dependency records and original notices remain in the

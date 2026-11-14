@@ -175,8 +175,29 @@ Read [Checklist][check].
     Assert-BundleTest ($paths.Count -ge 4 -and $paths -ccontains 'AGENTS.md' -and $paths -ccontains 'LICENSE') 'Missing packaged runtime files.'
     Assert-BundleTest (-not ($paths | Where-Object { $_ -cnotmatch '^(?:AGENTS\.md|LICENSE|THIRD_PARTY_NOTICES\.md|skills/cirnet-.+)$' })) 'Payload escaped the allowlist.'
     Assert-BundleTest ($extractedBundle.Manifest.revision -ceq $revision -and $extractedBundle.Manifest.dirty -eq [bool]$status) 'Invalid bundle provenance.'
+    $examples = 'skills/cirnet-implementation/references/engineering-examples.md'
+    Assert-BundleTest ($paths -ccontains $examples) 'Implementation examples are missing from the extracted bundle.'
+    $sourceExample = Join-Path $repo ('en/' + $examples)
+    Assert-BundleTest ((Get-CirnetHash (Join-Path $extracted $examples)) -ceq (Get-CirnetHash $sourceExample)) 'Packaged examples differ from the reviewed source.'
+    Assert-BundleTest (-not ($paths | Where-Object { $_ -match '^vi/|^tests/|^scripts/|(?i)cases\.json|\.jsonl$' })) 'Evaluator or translation material escaped the bundle boundary.'
+
+    $fakeClientHome = Join-Path $session 'fake client home'
+    $install = Join-Path $repo 'scripts/install.ps1'
+    $verify = Join-Path $repo 'scripts/verify-install.ps1'
+    $restore = Join-Path $repo 'scripts/restore.ps1'
+    $destination = @{ Agent = 'Codex'; HomeRoot = $fakeClientHome }
+    & $install -Source $extracted @destination -Apply -WhatIf | Out-Null
+    Assert-BundleTest (-not (Test-Path -LiteralPath $fakeClientHome)) 'WhatIf wrote into the fake home.'
+    & $install -Source $extracted @destination -Apply | Out-Null
+    & $verify -Source $extracted @destination | Out-Null
+    $installed = Join-Path $fakeClientHome ('.agents/' + $examples)
+    Assert-BundleTest ((Get-CirnetHash $installed) -ceq (Get-CirnetHash $sourceExample)) 'Installed examples differ from the reviewed source.'
+    $receipts = @(Get-ChildItem -LiteralPath (Join-Path $fakeClientHome '.cirnet-toolkit/codex/backups') -Filter receipt.json -File -Recurse)
+    Assert-BundleTest ($receipts.Count -eq 1) 'Expected a single fake-home receipt.'
+    & $restore -Backup $receipts[0].FullName @destination -Apply | Out-Null
+    Assert-BundleTest (-not (Test-Path -LiteralPath $installed)) 'Restore left the packaged examples installed.'
     Assert-BundleRejected { & $package -Output $output @selection -Apply } 'exists'
-    Write-Host 'PASS: package preview, allowlist, provenance, and extracted bundle validation'
+    Write-Host 'PASS: package preview, allowlist, provenance, extracted resource, fake install and restore'
 }
 finally {
     $fullSession = Resolve-CirnetRoot -Path $session

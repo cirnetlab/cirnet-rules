@@ -9,10 +9,17 @@ Use to build coverage for a known risk. Use debugging to establish an unknown ca
 
 Minimum inputs: Observed symptom, expected public behavior, fixture, supported test lane and output policy.
 
-1. Choose a minimal representative reproduction. Assert the user-visible result and relevant adverse case.
-2. Run against the faulty behavior where feasible and confirm the intended assertion fails. Repair implementation and rerun.
-3. Keep fixtures deterministic and avoid unrelated snapshots. Verify the test runs in the relevant suite.
+1. Choose a minimal deterministic reproduction. Assert the observable behavior
+   the defect violates, such as the boundary result or exact ordering.
+2. Run the new test against the faulty code when feasible. Check that the specific
+   assertion fails with the reported symptom. Apply the focused fix and rerun the
+   same test and affected suite.
+3. Keep the assertion, timeout and real boundary under test. Reject edits to
+   expectations, skipped tests or mocks that hide the defect. Verify the suite
+   actually ran the new check.
 
-Report what the test protects and the observed failing/passing results or unavailable baseline.
+Report what the test protects and the observed failure and pass. Identify any
+unavailable run and the reason.
 
-Example: A parser accepts a truncated frame. Check that it rejects the input without writing partial output. An unrelated crash is insufficient evidence.
+A parser accepts a truncated frame. Assert rejection and absence of partial
+output. Confirm the failure comes from the parser behavior under test.

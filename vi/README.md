@@ -8,6 +8,7 @@ source liên quan đến task.
 | --- | --- |
 | Thiết lập client hoặc đọc trực tiếp checkout | [Thiết lập](docs/setup.md) |
 | Chọn context và đo phần context khởi động | [Nạp context](docs/context.md) |
+| Review hoặc tái hiện bằng chứng đánh giá | [Đánh giá hành vi](docs/behavioral-evaluation.md) · [Kiểm chứng](docs/engineering-behavior-verification.md) |
 | Đóng gói, cập nhật hoặc restore bundle local | [Phân phối](docs/distribution.md) |
 | So phiên bản, contract và artifact được chọn | [Bằng chứng tương thích](docs/compatibility.md) |
 | Xác định ownership file và kiểm tra di chuyển | [Mẫu bản đồ repository](templates/repository-map.md) |
@@ -23,4 +24,4 @@ và [kiểm chứng song ngữ trước đây](docs/bilingual-verification.md) v
 [Giấy phép](../LICENSE) · [Thông báo bên thứ ba](../THIRD_PARTY_NOTICES.md)
 
 <!-- source: en/README.md -->
-<!-- source-sha256: 18838e4f63ec4230820af9785e50a72b25825cf07905010be56a41cb9ade2e37 -->
+<!-- source-sha256: 90cb6b44e9144f4176588f519d5b0b14d1a82c907c5314dcba22fdf3e79e151f -->

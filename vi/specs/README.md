@@ -16,7 +16,8 @@ Repo sản phẩm giữ thư mục spec và owner nghiệm thu riêng.
 
 Hồ sơ task: [rebuild ban đầu](cirnet-rules/rules-common/spec.md) (lịch sử),
 [nâng cấp song ngữ](cirnet-rules/bilingual-upgrade/spec.md),
-[nâng cấp toolkit](cirnet-rules/toolkit-upgrade/spec.md).
+[nâng cấp toolkit](cirnet-rules/toolkit-upgrade/spec.md),
+[hành vi kỹ thuật](cirnet-rules/engineering-behavior/spec.md).
 
 <!-- source: en/specs/README.md -->
-<!-- source-sha256: b5d0f6fcd82a7e3ef4d5984c70b237eb7d1f37c6a52cbb12ccb9a4bc311c6269 -->
+<!-- source-sha256: 2fe0ebd80197758dcc4ebfe5fb83bf1ba6966abb2ad263bddf873b6a74630c2c -->

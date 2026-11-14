@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Integrate four engineering behavior principles into the baseline and existing
+  skills. Include on-demand Before/After examples and a synthetic Codex
+  evaluation suite with offline harness checks.
 - Shorten the standalone baseline and load skill bodies and references by task.
 - Add 12 namespaced skills for implementation, review, compatibility and maintenance.
 - Rename `implementation`, `debugging` and `verification` to their `cirnet-` names.

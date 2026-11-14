@@ -3,19 +3,32 @@
 Dùng phần bổ trợ này cho quyết định thiết kế hoặc tái cấu trúc sau khi đọc mã bị
 ảnh hưởng và [bộ quy tắc nền tảng](../AGENTS.md).
 
-- Lần theo đầu vào qua ranh giới hiện có đến đầu ra. Ưu tiên mở rộng luồng đã có
-  thay vì thêm nguồn dữ liệu chuẩn thứ hai.
-- Tách thay đổi hành vi cần thiết khỏi việc dọn dẹp không liên quan. Tái cấu trúc
-  phải giữ nguyên hành vi quan sát được, trừ khi nhiệm vụ yêu cầu rõ ràng thay đổi nó.
-- Đọc các bên gọi trực tiếp trước khi sửa giao diện. Giữ nguyên ngữ nghĩa xử lý lỗi,
-  hủy, hết thời gian chờ và dọn dẹp mà các bên gọi đang dựa vào.
+- Lần theo đầu vào qua ranh giới hiện có đến đầu ra. Đọc nơi gọi trực tiếp,
+  contract và test để giải quyết điểm chưa rõ. Nêu các giả định ảnh hưởng đến
+  tương thích, dữ liệu hoặc an toàn. Nếu vẫn còn cách hiểu hợp lý cho kết quả
+  khác biệt đáng kể, tóm tắt các đánh đổi và hỏi về quyết định chưa rõ. Với chi
+  tiết thông thường, nêu giả định có thể đảo ngược rồi tiếp tục.
+- Ưu tiên mở rộng luồng đã có trước khi thêm nguồn dữ liệu chuẩn thứ hai. Dùng
+  helper nhỏ nếu đủ đáp ứng yêu cầu. Khi thêm phụ thuộc, cấu hình hoặc điểm mở
+  rộng, căn cứ vào nhu cầu hiện tại và cân nhắc chi phí bảo trì. Tối ưu dựa
+  trên vấn đề đã quan sát hoặc mục tiêu đã xác định. Ưu tiên mã dễ đọc hơn
+  việc giảm số dòng.
+- Giữ kiểm tra đầu vào không tin cậy, phân quyền, xử lý hết thời gian chờ, hủy,
+  dọn dẹp, kiểm tra toàn vẹn và cơ chế liên động an toàn ở nơi cần thiết. Giữ
+  nguyên lỗi mà nơi gọi nhận được và các hành vi quan sát được khác, trừ phần
+  nhiệm vụ yêu cầu thay đổi.
+- Gắn từng nhóm trong diff với yêu cầu, lỗi quan sát được hoặc kiểm tra và tài
+  liệu cần cho thay đổi. Theo phong cách có sẵn. Giữ nguyên cách đặt tên, định
+  dạng, kiến trúc không liên quan và mã thừa có từ trước. Trước khi xóa import,
+  biến hoặc helper trở nên thừa do thay đổi này, kiểm tra nơi gọi, quy trình
+  sinh mã và cách sử dụng động nếu có.
 - Sinh tệp dẫn xuất từ nguồn và lệnh do chủ sở hữu quy định. Nếu bên cung cấp hoặc
   bộ sinh không sẵn có, báo phần còn thiếu thay vì sửa đầu ra sinh tự động như thể
   đó là nguồn chuẩn.
-- Đánh giá phụ thuộc mới so với khả năng sẵn có, chi phí bảo trì và chính sách phụ
-  thuộc của repo. Không chuẩn hóa ngôn ngữ hoặc phiên bản công cụ trên phạm vi toàn cục.
 - Cập nhật tài liệu bị ảnh hưởng cùng thay đổi hành vi. Quy tắc cục bộ quyết định
-  yêu cầu dịch thuật, vị trí plan/spec và các quyết định kiến trúc.
+  yêu cầu dịch thuật, vị trí plan/spec, chính sách phụ thuộc và quyết định kiến
+  trúc. Giới hạn việc chọn ngôn ngữ và phiên bản công cụ trong phạm vi repo được
+  phép.
 
 <!-- source: en/rules/coding.md -->
-<!-- source-sha256: b2745a5e183aeb8ffea94361074bff43ac89865ac891eef8904b597257d7248c -->
+<!-- source-sha256: 9307df8b89edfc95bd7d4d2156b651374981b9448843d8c41ca73a824e671402 -->

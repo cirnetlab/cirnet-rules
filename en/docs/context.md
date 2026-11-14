@@ -11,6 +11,10 @@ rule for its specific constraint. Search symbols and paths, then read enough
 surrounding code and error output to understand the change. Reload material when
 revision, scope or missing context warrants it.
 
+Open [Engineering examples](../skills/cirnet-implementation/references/engineering-examples.md)
+when a comparable Before/After would clarify a change. The examples travel with
+the implementation skill and stay out of startup context.
+
 Agent context ordinarily comes from English. Vietnamese translations, old
 plans, history and product maps serve review or a task that calls for them.
 The root and English baseline are copies of one instruction. A Claude import
@@ -24,8 +28,9 @@ loads that baseline once. A managed adapter should never import the library.
 | Change an HTTP response field | API compatibility, producer contract and a direct consumer test | Inspect SDK/default/null behavior without loading FPGA references |
 | Debug FPGA testbench timing | FPGA nested instruction, debugging skill, relevant RTL and testbench | Report simulation results with physical readiness unverified |
 
-These are documentation walkthroughs. Client discovery and task behavior
-require a separate observation in each client's actual surface.
+These are documentation walkthroughs. The separate
+[behavioral evaluation](behavioral-evaluation.md) uses synthetic projects and
+records native Codex observations when prerequisites permit.
 
 ## Text budgets
 

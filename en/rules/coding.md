@@ -3,16 +3,27 @@
 Use this supplement for design or refactoring decisions after reading the affected
 code and [baseline](../AGENTS.md).
 
-- Trace inputs through the existing boundary to outputs. Prefer extending an
-  established path over adding a second source of truth.
-- Separate necessary behavior changes from unrelated cleanup. A refactor should
-  preserve observable behavior unless the task explicitly changes it.
-- Read direct callers before changing an interface. Preserve error, cancellation,
-  timeout and cleanup semantics that callers rely on.
+- Trace inputs through the existing boundary to outputs. Read direct callers,
+  contracts and tests to resolve ambiguity. State assumptions that affect
+  compatibility, data or safety. If materially different outcomes remain
+  plausible, summarize their tradeoffs and ask about the unresolved decision.
+  Proceed on stated, reversible assumptions for routine details.
+- Extend an established path before adding a second source of truth. Prefer a
+  small helper when it solves the requirement. Ground new dependencies,
+  configuration or extension points in a current need and weigh maintenance
+  costs. Optimize against an observed problem or defined target. Favor readable
+  code over a lower line count.
+- Preserve validation of untrusted inputs, authorization, timeout, cancellation,
+  cleanup, integrity and safety interlocks where required. Keep caller-visible
+  errors and other observable behavior stable unless the task calls for a change.
+- Tie each group in the diff to the requirement, the observed defect, or checks
+  and docs needed for the change. Follow existing style. Leave unrelated naming,
+  formatting, architecture and pre-existing dead code alone. Before removing an
+  import, variable or helper made unused by your change, check callers, generation
+  and dynamic use where applicable.
 - Generate derived files from the owner-defined source and command. If the producer
   or generator is unavailable, report the gap instead of editing generated output
   as though it were canonical.
-- Evaluate a new dependency against existing facilities, maintenance cost and the
-  repo's dependency policy. Do not standardize languages or tool versions globally.
 - Update affected documentation with behavior changes. Local rules determine
-  translation, plan/spec placement and architecture decisions.
+  translation, plan/spec placement, dependency policy and architecture decisions.
+  Keep language and tool version choices within the authorized repository scope.

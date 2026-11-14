@@ -26,3 +26,4 @@ jobs:
         run: |
           ./tests/package.Tests.ps1
           ./tests/install.tests.ps1
+          ./tests/behavioral.tests.ps1
