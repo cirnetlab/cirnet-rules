@@ -6,8 +6,16 @@ GitHub hoặc một checkout khác. Chỉ dẫn có tác dụng khi được đ�
 
 Tài liệu được đối chiếu ngày **2026-11-14**. Discovery có thể khác theo phiên bản,
 App/CLI/IDE, cấu hình override và môi trường local/remote. Đây là hướng dẫn cài sau
-này; rebuild không cài gì vào user scope. Native loader/E2E của cả ba client:
-**NOT_RUN**. Xem [kết quả kiểm tra](verification.md).
+này; lần rebuild ban đầu không cài gì vào user scope. Native loader/E2E của cả ba client:
+**NOT_RUN**. Xem [kết quả kiểm tra rebuild ban đầu](rebuild-verification.md).
+
+Trong repository này, soạn baseline tại `en/AGENTS.md` và giữ `AGENTS.md` ở root
+là bản phân phối giống hệt. Cài đặt user/global tiếp tục dùng bản ở root này.
+Ngữ cảnh hỗ trợ cho agent nằm trong `en/`; `vi/` chứa bản dịch để con người review,
+không phải chỉ dẫn bổ sung cho agent. Xem quy trình song ngữ hiện tại và hook kiểm
+tra tài liệu của repository trong [chính sách tài liệu](../policies/documentation.md).
+Hook là kiểm tra của repository; hướng dẫn này không cài hook vào vòng đời native
+của client.
 
 ## A. Copy/sync có kiểm soát vào user scope
 
@@ -28,7 +36,7 @@ Các lệnh dưới đây **chỉ đọc**, chạy từ checkout common. Chúng 
 ```powershell
 git rev-parse HEAD
 git status --short
-git diff -- AGENTS.md
+git diff -- en/AGENTS.md AGENTS.md
 Get-FileHash -Algorithm SHA256 -LiteralPath .\AGENTS.md
 ```
 
@@ -48,7 +56,7 @@ và [prompting guide](https://developers.openai.com/cookbook/examples/gpt-5/code
 Dùng `CLAUDE.md` làm điểm nạp rõ ràng; không dựa vào riêng `AGENTS.md` khi chưa
 kiểm tra discovery của phiên bản/cấu hình đang dùng. Tài liệu loader có thể khác
 giữa các phiên bản. Adapter vẫn dùng chung một nguồn nội dung.
-Trong checkout này, [CLAUDE.md](../CLAUDE.md) import `@AGENTS.md`.
+Trong checkout này, [CLAUDE.md](../../CLAUDE.md) import `@AGENTS.md`.
 Với user scope, đặt bản common đã review tại `~/.claude/AGENTS.md`,
 rồi hợp nhất dòng sau vào `~/.claude/CLAUDE.md`:
 
@@ -64,7 +72,7 @@ Xem [Claude memory/imports](https://code.claude.com/docs/en/memory).
 
 ### Antigravity
 
-Tài liệu hiện hành nêu `~/.gemini/AGENTS.md` cho global và `AGENTS.md` cho workspace.
+Tài liệu đã đối chiếu nêu `~/.gemini/AGENTS.md` cho global và `AGENTS.md` cho workspace.
 Không tạo thêm `GEMINI.md` trùng nội dung khi client hỗ trợ AGENTS.
 Kiểm tra đúng surface và danh sách Rules trong client; không suy ra mọi bản cũ
 có cùng discovery. Theo tài liệu discovery, mở repo root không tự nạp
@@ -103,9 +111,11 @@ Cách này cần nhắc lại ở phiên mới nếu common chưa nằm trong sc
 
 ## Skills tùy chọn
 
-Ba thư mục `skills/implementation`, `skills/debugging`, `skills/verification`
+Ba thư mục `en/skills/implementation`, `en/skills/debugging`, `en/skills/verification`
 đều chỉ chứa một `SKILL.md` tự đủ nghĩa. Đọc trực tiếp theo đường dẫn khi cần,
 hoặc review và cài thủ công **thư mục skill được chọn**, không bắt cài cả ba.
+Chỉ cài skill tiếng Anh từ `en/skills/`. Các bản tương ứng trong `vi/skills/`
+là bản dịch để con người review, không phải skill bổ sung để cài cho agent.
 
 | Client | User scope được tài liệu mô tả | Project scope |
 | --- | --- | --- |
@@ -115,8 +125,8 @@ hoặc review và cài thủ công **thư mục skill được chọn**, không 
 
 Kiểm tra hỗ trợ theo version/surface thực tế trước khi cài. Tên chung có thể trùng
 skill đã có: preview/backup và quyết định bản dùng, không tự ghi đè.
-`skills/` ở checkout common không tự xuất hiện trong workspace sản phẩm.
-Không cần cài `rules/`, references hay task records vào global để baseline hoạt động.
+`en/skills/` ở checkout common không tự xuất hiện trong workspace sản phẩm.
+Không cần cài `en/rules/`, references hay task records vào global để baseline hoạt động.
 
 ## Ba tình huống sử dụng
 
@@ -129,3 +139,6 @@ Không cần cài `rules/`, references hay task records vào global để baseli
 - **Đổi FPGA:** đọc `fpga/AGENTS.md`, hướng dẫn verification và RTL liên quan.
   RTL PASS chỉ chứng minh hành vi mô phỏng đã kiểm tra; không chứng nhận an toàn
   điện, board programming hoặc physical firmware. Không cấp nguồn theo suy đoán.
+
+<!-- source: en/docs/setup.md -->
+<!-- source-sha256: 1b426c98eddb872dbbd9b3f9e7240b861d844213a063fc327816e2045f213549 -->

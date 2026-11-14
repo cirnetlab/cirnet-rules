@@ -1,7 +1,9 @@
 # Third-party notices
 
-The common rules distribution contains Markdown and the unchanged root
-[LICENSE](LICENSE). It does not bundle the removed runtime or its dependencies.
+The common rules distribution contains Markdown, an optional original Python
+documentation checker with standard-library tests, and the unchanged root
+[LICENSE](LICENSE). It does not bundle Python, third-party packages, the removed
+runtime or its dependencies.
 Official client documentation is linked for setup; it is not redistributed here.
 
 The former Governance CLI used SQLite through rusqlite (SQLite public domain),

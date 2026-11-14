@@ -19,6 +19,8 @@ State where tests may write and how to allocate output without overwriting evide
 
 State when plans/specs are required and their exact repository-local locations.
 Describe documentation/translation conventions and required verification checks.
+For bilingual documentation, name the English source and matching Vietnamese paths,
+the synchronization check, and required updates before reporting completion.
 Keep release, deployment and physical operation authorization separate from coding.
 
 ## Evidence limits

@@ -16,7 +16,9 @@ Work within the authorized scope and the target repository's instructions.
    label the cause as unconfirmed.
 4. Once supported, fix the cause narrowly and add a regression check when practical.
    Preserve safety, cancellation, cleanup and compatibility checks.
-5. Rerun the reproduction and affected suite. Report the cause, change, commands,
+5. Update affected English/Vietnamese documentation together under local policy;
+   distinguish a confirmed cause from an unconfirmed hypothesis in both versions.
+6. Rerun the reproduction and affected suite. Report the cause, change, commands,
    PASS/FAIL results and any NOT_RUN or BLOCKED checks. Follow local output allocation.
 
 Example: Stop times out after a cancelled request. Trace cancellation and cleanup

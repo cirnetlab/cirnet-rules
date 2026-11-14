@@ -1,7 +1,11 @@
-# Nghiệm thu chuyển đổi rules-common
+# Nghiệm thu rebuild rules-common ban đầu
 
-Ngày kiểm tra: **2026-11-14**. Phạm vi: working tree `rules-common` của
-`cirnetlab/cirnet-rules`; chỉ đọc sáu sản phẩm ghi trong
+Đây là ảnh chụp lịch sử của lần rebuild ban đầu, kiểm tra ngày **2026-11-14**.
+Các số lượng, kết quả và quyết định dưới đây mô tả lần rebuild đó, không phải lần
+nâng cấp song ngữ sau này hoặc working tree hiện tại. Xem quy trình song ngữ hiện
+tại trong [chính sách tài liệu](../policies/documentation.md).
+
+Phạm vi: working tree `rules-common` của `cirnetlab/cirnet-rules`; chỉ đọc sáu sản phẩm ghi trong
 [repository map](../references/repository-map.md).
 
 ## Trạng thái nghiệm thu
@@ -93,3 +97,6 @@ và `git rev-parse refs/heads/master refs/heads/governance-cli-only`.
 Kiểm tra cả file mới bằng `git ls-files --others --exclude-standard`:
 `git diff --stat` chưa tính file untracked khi chưa stage.
 Kiểm tra UTF-8/link/frontmatter bằng công cụ có sẵn, không cài framework mới.
+
+<!-- source: en/docs/rebuild-verification.md -->
+<!-- source-sha256: fd45319b691c43c1c36661f2ce7fab3698a95eeceef6b324da8203a7b658d0e6 -->

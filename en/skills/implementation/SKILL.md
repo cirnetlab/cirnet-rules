@@ -15,9 +15,15 @@ For a simple text edit, follow local rules directly; this workflow is optional.
 3. Add meaningful behavioral coverage where warranted, then implement within the
    permitted files. Generate derived outputs through the canonical producer path.
    If a required producer change is outside scope, report that dependency.
-4. Run affected checks using local tooling/output policy. Inspect failures and the
+4. Update affected English documentation and its Vietnamese counterpart after the
+   implementation/build, following local language policy. Align examples, commands,
+   plan/spec progress and limits. If no documentation meaning changed, explain why.
+   Review translation meaning before refreshing synchronization metadata.
+5. Run affected checks using local tooling/output policy. Inspect failures and the
    final diff for unrelated edits, secrets and generated artifacts.
-5. Report changed files, behavior, checks and limits. Use PASS for successful executed
+6. Report changed files, paired documentation updates, behavior, checks and limits.
+   Report missing required translations as incomplete, not done.
+   Use PASS for successful executed
    checks, FAIL for unsuccessful ones, NOT_RUN for unexecuted checks, and BLOCKED
    for a missing prerequisite. Do not imply release or native runtime acceptance.
 

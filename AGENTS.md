@@ -4,6 +4,23 @@ Portable baseline for one chosen coding agent working in one repository.
 This file is complete on its own; no companion files or runtime are required.
 Repository instructions supply local details. These rules do not replace them.
 
+## Language and documentation
+
+- When English and Vietnamese documents coexist, use English as agent context.
+  Vietnamese is a human translation, not an independent instruction authority.
+  Read Vietnamese when translating or reviewing that translation.
+- After implementation or a build that changes documented behavior, update both
+  affected English and Vietnamese documents in the same task. Keep commands,
+  examples, status, limitations and plan/spec progress aligned. A build alone does
+  not justify changing documentation if its meaning remains accurate; record why.
+- Review translation meaning before marking it synchronized. Report a required
+  missing/stale counterpart as incomplete or BLOCKED; do not claim full completion.
+- Respect the target repo's language and output policies. This requirement does not
+  authorize editing another repository or inventing a new documentation tree there.
+- When maintaining cirnet-rules, author the baseline at en/AGENTS.md and refresh
+  its identical root AGENTS.md distribution copy. Use en/ for supporting context;
+  keep matching vi/ documents and run the repository documentation hook.
+
 ## Establish context
 
 - Confirm the actual repository root, branch/worktree, task and permitted files.
