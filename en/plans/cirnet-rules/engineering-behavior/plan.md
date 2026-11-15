@@ -1,18 +1,12 @@
 # Engineering behavior upgrade plan
 
-- [x] Verify worktree and freeze baseline bytes and hashes.
-- [x] Build eight synthetic fixtures and test the evaluation harness. Attempt the baseline in an isolated native CLI session.
-- [x] Integrate principles in existing guidance and package four examples.
-- [x] Verify toolkit, resource closure and context size.
-- [x] Record the original blocked native attempts and their case outcomes.
+- [x] Freeze evaluation inputs, update EN/VI guidance and check the four
+  examples, packaged resources and context size.
+- [x] Evaluate the eight synthetic cases with isolated profiles. Verify E01
+  export safeguards and the portable Icarus toolchain in MXC for E08.
+- [x] Review native commands, outputs and changes against the rubrics.
+  Acceptance is **PASS for E01–E08**, based on evidence from separate
+  candidate sessions. E08's physical verification is NOT_RUN.
 
-See [specification](../../../specs/cirnet-rules/engineering-behavior/spec.md).
-
-## Runtime follow-up
-
-- [x] Diagnose DNS in sandbox and approved network processes.
-- [x] Verify portable Icarus and reproduce E08 red–green in a disposable copy.
-- [x] Complete dedicated profile sign-in and execute both native cohorts.
-- [x] Review all 16 traces and regrade related documentation symmetrically. Each cohort has 6 PASS, 1 FAIL and 1 BLOCKED.
-
-Record outcomes in the [rerun report](../../../docs/engineering-behavior-rerun.md).
+[Specification](../../../specs/cirnet-rules/engineering-behavior/spec.md) ·
+[Acceptance report](../../../docs/e01-e08-followup.md)

@@ -1,47 +1,19 @@
-# Kế hoạch triển khai rebuild Common Rules
+# Kế hoạch xây dựng lại Common Rules
 
-Ngày 2026-11-14. Chỉ là hồ sơ chuyển đổi; không phải quy trình task tái sử dụng.
+Hồ sơ chuyển đổi ngày 2026-11-14. Worktree đã tách, sạch và có 290 tệp được
+Git theo dõi. HEAD, `master` và `governance-cli-only` cùng trỏ tới
+`646afa38516bbfd276b0aecb7a138ab427df5fa9`.
 
-**Mục tiêu:** Repo common rules nhỏ, di động, không có dependency runtime.
-**Kiến trúc:** Một baseline độc lập, topic guide và skill tùy chọn,
-thiết lập thủ công, tham khảo sản phẩm có ngày.
-**Công cụ:** Markdown, PowerShell/Git hiện có và validator local sẵn dùng.
-**Đặc tả:** [Đặc tả rebuild](../../../specs/cirnet-rules/rules-common/spec.md).
+- [x] Xác nhận phạm vi và bản sao lưu, rồi đọc sáu repo sản phẩm ở chế độ chỉ đọc.
+- [x] Thay cơ chế khởi tạo qua registry bằng hướng dẫn độc lập, thiết lập thủ công
+  và bản đồ nguồn có ngày. Xóa tệp cũ đã được theo dõi và sao lưu, giữ ghi công.
+- [x] Kiểm tra việc sao chép độc lập, tùy chọn client, quyền sở hữu API, an toàn
+  FPGA và refs được bảo vệ. Chạy kiểm tra tĩnh, rà soát tình huống trên giấy và
+  review độc lập. Kiểm tra bộ nạp native và E2E ở trạng thái NOT_RUN.
 
-## Ràng buộc và trọng tâm review
-
-Chỉ ghi worktree `rules-common` được phép; giữ thay đổi chưa stage.
-Không cài tool, chạy lệnh runtime cũ, sửa repo khác hoặc settings global.
-Kiểm tra copy độc lập, preferences hiện có, chỉ dẫn FPGA lồng nhau,
-candidate so với release được chọn và các tuyên bố an toàn vật lý.
-
-## Các bước
-
-- [x] Xác minh worktree, branch và backup; ghi status/refs ban đầu.
-- [x] Đọc sáu sản phẩm local ở chế độ chỉ đọc và ghi bằng chứng nguồn.
-- [x] Thay chỉ dẫn root, thêm bốn topic guide, ba skill và template local.
-- [x] Viết setup/map nguồn; giữ license và attribution phù hợp.
-- [x] Chỉ xóa file legacy tracked đã có trong commit backup được xác minh.
-- [x] Kiểm tra mọi file còn lại, tình huống trên giấy và review độc lập.
-- [x] Đối chiếu refs/status sản phẩm, ghi kết quả cho người dùng review.
-
-## Baseline và quyết định
-
-Ban đầu: worktree sạch, 290 file tracked, không có untracked/ignored được báo.
-HEAD, `master`, `governance-cli-only`: `646afa38516bbfd276b0aecb7a138ab427df5fa9`.
-Kiểm tra baseline: adapter/setup/map/skills mới chưa tồn tại; bootstrap root
-phụ thuộc registry governance và mọi task cần grant trung tâm. Điều này
-không đáp ứng yêu cầu hoạt động độc lập và nhẹ.
-
-Quyết định: dùng worktree đã tách và thiết kế được cung cấp; không tạo worktree
-mới, vòng xin phép hoặc commit. Phạm vi và yêu cầu thực thi trực tiếp của người dùng
-là căn cứ.
-Quyết định: giữ hồ sơ chuyển đổi theo cặp trong các thư mục task trung tâm hiện có;
-đó là bằng chứng lịch sử, không thuộc chỉ dẫn global.
-Quyết định: kiểm tra tĩnh và tình huống trên giấy phù hợp đầu ra chỉ có Markdown;
-thực thi native client vẫn là kiểm tra riêng, được ghi rõ chưa chạy.
-
+[Đặc tả xây dựng lại](../../../specs/cirnet-rules/rules-common/spec.md) ·
+[Kiểm chứng](../../../docs/rebuild-verification.md) ·
 [Nguồn tiếng Anh](../../../../en/plans/cirnet-rules/rules-common/plan.md)
 
 <!-- source: en/plans/cirnet-rules/rules-common/plan.md -->
-<!-- source-sha256: b3b19c82c0c2187929c33fb22b3aa8e2ad839da533701d2fc77ce44d6290c7bc -->
+<!-- source-sha256: b9bfe0df7704b468df63e80a74e39c7761b89063be67fa842faede9b19a7a2d6 -->

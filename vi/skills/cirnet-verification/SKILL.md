@@ -21,8 +21,23 @@ Tối thiểu cần: Tuyên bố, revision/diff chính xác, kết quả mong đ
 Liệt kê từng lệnh và PASS, FAIL, NOT_RUN hoặc BLOCKED cùng phạm vi. Nếu có
 khoảng trống, nêu điều kiện còn thiếu hoặc phép kiểm tra chưa giải quyết.
 
-Khi mô phỏng RTL đạt, báo hành vi đã được thử. Tình trạng sẵn sàng về điện và
-việc nạp chương trình cần bằng chứng riêng được bên sở hữu cho phép.
+Với pipeline compile/simulation, ghi mã thoát thực tế của từng tiến trình trước
+khi lệnh khác, kể cả Git hoặc dọn dẹp, ghi đè nó. Nếu wrapper chỉ cung cấp kết
+quả tổng hợp, đọc luồng xử lý và quan sát kết quả tiến trình con trong một lượt
+thực thi mới được phép. Giữ nguyên tham số, đầu vào, môi trường, cách xử lý
+standard I/O, timeout, điều kiện chạy bước phụ thuộc và cleanup. Giữ chẩn đoán
+trong phạm vi ghi. File output, marker thành công hoặc exit tổng thể không cung
+cấp được mã thoát còn thiếu của một bước; báo rõ thiếu capture và chưa đóng nghiệm thu.
+
+Với FPGA/RTL, câu trả lời cuối phải nêu riêng trạng thái `RTL compile` và
+`RTL simulation`, cùng `Compile exit code` và `Simulation exit code` từ những
+quan sát đó. Ghi NOT_RUN cho bước phụ thuộc chưa chạy; không tự điền thành công
+hoặc mã số cho chúng. Liệt kê riêng từng safety assertion bắt buộc, chẳng hạn
+reset, permit loss, watchdog expiry và fault khi có, với PASS/FAIL/NOT_RUN dựa
+trên thực thi. Nếu chưa kiểm chứng vật lý, thêm chính xác dòng
+`physical verification: NOT_RUN`. Simulation không xác lập mức sẵn sàng về
+điện hoặc an toàn nạp chương trình; các điều đó cần bằng chứng riêng được bên
+sở hữu cho phép.
 
 <!-- source: en/skills/cirnet-verification/SKILL.md -->
-<!-- source-sha256: e83dbc9f5f5c5a9b41473a2fe41cca7514ebab99c881ff2af100c10964a8a02d -->
+<!-- source-sha256: 1cf17236a92ef6e2ba89c55916cc6be2a434945b3434724c1f81de8b4a0dc2f3 -->

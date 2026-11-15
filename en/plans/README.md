@@ -16,5 +16,4 @@ central directory does not replace those rules.
 Task records: [initial rebuild](cirnet-rules/rules-common/plan.md) (historical),
 [bilingual upgrade](cirnet-rules/bilingual-upgrade/plan.md),
 [toolkit upgrade](cirnet-rules/toolkit-upgrade/plan.md),
-[engineering behavior](cirnet-rules/engineering-behavior/plan.md),
-[E01/E08 recovery](cirnet-rules/e01-e08-recovery/plan.md).
+[engineering behavior](cirnet-rules/engineering-behavior/plan.md).

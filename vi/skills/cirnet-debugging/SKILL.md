@@ -11,6 +11,8 @@ Tối thiểu cần: Kết quả mong đợi và thực tế, revision, input g�
 
 1. Tái hiện theo quy tắc test cục bộ và so sánh với ca chạy được. Ghi đúng đầu
    vào, triệu chứng quan sát được và ranh giới xảy ra lỗi đầu tiên.
+   Với pipeline, ghi mã thoát thực tế của từng bước trước khi lệnh sau ghi đè;
+   phân biệt bước lỗi với công việc phụ thuộc chưa hề chạy.
 2. Tách điều quan sát được khỏi giả thuyết. Thử một cách giải thích bằng phép
    thử nhỏ nhất giúp phân biệt với các khả năng hợp lý khác. Ghi điều kiện xác
    nhận hoặc loại trừ giả thuyết.
@@ -24,4 +26,4 @@ Yêu cầu Stop hết thời gian chờ sau khi hủy. Theo dõi xác nhận d�
 khi đổi thời gian chờ. Coi một lần thử lại thành công là một quan sát.
 
 <!-- source: en/skills/cirnet-debugging/SKILL.md -->
-<!-- source-sha256: 78b050899781be0b8b1e567d5ad1f6b63b5288e5d61aa4fa93786a66ddb958f5 -->
+<!-- source-sha256: 0a5db8ad5301661d30b833d8920a1cb24cc219e1155c0b4209cc2a87213b6e75 -->

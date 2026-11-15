@@ -11,6 +11,8 @@ Minimum inputs: Expected and actual results, revision, failing input, environmen
 
 1. Reproduce under local test rules and compare with a working case. Record the
    exact input, observed symptom and first failing boundary.
+   For pipelines, capture each stage's actual exit code before later commands
+   overwrite it; distinguish a failed stage from dependent work that never ran.
 2. Keep observations separate from hypotheses. Test one explanation with the
    smallest experiment that distinguishes it from plausible alternatives. Record
    what would confirm or rule it out.

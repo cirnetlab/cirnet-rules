@@ -17,5 +17,4 @@ Product repositories keep their own spec directories and acceptance owners.
 Task records: [initial rebuild](cirnet-rules/rules-common/spec.md) (historical),
 [bilingual upgrade](cirnet-rules/bilingual-upgrade/spec.md),
 [toolkit upgrade](cirnet-rules/toolkit-upgrade/spec.md),
-[engineering behavior](cirnet-rules/engineering-behavior/spec.md),
-[E01/E08 recovery](cirnet-rules/e01-e08-recovery/spec.md).
+[engineering behavior](cirnet-rules/engineering-behavior/spec.md).

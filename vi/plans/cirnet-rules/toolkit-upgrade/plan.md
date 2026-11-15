@@ -1,13 +1,13 @@
 # Kế hoạch nâng cấp toolkit
 
-- [x] Xác minh worktree, ghi số đo baseline và kết quả Rust.
-- [x] Giảm context khởi động và mô tả cách nạp chọn lọc.
-- [x] Mở rộng discovery checker, rồi thêm 12 skill và template phù hợp.
-- [x] Viết và kiểm thử đóng gói, cài đặt, xác minh và khôi phục local.
-- [x] Ghi phiên bản, nâng cấp, số đo context và thêm CI toolkit.
-- [x] Chạy nghiệm thu local, ghi kết quả cùng giới hạn song ngữ.
+- [x] Ghi worktree, kích thước baseline và kết quả Rust. Giảm ngữ cảnh khởi
+  động, mở rộng phát hiện skill và thêm 12 skill cùng mẫu.
+- [x] Xây dựng và kiểm thử gói, cài đặt, xác minh và khôi phục tại repo. Ghi
+  cách quản lý phiên bản và nâng cấp, đo ngữ cảnh và thêm CI cho toolkit.
+- [x] Ghi bằng chứng nghiệm thu và giới hạn bằng hai ngôn ngữ.
 
-Xem [kiểm chứng](../../../docs/toolkit-verification.md) cho kiểm tra và giới hạn.
+[Đặc tả](../../../specs/cirnet-rules/toolkit-upgrade/spec.md) ·
+[Kiểm chứng](../../../docs/toolkit-verification.md)
 
 <!-- source: en/plans/cirnet-rules/toolkit-upgrade/plan.md -->
-<!-- source-sha256: e4c7f6091f927ec30a980046aaff9664e4ddb21dfc8cb783fed6816884d737c4 -->
+<!-- source-sha256: 968466f9a5ff2f26af6e5b4cc225f9386aaad234d1ce18de8f890545742da0f1 -->

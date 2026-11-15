@@ -8,7 +8,7 @@ agent work and Vietnamese for translation review. Load only the relevant
 | --- | --- |
 | Set up a client or read the checkout directly | [Setup](docs/setup.md) |
 | Choose context and measure startup contribution | [Context loading](docs/context.md) |
-| Review or reproduce evaluation evidence | [Behavioral evaluation](docs/behavioral-evaluation.md) · [Verification](docs/engineering-behavior-verification.md) |
+| Review acceptance or reproduce an evaluation | [E01–E08 results](docs/e01-e08-followup.md) · [Evaluation procedure](docs/behavioral-evaluation.md) |
 | Package, update or restore a local bundle | [Distribution](docs/distribution.md) |
 | Compare versions, contracts and selected artifacts | [Compatibility evidence](docs/compatibility.md) |
 | Identify file ownership and check a move | [Repository map template](templates/repository-map.md) |

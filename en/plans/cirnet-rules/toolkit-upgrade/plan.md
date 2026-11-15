@@ -1,10 +1,10 @@
 # Toolkit upgrade plan
 
-- [x] Verify the worktree and record baseline metrics and Rust results.
-- [x] Reduce startup context and describe selective loading.
-- [x] Extend checker discovery, then add 12 skills and targeted templates.
-- [x] Build and test local packaging, installation, verification and restoration.
-- [x] Document versioning, upgrades and context measurements and add toolkit CI.
-- [x] Run local acceptance checks and record results and limits in both languages.
+- [x] Record worktree, baseline size and Rust results. Reduce startup context,
+  extend skill discovery and add 12 skills and templates.
+- [x] Build and test local bundle, install, verify and restore. Document
+  versioning and upgrades, measure context and add toolkit CI.
+- [x] Record bilingual acceptance evidence and limits.
 
-See [verification](../../../docs/toolkit-verification.md) for checks and limits.
+[Specification](../../../specs/cirnet-rules/toolkit-upgrade/spec.md) ·
+[Verification](../../../docs/toolkit-verification.md)

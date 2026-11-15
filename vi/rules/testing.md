@@ -22,5 +22,16 @@ giấu bên nào. Mở rộng kiểm thử cho phụ thuộc bị ảnh hưởng
 không lặp lại các kiểm tra đã đạt nếu không có lý do. Rà soát mã nguồn, mock, fixture
 tổng hợp và kiểm thử môi trường thực thi đã cài đặt xác lập những kết luận khác nhau.
 
+Với kiểm tra compile/simulation hoặc giao tiếp thiết bị, giữ mã thoát từng tiến
+trình trước khi lệnh shell khác ghi đè. Đọc wrapper chỉ cung cấp kết quả tổng hợp;
+ghi kết quả từng bước thực tế mà không đổi đầu vào, môi trường, cách xử lý tiến
+trình hoặc safety gate. Chỉ file output hay thông báo thành công không chứng minh
+PASS. Giữ trạng thái NOT_RUN cho bước phụ thuộc chưa thực thi. Báo riêng trạng
+thái compile và simulation cùng mã thoát quan sát được, nêu các assertion thực sự
+được thử và ghi `physical verification: NOT_RUN` khi chưa kiểm tra vật lý. Thiếu
+capture vẫn là khoảng trống bằng chứng; không bịa mã hoặc đánh đồng mô phỏng phần
+mềm với kiểm chứng vật lý. [Skill kiểm chứng](../skills/cirnet-verification/SKILL.md)
+định nghĩa các trường báo cáo FPGA/RTL và giữ sự phân biệt này khi được cài riêng.
+
 <!-- source: en/rules/testing.md -->
-<!-- source-sha256: 8660f9b2863d976093883502d4ee4eeddb5a1b9fa3746edbe60e7e0655a11d3c -->
+<!-- source-sha256: e55c93e01170b4c1b4be46be7275f9d96e16290b7bcbd17d0906e9c82ec13ccd -->

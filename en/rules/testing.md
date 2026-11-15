@@ -21,3 +21,15 @@ Separate pre-existing failures from new regressions without hiding either.
 Broaden testing for affected dependencies or unresolved risks; do not repeatedly
 run the same passing checks without a reason. A source review, mock, synthetic
 fixture and installed runtime test establish different claims.
+
+For compile/simulation or device-facing checks, retain each process exit code
+before another shell command overwrites it. Inspect wrappers that expose only
+an aggregate result; capture actual stage results without changing their inputs,
+environment, process handling or safety gates. Output files and success messages
+alone do not prove PASS. Keep dependent stages that did not execute as NOT_RUN.
+Report compile and simulation statuses and observed exit codes separately, name
+the assertions actually exercised, and state `physical verification: NOT_RUN`
+when no physical check occurred. Missing capture remains an evidence gap; do not
+invent a code or equate software simulation with physical verification. The
+[verification skill](../skills/cirnet-verification/SKILL.md) defines the FPGA/RTL
+report fields and preserves this distinction when installed independently.
