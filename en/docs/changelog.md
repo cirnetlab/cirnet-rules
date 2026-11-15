@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Review Markdown duplicates and proposed new files in the read-only
+  `check-docs` command. Search for an existing source before creating a page.
 - Clarify export authorization and safe source inspection for E01.
 - Fix RTL subprocess scratch paths and standard I/O in MXC. Record actual
   compile and simulation exits and explicit physical status for E08.

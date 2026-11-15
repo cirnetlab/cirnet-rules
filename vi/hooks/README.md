@@ -41,11 +41,50 @@ nháy đơn không escape. Dẫn file bắt buộc bằng link Markdown trong c�
 skill. Path phải đúng chữ hoa thường và dùng dấu gạch chéo xuôi. Dẫn nguồn HTTP,
 HTTPS và mailto được phép. URI file và path ra khỏi skill làm kiểm tra thất bại.
 
-ERROR làm kiểm tra thất bại. WARN báo ngân sách context và dấu hiệu trùng lặp.
-INFO báo số đo văn bản. Hash bản dịch và heuristic văn bản cần review nghĩa riêng.
-Mã thoát 0 là PASS, 1 là kiểm tra thất bại và 2 là cách gọi không hợp lệ.
-Thiếu bộ công cụ Rust thì kiểm tra thực thi ở trạng thái BLOCKED. Ghi kết
-quả review thủ công riêng.
+Mã thoát 0 là PASS, 1 khi có ERROR và 2 khi cách gọi không hợp lệ. WARN gồm
+ngân sách context và phát hiện tương đồng. INFO gồm số đo và hướng dẫn rà
+soát tệp. Thiếu bộ công cụ Rust thì kiểm tra thực thi ở trạng thái BLOCKED.
+Ghi kết quả rà soát thủ công riêng.
+
+## Rà soát Markdown mới
+
+Sau khi tìm tài liệu sở hữu nội dung, liệt kê rõ từng đường dẫn Markdown mới
+để đối chiếu với các tệp checker tìm được. Đường dẫn tương đối so với root đã
+chọn và giữ nguyên cách viết cùng chữ hoa, chữ thường mà checker thấy.
+
+```powershell
+cargo run --offline --locked --bin check-docs -- --new-file 'en/docs/New guide.md' --new-file 'vi/docs/New guide.md'
+```
+
+Có thể lặp lại `--new-file` hoặc dùng dạng `--new-file=PATH`. Phạm vi gồm
+Markdown hiện có ở root và hai cây `en/`, `vi/`, kể cả tệp Git chưa theo dõi
+khi được liệt kê. Người chạy cung cấp đường dẫn. Checker dùng cùng danh sách
+tệp chỉ đọc và trả mã 2 nếu đường dẫn không hợp lệ hoặc không được tìm thấy.
+
+Lượt kiểm tra mặc định cũng báo tương đồng. Checker đối chiếu theo vai trò
+riêng trong từng nhóm root, tiếng Anh và tiếng Việt. Nó bỏ qua các điểm vào
+có chủ đích, mẫu, ví dụ, fixture kiểm thử, tệp giấy phép và ghi công chuẩn,
+tệp rỗng hoặc chỉ có tiêu đề, README hoặc chỉ mục dưới 40 từ. Trùng chính xác
+được xác định theo byte. Trùng sau chuẩn hóa xử lý CRLF, dòng trống cuối tệp
+và metadata nguồn hợp lệ cuối bản Việt có cặp. Mã, dấu câu, số và trạng thái
+được giữ nguyên. Kiểm tra LF vẫn áp dụng. Gần trùng dùng độ tương đồng
+Jaccard trên các chuỗi ba từ phân biệt. Mỗi tài liệu cần ít nhất 40 từ và
+24 chuỗi phân biệt. Ngưỡng là
+60%, hoặc 40% khi chung tiêu đề, mã issue hay họ tên tệp trong cùng thư mục
+sau khi bỏ hậu tố phiên bản.
+
+Checker báo đường dẫn, cách đo, điểm, mức tin cậy, số tiêu đề và chuỗi từ
+không trùng, cùng các liên kết Markdown trỏ đến tệp mà nó phát hiện. Rà soát
+đề xuất `REVIEW_MERGE` và `UPDATE_EXISTING` theo mục đích của chủ sở hữu, nội dung
+riêng và đích liên kết. `KEEP_SEPARATE` đánh dấu các đường dẫn được nhận diện
+là bằng chứng lịch sử, báo cáo kiểm chứng hay ghi chú phát hành cần bảo toàn.
+`NEW_DOCUMENT_REVIEW` yêu cầu người bảo trì quyết định nếu chưa thấy ứng viên
+hiện có phù hợp. Xác nhận mục đích riêng ngay cả khi checker không đề xuất
+ứng viên. Nếu tệp được liệt kê trùng chính xác một tài liệu
+không được liệt kê và không thuộc diện bảo vệ, checker báo
+`DOC_NEW_DUPLICATE` (mã thoát 1). Cặp có cả hai đường dẫn được liệt kê vẫn ở mức
+tham khảo. Checker giữ nguyên các tệp. Người rà soát quyết định theo ý nghĩa,
+mục đích và phạm vi hợp nhất.
 
 ## Kết nối với Agent sau này
 
@@ -60,4 +99,4 @@ entrypoint của common-rules. Kiểm tra sản phẩm và bộ cấp phát outp
 Xem [chính sách tài liệu](../policies/documentation.md) về nghĩa vụ cập nhật.
 
 <!-- source: en/hooks/README.md -->
-<!-- source-sha256: 47919860950df227232e7984863bf111eb1b3db0a2bf98d70994697bc9b0b2e7 -->
+<!-- source-sha256: 03541531d57691918e7b458162235b38c20180adbf778149201084dd83ff0043 -->

@@ -1,4 +1,5 @@
 mod context;
+mod document_hygiene;
 mod markdown;
 mod sha256;
 
@@ -9,7 +10,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: check-docs [--root PATH]";
+const USAGE: &str = "Usage: check-docs [--root PATH] [--new-file PATH ...]";
 const HELP: &str = "Read-only, offline bilingual documentation check.
 
 Checks root Markdown and the en/vi trees. Supports simple inline links,
@@ -20,7 +21,9 @@ and renderer-specific anchor rules are outside this subset.
 
 Checks direct English Skill metadata and portable local resources, and
 matches VERSION to Cargo.toml and the first release heading in both changelogs.
-Context budget and consistency warnings are advisory.
+Context and cross-document similarity warnings are advisory. Use repeatable
+--new-file PATH to review a readable, root-relative Markdown file in the scan.
+It does not query Git. A new, unprotected exact duplicate fails the check.
 
 Use --root PATH to select a checkout. The default is the build checkout.
 Exit 0: PASS. Exit 1: failed checks. Exit 2: invalid invocation.";
@@ -232,6 +235,11 @@ struct Checker {
     errors: Vec<String>,
     warnings: Vec<String>,
     information: Vec<String>,
+}
+
+enum RunError {
+    Read(String),
+    InvalidNewFile(PathBuf),
 }
 
 impl Checker {
@@ -666,10 +674,10 @@ impl Checker {
         source: &Path,
         destination: &str,
         skill_root: Option<&Path>,
-    ) -> Result<(), String> {
+    ) -> Result<Option<PathBuf>, String> {
         let destination = destination.trim_matches(['<', '>']);
         if skill_root.map_or_else(|| external(destination), |_| skill_citation(destination)) {
-            return Ok(());
+            return Ok(None);
         }
         let (url, fragment) = destination.split_once('#').unwrap_or((destination, ""));
         let path = url.split_once('?').map_or(url, |(path, _)| path);
@@ -692,11 +700,11 @@ impl Checker {
                 return Err("heading fragment does not exist".into());
             }
         }
-        Ok(())
+        Ok(Some(target))
     }
 
-    fn run(&mut self) -> Result<(), String> {
-        let root_files = self.entries(Path::new(""))?;
+    fn run(&mut self, new_files: &BTreeSet<PathBuf>) -> Result<(), RunError> {
+        let root_files = self.entries(Path::new("")).map_err(RunError::Read)?;
         let mut english = BTreeSet::new();
         let mut vietnamese = BTreeSet::new();
         self.collect(Path::new("en"), &mut english);
@@ -709,18 +717,25 @@ impl Checker {
         {
             self.read(path);
         }
+        if let Some(path) = new_files
+            .iter()
+            .find(|path| !self.documents.contains_key(*path))
+        {
+            return Err(RunError::InvalidNewFile(path.clone()));
+        }
         self.translations(&english, &vietnamese);
         self.entrypoints();
         self.versions();
         let skills = self.skills(&english);
         self.context_checks(&root_files, &skills);
-        let documents: Vec<_> = self.documents.keys().cloned().collect();
-        for path in documents {
+        let inventory: Vec<_> = self.documents.keys().cloned().collect();
+        let mut incoming = BTreeMap::<PathBuf, BTreeSet<PathBuf>>::new();
+        for path in &inventory {
             let skill_root = path
                 .ancestors()
                 .skip(1)
                 .find(|parent| skills.contains(*parent));
-            let text = &self.documents[&path];
+            let text = &self.documents[path];
             let body = if skill_root.is_some() && path.file_name().unwrap() == "SKILL.md" {
                 markdown::frontmatter(text).map_or(text.as_str(), |(_, body)| body)
             } else {
@@ -728,17 +743,37 @@ impl Checker {
             };
             let (links, undefined) = markdown::links(body);
             for destination in links {
-                if let Err(error) = self.validate_link(&path, &destination, skill_root) {
-                    let kind = if skill_root.is_some() {
-                        "portable skill resource"
-                    } else {
-                        "link"
-                    };
-                    self.fail(&path, format!("invalid {kind} {destination:?}: {error}"));
+                match self.validate_link(path, &destination, skill_root) {
+                    Ok(Some(target))
+                        if target != *path && inventory.binary_search(&target).is_ok() =>
+                    {
+                        incoming.entry(target).or_default().insert(path.clone());
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        let kind = if skill_root.is_some() {
+                            "portable skill resource"
+                        } else {
+                            "link"
+                        };
+                        self.fail(path, format!("invalid {kind} {destination:?}: {error}"));
+                    }
                 }
             }
             for label in undefined {
-                self.fail(&path, format!("undefined link reference {label:?}"));
+                self.fail(path, format!("undefined link reference {label:?}"));
+            }
+        }
+        // Fragment validation can read Markdown outside the ordinary scan.
+        // Keep those link targets out of similarity and new-file review.
+        self.documents
+            .retain(|path, _| inventory.binary_search(path).is_ok());
+        for diagnostic in document_hygiene::review(&self.documents, new_files, &incoming) {
+            use document_hygiene::Diagnostic;
+            match diagnostic {
+                Diagnostic::Info(message) => self.information.push(message),
+                Diagnostic::Warning(message) => self.warnings.push(message),
+                Diagnostic::Error(message) => self.errors.push(message),
             }
         }
         Ok(())
@@ -750,8 +785,25 @@ fn usage_error(message: impl std::fmt::Display) -> ExitCode {
     ExitCode::from(2)
 }
 
+fn new_file_path(arg: &str) -> Option<PathBuf> {
+    if arg.is_empty() || arg.contains(':') || arg.contains(char::is_control) {
+        return None;
+    }
+    let arg = arg.replace('\\', "/");
+    let mut path = PathBuf::new();
+    for component in Path::new(&arg).components() {
+        match component {
+            Component::Normal(name) => path.push(name),
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    is_markdown(&path).then_some(path)
+}
+
 fn main() -> ExitCode {
     let mut root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut new_files = BTreeSet::new();
     let mut args = env::args_os().skip(1);
     while let Some(arg) = args.next() {
         if arg == "--help" || arg == "-h" {
@@ -770,6 +822,25 @@ fn main() -> ExitCode {
                 return usage_error("--root requires a path");
             }
             root = PathBuf::from(value);
+        } else if arg == "--new-file" {
+            match args
+                .next()
+                .as_deref()
+                .and_then(|value| value.to_str())
+                .and_then(new_file_path)
+            {
+                Some(path) => {
+                    new_files.insert(path);
+                }
+                None => return usage_error("--new-file requires a root-relative Markdown path"),
+            }
+        } else if let Some(value) = arg.to_str().and_then(|arg| arg.strip_prefix("--new-file=")) {
+            match new_file_path(value) {
+                Some(path) => {
+                    new_files.insert(path);
+                }
+                None => return usage_error("--new-file requires a root-relative Markdown path"),
+            }
         } else {
             return usage_error(format!("unknown argument {arg:?}"));
         }
@@ -786,8 +857,15 @@ fn main() -> ExitCode {
         warnings: Vec::new(),
         information: Vec::new(),
     };
-    if let Err(error) = checker.run() {
-        checker.errors.push(error);
+    match checker.run(&new_files) {
+        Ok(()) => {}
+        Err(RunError::Read(error)) => checker.errors.push(error),
+        Err(RunError::InvalidNewFile(path)) => {
+            return usage_error(format!(
+                "--new-file path {:?} must be a readable Markdown file in the scanned inventory",
+                path_text(&path)
+            ));
+        }
     }
     for info in checker.information {
         println!("INFO: {info}");

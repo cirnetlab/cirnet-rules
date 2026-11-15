@@ -25,10 +25,10 @@ Dùng phần bổ trợ này cho quyết định thiết kế hoặc tái cấu 
 - Sinh tệp dẫn xuất từ nguồn và lệnh do chủ sở hữu quy định. Nếu bên cung cấp hoặc
   bộ sinh không sẵn có, báo phần còn thiếu thay vì sửa đầu ra sinh tự động như thể
   đó là nguồn chuẩn.
-- Cập nhật tài liệu bị ảnh hưởng cùng thay đổi hành vi. Quy tắc cục bộ quyết định
-  yêu cầu dịch thuật, vị trí plan/spec, chính sách phụ thuộc và quyết định kiến
-  trúc. Giới hạn việc chọn ngôn ngữ và phiên bản công cụ trong phạm vi repo được
-  phép.
+- Cập nhật tài liệu hiện có làm nguồn chuẩn khi thay đổi hành vi. Tìm theo mục
+  đích và chủ sở hữu trước khi thêm Markdown. Tuân thủ [chính sách tài liệu](../policies/documentation.md)
+  và quy tắc cục bộ về dịch thuật, vị trí kế hoạch/đặc tả, phụ thuộc và kiến trúc.
+  Chọn ngôn ngữ và phiên bản công cụ trong phạm vi repository được phép.
 
 <!-- source: en/rules/coding.md -->
-<!-- source-sha256: 9307df8b89edfc95bd7d4d2156b651374981b9448843d8c41ca73a824e671402 -->
+<!-- source-sha256: 7baa403f5849e15a03080e3c7c72a3fabd9d44177154c39463e52a1bed8ffa68 -->

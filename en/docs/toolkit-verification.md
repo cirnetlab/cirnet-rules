@@ -49,3 +49,32 @@ The candidate has no tag or published release.
 
 See [setup](setup.md) for manual client smoke cases and
 [distribution](distribution.md) for bundle commands.
+
+## Markdown hygiene verification
+
+On 2026-11-15, the `rules-common` worktree at `5d6cc26` extended the existing
+checker and documentation lifecycle. The first duplicate fixture failed against
+the old checker because it emitted no duplicate diagnostic. All eight hygiene
+tests subsequently passed, covering duplicate classes, scoped new-file review,
+intentional copies, historical evidence and unchanged fixture bytes.
+
+| Command | Observed result |
+| --- | --- |
+| `cargo fmt --all --check` | Exit 0 |
+| `cargo clippy --offline --locked --all-targets -- -D warnings` | Exit 0 |
+| `cargo test --offline --locked` | Exit 0. 49 passed, one Windows directory symlink test ignored. |
+| `cargo run --offline --locked --bin check-docs` | Exit 0. Zero checker warnings and no cross-document candidates on this checkout. |
+| `pwsh -NoProfile -File tests/package.Tests.ps1` | Exit 0 for the exercised package and fake-home checks. Windows reparse fixture NOT_RUN because creation was denied. |
+| `pwsh -NoProfile -File tests/install.tests.ps1` | Exit 0 for the exercised installer fixtures. |
+| `git diff --check` | Exit 0 |
+
+The first parallel Cargo run hit a Windows executable lock and exited 101.
+The sequential retry used the same source. The repeatable `--new-file` smoke
+check used existing paths to exercise the CLI and exited 0. The policy path
+reported `NEW_DOCUMENT_REVIEW` without a candidate, and the spec template
+reported `KEEP_SEPARATE`. Both are review guidance.
+
+Similarity measures lexical overlap within the scan. Maintainers decide
+meaning and ownership. Evidence is under `.superpowers/markdown-hygiene-5d6cc26/`.
+The verification scope was the checker and local bundle fixtures. E01–E08
+were NOT_RUN for this change and their retained evidence hashes matched.

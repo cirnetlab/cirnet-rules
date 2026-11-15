@@ -50,5 +50,35 @@ Candidate chưa có tag hoặc bản phát hành.
 Xem [thiết lập](setup.md) cho ca smoke client thủ công và
 [phân phối](distribution.md) cho lệnh bundle.
 
+## Kiểm chứng rà soát Markdown dư thừa
+
+Ngày 2026-11-15, worktree `rules-common` tại `5d6cc26` mở rộng checker và vòng
+đời tài liệu hiện có. Fixture trùng lặp đầu tiên không đạt với checker cũ
+do thiếu cảnh báo. Sau khi sửa, cả tám test đều đạt, bao phủ các mức trùng
+lặp, rà soát tệp mới trong phạm vi, bản sao có chủ đích, bằng chứng lịch sử
+và bảo toàn từng byte của fixture.
+
+| Lệnh | Kết quả quan sát |
+| --- | --- |
+| `cargo fmt --all --check` | Exit 0 |
+| `cargo clippy --offline --locked --all-targets -- -D warnings` | Exit 0 |
+| `cargo test --offline --locked` | Exit 0. 49 ca đạt, một ca symlink thư mục Windows bị bỏ qua. |
+| `cargo run --offline --locked --bin check-docs` | Exit 0. Checker không phát cảnh báo và không tìm thấy cặp ứng viên trên checkout này. |
+| `pwsh -NoProfile -File tests/package.Tests.ps1` | Exit 0 cho các ca đóng gói và home giả đã chạy. Fixture reparse Windows là NOT_RUN do bị từ chối quyền tạo. |
+| `pwsh -NoProfile -File tests/install.tests.ps1` | Exit 0 cho các fixture cài đặt đã chạy. |
+| `git diff --check` | Exit 0 |
+
+Lần đầu chạy Cargo song song gặp khóa tệp thực thi trên Windows và trả 101.
+Lượt tuần tự chạy lại cùng mã nguồn. Phép thử `--new-file` dùng hai đường dẫn
+hiện có để kiểm tra cách gọi CLI và trả 0. Chính sách tài liệu nhận
+`NEW_DOCUMENT_REVIEW` vì chưa có ứng viên, còn mẫu spec nhận
+`KEEP_SEPARATE`. Đây là gợi ý rà soát.
+
+Điểm tương đồng đo phần chữ trùng nhau trong phạm vi quét. Người bảo trì
+xác định ý nghĩa và chủ sở hữu. Bằng chứng nằm tại
+`.superpowers/markdown-hygiene-5d6cc26/`. Lần này kiểm chứng checker và
+fixture của bundle local. E01–E08 là NOT_RUN cho thay đổi này và hash
+bằng chứng đã lưu vẫn khớp.
+
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: bac59e329e35f2f67e58695b34094c42a40d33174793fb36ec94d5ba47b2640e -->
+<!-- source-sha256: b7eb733df2b2f82eba6c0257e1c91ba80ad26adb3f1718e1128021aede275ec1 -->

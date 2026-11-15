@@ -14,5 +14,17 @@ Baseline ngày 2026-11-14 là `35e677b1264958839a7e0cb883c4477eb24da6df`.
 Chỉ ghi vào `rules-common`. Thao tác trên sản phẩm, phát hành, cài client thật
 và thay đổi Git nằm ngoài phạm vi.
 
+## Rà soát Markdown dư thừa
+
+Mở rộng checker Rust chỉ đọc, chạy offline, dựa trên tập Markdown đang quét.
+Phân biệt trùng byte, trùng sau chuẩn hóa thận trọng và tương đồng có điểm số
+trong nhóm tài liệu cùng vai trò và ngôn ngữ. Gợi ý nguồn chuẩn, đánh dấu nội
+dung riêng và liên kết trỏ tới để rà soát. Bảo vệ nội dung lặp có chủ đích và
+bằng chứng. Rà soát tệp mới được chỉ định, không cần Git hay mạng.
+
+Dùng rules và skills hiện có để tìm, cập nhật, hợp nhất và kiểm chứng.
+Nghiệm thu khi các test tập trung của checker, tài liệu EN/VI và checkout đều đạt.
+Các ca đánh giá hành vi và bằng chứng của chúng nằm ngoài phạm vi kiểm chứng này.
+
 <!-- source: en/specs/cirnet-rules/toolkit-upgrade/spec.md -->
-<!-- source-sha256: cf579c4c30483576de2806b7457f1fbfb2426fae30410b1bec30081b012db457 -->
+<!-- source-sha256: 9897303159bc6d29399324a3d96a7dcc4596de0a89c30e9c8d5e703491668c24 -->

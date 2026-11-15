@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Rà soát Markdown trùng lặp và tệp mới đề xuất bằng lệnh `check-docs` chỉ đọc.
+  Tìm nguồn tài liệu hiện có trước khi tạo trang.
 - Làm rõ quyền xuất dữ liệu và cách đọc mã nguồn an toàn cho E01.
 - Sửa đường dẫn tạm và I/O chuẩn của tiến trình RTL trong MXC. Ghi mã thoát
   thực tế của compile và simulation cùng trạng thái vật lý rõ ràng cho E08.
@@ -26,4 +28,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 1d0fad7e7a70d3b4b48164cb491b60985193eb3d0a9a8f3a5c92b7388eac1cfc -->
+<!-- source-sha256: 363688e8c9e3aac9cf2677cfcb58eddb8d5b564422ece71a5ed9e5b211241f38 -->

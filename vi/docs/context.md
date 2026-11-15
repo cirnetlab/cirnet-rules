@@ -24,6 +24,7 @@ lần. Adapter managed chỉ nên đưa vào baseline.
 | Nhiệm vụ | Đọc chọn lọc | Nhận định dự kiến |
 | --- | --- | --- |
 | Sửa typo trong README | Chỉ dẫn local áp dụng và đoạn liên quan | Theo yêu cầu review local mà không phải nạp thư viện skill |
+| Ghi lại bản sửa lỗi | Tìm chủ đề, issue và tài liệu sở hữu trong repository được phép | Cập nhật hướng dẫn chuẩn và liên kết tới bằng chứng có ngày. Theo [vòng đời tài liệu](../policies/documentation.md#vòng-đời-tài-liệu) |
 | Đổi field response HTTP | API compatibility, contract của producer và test consumer trực tiếp | Xem SDK/default/null mà không nạp reference FPGA |
 | Debug timing testbench FPGA | Chỉ dẫn lồng nhau FPGA, skill debugging, RTL và testbench liên quan | Báo kết quả mô phỏng, giữ trạng thái sẵn sàng vật lý chưa xác minh |
 
@@ -38,4 +39,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 và cảnh báo tham khảo. Số token phụ thuộc phần client nạp và tokenizer.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 18a909ebd4ac9bec7dc1015ac1b0c466808ba673c2e78409db2ba954b805183e -->
+<!-- source-sha256: c14c2d8451e71fc0a9b041b87ed5c04b26588398ecc1fbaeb9bdd1a33e28c1b0 -->

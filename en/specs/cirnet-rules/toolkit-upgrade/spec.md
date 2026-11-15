@@ -13,3 +13,15 @@ Baseline on 2026-11-14 was `35e677b1264958839a7e0cb883c4477eb24da6df`.
 
 Writes are limited to `rules-common`. Product work, releases, real client
 installation and Git mutations are outside scope.
+
+## Markdown hygiene
+
+Extend the offline, read-only Rust checker using the scanned Markdown inventory.
+Separate byte matches, conservative normalization and scored similarity within
+comparable document roles and languages. Suggest a canonical candidate and flag
+unique content and incoming links for review. Protect deliberate duplication and
+evidence. Review explicitly supplied new paths without Git or network access.
+
+Use existing rules and skills for search, update, consolidation and verification.
+Accept the change when focused checker tests, EN/VI docs and the checkout pass.
+Behavioral cases and their evidence are outside this verification.

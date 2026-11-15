@@ -25,6 +25,7 @@ loads that baseline once. A managed adapter should never import the library.
 | Task | Selective read | Expected judgment |
 | --- | --- | --- |
 | Fix a README typo | Applicable local instruction and the relevant paragraph | Handle local review requirements without loading the skill library |
+| Document a bug fix | Search the authorized repo for the topic, issue and owning guide | Update the canonical guide and link dated evidence. Follow the [documentation lifecycle](../policies/documentation.md#documentation-lifecycle) |
 | Change an HTTP response field | API compatibility, producer contract and a direct consumer test | Inspect SDK/default/null behavior without loading FPGA references |
 | Debug FPGA testbench timing | FPGA nested instruction, debugging skill, relevant RTL and testbench | Report simulation results with physical readiness unverified |
 

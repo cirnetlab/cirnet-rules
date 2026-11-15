@@ -1,18 +1,22 @@
 ---
 name: cirnet-documentation-sync
-description: Use when a change affects instructions, navigation, examples, or paired English and Vietnamese documentation.
+description: Use when creating or changing documentation, including instructions, examples, navigation, or translations.
 ---
 
 # Documentation synchronization
 
-Use for affected docs. Leave unrelated history and translations out of the task.
+Use the repository's documentation policy for the affected scope.
 
-Minimum inputs: Affected files, canonical language, actual change/test evidence and local document policy.
+1. Identify the purpose and find the owning document by path, title, topic or
+   inbound link. Update it in place. Create a file for a distinct purpose or
+   required evidence and record why it belongs there.
+2. If documents overlap, propose a canonical location and list unique facts
+   and affected links. Preserve dated results and apply consolidation only
+   within the authorized scope.
+3. Update English first and review the paired Vietnamese for meaning, commands,
+   versions and limits before refreshing its source hash.
+4. Run the applicable checker and diff check. Review duplicate suggestions,
+   validate links and examples, and report changed pairs, decisions and limits.
 
-1. Find affected nodes from the diff and their navigation links. Update the canonical source first.
-2. Update the corresponding translation after checking commands, versions, limits and meaning. Refresh the source hash after review.
-3. Validate links and examples using the applicable checker. Preserve published history and distinguish old runs from current ones.
-
-Report changed pairs, resolved navigation and verification. A matching hash establishes freshness of the reviewed source.
-
-Example: An install flag changes. Update setup examples and their translation, then test the shown command against a fixture before marking it verified.
+When an install flag changes, update the setup example and its translation,
+then verify the shown command against a fixture.

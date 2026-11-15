@@ -24,6 +24,7 @@ code and [baseline](../AGENTS.md).
 - Generate derived files from the owner-defined source and command. If the producer
   or generator is unavailable, report the gap instead of editing generated output
   as though it were canonical.
-- Update affected documentation with behavior changes. Local rules determine
-  translation, plan/spec placement, dependency policy and architecture decisions.
+- Update the existing canonical documentation with behavior changes. Search by
+  purpose and owner before adding Markdown. Follow the [documentation policy](../policies/documentation.md)
+  and local rules for translation, plan/spec placement, dependencies and architecture.
   Keep language and tool version choices within the authorized repository scope.

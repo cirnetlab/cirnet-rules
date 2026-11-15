@@ -4,19 +4,36 @@ Tiếng Anh dưới `en/` là nguồn chuẩn. Cùng đường dẫn tương đ�
 bản dịch tiếng Việt cho người đọc. Agent mặc định đọc tiếng Anh; bản Việt không
 thêm yêu cầu hoặc ghi đè bản Anh. Khi dịch, cần đọc cả hai.
 
-## Sau triển khai hoặc build
+## Vòng đời tài liệu
 
-1. Xem thay đổi ảnh hưởng tài liệu nào: hành vi, API, setup, lệnh, ví dụ, giới hạn
-   và tiến độ plan/spec hiện tại. Chỉ đọc context liên quan.
-2. Cập nhật nguồn Anh theo triển khai và kết quả kiểm chứng thực tế.
-   Dịch bản Việt bị ảnh hưởng trong cùng thay đổi.
-3. Soát nghĩa, nhất là phủ định, quyền, khả năng chưa có, đường dẫn, số và
-   PASS/FAIL/NOT_RUN/BLOCKED. Giữ nguyên định danh code/lệnh; dịch phần giải thích.
-   Không biến bằng chứng lịch sử thành PASS mới.
-4. Chỉ cập nhật metadata nguồn sau khi soát nghĩa. Cập nhật bản baseline root nếu
-   `en/AGENTS.md` đổi. Không đổi adapter Claude ở root.
-5. Chạy [kiểm tra tài liệu local](../hooks/README.md), xem diff cuối và báo cả hai
-   đường dẫn đã cập nhật cùng kiểm chứng, giới hạn còn lại.
+1. **Tìm trước khi tạo.** Xác định mục đích và chủ sở hữu. Tìm trong repository
+   được phép theo tên tệp, tiêu đề, heading, chủ đề hoặc issue, rồi theo liên
+   kết từ chỉ mục và nguồn sở hữu nội dung. Phân biệt hướng dẫn hiện hành, kế
+   hoạch, đặc tả, changelog, kiểm chứng, bằng chứng có ngày, ví dụ và fixture.
+2. **Cập nhật tài liệu chuẩn.** Dùng lại tài liệu cùng mục đích và liên kết đến
+   tài liệu đó từ các trang khác. Cập nhật tại chỗ hành vi hiện tại, cách tái
+   hiện, kết quả quan sát được và giới hạn. Liên kết bằng chứng có ngày và giữ
+   kết quả gốc. Chỉ tạo tệp cho mục đích, đối tượng đọc hoặc tính năng riêng,
+   yêu cầu của repository hoặc hồ sơ bằng chứng độc lập. Báo lý do và liên kết
+   trỏ tới từng tệp mới.
+3. **Đề xuất hợp nhất.** Nêu các ứng viên, phần trùng và nội dung riêng. Giải
+   thích nguồn nào nên quản lý chủ đề. Bảo toàn yêu cầu, quyết định, ví dụ,
+   lệnh, phiên bản, schema, số đo, trạng thái kiểm thử, giới hạn an toàn và nguồn gốc.
+   Dự kiến cập nhật liên kết, chỉ mục, cặp EN/VI và cách truy cập lịch sử.
+   Chỉ hợp nhất trong phạm vi ghi của nhiệm vụ khi có thể bảo toàn nội dung.
+   Dùng cảnh báo tương đồng để xác định phần cần xem xét.
+4. **Kiểm chứng.** Xem lại hướng dẫn, ví dụ API và tiến độ kế hoạch/đặc tả bị
+   ảnh hưởng. Cập nhật bản Anh theo kết quả đã quan sát, rồi sửa bản Việt
+   tương ứng trong cùng thay đổi. Soát nghĩa, nhất là phủ định, quyền, khả
+   năng chưa có, đường dẫn, số và PASS/FAIL/NOT_RUN/BLOCKED. Giữ nguyên
+   định danh mã và lệnh rồi cập nhật hash nguồn sau khi soát. Đồng bộ bản
+   baseline ở root nếu có sửa baseline. Chạy [kiểm tra tài liệu cục bộ](../hooks/README.md)
+   và `git diff --check`. Xử lý lỗi, rà soát cảnh báo và báo đường dẫn đã
+   thay đổi, quyết định cùng giới hạn.
+
+Trình bày lần lượt mục đích, đầu vào, các bước, kiểm chứng và giới hạn khi cần.
+Dùng liên kết nếu tài liệu khác quản lý chi tiết đó. Bỏ câu lặp và giữ lệnh,
+tiêu chí nghiệm thu, trường hợp biên và ràng buộc an toàn.
 
 Nếu build không đổi nghĩa tài liệu, ghi nhận đánh giá đó cùng kết quả test thực tế
 trong báo cáo task; không sửa vô nghĩa chỉ để chạm hai file.
@@ -62,4 +79,4 @@ metadata của nó.
   tạo cây song ngữ hoặc sửa repository khác.
 
 <!-- source: en/policies/documentation.md -->
-<!-- source-sha256: 4f23cc69b29107872ab4822c6f04102ab8164a1f67db21f48a86ec9afedd8def -->
+<!-- source-sha256: eba656693e5a29a825012effb82f7b26c4436d6913b36472831c0ee25722282f -->

@@ -99,14 +99,20 @@ impl Fixture {
 
     #[track_caller]
     fn check(&self, expected: i32) -> String {
-        Self::check_root(&self.root, expected)
+        self.check_with(expected, &[])
     }
 
     #[track_caller]
-    fn check_root(root: &Path, expected: i32) -> String {
+    fn check_with(&self, expected: i32, args: &[&str]) -> String {
+        Self::check_root(&self.root, expected, args)
+    }
+
+    #[track_caller]
+    fn check_root(root: &Path, expected: i32, args: &[&str]) -> String {
         let result = Command::new(env!("CARGO_BIN_EXE_check-docs"))
             .arg("--root")
             .arg(root)
+            .args(args)
             .output()
             .expect("could not run check-docs");
         assert_eq!(
@@ -192,6 +198,303 @@ fn valid_tree_is_read_only() {
     let mut after = BTreeMap::new();
     snapshot(&fixture.root, &fixture.root, &mut after);
     assert_eq!(after, before);
+}
+
+const RETRY_INPUT: &str = "Load connection settings from the owner configuration. Keep the \
+    requested endpoint, credential source, timeout and retry budget unchanged. Record the \
+    fixture revision and use the existing offline service emulator before comparing results.";
+const RETRY_RUN: &str = "Run the request with the fixture's fake clock and inspect the retry \
+    event stream. The first failure schedules a bounded delay. A successful retry clears \
+    the pending timer. Cancellation must stop the queue without reporting a success.";
+const RETRY_LIMIT: &str = "Record compiler and runtime versions with every observation. Report \
+    the retry count, terminal result and exact exit code. The emulator verifies the connection \
+    workflow without granting access to production credentials or asserting network availability.";
+
+fn retry_document() -> String {
+    format!("# Connection retry\n\n{RETRY_INPUT}\n\n{RETRY_RUN}\n\n{RETRY_LIMIT}\n")
+}
+
+fn hygiene_findings<'a>(report: &'a str, header: &str) -> Vec<&'a str> {
+    report
+        .match_indices(header)
+        .filter(|(start, _)| *start == 0 || report.as_bytes()[start - 1] == b'\n')
+        .map(|(start, _)| {
+            let tail = &report[start..];
+            let end = ["\nINFO:", "\nWARN:", "\nERROR:", "\nPASS:"]
+                .into_iter()
+                .filter_map(|prefix| tail.find(prefix))
+                .min()
+                .unwrap_or(tail.len());
+            &tail[..end]
+        })
+        .collect()
+}
+
+#[test]
+fn hygiene_exact_duplicate_warns_deterministically_without_changing_files() {
+    let fixture = Fixture::new();
+    let source = retry_document();
+    fixture.pair("docs/connection-retry.md", &source);
+    fixture.pair("docs/connection retry copy.md", &source);
+    fixture.write(
+        "README.md",
+        "# Index\n\n[Retry](<en/docs/connection retry copy.md>)\n",
+    );
+    fixture.write(".superpowers/evidence/prior.md", &source);
+    let mut before = BTreeMap::new();
+    snapshot(&fixture.root, &fixture.root, &mut before);
+
+    let report = fixture.check(0);
+    let findings = hygiene_findings(&report, "WARN: DOC_EXACT_DUPLICATE");
+    assert_eq!(findings.len(), 1, "{report}");
+    for evidence in [
+        "en/docs/connection-retry.md",
+        "en/docs/connection retry copy.md",
+        "README.md",
+        "REVIEW_MERGE",
+    ] {
+        assert!(
+            findings[0].contains(evidence),
+            "missing {evidence}: {report}"
+        );
+    }
+    assert!(!report.contains(".superpowers/evidence/prior.md"));
+    assert_eq!(report, fixture.check(0));
+
+    let mut after = BTreeMap::new();
+    snapshot(&fixture.root, &fixture.root, &mut after);
+    assert_eq!(after, before);
+}
+
+#[test]
+fn hygiene_normalized_duplicate_preserves_code_and_meaningful_values() {
+    let fixture = Fixture::new();
+    let source = format!(
+        "{}\n~~~yaml\nmode: safe\nlimits:\n  retries: 3\n~~~\n\nStatus: PASS\n",
+        retry_document()
+    );
+    fixture.pair("docs/connection-retry.md", &source);
+    fixture.pair("docs/connection-copy.md", format!("{source}\n\n"));
+    let report = fixture.check(0);
+    assert_eq!(
+        hygiene_findings(&report, "WARN: DOC_NORMALIZED_DUPLICATE").len(),
+        1,
+        "{report}"
+    );
+    assert!(!report.contains("DOC_EXACT_DUPLICATE"), "{report}");
+
+    for changed in [
+        source.replace("  retries: 3", "retries: 3"),
+        source.replace("retries: 3", "retries: 9"),
+        source.replace("Status: PASS", "Status: BLOCKED"),
+    ] {
+        fixture.pair("docs/connection-copy.md", changed);
+        assert!(
+            !fixture.check(0).contains("DOC_NORMALIZED_DUPLICATE"),
+            "a meaningful change must not be normalized away"
+        );
+    }
+}
+
+#[test]
+fn hygiene_reordered_and_reworded_sections_report_measured_similarity() {
+    let fixture = Fixture::new();
+    fixture.pair("docs/connection-retry.md", retry_document());
+    fixture.pair(
+        "docs/retry-workflow.md",
+        format!(
+            "# Connection retry workflow\n\n{RETRY_LIMIT}\n\n{}\n\n{RETRY_INPUT}\n",
+            RETRY_RUN.replace("fake clock", "simulated clock")
+        ),
+    );
+    let report = fixture.check(0);
+    let findings = hygiene_findings(&report, "WARN: DOC_NEAR_DUPLICATE");
+    assert_eq!(findings.len(), 1, "{report}");
+    for evidence in [
+        "en/docs/connection-retry.md",
+        "en/docs/retry-workflow.md",
+        "similarity:",
+        "reason:",
+        "suggestion:",
+    ] {
+        assert!(
+            findings[0].contains(evidence),
+            "missing {evidence}: {report}"
+        );
+    }
+}
+
+#[test]
+fn hygiene_new_files_distinguish_revisions_from_independent_purpose() {
+    let fixture = Fixture::new();
+    fixture.pair("docs/connection-retry.md", retry_document());
+    fixture.pair(
+        "docs/connection-retry-v2.md",
+        format!(
+            "# Connection retry revised\n\n{RETRY_INPUT}\n\n{RETRY_RUN}\n\n\
+             Gather worker latency from the queue telemetry log. Collect enough \
+             observations under load to confirm the scheduling interval and distribution, \
+             then compare the recorded timestamps with the monotonic clock.\n"
+        ),
+    );
+    fixture.pair(
+        "docs/connection-retry-final.md",
+        "# Map archive publication\n\nEnsure catalog pages identify map editions and scales. \
+         Preserve historical sheets in their original folders. Verify that search filters \
+         can select a region and export its public map metadata. Confirm that printed legends \
+         and shoreline symbols remain readable at each cartographic scale.\n",
+    );
+    fixture.pair(
+        "docs/independent exports.md",
+        "# Export map entries\n\nSpecify the destination format and license.\n",
+    );
+    let report = fixture.check_with(
+        0,
+        &[
+            "--new-file",
+            "en/docs/connection-retry-v2.md",
+            "--new-file=en/docs/connection-retry-final.md",
+            "--new-file",
+            "en/docs/independent exports.md",
+        ],
+    );
+    let updates: Vec<_> = hygiene_findings(&report, "WARN: DOC_NEAR_DUPLICATE")
+        .into_iter()
+        .filter(|finding| finding.contains("suggestion: UPDATE_EXISTING"))
+        .collect();
+    assert_eq!(updates.len(), 1, "{report}");
+    assert!(
+        updates[0].contains("en/docs/connection-retry.md"),
+        "{report}"
+    );
+    assert!(
+        updates[0].contains("en/docs/connection-retry-v2.md"),
+        "{report}"
+    );
+    let reviews = hygiene_findings(&report, "INFO: NEW_DOCUMENT_REVIEW");
+    assert_eq!(reviews.len(), 2, "{report}");
+    for path in [
+        "en/docs/connection-retry-final.md",
+        "en/docs/independent exports.md",
+    ] {
+        assert!(
+            reviews.iter().any(|finding| finding.contains(path)),
+            "missing review for {path}: {report}"
+        );
+    }
+    assert!(!report.contains("DOC_NEW_DUPLICATE"), "{report}");
+}
+
+#[test]
+fn hygiene_new_exact_copy_fails_for_the_named_path() {
+    let fixture = Fixture::new();
+    let source = retry_document();
+    fixture.pair("docs/connection-retry.md", &source);
+    fixture.pair("docs/connection-retry-final.md", &source);
+    let report = fixture.check_with(1, &["--new-file", "en/docs/connection-retry-final.md"]);
+    let findings = hygiene_findings(&report, "ERROR: DOC_NEW_DUPLICATE");
+    assert_eq!(findings.len(), 1, "{report}");
+    for evidence in [
+        "en/docs/connection-retry.md",
+        "en/docs/connection-retry-final.md",
+        "UPDATE_EXISTING",
+    ] {
+        assert!(
+            findings[0].contains(evidence),
+            "missing {evidence}: {report}"
+        );
+    }
+}
+
+#[test]
+fn hygiene_keeps_intentional_copies_in_separate_roles() {
+    let fixture = Fixture::new();
+    let source = retry_document();
+    fixture.pair("docs/connection-retry.md", &source);
+    let original_vi = fs::read_to_string(fixture.root.join("vi/docs/connection-retry.md")).unwrap();
+    fixture.write(
+        "vi/docs/connection-retry.md",
+        original_vi.replace("# Bản dịch\n", &source),
+    );
+    fixture.pair("plans/network/plan.md", &source);
+    fixture.pair("specs/network/spec.md", &source);
+    fixture.pair("templates/retry.md", &source);
+    fixture.pair("docs/samples/retry.md", &source);
+    fixture.pair("docs/fixtures/retry.md", &source);
+    fixture.pair("docs/components/README.md", "# Setup\n");
+    fixture.pair("docs/tools/README.md", "# Setup\n");
+    fixture.pair(
+        "docs/paths.md",
+        "# Setup\n\nFollow the local testing policy.\n",
+    );
+    fixture.pair(
+        "docs/tooling.md",
+        "# Tools\n\nFollow the local testing policy.\n",
+    );
+    fixture.pair(
+        "docs/thermometer.md",
+        format!("# Read thermometer\n\n{RETRY_RUN}\n\nRecord cold junction offsets.\n"),
+    );
+    fixture.pair(
+        "docs/wheel.md",
+        format!("# Check wheels\n\n{RETRY_RUN}\n\nInspect each rim visually.\n"),
+    );
+    fixture.write("tests/fixtures/retry.md", &source);
+    let report = fixture.check_with(
+        0,
+        &[
+            "--new-file",
+            "en/AGENTS.md",
+            "--new-file=CLAUDE.md",
+            "--new-file=en/templates/retry.md",
+        ],
+    );
+    assert!(!report.contains("DOC_EXACT_DUPLICATE"), "{report}");
+    assert!(!report.contains("DOC_NORMALIZED_DUPLICATE"), "{report}");
+    assert!(!report.contains("DOC_NEAR_DUPLICATE"), "{report}");
+    assert!(!report.contains("DOC_NEW_DUPLICATE"), "{report}");
+}
+
+#[test]
+fn hygiene_historical_reports_are_advisory_and_stay_intact() {
+    let fixture = Fixture::new();
+    let source = retry_document();
+    fixture.pair(
+        "docs/history/retry-2026-04-01.md",
+        format!("{source}\nRevision r01, verification FAIL.\n"),
+    );
+    let latest = format!("{source}\nRevision r02, verification PASS.\n");
+    fixture.pair("docs/history/retry-2026-04-02.md", &latest);
+    fixture.pair("docs/history/retry-2026-04-03.md", &latest);
+    let mut before = BTreeMap::new();
+    snapshot(&fixture.root, &fixture.root, &mut before);
+    let report = fixture.check_with(0, &["--new-file", "en/docs/history/retry-2026-04-03.md"]);
+    assert!(!report.contains("DOC_NEW_DUPLICATE"), "{report}");
+    assert!(!report.contains("UPDATE_EXISTING"), "{report}");
+    assert!(report.contains("KEEP_SEPARATE"), "{report}");
+    let mut after = BTreeMap::new();
+    snapshot(&fixture.root, &fixture.root, &mut after);
+    assert_eq!(after, before);
+}
+
+#[test]
+fn hygiene_new_file_selector_rejects_paths_outside_the_document_inventory() {
+    let fixture = Fixture::new();
+    fixture.write("tests/guide.md", GUIDE);
+    fixture.write(".superpowers/private.md", GUIDE);
+    for invalid in [
+        "../outside.md",
+        "en/../README.md",
+        "/README.md",
+        "C:\\outside.md",
+        "en/missing.md",
+        "tests/guide.md",
+        ".superpowers/private.md",
+        "LICENSE",
+    ] {
+        fixture.check_with(2, &["--new-file", invalid]);
+    }
+    fixture.check_with(2, &["--new-file"]);
 }
 
 #[test]
@@ -705,5 +1008,5 @@ fn nested_mixed_case_excluded_trees_are_not_scanned() {
 #[test]
 fn invalid_root_exits_two() {
     let fixture = Fixture::new();
-    Fixture::check_root(&fixture.root.join("does-not-exist"), 2);
+    Fixture::check_root(&fixture.root.join("does-not-exist"), 2, &[]);
 }

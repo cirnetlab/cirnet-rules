@@ -4,19 +4,36 @@ English under `en/` is canonical. The same relative path under `vi/` is the
 Vietnamese human translation. Agents read English by default; Vietnamese does not
 add requirements or override English. Translation work necessarily reads both.
 
-## After implementation or build
+## Documentation lifecycle
 
-1. Inspect the change's documentation impact: behavior, API, setup, commands,
-   examples, limitations and current plan/spec progress. Read only affected context.
-2. Update the English source from observed implementation and verification results.
-   Translate the affected Vietnamese counterpart in the same change.
-3. Compare meaning, particularly negation, permissions, unavailable capabilities,
-   paths, numbers and PASS/FAIL/NOT_RUN/BLOCKED. Keep code identifiers and commands
-   exact; translate explanatory text. Do not turn historical evidence into new PASS.
-4. Refresh source metadata only after semantic review. Update the root baseline
-   copy if `en/AGENTS.md` changed. Do not change the root Claude adapter.
-5. Run the [local documentation check](../hooks/README.md), inspect the final diff,
-   and report both updated paths plus verification and remaining limitations.
+1. **Search before creating.** Identify the purpose and owner. Search within
+   the authorized repository by filename, title, heading, topic or issue,
+   and follow index and owning-source links. Distinguish current guides, plans,
+   specs, changelogs, verification, dated evidence, examples and fixtures.
+2. **Update the canonical document.** Reuse the document that serves the same
+   purpose and link to it from other pages. Update current behavior, reproduction
+   steps, observed results and limits in place. Link dated evidence and preserve
+   its original results. Create a file only for a distinct purpose, audience or
+   feature, a repository requirement, or an independent evidence record. Report
+   the reason and the incoming link for each new file.
+3. **Propose consolidation.** Name the candidates, overlap and unique material.
+   Explain which source should own the topic. Preserve requirements, decisions,
+   examples, commands, versions, schemas, measurements, test status, safety limits and
+   provenance. Plan link, index and EN/VI updates and continued access to
+   history. Merge only within the task's write scope when the contents can be
+   preserved. Review similarity warnings as evidence for investigation.
+4. **Verify.** Review affected guides, API examples and plan/spec progress.
+   Update English from observed results, then update the Vietnamese counterpart
+   in the same change. Compare meaning, especially negation, permissions,
+   unavailable capabilities, paths, numbers and
+   PASS/FAIL/NOT_RUN/BLOCKED. Keep code identifiers and commands exact and refresh
+   source hashes after review. Mirror any baseline edit at the root. Run the
+   [local documentation check](../hooks/README.md) and `git diff --check`.
+   Resolve errors, review warnings and report changed paths, decisions and limits.
+
+Write from purpose through inputs, steps, verification and limits as needed.
+Use links where another document owns the detail. Cut repeated prose while
+keeping commands, acceptance criteria, edge cases and safety constraints.
 
 If a build changes no documented meaning, record that assessment and the actual
 test result in the task report; do not manufacture edits merely to touch two files.
