@@ -25,3 +25,11 @@ evidence. Review explicitly supplied new paths without Git or network access.
 Use existing rules and skills for search, update, consolidation and verification.
 Accept the change when focused checker tests, EN/VI docs and the checkout pass.
 Behavioral cases and their evidence are outside this verification.
+
+Hardening at `66d2c8a` adds a standalone baseline reminder and requires
+reviewing each new Markdown path when the checker is available. Exact or
+conservatively normalized non-exempt copies fail when either path is declared
+new. Similarity remains advisory. CI delegates committed Markdown additions to
+the offline checker using a verified local Git base and literal arguments.
+Without a usable base, report the limited scan. Verify this path with isolated
+Git fixtures and preserve native evidence.

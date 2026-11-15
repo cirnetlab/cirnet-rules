@@ -407,6 +407,168 @@ fn hygiene_new_exact_copy_fails_for_the_named_path() {
 }
 
 #[test]
+fn hygiene_hardening_two_listed_copies_fail_for_exact_and_normalized_equality() {
+    let fixture = Fixture::new();
+    let source = retry_document();
+    fixture.pair("docs/retry.md", &source);
+    for (copy, method) in [
+        (source.clone(), "byte equality"),
+        (format!("{source}\n"), "normalized equality"),
+    ] {
+        fixture.pair("docs/retry-v2.md", copy);
+        let report = fixture.check_with(
+            1,
+            &[
+                "--new-file",
+                "en/docs/retry.md",
+                "--new-file=en/docs/retry-v2.md",
+            ],
+        );
+        let findings = hygiene_findings(&report, "ERROR: DOC_NEW_DUPLICATE");
+        assert_eq!(findings.len(), 1, "{report}");
+        for expected in [
+            method,
+            "file_a: en/docs/retry-v2.md",
+            "file_b: en/docs/retry.md",
+            "canonical_candidate: en/docs/retry.md",
+            "suggestion: REVIEW_MERGE",
+        ] {
+            assert!(
+                findings[0].contains(expected),
+                "missing {expected}: {report}"
+            );
+        }
+        assert!(
+            hygiene_findings(&report, "INFO: NEW_DOCUMENT_REVIEW").is_empty(),
+            "{report}"
+        );
+    }
+}
+
+#[test]
+fn hygiene_hardening_new_normalized_copy_of_existing_document_fails() {
+    let fixture = Fixture::new();
+    let source = retry_document();
+    fixture.pair("docs/retry.md", &source);
+    fixture.pair("docs/retry-v2.md", format!("{source}\n"));
+    let report = fixture.check_with(1, &["--new-file", "en/docs/retry-v2.md"]);
+    let findings = hygiene_findings(&report, "ERROR: DOC_NEW_DUPLICATE");
+    assert_eq!(findings.len(), 1, "{report}");
+    assert!(findings[0].contains("normalized equality"), "{report}");
+    assert!(
+        findings[0].contains("suggestion: UPDATE_EXISTING"),
+        "{report}"
+    );
+}
+
+#[test]
+fn hygiene_hardening_shared_fenced_example_does_not_dominate_near_score() {
+    let fixture = Fixture::new();
+    let example = format!("\n\n```text\n{RETRY_INPUT}\n{RETRY_RUN}\n{RETRY_LIMIT}\n```\n");
+    fixture.pair(
+        "docs/network-setup.md",
+        format!("# Connection retry setup\n\nConfigure the destination at install time.{example}"),
+    );
+    fixture.pair(
+        "docs/network-diagnostics.md",
+        format!("# Connection retry setup diagnostics\n\nCompare emulator timestamps while investigating queue delays.{example}"),
+    );
+    let report = fixture.check_with(0, &["--new-file", "en/docs/network-diagnostics.md"]);
+    assert!(!report.contains("DOC_NEAR_DUPLICATE"), "{report}");
+    assert!(report.contains("INFO: NEW_DOCUMENT_REVIEW"), "{report}");
+}
+
+#[test]
+fn hygiene_hardening_issue_number_alone_does_not_connect_separate_folders() {
+    let fixture = Fixture::new();
+    fixture.pair(
+        "docs/client/retry-scheduler.md",
+        format!("# Client scheduling #246\n\n{RETRY_INPUT}\n\n{RETRY_RUN}\n\n{RETRY_LIMIT}\n"),
+    );
+    fixture.pair(
+        "docs/server/recovery.md",
+        format!(
+            "# Server recovery #246\n\n{RETRY_INPUT}\n\n{RETRY_RUN}\n\n\
+             Gather worker latency from the queue telemetry log. Collect enough \
+             observations under load to confirm the scheduling interval and distribution, \
+             then compare the recorded timestamps with the monotonic clock.\n"
+        ),
+    );
+    let report = fixture.check_with(0, &["--new-file", "en/docs/server/recovery.md"]);
+    assert!(!report.contains("DOC_NEAR_DUPLICATE"), "{report}");
+    assert!(report.contains("INFO: NEW_DOCUMENT_REVIEW"), "{report}");
+}
+
+#[test]
+fn hygiene_hardening_same_prose_with_changed_code_needs_review() {
+    let fixture = Fixture::new();
+    let source = retry_document();
+    fixture.pair(
+        "docs/client/retry.md",
+        format!("{source}\n```yaml\nretries: 3\n```\n"),
+    );
+    fixture.pair(
+        "docs/server/retry.md",
+        format!("{source}\n```yaml\nretries: 9\n```\n"),
+    );
+    let report = fixture.check_with(0, &["--new-file", "en/docs/server/retry.md"]);
+    let findings = hygiene_findings(&report, "WARN: DOC_NEAR_DUPLICATE");
+    assert_eq!(findings.len(), 1, "{report}");
+    assert!(findings[0].contains("suggestion: REVIEW_MERGE"), "{report}");
+    assert!(findings[0].contains("review code blocks"), "{report}");
+}
+
+#[test]
+fn hygiene_hardening_normalization_keeps_blank_lines_in_an_open_fence() {
+    let fixture = Fixture::new();
+    let source = "# Sample\n\n~~~text\nExample content.\n";
+    fixture.pair("docs/sample.md", source);
+    fixture.pair("docs/sample-copy.md", format!("{source}\n"));
+    let report = fixture.check_with(0, &["--new-file", "en/docs/sample-copy.md"]);
+    assert!(!report.contains("DOC_NORMALIZED_DUPLICATE"), "{report}");
+    assert!(!report.contains("DOC_NEW_DUPLICATE"), "{report}");
+}
+
+#[test]
+fn hygiene_hardening_matching_translations_preserve_distinct_english_sources() {
+    let fixture = Fixture::new();
+    let translation = "# Xác minh\n\nCách kiểm tra và ghi nhận kết quả.\n";
+    for (name, source) in [
+        (
+            "docs/schedules.md",
+            "# Schedules\n\nVerify scheduler drift.\n",
+        ),
+        (
+            "docs/timeouts.md",
+            "# Timeouts\n\nVerify network timeouts.\n",
+        ),
+    ] {
+        fixture.write(&format!("en/{name}"), source);
+        fixture.write(
+            &format!("vi/{name}"),
+            format!(
+                "{translation}\n<!-- source: en/{name} -->\n<!-- source-sha256: {} -->\n",
+                sha256::hex(source.as_bytes())
+            ),
+        );
+    }
+    let report = fixture.check_with(
+        0,
+        &[
+            "--new-file=vi/docs/schedules.md",
+            "--new-file=vi/docs/timeouts.md",
+        ],
+    );
+    let findings = hygiene_findings(&report, "WARN: DOC_NORMALIZED_DUPLICATE");
+    assert_eq!(findings.len(), 1, "{report}");
+    assert!(
+        findings[0].contains("suggestion: KEEP_SEPARATE"),
+        "{report}"
+    );
+    assert!(findings[0].contains("English sources differ"), "{report}");
+}
+
+#[test]
 fn hygiene_keeps_intentional_copies_in_separate_roles() {
     let fixture = Fixture::new();
     let source = retry_document();

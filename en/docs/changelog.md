@@ -2,8 +2,9 @@
 
 ## 0.2.0 (candidate)
 
-- Review Markdown duplicates and proposed new files in the read-only
-  `check-docs` command. Search for an existing source before creating a page.
+- Search for the owning document before creating Markdown. Review additions
+  and fail unprotected confirmed duplicates through `check-docs` and the
+  CI Git diff bridge.
 - Clarify export authorization and safe source inspection for E01.
 - Fix RTL subprocess scratch paths and standard I/O in MXC. Record actual
   compile and simulation exits and explicit physical status for E08.

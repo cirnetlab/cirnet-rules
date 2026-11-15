@@ -80,5 +80,27 @@ xác định ý nghĩa và chủ sở hữu. Bằng chứng nằm tại
 fixture của bundle local. E01–E08 là NOT_RUN cho thay đổi này và hash
 bằng chứng đã lưu vẫn khớp.
 
+## Kiểm chứng đợt hoàn thiện
+
+Ngày 2026-11-15, thay đổi trên `rules-common` dựa trên `66d2c8a` siết mức lỗi
+trùng lặp, bổ sung chọn tệp trong CI và mở rộng baseline lên 491 từ, 3.445 byte
+UTF-8. Bảy ca hồi quy tập trung tái hiện hành vi cũ. Sau khi sửa, cả 15 ca
+hygiene đều đạt. Checker mặc định không phát cảnh báo trên checkout.
+
+| Kiểm tra | Kết quả quan sát trên Windows |
+| --- | --- |
+| `cargo fmt --all --check`, `git diff --check` | Exit 0 |
+| `cargo clippy --offline --locked --all-targets -- -D warnings` | Exit 0 |
+| `cargo test --offline --locked` | Exit 0. 56 ca đạt và một ca symlink thư mục Windows bị bỏ qua. |
+| `cargo run --offline --locked --bin check-docs` | Exit 0. Liên kết, hash EN/VI và bản sao baseline đều đạt. |
+| `pwsh -NoProfile -File tests/check-changed-docs.tests.ps1` | Exit 0. Script truyền tệp thêm đã commit, giữ nguyên tên tệp, bỏ qua đổi tên được nhận diện, trả lỗi trùng và báo quét thường khi base không dùng được. |
+| `tests/package.Tests.ps1` và `tests/install.tests.ps1` | Exit 0 với các fixture đã chạy. Tạo reparse và junction bị từ chối. |
+
+Bằng chứng nằm tại `.superpowers/markdown-hardening-66d2c8a/`. Hash của 290
+tệp đầu vào và bằng chứng được bảo vệ vẫn khớp, cùng mọi branch ref.
+Hosted CI, Linux, nạp Agent native và E01–E08 là NOT_RUN cho thay đổi này.
+Script Git cần một commit tổ tiên được xác nhận cục bộ. Điểm tương đồng vẫn
+cần rà soát mục đích và chủ sở hữu.
+
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: b7eb733df2b2f82eba6c0257e1c91ba80ad26adb3f1718e1128021aede275ec1 -->
+<!-- source-sha256: 07384198cc8b3972dfc6adeb6d02f19f1044ad0af6b422965d8b428dcd74db0b -->

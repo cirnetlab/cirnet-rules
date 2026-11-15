@@ -26,5 +26,13 @@ Dùng rules và skills hiện có để tìm, cập nhật, hợp nhất và ki�
 Nghiệm thu khi các test tập trung của checker, tài liệu EN/VI và checkout đều đạt.
 Các ca đánh giá hành vi và bằng chứng của chúng nằm ngoài phạm vi kiểm chứng này.
 
+Đợt hoàn thiện tại `66d2c8a` thêm lời nhắc tự đủ trong baseline và yêu cầu
+rà soát từng đường dẫn Markdown mới khi có checker. Cặp trùng byte hoặc trùng
+sau chuẩn hóa thận trọng gây lỗi nếu ít nhất một tệp được khai báo mới và cặp
+không thuộc ngoại lệ. Tương đồng chỉ phát cảnh báo. CI chuyển các tệp Markdown
+đã thêm trong commit cho checker offline bằng Git base đã xác minh cục bộ và
+tham số nguyên văn. Khi thiếu base hợp lệ, báo giới hạn quét. Kiểm thử luồng
+này bằng fixture Git cô lập và bảo toàn bằng chứng native.
+
 <!-- source: en/specs/cirnet-rules/toolkit-upgrade/spec.md -->
-<!-- source-sha256: 9897303159bc6d29399324a3d96a7dcc4596de0a89c30e9c8d5e703491668c24 -->
+<!-- source-sha256: cfe944f25558772afb5cb37e8c7fc6ad54f0bbd8595ab17a90b1cfb26c5bdd5f -->

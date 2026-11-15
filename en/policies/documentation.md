@@ -7,29 +7,37 @@ add requirements or override English. Translation work necessarily reads both.
 ## Documentation lifecycle
 
 1. **Search before creating.** Identify the purpose and owner. Search within
-   the authorized repository by filename, title, heading, topic or issue,
-   and follow index and owning-source links. Distinguish current guides, plans,
-   specs, changelogs, verification, dated evidence, examples and fixtures.
+   the authorized repository by filename, title, heading, topic, issue ID and
+   relevant text. Trace incoming links and indexes to the owner. Distinguish
+   current guides, plans, specs, changelogs, verification, dated evidence,
+   examples and fixtures.
 2. **Update the canonical document.** Reuse the document that serves the same
-   purpose and link to it from other pages. Update current behavior, reproduction
-   steps, observed results and limits in place. Link dated evidence and preserve
-   its original results. Create a file only for a distinct purpose, audience or
-   feature, a repository requirement, or an independent evidence record. Report
-   the reason and the incoming link for each new file.
+   purpose and link to it from other pages. For fixes, record current behavior,
+   reproduction steps, observed results and limits in the existing guide or
+   report. Link dated evidence and preserve its original results. Create a file
+   only for a distinct purpose, audience or feature, a repository requirement,
+   or an independent evidence record. Report the reason and incoming link.
 3. **Propose consolidation.** Name the candidates, overlap and unique material.
    Explain which source should own the topic. Preserve requirements, decisions,
-   examples, commands, versions, schemas, measurements, test status, safety limits and
-   provenance. Plan link, index and EN/VI updates and continued access to
-   history. Merge only within the task's write scope when the contents can be
-   preserved. Review similarity warnings as evidence for investigation.
+   examples, commands, parameters, versions, compatibility, schemas,
+   measurements, test results, safety limits and provenance. Keep plans and
+   specs with distinct purposes, dated evidence, compatibility versions, EN/VI
+   pairs, fixtures, templates and other protected material. Update links and
+   indexes and keep history accessible. Merge within the task's write scope
+   when the contents can be preserved. Review similarity warnings against each
+   document's purpose.
 4. **Verify.** Review affected guides, API examples and plan/spec progress.
    Update English from observed results, then update the Vietnamese counterpart
    in the same change. Compare meaning, especially negation, permissions,
    unavailable capabilities, paths, numbers and
    PASS/FAIL/NOT_RUN/BLOCKED. Keep code identifiers and commands exact and refresh
    source hashes after review. Mirror any baseline edit at the root. Run the
-   [local documentation check](../hooks/README.md) and `git diff --check`.
-   Resolve errors, review warnings and report changed paths, decisions and limits.
+   [local documentation check](../hooks/README.md), with `--new-file PATH` for
+   each added Markdown file it supports, and `git diff --check`. If a suitable
+   checker is unavailable, manually review the affected paths for purpose,
+   duplicates, links, fragments and translation freshness as applicable.
+   Resolve errors, review warnings and report changed paths, decisions, unchecked
+   items and limits.
 
 Write from purpose through inputs, steps, verification and limits as needed.
 Use links where another document owns the detail. Cut repeated prose while

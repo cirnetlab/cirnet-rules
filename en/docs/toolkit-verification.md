@@ -78,3 +78,26 @@ Similarity measures lexical overlap within the scan. Maintainers decide
 meaning and ownership. Evidence is under `.superpowers/markdown-hygiene-5d6cc26/`.
 The verification scope was the checker and local bundle fixtures. E01–E08
 were NOT_RUN for this change and their retained evidence hashes matched.
+
+## Final hygiene hardening
+
+On 2026-11-15, the `rules-common` change based on `66d2c8a` hardened duplicate
+severity, added CI selection and extended the baseline to 491 words and
+3,445 UTF-8 bytes. Seven focused regressions reproduced the old behavior.
+All 15 hygiene tests passed after the fix. The default checker reported no
+warnings on the checkout.
+
+| Check | Observed result on Windows |
+| --- | --- |
+| `cargo fmt --all --check`, `git diff --check` | Exit 0 |
+| `cargo clippy --offline --locked --all-targets -- -D warnings` | Exit 0 |
+| `cargo test --offline --locked` | Exit 0. 56 passed and one Windows directory symlink test ignored. |
+| `cargo run --offline --locked --bin check-docs` | Exit 0. Links, EN/VI hashes and baseline mirror passed. |
+| `pwsh -NoProfile -File tests/check-changed-docs.tests.ps1` | Exit 0. The bridge passed committed additions, preserved literal filenames, skipped recognized renames, propagated the duplicate error and reported fallback for unusable bases. |
+| `tests/package.Tests.ps1` and `tests/install.tests.ps1` | Exit 0 for exercised fixtures. Reparse and junction creation were denied. |
+
+Evidence is under `.superpowers/markdown-hardening-66d2c8a/`. Hashes of 290
+protected input and evidence files and all branch refs matched. Hosted CI,
+Linux execution, native agent loading and E01–E08 were NOT_RUN for this change.
+The Git bridge requires a confirmed local ancestor. Similarity still needs
+review of purpose and ownership.

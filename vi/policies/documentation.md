@@ -7,29 +7,36 @@ thêm yêu cầu hoặc ghi đè bản Anh. Khi dịch, cần đọc cả hai.
 ## Vòng đời tài liệu
 
 1. **Tìm trước khi tạo.** Xác định mục đích và chủ sở hữu. Tìm trong repository
-   được phép theo tên tệp, tiêu đề, heading, chủ đề hoặc issue, rồi theo liên
-   kết từ chỉ mục và nguồn sở hữu nội dung. Phân biệt hướng dẫn hiện hành, kế
-   hoạch, đặc tả, changelog, kiểm chứng, bằng chứng có ngày, ví dụ và fixture.
+   được phép theo tên tệp, tiêu đề, heading, chủ đề, mã issue và nội dung liên
+   quan. Lần theo liên kết trỏ tới tài liệu và chỉ mục để xác định chủ sở hữu.
+   Phân biệt hướng dẫn hiện hành, kế hoạch, đặc tả, changelog, kiểm chứng,
+   bằng chứng có ngày, ví dụ và fixture.
 2. **Cập nhật tài liệu chuẩn.** Dùng lại tài liệu cùng mục đích và liên kết đến
-   tài liệu đó từ các trang khác. Cập nhật tại chỗ hành vi hiện tại, cách tái
-   hiện, kết quả quan sát được và giới hạn. Liên kết bằng chứng có ngày và giữ
-   kết quả gốc. Chỉ tạo tệp cho mục đích, đối tượng đọc hoặc tính năng riêng,
-   yêu cầu của repository hoặc hồ sơ bằng chứng độc lập. Báo lý do và liên kết
-   trỏ tới từng tệp mới.
+   tài liệu đó từ các trang khác. Với bản sửa, ghi hành vi hiện tại, cách tái
+   hiện, kết quả quan sát và giới hạn trong hướng dẫn hoặc báo cáo hiện có.
+   Liên kết bằng chứng có ngày và giữ kết quả gốc. Chỉ tạo tệp cho mục đích,
+   đối tượng đọc hoặc tính năng riêng, yêu cầu của repository hoặc hồ sơ bằng
+   chứng độc lập. Báo lý do và liên kết trỏ tới tệp mới.
 3. **Đề xuất hợp nhất.** Nêu các ứng viên, phần trùng và nội dung riêng. Giải
    thích nguồn nào nên quản lý chủ đề. Bảo toàn yêu cầu, quyết định, ví dụ,
-   lệnh, phiên bản, schema, số đo, trạng thái kiểm thử, giới hạn an toàn và nguồn gốc.
-   Dự kiến cập nhật liên kết, chỉ mục, cặp EN/VI và cách truy cập lịch sử.
-   Chỉ hợp nhất trong phạm vi ghi của nhiệm vụ khi có thể bảo toàn nội dung.
-   Dùng cảnh báo tương đồng để xác định phần cần xem xét.
+   lệnh, tham số, phiên bản, khả năng tương thích, schema, số đo, kết quả kiểm
+   thử, giới hạn an toàn và nguồn gốc. Giữ kế hoạch và đặc tả có mục đích
+   riêng, bằng chứng có ngày, các phiên bản phục vụ tương thích, cặp EN/VI,
+   fixture, mẫu và tài liệu khác được bảo vệ. Cập nhật liên kết, chỉ mục và
+   giữ đường dẫn tới lịch sử. Hợp nhất trong phạm vi ghi của nhiệm vụ
+   khi có thể bảo toàn nội dung. Đối chiếu cảnh báo tương đồng với mục đích
+   của từng tài liệu.
 4. **Kiểm chứng.** Xem lại hướng dẫn, ví dụ API và tiến độ kế hoạch/đặc tả bị
    ảnh hưởng. Cập nhật bản Anh theo kết quả đã quan sát, rồi sửa bản Việt
    tương ứng trong cùng thay đổi. Soát nghĩa, nhất là phủ định, quyền, khả
    năng chưa có, đường dẫn, số và PASS/FAIL/NOT_RUN/BLOCKED. Giữ nguyên
    định danh mã và lệnh rồi cập nhật hash nguồn sau khi soát. Đồng bộ bản
    baseline ở root nếu có sửa baseline. Chạy [kiểm tra tài liệu cục bộ](../hooks/README.md)
-   và `git diff --check`. Xử lý lỗi, rà soát cảnh báo và báo đường dẫn đã
-   thay đổi, quyết định cùng giới hạn.
+   với `--new-file PATH` cho mỗi tệp Markdown mới mà checker hỗ trợ, rồi chạy
+   `git diff --check`. Khi không có checker phù hợp, kiểm tra thủ công các đường
+   dẫn bị ảnh hưởng về mục đích, nội dung trùng, liên kết, fragment và độ mới
+   bản dịch khi áp dụng. Xử lý lỗi, rà soát cảnh báo và báo đường dẫn thay đổi,
+   quyết định, phần chưa kiểm tra cùng giới hạn.
 
 Trình bày lần lượt mục đích, đầu vào, các bước, kiểm chứng và giới hạn khi cần.
 Dùng liên kết nếu tài liệu khác quản lý chi tiết đó. Bỏ câu lặp và giữ lệnh,
@@ -79,4 +86,4 @@ metadata của nó.
   tạo cây song ngữ hoặc sửa repository khác.
 
 <!-- source: en/policies/documentation.md -->
-<!-- source-sha256: eba656693e5a29a825012effb82f7b26c4436d6913b36472831c0ee25722282f -->
+<!-- source-sha256: c0d19d01f82f57f9cefde2f12661466b52bd60357dad00d21c7ff86ad8047afe -->

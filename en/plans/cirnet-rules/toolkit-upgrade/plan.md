@@ -12,5 +12,12 @@
 - [x] Extend the existing checker and pass eight duplicate, exclusion and new-file tests.
 - [x] Update existing EN/VI guidance and verify the checkout with the offline checker.
 
+## Markdown hygiene hardening
+
+- [x] Confirm the clean `rules-common` worktree at `66d2c8a`.
+- [x] Cover duplicate severity and preserve advisory review with focused Rust tests.
+- [x] Pass Git additions to the checker in CI and verify selection with local fixtures.
+- [x] Check baseline size, EN/VI synchronization and retained evidence.
+
 [Specification](../../../specs/cirnet-rules/toolkit-upgrade/spec.md) ·
 [Verification](../../../docs/toolkit-verification.md)

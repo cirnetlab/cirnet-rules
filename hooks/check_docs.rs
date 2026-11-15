@@ -23,7 +23,8 @@ Checks direct English Skill metadata and portable local resources, and
 matches VERSION to Cargo.toml and the first release heading in both changelogs.
 Context and cross-document similarity warnings are advisory. Use repeatable
 --new-file PATH to review a readable, root-relative Markdown file in the scan.
-It does not query Git. A new, unprotected exact duplicate fails the check.
+The checker uses the paths you list. Unprotected byte or normalized duplicates
+fail when either or both paths are listed. Near matches remain advisory.
 
 Use --root PATH to select a checkout. The default is the build checkout.
 Exit 0: PASS. Exit 1: failed checks. Exit 2: invalid invocation.";

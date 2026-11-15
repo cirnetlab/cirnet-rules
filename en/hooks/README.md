@@ -66,13 +66,14 @@ The default check also reports similarity findings. It compares documents by
 role within each of the root, English and Vietnamese groups. It skips intentional
 entrypoints, templates, examples, test fixtures, standard license and attribution
 files, empty or heading-only stubs, and README or index files under 40 words.
-Exact matches compare bytes. Normalized matches account for CRLF,
-terminal empty lines and the valid paired Vietnamese source footer, preserving
-code, punctuation, numbers and status text. LF validation still applies.
-Near matches use Jaccard similarity of distinct three-word sequences.
-Each document needs at least 40 words and
-24 distinct sequences. The threshold is 60%, or 40% with a shared title, issue
-ID or same-directory filename family after trimming revision suffixes.
+Exact matches compare bytes. Normalization accounts for CRLF, blank lines at
+the end outside open code fences and valid Vietnamese source footers. LF
+validation still applies. Matching Vietnamese text with distinct paired
+English source hashes remains advisory. Near matches compare distinct
+three-word prose sequences using Jaccard similarity, excluding fenced examples
+and comments. Each document needs at least 40 words and 24 distinct sequences.
+The threshold is 60%, or 40% for documents in the same folder with a shared
+title, issue ID or filename family after trimming revision suffixes.
 
 The checker reports paths, method, score, confidence, counts of unmatched
 headings and word sequences, and detected incoming Markdown links. Review
@@ -81,10 +82,18 @@ link targets. `KEEP_SEPARATE` flags paths recognized as historical evidence,
 verification reports or release notes for preservation.
 `NEW_DOCUMENT_REVIEW` asks the maintainer to decide when no suitable existing
 candidate was found. Confirm a distinct purpose even when the checker suggests
-no candidate. An exact match between a listed path and a matching
-unlisted, unprotected document triggers `DOC_NEW_DUPLICATE` (exit 1).
-Pairs with both paths listed remain advisory. The checker leaves all files
-untouched. Human review establishes meaning, intent and consolidation scope.
+no candidate. Byte-identical or conservatively normalized duplicates trigger
+`DOC_NEW_DUPLICATE` (exit 1) when either or both paths are listed and neither
+document is protected. Near matches remain advisory. The checker leaves all
+files untouched. Reviewers determine purpose, ownership and consolidation scope.
+
+CI runs `scripts/check-changed-docs.ps1` with the pull request base or the
+pre-push commit. The script compares a verified local ancestor with checkout
+HEAD and passes added Markdown as literal `--new-file` arguments. It skips
+recognized renames, unsupported filenames and paths outside the checker's scan.
+A missing or unusable base produces a warning and the ordinary scan. Locally,
+pass a full commit SHA with `-Base` or use explicit `--new-file` for files
+outside the committed diff.
 
 ## Connect to an agent later
 

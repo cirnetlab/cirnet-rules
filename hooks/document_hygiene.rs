@@ -161,9 +161,10 @@ fn normalized<'a>(
     path: &Path,
     text: &'a str,
     documents: &BTreeMap<PathBuf, String>,
-) -> Cow<'a, str> {
-    // Only remove the standard, valid footer belonging to this actual pair.
-    let body = path
+) -> (Cow<'a, str>, Option<&'a str>) {
+    // Retain the paired source hash so stripping two valid footers cannot
+    // turn translations of different source material into a hard duplicate.
+    let (body, source_hash) = path
         .strip_prefix("vi")
         .ok()
         .and_then(|relative| {
@@ -173,16 +174,22 @@ fn normalized<'a>(
             if source != path_text(&expected) || hash != sha256::hex(paired_text.as_bytes()) {
                 return None;
             }
-            text.trim_end_matches('\n').rsplitn(3, '\n').nth(2)
+            let body = text.trim_end_matches('\n').rsplitn(3, '\n').nth(2)?;
+            (!markdown::ends_in_fence(body)).then_some((body, Some(hash)))
         })
-        .unwrap_or(text);
-    if body.contains("\r\n") {
+        .unwrap_or((text, None));
+    let content = if body.contains("\r\n") {
         let mut lf = body.replace("\r\n", "\n");
-        lf.truncate(lf.trim_end_matches('\n').len());
+        if !markdown::ends_in_fence(&lf) {
+            lf.truncate(lf.trim_end_matches('\n').len());
+        }
         Cow::Owned(lf)
+    } else if markdown::ends_in_fence(body) {
+        Cow::Borrowed(body)
     } else {
         Cow::Borrowed(body.trim_end_matches('\n'))
-    }
+    };
+    (content, source_hash)
 }
 
 fn words(text: &str) -> Vec<String> {
@@ -231,6 +238,7 @@ struct Document<'a> {
     path: &'a Path,
     raw: &'a str,
     normalized: Cow<'a, str>,
+    source_hash: Option<&'a str>,
     scope: Scope,
     word_count: usize,
     shingles: BTreeSet<String>,
@@ -243,12 +251,20 @@ struct Document<'a> {
 }
 
 impl<'a> Document<'a> {
-    fn new(path: &'a Path, raw: &'a str, normalized: Cow<'a, str>, scope: Scope) -> Self {
+    fn new(
+        path: &'a Path,
+        raw: &'a str,
+        normalized: Cow<'a, str>,
+        source_hash: Option<&'a str>,
+        scope: Scope,
+    ) -> Self {
         let mut shingles = BTreeSet::new();
         let mut blocks = BTreeMap::new();
         let mut word_count = 0;
         // Use separate paragraphs so moving one does not turn its neighbors into matches.
-        for block in normalized.split("\n\n") {
+        // Fenced examples do not count as prose. Equality still uses the full text.
+        let prose = markdown::prose(&normalized, true);
+        for block in prose.split("\n\n") {
             let block_words = words(block);
             word_count += block_words.len();
             let triples: BTreeSet<_> = block_words
@@ -260,7 +276,6 @@ impl<'a> Document<'a> {
             }
             shingles.extend(triples);
         }
-        let prose = markdown::prose(&normalized, true);
         let title_line = prose
             .lines()
             .find_map(|line| line.trim_start().strip_prefix("# "))
@@ -276,6 +291,7 @@ impl<'a> Document<'a> {
             path,
             raw,
             normalized,
+            source_hash,
             scope,
             word_count,
             shingles,
@@ -289,10 +305,12 @@ impl<'a> Document<'a> {
     }
 
     fn topic(&self, other: &Self) -> Option<&'static str> {
-        if !self.issues.is_disjoint(&other.issues) {
+        // A title or issue number can be shared by independently owned folders.
+        if self.path.parent() != other.path.parent() {
+            None
+        } else if !self.issues.is_disjoint(&other.issues) {
             Some("shared issue number")
-        } else if self.path.parent() == other.path.parent()
-            && !self.family.is_empty()
+        } else if !self.family.is_empty()
             && self.family == other.family
             && (self.revised || other.revised)
         {
@@ -394,12 +412,12 @@ pub(super) fn review(
                     return None;
                 }
             };
-            let normalized = normalized(path, text, documents);
+            let (normalized, source_hash) = normalized(path, text, documents);
             if heading_only(&normalized) {
                 excluded.insert(path.as_path(), "empty or heading-only material");
                 return None;
             }
-            Some(Document::new(path, text, normalized, scope))
+            Some(Document::new(path, text, normalized, source_hash, scope))
         })
         .collect();
     let incoming_count = |path: &Path| incoming.get(path).map_or(0, BTreeSet::len);
@@ -411,26 +429,35 @@ pub(super) fn review(
             };
             let new_a = new_files.contains(a.path);
             let new_b = new_files.contains(b.path);
-            let protected = a.scope.preserve || b.scope.preserve;
-            let exact_new = kind == Match::Exact && new_a != new_b && !protected;
-            let (id, score, confidence, cause) = match kind {
-                Match::Exact => (if exact_new { "DOC_NEW_DUPLICATE" } else { "DOC_EXACT_DUPLICATE" }, "100% (byte equality)".into(), "high (byte identity)", "identical bytes"),
-                Match::Normalized => ("DOC_NORMALIZED_DUPLICATE", "100% (normalized equality)".into(), "high (normalized text identity)", "same content after line-ending, terminal blank line and paired footer normalization"),
-                Match::Near(topic) => ("DOC_NEAR_DUPLICATE", format!("{:.1}% (3-word Jaccard: {overlap}/{union})", 100.0 * overlap as f64 / union as f64), "medium (lexical overlap)", topic.unwrap_or("substantial shared content across passages")),
-            };
-            let (action, canonical, direction) = if protected {
-                (
-                    "KEEP_SEPARATE",
-                    None,
-                    "Preserve separate evidence and review dates, revisions and outcomes.",
-                )
-            } else if new_a && new_b {
-                (
-                    "REVIEW_MERGE",
-                    None,
-                    "Choose one owner for the two proposed new files.",
-                )
+            let preserve = if a.scope.preserve || b.scope.preserve {
+                Some("Preserve separate evidence and review dates, revisions and outcomes.")
+            } else if kind == Match::Normalized && a.source_hash != b.source_hash {
+                Some("Paired English sources differ. Preserve provenance and review the source documents.")
             } else {
+                None
+            };
+            let new_duplicate = (new_a || new_b)
+                && preserve.is_none()
+                && matches!(kind, Match::Exact | Match::Normalized);
+            let has_topic_evidence = !matches!(kind, Match::Near(None));
+            let (id, score, confidence, cause) = match kind {
+                Match::Exact => ("DOC_EXACT_DUPLICATE", "100% (byte equality)".into(), "high (byte identity)", "identical bytes"),
+                Match::Normalized => ("DOC_NORMALIZED_DUPLICATE", "100% (normalized equality)".into(), "high (normalized text identity)", "same content after line-ending, terminal blank line and paired footer normalization"),
+                Match::Near(topic) => ("DOC_NEAR_DUPLICATE", format!("{:.1}% (3-word Jaccard on prose: {overlap}/{union})", 100.0 * overlap as f64 / union as f64), "medium (lexical overlap)", topic.unwrap_or("substantial shared content across passages")),
+            };
+            let id = if new_duplicate {
+                "DOC_NEW_DUPLICATE"
+            } else {
+                id
+            };
+            let (action, canonical, direction) = if let Some(reason) = preserve {
+                ("KEEP_SEPARATE", None, reason)
+            } else {
+                suggested.extend(
+                    [(a.path, new_a), (b.path, new_b)]
+                        .into_iter()
+                        .filter_map(|(path, new)| new.then_some(path)),
+                );
                 let canonical = match (new_a, new_b) {
                     (true, false) => b,
                     (false, true) => a,
@@ -441,11 +468,17 @@ pub(super) fn review(
                     }
                     _ => b,
                 };
-                let (action, direction) = if new_a != new_b {
-                    suggested.insert(if new_a { a.path } else { b.path });
+                let (action, direction) = if new_a != new_b && has_topic_evidence {
                     (
                         "UPDATE_EXISTING",
                         "Review the existing candidate before adding another file.",
+                    )
+                } else if new_a != new_b {
+                    ("REVIEW_MERGE", "Check whether the new file and the existing candidate serve the same purpose.")
+                } else if new_a && new_b {
+                    (
+                        "REVIEW_MERGE",
+                        "Confirm whether both proposed files need distinct owners.",
                     )
                 } else {
                     ("REVIEW_MERGE", "Confirm ownership, unique content and links before consolidating. The candidate favors a stable name and inbound links.")
@@ -455,13 +488,13 @@ pub(super) fn review(
             let canonical = canonical.map_or_else(|| "none".into(), path_label);
             let heading_overlap = a.headings.intersection(&b.headings).count();
             let message = format!(
-                "{id}\n  file_a: {}\n  file_b: {}\n  similarity: {score}\n  confidence: {confidence}\n  reason: same {}/{} comparison group, {cause}; {heading_overlap} shared heading(s)\n  unique_content: {}/{} unmatched headings, {}/{} unmatched shingles (A/B); review commands, values, statuses and evidence\n  incoming_a: {}\n  incoming_b: {}\n  canonical_candidate: {canonical}\n  suggestion: {action} — {direction}",
+                "{id}\n  file_a: {}\n  file_b: {}\n  similarity: {score}\n  confidence: {confidence}\n  reason: same {}/{} comparison group, {cause}; {heading_overlap} shared heading(s)\n  unique_content: {}/{} unmatched headings, {}/{} unmatched prose shingles (A/B); review code blocks, commands, values, statuses and evidence\n  incoming_a: {}\n  incoming_b: {}\n  canonical_candidate: {canonical}\n  suggestion: {action} — {direction}",
                 path_label(a.path), path_label(b.path), a.scope.language, a.scope.role,
                 a.headings.len() - heading_overlap, b.headings.len() - heading_overlap,
                 a.shingles.len() - overlap, b.shingles.len() - overlap,
                 references(incoming, a.path), references(incoming, b.path),
             );
-            findings.push(if exact_new {
+            findings.push(if new_duplicate {
                 Diagnostic::Error(message)
             } else {
                 Diagnostic::Warning(message)

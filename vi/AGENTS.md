@@ -52,11 +52,13 @@ hoặc đáp ứng yêu cầu ngôn ngữ của người dùng.
 - Chạy các phép kiểm tra bị ảnh hưởng, kể cả đường lỗi tại ranh giới tin cậy
   có thay đổi. Xem kết quả thực tế và diff cuối. Phân biệt PASS, FAIL, NOT_RUN
   và BLOCKED. Nêu thay đổi, lý do, việc đã kiểm tra và giới hạn.
-- Cập nhật tài liệu bị ảnh hưởng. Khi có cặp EN/VI, giữ hai bản nhất quán và soát
-  nghĩa trước khi cập nhật hash nguồn. Theo vị trí hồ sơ local và báo cập nhật
-  bắt buộc nào bị chặn.
+- Cập nhật tài liệu bị ảnh hưởng. Tìm chủ sở hữu trước khi thêm Markdown.
+  Dùng lại nguồn chuẩn nếu cùng mục đích. Chỉ tạo tệp cho mục đích riêng
+  hoặc bằng chứng bắt buộc. Rà soát bản trùng và bảo toàn lịch sử. Đồng bộ các cặp
+  EN/VI hiện có và soát nghĩa trước khi cập nhật hash. Theo quy ước local về
+  vị trí hồ sơ và báo các cập nhật bị chặn.
 - Tuân ràng buộc hệ thống, nhà phát triển và phạm vi người dùng cho phép. Áp dụng
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: 489b0e2175ff4a00de4bffae81c06f6622cade0a69285fd1f6c92bbffe66fc5c -->
+<!-- source-sha256: 424ba6762aa481bfb50d793a97d549dad8aa66d42ef3dfb8fb9260adf5cdafd4 -->

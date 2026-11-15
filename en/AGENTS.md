@@ -48,8 +48,10 @@ copies for translation review or a user's language request.
 - Run affected checks, including failure paths for changed trust boundaries.
   Review actual results and the final diff. Distinguish PASS, FAIL, NOT_RUN and
   BLOCKED. State what changed, why, what ran and remaining limits.
-- Update affected documentation. Where EN/VI pairs exist, align both versions
-  and review meaning before refreshing source hashes. Follow local rules for
-  record placement and report any required update that is blocked.
+- Update affected documentation. Search for its owner before adding Markdown.
+  Reuse the canonical source for the same purpose. Create only for distinct
+  purposes or required evidence. Review duplicates and preserve history.
+  Align existing EN/VI pairs and review meaning before refreshing hashes.
+  Follow local record placement and report blocked updates.
 - Follow system and developer constraints and authorized user scope. Apply local
   details within that scope. Report conflicts and keep applicable protections.

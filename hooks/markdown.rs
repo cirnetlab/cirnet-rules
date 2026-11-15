@@ -5,8 +5,7 @@ fn unindent(line: &str) -> Option<&str> {
     (line.len() - content.len() <= 3).then_some(content)
 }
 
-fn without_fences(text: &str) -> String {
-    let mut output = String::with_capacity(text.len());
+fn scan_fences(text: &str, mut visit: impl FnMut(&str, bool)) -> bool {
     let mut open_fence: Option<(char, usize)> = None;
     for line in text.split_inclusive('\n') {
         let marker = unindent(line).and_then(|content| {
@@ -26,11 +25,27 @@ fn without_fences(text: &str) -> String {
         } else if let Some((mark, length, _)) = marker {
             open_fence = Some((mark, length));
         } else {
-            output.push_str(line);
+            visit(line, true);
             continue;
         }
-        output.push('\n');
+        visit(line, false);
     }
+    open_fence.is_some()
+}
+
+pub(super) fn ends_in_fence(text: &str) -> bool {
+    scan_fences(text, |_, _| {})
+}
+
+fn without_fences(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    scan_fences(text, |line, keep| {
+        if keep {
+            output.push_str(line);
+        } else {
+            output.push('\n');
+        }
+    });
     output
 }
 

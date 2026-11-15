@@ -65,13 +65,14 @@ Lượt kiểm tra mặc định cũng báo tương đồng. Checker đối chi�
 riêng trong từng nhóm root, tiếng Anh và tiếng Việt. Nó bỏ qua các điểm vào
 có chủ đích, mẫu, ví dụ, fixture kiểm thử, tệp giấy phép và ghi công chuẩn,
 tệp rỗng hoặc chỉ có tiêu đề, README hoặc chỉ mục dưới 40 từ. Trùng chính xác
-được xác định theo byte. Trùng sau chuẩn hóa xử lý CRLF, dòng trống cuối tệp
-và metadata nguồn hợp lệ cuối bản Việt có cặp. Mã, dấu câu, số và trạng thái
-được giữ nguyên. Kiểm tra LF vẫn áp dụng. Gần trùng dùng độ tương đồng
-Jaccard trên các chuỗi ba từ phân biệt. Mỗi tài liệu cần ít nhất 40 từ và
-24 chuỗi phân biệt. Ngưỡng là
-60%, hoặc 40% khi chung tiêu đề, mã issue hay họ tên tệp trong cùng thư mục
-sau khi bỏ hậu tố phiên bản.
+được xác định theo byte. Chuẩn hóa xử lý CRLF, dòng trống cuối tệp nằm ngoài
+khối mã chưa đóng và metadata nguồn hợp lệ cuối bản Việt. Kiểm tra LF vẫn
+áp dụng. Nội dung tiếng Việt giống nhau nhưng có hash của hai nguồn tiếng Anh
+khác nhau chỉ nhận cảnh báo. Phát hiện gần trùng dùng Jaccard trên các chuỗi
+ba từ phân biệt trong văn bản, bỏ qua ví dụ dạng code block và chú thích.
+Mỗi tài liệu cần ít nhất 40 từ và 24 chuỗi phân biệt. Ngưỡng là 60%, hoặc 40%
+cho tệp trong cùng thư mục có chung tiêu đề, mã issue hay nhóm tên tệp sau
+khi bỏ hậu tố phiên bản.
 
 Checker báo đường dẫn, cách đo, điểm, mức tin cậy, số tiêu đề và chuỗi từ
 không trùng, cùng các liên kết Markdown trỏ đến tệp mà nó phát hiện. Rà soát
@@ -80,11 +81,19 @@ riêng và đích liên kết. `KEEP_SEPARATE` đánh dấu các đường dẫn
 là bằng chứng lịch sử, báo cáo kiểm chứng hay ghi chú phát hành cần bảo toàn.
 `NEW_DOCUMENT_REVIEW` yêu cầu người bảo trì quyết định nếu chưa thấy ứng viên
 hiện có phù hợp. Xác nhận mục đích riêng ngay cả khi checker không đề xuất
-ứng viên. Nếu tệp được liệt kê trùng chính xác một tài liệu
-không được liệt kê và không thuộc diện bảo vệ, checker báo
-`DOC_NEW_DUPLICATE` (mã thoát 1). Cặp có cả hai đường dẫn được liệt kê vẫn ở mức
-tham khảo. Checker giữ nguyên các tệp. Người rà soát quyết định theo ý nghĩa,
-mục đích và phạm vi hợp nhất.
+ứng viên. Cặp trùng byte hoặc trùng sau chuẩn hóa thận trọng gây lỗi
+`DOC_NEW_DUPLICATE` (mã thoát 1) khi một hoặc cả hai đường dẫn được liệt kê
+và cả hai tệp đều không thuộc diện bảo vệ. Các cặp gần trùng chỉ cảnh báo.
+Checker giữ nguyên tệp. Người rà soát xác định mục đích, chủ sở hữu và phạm vi
+hợp nhất.
+
+CI chạy `scripts/check-changed-docs.ps1` với commit base của pull request
+hoặc commit trước khi push. Script xác minh commit tổ tiên cục bộ, so với HEAD
+đã checkout và truyền Markdown được thêm qua tham số `--new-file` nguyên văn.
+Script bỏ qua các lần đổi tên được nhận diện, tên tệp không hỗ trợ và đường
+dẫn ngoài phạm vi quét. Base thiếu hoặc không dùng được sẽ phát cảnh báo rồi
+quét thông thường. Khi chạy cục bộ, truyền SHA đầy đủ qua `-Base` hoặc dùng
+`--new-file` trực tiếp cho tệp ngoài diff commit.
 
 ## Kết nối với Agent sau này
 
@@ -99,4 +108,4 @@ entrypoint của common-rules. Kiểm tra sản phẩm và bộ cấp phát outp
 Xem [chính sách tài liệu](../policies/documentation.md) về nghĩa vụ cập nhật.
 
 <!-- source: en/hooks/README.md -->
-<!-- source-sha256: 03541531d57691918e7b458162235b38c20180adbf778149201084dd83ff0043 -->
+<!-- source-sha256: 9eb6ea8ac0cc86a950df0c1c8fcbd91b4b10b88ad3aadbf21c76ef237b48d35e -->
