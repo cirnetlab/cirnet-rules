@@ -78,6 +78,20 @@ quả xác thực cô lập và kiểm tra simulator portable trên máy này.
 
 ## Review bằng chứng
 
+Khi khôi phục riêng E01/E08, dùng `-Cohort Candidate -Attempt 2`, chỉ định rõ
+`-CaseId 'E01'` hoặc `-CaseId 'E08'` và phiên mới. Bỏ CaseId sẽ chọn cả tám ca.
+Không chạy toàn bộ harness khi cấm replay E02–E07;
+`./tests/behavioral-followup.tests.ps1` chỉ kiểm tra E01/E08 bằng mock offline.
+Mock không chứng minh hành vi native hoặc simulator sẵn sàng. Chỉ dispatch E08
+native sau khi preflight không dùng model kiểm tra compile/runtime trong MXC với
+HDL tối thiểu, seed lỗi gốc và bản sửa chẩn đoán riêng. Wrapper đặt TEMP, TMP và
+TMPDIR của compiler/runtime vào thư mục tạm thuộc sở hữu của nó vì MXC có thể cấp
+đường dẫn tạm không tồn tại. Wrapper thu rồi chuyển tiếp stdout/stderr vì kế thừa
+standard handles có thể làm Icarus crash trong MXC. Compiler trả khác 0 vẫn chặn
+runtime. Preflight riêng không thay review trace native: ghi exit simulator riêng
+với các lệnh shell tiếp theo và báo rõ xác minh vật lý là NOT_RUN khi chưa thực hiện.
+Giữ mọi lần chạy và ghi đầu vào thay đổi trước mỗi lần thử lại có căn cứ.
+
 JSON từng phiên và từng ca ghi provenance, kết quả thực thi và kiểm tra khách
 quan. Đối chiếu `events.jsonl`, thông điệp cuối, hash hoặc diff với rubric riêng.
 Ghi người review. Tiến trình hoàn thành và kiểm tra file đạt vẫn cần người hoặc
@@ -94,4 +108,4 @@ harness offline. Tám ca cho quan sát so sánh nhỏ, chưa đủ kết luận 
 cho các task hoặc client khác.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 103497e8c6a9e69602edfa80f75aa245dd7c958742b102888bdcac9a8fe7bcff -->
+<!-- source-sha256: acc635acb393ea3ea289932af0ddc5087a8d4c9d84179af77163da63f71225a8 -->

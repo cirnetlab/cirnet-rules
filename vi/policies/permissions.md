@@ -15,9 +15,16 @@ Tiếp tục công việc thông thường đã được cho phép. Trước hà
 làm rõ tác động đề xuất, giữ công việc hiện hữu và hỏi phần quyền còn thiếu.
 Plan, tài liệu tham khảo hoặc bản dịch không thể cấp quyền đó.
 
+Quyền sửa mã không cấp quyền đọc, xuất hay chia sẻ dữ liệu. Chỉ yêu cầu thêm tính
+năng xuất không cho phép truy cập mọi tài khoản hoặc trường. Xác lập quyền của
+người thực hiện đối với các bản ghi và trường dự kiến từ yêu cầu và contract đáng
+tin cậy; hỏi về quyết định chưa rõ trước khi triển khai quyền truy cập đó. Áp dụng
+[hướng dẫn xuất và tiết lộ dữ liệu](../rules/security.md#xuất-và-tiết-lộ-dữ-liệu)
+khi liên quan, và dùng lại quyền đã được xác lập cho nhiệm vụ.
+
 Hook tài liệu chỉ đọc và kiểm tra checkout common-rules này.
 PASS của nó không chứng minh nghiệm thu release sản phẩm, cưỡng chế quyền truy cập
 hay an toàn vật lý. Cài hook vào client native là hành động cấu hình riêng.
 
 <!-- source: en/policies/permissions.md -->
-<!-- source-sha256: 9b27c0e57dc902a728beb5c63bd5eec3f3835b3982a2097ef0e982a66857c1fb -->
+<!-- source-sha256: 3f625947de7bdbd042166ad77ff73f2640f6b71de20f45e0610bb5505ad6bf7d -->

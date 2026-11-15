@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Clarify export authorization and safe source inspection. Fix RTL subprocess
+  scratch paths and inherited standard handles in MXC; add focused E01/E08 checks.
 - Support isolated native Codex authentication, portable tool paths and Windows
   MXC execution. Record matched evaluation outcomes and correct related-docs grading.
 - Integrate four engineering behavior principles into the baseline and existing

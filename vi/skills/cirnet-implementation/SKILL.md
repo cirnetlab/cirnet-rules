@@ -13,12 +13,25 @@ Tối thiểu cần: File được phép sửa, hành vi đích, interface của
    Nêu giả định ảnh hưởng đến hành vi, tương thích, dữ liệu hoặc an toàn. Làm
    rõ điểm mơ hồ quan trọng hoặc quyền còn thiếu trước khi sửa phần liên quan.
    Tiếp tục với giả định thông thường có thể đảo ngược nếu nhiệm vụ cho phép.
-2. Viết tiêu chí nghiệm thu quan sát được. Theo quy tắc lập kế hoạch cục bộ và
+2. Với việc xuất/tiết lộ dữ liệu, dùng yêu cầu, mã và contract đáng tin cậy để xác
+   lập ai thực hiện, họ được xuất bản ghi của ai và những trường nào được phép.
+   Phân biệt dữ liệu của mình, người dùng khác, tenant/nhóm và phạm vi hàng loạt.
+   Quyền sửa mã, đăng nhập, ID hay public projection không xác lập quyền xuất.
+   Làm rõ người nhận/nơi nhận, cách tải/lưu và che dữ liệu khi ảnh hưởng đến tiết
+   lộ thông tin. Hỏi cụ thể hoặc chỉ rõ quyết định còn thiếu về quyền với bản ghi
+   hay phạm vi trường trước khi sửa phần liên quan; dùng lại quyết định đã rõ.
+   Tiếp tục đọc có mục tiêu hoặc đưa đề xuất ngắn chưa triển khai, không tạo
+   endpoint xuất dữ liệu, migration hay tệp xuất khi quyền chưa rõ. Đọc mã
+   hàm/projection và tên thuộc tính trong kho dữ liệu trước; lọc giá trị nhạy cảm
+   được ghi trực tiếp trong mã trước khi xuất đoạn source. Đọc toàn bộ tệp ra
+   output lệnh sẽ tiết lộ giá trị lưu trong đó, kể cả khi câu trả lời cuối không
+   nhắc lại. Giữ các giá trị đó khỏi ví dụ và log mới.
+3. Viết tiêu chí nghiệm thu quan sát được. Theo quy tắc lập kế hoạch cục bộ và
    dùng dạng `Bước → phép kiểm tra` cho việc không đơn giản.
-3. Sửa trong luồng hiện có ở mức nhỏ nhất đủ đáp ứng yêu cầu. Giữ xử lý lỗi
+4. Sửa trong luồng hiện có ở mức nhỏ nhất đủ đáp ứng yêu cầu. Giữ xử lý lỗi
    và các biện pháp an toàn cần thiết. Sinh đầu ra dẫn xuất từ đầu vào của bên
    sở hữu.
-4. Bổ sung coverage có ý nghĩa khi cần. Cập nhật cặp tài liệu bị ảnh hưởng và
+5. Bổ sung coverage có ý nghĩa khi cần. Cập nhật cặp tài liệu bị ảnh hưởng và
    chạy các phép kiểm tra gắn với nghiệm thu.
 
 Báo diff, hành vi, kiểm tra và giới hạn. Đối chiếu mỗi tuyên bố nghiệm thu
@@ -28,4 +41,4 @@ Mở [Ví dụ kỹ thuật](references/engineering-examples.md#ví-dụ-kỹ-th
 thể tham khảo ca tương tự về API, Vue, testbench RTL hoặc kiểm thử hồi quy.
 
 <!-- source: en/skills/cirnet-implementation/SKILL.md -->
-<!-- source-sha256: 79388b6e10fbbdcc1d080425d94686ce5529539248701338d67a5117171feadd -->
+<!-- source-sha256: 5414035fedb76627c12699bca0e5a6f34cfd24354ce90898d7d11a01bfc26c97 -->

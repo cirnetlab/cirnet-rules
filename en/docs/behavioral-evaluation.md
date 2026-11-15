@@ -81,6 +81,21 @@ isolated authentication and portable simulator checks on this machine.
 
 ## Review evidence
 
+For a scoped E01/E08 recovery, use `-Cohort Candidate -Attempt 2` with an explicit
+`-CaseId 'E01'` or `-CaseId 'E08'` and a fresh session. Omission selects all eight
+cases. Do not use the full harness suite when E02–E07 replay is prohibited;
+`./tests/behavioral-followup.tests.ps1` checks only E01/E08 with offline mocks.
+These mocks do not establish native behavior or simulator readiness. Gate E08
+native dispatch on model-free MXC compilation/runtime of minimal HDL, the original
+failing seed and a separate diagnostic repair. The wrapper sets compiler/runtime
+TEMP, TMP and TMPDIR to its owned scratch directory because MXC may supply a
+nonexistent temp path. It captures and forwards stdout/stderr because inherited
+standard handles can crash Icarus under MXC. A nonzero compiler exit still
+prevents runtime execution. Standalone preflight does not replace native trace
+review: capture simulator exit separately from subsequent shell commands and
+report physical verification explicitly as NOT_RUN when it was not performed.
+Preserve every attempt and record changed inputs before any justified retry.
+
 Per-session and per-case JSON records include provenance, execution outcome
 and objective results. Review `events.jsonl`, the final message, and file hashes
 or diffs against the private rubric. Report reviewer identity. A completed

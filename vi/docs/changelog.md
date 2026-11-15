@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Làm rõ quyền export và cách đọc source an toàn. Sửa đường dẫn tạm và standard
+  handles kế thừa của tiến trình RTL trong MXC; thêm kiểm tra E01/E08 tập trung.
 - Hỗ trợ xác thực Codex native cô lập, đường dẫn công cụ portable và thực thi
   Windows MXC. Ghi kết quả đánh giá theo cặp và sửa cách chấm tài liệu liên quan.
 - Tích hợp bốn nguyên tắc hành vi kỹ thuật vào baseline và skill hiện có.
@@ -23,4 +25,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: a37be9fb5e5d8588e47d082f724e13ba87c101693283ea79595ba9c12afd1759 -->
+<!-- source-sha256: 59d7bb2b5a4c3407cee35818c73a5b519decb1b4ed36e2de8f458c83e71ef1a3 -->

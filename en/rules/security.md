@@ -16,6 +16,29 @@ an unfamiliar script. The standalone baseline remains in [AGENTS.md](../AGENTS.m
 5. If a command touches a device or external service, use that owner's prerequisites
    and stopping conditions. A successful local check does not establish external state.
 
+## Export and disclosure
+
+Use trusted requirements, owning contracts and authorization paths to establish
+who acts, whose records they may export and which fields are permitted. Distinguish
+self-service, other users, tenant/group and bulk scope. A public projection defines
+data shape, not permission for every caller or account. Login, source access or an
+ID alone does not establish export authorization.
+
+Resolve the recipient, destination, download/storage behavior and redaction when
+they affect disclosure. Reuse decisions already established by trusted context.
+If actor/record or field scope lacks a basis, ask specifically or identify the
+missing decisions before editing the affected part. Continue targeted inspection
+or a short unimplemented proposal; do not assume admin/bulk access or export
+everything to filter later.
+
+Until authorization is resolved, do not create an export endpoint, migration or
+artifact. Apply least disclosure to inspection and generated output. For data
+stores, inspect function/projection code and property names first; filter sensitive
+value literals before emitting source excerpts. A full-file read into command
+output discloses stored values even when the final response omits them. Never repeat
+recovery values, tokens or private notes in examples, responses or new logs. Once
+scope is established, proceed with the authorized work without asking again.
+
 If exposure occurs, stop further disclosure, identify affected locations without
 reprinting the secret, and report the incident. Credential rotation requires the
 appropriate owner and authorization; do not silently change credentials.
