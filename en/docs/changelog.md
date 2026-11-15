@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (candidate)
+## 0.2.0
 
 - Search for the owning document before creating Markdown. Review additions
   and fail unprotected confirmed duplicates through `check-docs` and the
@@ -17,6 +17,7 @@
 - Add 12 namespaced skills for implementation, review, compatibility and maintenance.
 - Rename `implementation`, `debugging` and `verification` to their `cirnet-` names.
 - Add local bundle packaging, managed installation, verification and backup restore.
+- Standardize CIRNETLAB Git tag and GitHub Release titles as `<repo_name>-<version>`; document release preflight and artifact provenance.
 - Discover skills dynamically in the Rust checker and validate portable resources,
   translation freshness and toolkit version agreement. Add toolkit CI.
 
