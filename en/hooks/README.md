@@ -36,6 +36,17 @@ this repo's ignored `.superpowers/bilingual-tests/`.
 The check covers paired paths, translation source/hash freshness, UTF-8/LF,
 whitespace, local Markdown links/fragments, the root baseline mirror, Claude
 adapter, toolkit version agreement and discovered English skill definitions.
+It also validates the six architecture snapshots against
+[the source manifest](../../docs/architecture-sources.tsv) and checks EN/VI
+[ownership routing](../references/architecture-routing.md) against the
+canonical Ecosystem and Lab-First tables. It reports superseded architecture
+links and warns about divergent same-named sources without editing them.
+Snapshot checks preserve the reviewed source bytes; the regular formatting
+and new-file inventories still cover root Markdown and the `en/` and `vi/`
+trees. These are documentation checks. See
+[architecture verification](../docs/toolkit-verification.md#architecture-compliance)
+for product-owner tests and limits.
+
 The portable frontmatter subset has exact `---` fences and one unindented
 `name` and `description` each. Use a one-line plain string or single-quoted
 literal with no escape syntax. Link required files in Markdown within the same

@@ -1,1 +1,5 @@
 * text=auto eol=lf
+
+# Preserve the deliberate Markdown hard breaks in pinned architecture sources.
+docs/tai-lieu-kien-tuc-he-thong/cirnet*-architecture-*.md whitespace=-blank-at-eol
+docs/cirnetlab-FPGA-architecture-*.md whitespace=-blank-at-eol

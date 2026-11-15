@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Add Lab-First architecture selection, repository ownership routing and an
+  evidence gate for parallel development. Verify pinned EN/VI snapshots and
+  routing with the existing offline checker and CI.
 - Search for the owning document before creating Markdown. Review additions
   and fail unprotected confirmed duplicates through `check-docs` and the
   CI Git diff bridge.

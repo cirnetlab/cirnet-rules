@@ -19,5 +19,12 @@
 - [x] Pass Git additions to the checker in CI and verify selection with local fixtures.
 - [x] Check baseline size, EN/VI synchronization and retained evidence.
 
+## Architecture compliance
+
+- [x] Confirm `rules-common` at `004c318` and match imported snapshots to
+  their source revision.
+- [x] Compare architecture variants, route owners and record product evidence.
+- [x] Verify offline architecture checks, EN/VI updates and isolated distribution.
+
 [Specification](../../../specs/cirnet-rules/toolkit-upgrade/spec.md) ·
 [Verification](../../../docs/toolkit-verification.md)

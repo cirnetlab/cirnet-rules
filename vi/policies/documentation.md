@@ -53,8 +53,8 @@ và tiếp tục phần độc lập được phép. Build pass không thay th�
 
 ## Metadata của cặp tài liệu
 
-Mỗi Markdown tiếng Việt kết thúc bằng hai comment sau; thay đường dẫn/hash mẫu
-bằng file tiếng Anh tương ứng hiện tại và digest của nó:
+Kết thúc mỗi tài liệu Markdown dưới `vi/` bằng hai comment sau. Dùng đường dẫn
+và digest của tệp tiếng Anh tương ứng hiện tại:
 
 ```text
 <!-- source: en/policies/documentation.md -->
@@ -80,10 +80,13 @@ metadata của nó.
   thay thế bản gốc. File Git và mã checker dùng chung.
 - Mọi Markdown dưới en/vi, gồm tài liệu skill và hồ sơ task, đều có cặp.
   Chỉ cài định nghĩa từ `en/skills/`; `vi/skills/` dành cho người đọc.
+- Giữ nguyên các [bản lưu kiến trúc](architecture.md) được cung cấp dưới
+  `docs/`. Ghi đường dẫn và digest của cặp EN/VI trong
+  `docs/architecture-sources.tsv`.
 - Di chuyển hoặc ngừng dùng cả cặp cùng lúc và cập nhật các link trỏ tới nó.
   Giữ bằng chứng lịch sử; tách rõ ngày/phạm vi gốc với kiểm chứng hiện tại.
 - Repo sản phẩm giữ chính sách ngôn ngữ và output riêng. Common không cấp quyền
   tạo cây song ngữ hoặc sửa repository khác.
 
 <!-- source: en/policies/documentation.md -->
-<!-- source-sha256: c0d19d01f82f57f9cefde2f12661466b52bd60357dad00d21c7ff86ad8047afe -->
+<!-- source-sha256: 0f7d91f56d1d838f30a972b86b91da1b5123b1d610fb996472509fd7c1e117d8 -->

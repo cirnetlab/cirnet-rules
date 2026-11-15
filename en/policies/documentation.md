@@ -55,8 +55,8 @@ substitute for required documentation updates.
 
 ## Pair metadata
 
-Every Vietnamese Markdown document ends with these two comments; replace the
-example path and hash with the corresponding current English file and digest:
+End every Markdown document under `vi/` with these two comments. Use the path
+and digest of the corresponding current English file:
 
 ```text
 <!-- source: en/policies/documentation.md -->
@@ -82,6 +82,9 @@ mode; edit the translation, review it, then update its metadata.
   as though the translation replaced them. Git files and checker code are shared.
 - All Markdown under en/vi, including skill docs and task records, is paired.
   Install only `en/skills/` definitions; `vi/skills/` is for humans.
+- Keep the supplied [architecture snapshots](architecture.md) intact under
+  `docs/`. Their EN/VI paths and digests belong in
+  `docs/architecture-sources.tsv`.
 - Move or retire a pair together and update its incoming links. Preserve historical
   evidence; clearly separate its original scope/date from current verification.
 - Product repositories keep their own language and output policies. Common guidance

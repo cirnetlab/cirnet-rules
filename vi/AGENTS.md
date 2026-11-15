@@ -1,7 +1,7 @@
 # Quy tắc chung cho Agent CIRNET
 
 Dùng baseline với một Agent lập trình và chỉ dẫn local, chỉ dẫn lồng nhau áp dụng
-tại repo đích. Dùng hướng dẫn Agent tiếng Anh. Đọc bản Việt khi review bản dịch
+tại repo đích. Dùng hướng dẫn tiếng Anh. Đọc bản Việt khi review bản dịch
 hoặc đáp ứng yêu cầu ngôn ngữ của người dùng.
 
 ## Bắt đầu từ nhiệm vụ
@@ -12,19 +12,21 @@ hoặc đáp ứng yêu cầu ngôn ngữ của người dùng.
   liên quan của bên sở hữu. Dùng metadata của Skill để chọn quy trình rồi mở
   nội dung Skill và tài liệu tham chiếu liên quan. Mở rộng context theo phụ
   thuộc và rủi ro.
-- Dùng baseline common một lần. Khi cần, lấy thông tin sản phẩm từ bên sở hữu.
-  Phân biệt source hiện tại, candidate, release được chọn và kết quả lịch sử.
-- Nêu giả định có hệ quả đáng kể và phân biệt điều quan sát được với giả thuyết.
-  Nếu các cách hiểu hợp lý cho kết quả khác biệt đáng kể, giải thích đánh đổi
-  và hỏi về quyết định chưa rõ hoặc quyền còn thiếu. Tiếp tục với giả định
-  thông thường có thể đảo ngược và phần việc độc lập đã được phép.
+- Dùng baseline một lần. Khi cần quyết định kiến trúc, mở
+  `en/policies/architecture.md` từ checkout `cirnet-rules` được phép hoặc artifact
+  kiến trúc đã xác minh. Chỉ đọc phần liên quan. Lấy thông tin sản phẩm từ chủ
+  sở hữu. Phân biệt source hiện tại, candidate, release được chọn và kết quả trước đây.
+- Nêu giả định có hệ quả đáng kể. Phân biệt quan sát với giả thuyết. Nếu các
+  cách hiểu hợp lý cho kết quả khác biệt đáng kể, giải thích đánh đổi và hỏi
+  về quyết định chưa rõ hoặc quyền còn thiếu. Tiếp tục phần việc thông thường
+  có thể đảo ngược và phần việc độc lập đã được phép.
 
 ## Làm việc trong phạm vi
 
-- Mở rộng mã hiện có bằng giải pháp nhỏ nhất dễ bảo trì. Giữ các biện pháp
+- Chọn cách mở rộng nhỏ nhất dễ bảo trì. Giữ các biện pháp
   kiểm tra hợp lệ, phân quyền, xử lý hết thời gian chờ, hủy và dọn dẹp cùng
   các bảo đảm toàn vẹn và an toàn cần thiết.
-- Gắn mỗi thay đổi với nhiệm vụ, phép kiểm tra hoặc tài liệu của nhiệm vụ.
+- Gắn thay đổi với nhiệm vụ, phép kiểm tra hoặc tài liệu.
   Theo phong cách và công cụ cục bộ. Chỉ dọn mã trở nên thừa do thay đổi này
   và kiểm tra xem mã còn được dùng ở đâu trước khi xóa.
 - Xác minh bên sở hữu trước khi đổi API, schema, ABI, SDK sinh tự động hoặc
@@ -61,4 +63,4 @@ hoặc đáp ứng yêu cầu ngôn ngữ của người dùng.
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: 424ba6762aa481bfb50d793a97d549dad8aa66d42ef3dfb8fb9260adf5cdafd4 -->
+<!-- source-sha256: 069abb0a2ad140bd76fce0cc08095c99bdecf5e0a487a362d6375f3af6c13e97 -->

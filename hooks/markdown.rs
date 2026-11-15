@@ -70,7 +70,28 @@ fn closing_ticks(mut text: &str, length: usize) -> Option<usize> {
     None
 }
 
+enum InlineCode {
+    Skip,
+    Text,
+    Markup,
+}
+
 pub(super) fn prose(text: &str, keep_inline_code: bool) -> String {
+    outside_fences_and_comments(
+        text,
+        if keep_inline_code {
+            InlineCode::Text
+        } else {
+            InlineCode::Skip
+        },
+    )
+}
+
+pub(super) fn markup(text: &str) -> String {
+    outside_fences_and_comments(text, InlineCode::Markup)
+}
+
+fn outside_fences_and_comments(text: &str, inline_code: InlineCode) -> String {
     let lines = without_fences(text);
     let mut output = String::with_capacity(lines.len());
     let mut text = lines.as_str();
@@ -88,10 +109,10 @@ pub(super) fn prose(text: &str, keep_inline_code: bool) -> String {
             let content = text.trim_start_matches('`');
             let length = text.len() - content.len();
             if let Some(end) = closing_ticks(content, length) {
-                if keep_inline_code {
-                    output.push_str(&content[..end]);
-                } else {
-                    preserve_newlines(&mut output, &content[..end]);
+                match inline_code {
+                    InlineCode::Skip => preserve_newlines(&mut output, &content[..end]),
+                    InlineCode::Text => output.push_str(&content[..end]),
+                    InlineCode::Markup => output.push_str(&text[..end + 2 * length]),
                 }
                 text = &content[end + length..];
                 continue;

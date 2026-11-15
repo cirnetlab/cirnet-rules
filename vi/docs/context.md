@@ -10,6 +10,12 @@ Dùng [danh mục Skill](../skills/README.md) nếu client không liệt kê met
 Mở rule theo ràng buộc liên quan. Tìm ký hiệu và đường dẫn, rồi đọc đủ code
 quanh đó và output lỗi để hiểu thay đổi. Đọc lại khi revision, scope hoặc context thiếu.
 
+Khi nhiệm vụ ảnh hưởng đến một quyết định kiến trúc CIRNET, dùng
+[chọn kiến trúc](../policies/architecture.md) để tìm các phần áp dụng và
+[định tuyến quyền sở hữu](../references/architecture-routing.md) để xác định
+repo sở hữu. Sau khi cài đặt, tìm chính sách trong checkout `cirnet-rules`
+được phép hoặc artifact kiến trúc đã xác minh.
+
 Mở [ví dụ kỹ thuật](../skills/cirnet-implementation/references/engineering-examples.md)
 khi Before/After tương tự giúp làm rõ thay đổi. Ví dụ đi cùng skill implementation
 và nằm ngoài context khởi động.
@@ -25,8 +31,8 @@ lần. Adapter managed chỉ nên đưa vào baseline.
 | --- | --- | --- |
 | Sửa typo trong README | Chỉ dẫn local áp dụng và đoạn liên quan | Theo yêu cầu review local mà không phải nạp thư viện skill |
 | Ghi lại bản sửa lỗi | Tìm chủ đề, issue và tài liệu sở hữu trong repository được phép | Cập nhật hướng dẫn chuẩn và liên kết tới bằng chứng có ngày. Theo [vòng đời tài liệu](../policies/documentation.md#vòng-đời-tài-liệu) |
-| Đổi field response HTTP | API compatibility, contract của producer và test consumer trực tiếp | Xem SDK/default/null mà không nạp reference FPGA |
-| Debug timing testbench FPGA | Chỉ dẫn lồng nhau FPGA, skill debugging, RTL và testbench liên quan | Báo kết quả mô phỏng, giữ trạng thái sẵn sàng vật lý chưa xác minh |
+| Đổi field response HTTP dùng chung | Quyền sở hữu theo Ecosystem, contract miền áp dụng, API compatibility và test của consumer trực tiếp | Xem SDK/default/null theo revision được chọn |
+| Debug timing testbench FPGA | Chỉ dẫn lồng nhau FPGA, skill debugging, RTL và testbench liên quan. Đọc thêm phần an toàn Lab-First và kiến trúc FPGA khi thay đổi ranh giới an toàn Lab hoặc RTL | Báo kết quả mô phỏng cùng trạng thái kiểm chứng vật lý |
 
 Đây là tình huống đọc tài liệu. Bộ [đánh giá hành vi](behavioral-evaluation.md)
 riêng dùng dự án giả lập và ghi quan sát Codex native khi đủ điều kiện.
@@ -39,4 +45,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 và cảnh báo tham khảo. Số token phụ thuộc phần client nạp và tokenizer.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: c14c2d8451e71fc0a9b041b87ed5c04b26588398ecc1fbaeb9bdd1a33e28c1b0 -->
+<!-- source-sha256: f316a623ebd22fc9308e766247884e04fe0ef9ee535e1518a08eafecce88d40a -->

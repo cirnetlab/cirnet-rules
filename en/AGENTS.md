@@ -1,7 +1,7 @@
 # CIRNET Common Agent Rules
 
 Use this baseline with one coding agent and the target repository's applicable
-local and nested instructions. Use English agent guidance. Consult Vietnamese
+local and nested instructions. Use English guidance. Consult Vietnamese
 copies for translation review or a user's language request.
 
 ## Start with the task
@@ -11,20 +11,21 @@ copies for translation review or a user's language request.
 - Locate symbols and paths before reading. Review relevant source, callers, tests
   and owning contracts. Use skill metadata to select the workflow and open its
   body and relevant references. Expand context as dependencies and risk warrant.
-- Use the common baseline once. Load product facts from the owner when needed.
-  Distinguish current source, candidates, selected releases and historical results.
-- State consequential assumptions and distinguish observations from hypotheses.
+- Use the baseline once. For architecture decisions, open
+  `en/policies/architecture.md` from an approved `cirnet-rules` checkout or a
+  verified architecture artifact. Read only relevant sections. Get product facts
+  from owners. Distinguish current source, candidates, selected releases and past results.
+- State consequential assumptions. Distinguish observations from hypotheses.
   If plausible readings materially differ, explain the tradeoff and ask about
-  unresolved decisions or missing permission. Proceed on routine, reversible
-  assumptions and with independent authorized work.
+  unresolved decisions or permission. Proceed with routine, reversible assumptions
+  and independent authorized work.
 
 ## Work within scope
 
-- Extend existing code with the smallest maintainable solution. Keep necessary
-  validation, authorization, timeout, cancellation, cleanup, integrity and safety.
-- Tie each change to the task or its checks and docs. Follow local style and
-  tooling. Limit cleanup to code made unused by this change. Check for remaining
-  uses before removing it.
+- Use the smallest maintainable extension. Keep necessary validation,
+  authorization, timeout, cancellation, cleanup, integrity and safety.
+- Tie changes to the task, checks or docs. Follow local style and tools. Limit
+  cleanup to code made unused by this change. Check for uses before removal.
 - Verify ownership before changing APIs, schemas, ABI, generated SDKs or selected
   versions. Generate derived files from the owning source. Reading another repo
   grants no write scope.

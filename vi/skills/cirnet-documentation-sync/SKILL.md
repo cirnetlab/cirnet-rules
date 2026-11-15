@@ -24,5 +24,10 @@ Dùng chính sách tài liệu của repository cho phạm vi bị ảnh hưởn
    đích, phần trùng, liên kết và độ mới của bản dịch. Rà soát đề xuất trùng
    lặp rồi báo các cặp đã đổi, quyết định và giới hạn kiểm chứng.
 
+Với bản lưu tài liệu kiến trúc, làm theo `en/policies/architecture.md`. Giữ
+nội dung nguồn được cung cấp và xác nhận đường dẫn cùng digest của cặp EN/VI
+trong `docs/architecture-sources.tsv`. Rà soát các bản có nội dung khác nhau
+và giữ lịch sử khi đề xuất thay liên kết.
+
 <!-- source: en/skills/cirnet-documentation-sync/SKILL.md -->
-<!-- source-sha256: d760c383abf66c86001402e8501f5203ec0d060a13d474ce85ff3e76f3d0a81b -->
+<!-- source-sha256: ee2c50e017af64235936fc47cc19d233d576a5b495f0722b5510778a4af37d0a -->

@@ -53,7 +53,7 @@ impl Fixture {
         fixture.write("VERSION", "2.4.0\n");
         fixture.write(
             "Cargo.toml",
-            "[package]\nname = \"cirnet-rules\"\nversion = \"2.4.0\"\n",
+            "[package]\nname = \"fixture\"\nversion = \"2.4.0\"\n",
         );
         fixture.write(
             "README.md",
@@ -198,6 +198,172 @@ fn valid_tree_is_read_only() {
     let mut after = BTreeMap::new();
     snapshot(&fixture.root, &fixture.root, &mut after);
     assert_eq!(after, before);
+}
+
+const ARCHITECTURE_MANIFEST: &str = "docs/architecture-sources.tsv";
+const ARCHITECTURE_REVISION: &str =
+    "# Source checkout revision: 0123456789012345678901234567890123456789";
+const ECOSYSTEM_EN: &str = "docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md";
+const LAB_FIRST_VI: &str = "docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-vi.md";
+const ROUTING: &str = "references/architecture-routing.md";
+const SPECIALIST_EN: &str = "docs/tai-lieu-kien-tuc-chuyen-biet/cirnetlab-architecture-en.md";
+const ROUTE_WEB: &str =
+    "| `cirnet_web` | `ecosystem` | Public pages | Static site | Readers | No private data |\n";
+const ROUTE_FPGA: &str =
+    "| `cirnet-fpga` | `ecosystem`, `lab-first`, `fpga` | RTL | Bitstream | Hardware | No IAM |\n";
+
+fn architecture_fixture() -> Fixture {
+    let fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"cirnet-rules\"\nversion = \"2.4.0\"\n",
+    );
+    let mut manifest = format!("{ARCHITECTURE_REVISION}\n# source\tlanguage\tpath\tsha256\n");
+    for (id, stem, english) in [
+        (
+            "ecosystem",
+            "docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture",
+            "# Ecosystem  \n\n[Matrix](#4-repository-responsibility-and-boundary-matrix)\n\n## 4. Repository Responsibility and Boundary Matrix\n\n| [`cirnet_web`](https://github.com/cirnetlab/cirnet_web) | Published pages |\n| [`cirnet-fpga`](https://github.com/cirnetlab/cirnet-fpga) | Owns RTL |\n\n## 5. Non-overlap\n\n| [`not-a-matrix-row`](https://github.com/cirnetlab/not-a-matrix-row) | Example |\n",
+        ),
+        (
+            "lab-first",
+            "docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first",
+            "# Lab-First\n\n## 2. CIRNETLAB Organization and Source-Code Ownership\n\n| [`cirnet-fpga`](https://github.com/cirnetlab/cirnet-fpga) | Owns RTL |\n\n## 3. Release selection\n",
+        ),
+        ("fpga", "docs/cirnetlab-FPGA-architecture", "# FPGA specification\n"),
+    ] {
+        for (locale, content) in [("en", english), ("vi", "# Kiến trúc\n")] {
+            let path = format!("{stem}-{locale}.md");
+            fixture.write(&path, content);
+            manifest.push_str(&format!(
+                "{id}\t{locale}\t{path}\t{}\n",
+                sha256::hex(content.as_bytes())
+            ));
+        }
+    }
+    fixture.write(ARCHITECTURE_MANIFEST, manifest);
+    write_architecture_routing(&fixture, ROUTE_WEB, ROUTE_FPGA);
+    fixture
+}
+
+fn write_architecture_routing(fixture: &Fixture, english_web: &str, vietnamese_fpga: &str) {
+    let en = format!("# Routing\n\n| Repository | Architecture | Context | Owns | Exchange | Boundary |\n|---|---|---|---|---|---|\n{english_web}{ROUTE_FPGA}");
+    let vi = format!("# Định tuyến\n\n| Kho | Kiến trúc | Phạm vi | Sở hữu | Liên kết | Ranh giới |\n|---|---|---|---|---|---|\n{ROUTE_WEB}{vietnamese_fpga}\n<!-- source: en/{ROUTING} -->\n<!-- source-sha256: {} -->\n", sha256::hex(en.as_bytes()));
+    fixture.write(&format!("en/{ROUTING}"), en);
+    fixture.write(&format!("vi/{ROUTING}"), vi);
+}
+
+#[test]
+fn architecture_canonical_manifest_pairs_and_routes_are_required() {
+    let fixture = architecture_fixture();
+    assert!(!fixture.check(0).contains("WARN:"));
+
+    let manifest = fs::read_to_string(fixture.root.join(ARCHITECTURE_MANIFEST)).unwrap();
+    fs::remove_file(fixture.root.join(ARCHITECTURE_MANIFEST)).unwrap();
+    assert!(fixture
+        .check(1)
+        .contains(&format!("ERROR: {ARCHITECTURE_MANIFEST}:")));
+
+    fs::remove_file(fixture.root.join(LAB_FIRST_VI)).unwrap();
+    let wrong_path = manifest.replace(LAB_FIRST_VI, "../other-architecture.md");
+    fixture.write(ARCHITECTURE_MANIFEST, wrong_path);
+    fixture.write(ECOSYSTEM_EN, "# Different authority\n");
+    let report = fixture.check(1);
+    assert!(report.contains("architecture source path must be"));
+    assert!(report.contains(&format!("ERROR: {LAB_FIRST_VI}:")));
+    assert!(report.contains("architecture source SHA-256 mismatch"));
+}
+
+#[test]
+fn architecture_manifest_needs_one_valid_source_revision() {
+    let fixture = architecture_fixture();
+    let manifest = fs::read_to_string(fixture.root.join(ARCHITECTURE_MANIFEST)).unwrap();
+    for (replacement, diagnostic) in [
+        (String::new(), "missing source checkout revision"),
+        (
+            "# Source checkout revision: HEAD".to_owned(),
+            "expected a 40-character lowercase hex source checkout revision",
+        ),
+        (
+            format!("{ARCHITECTURE_REVISION}\n{ARCHITECTURE_REVISION}"),
+            "duplicate source checkout revision",
+        ),
+    ] {
+        fixture.write(
+            ARCHITECTURE_MANIFEST,
+            manifest.replacen(ARCHITECTURE_REVISION, &replacement, 1),
+        );
+        let report = fixture.check(1);
+        assert!(report.contains(diagnostic), "{report}");
+    }
+}
+
+#[test]
+fn architecture_snapshot_links_are_checked_even_with_matching_hashes() {
+    let fixture = architecture_fixture();
+    let manifest = fs::read_to_string(fixture.root.join(ARCHITECTURE_MANIFEST)).unwrap();
+    let source = fs::read_to_string(fixture.root.join(ECOSYSTEM_EN)).unwrap();
+    let changed = source.replace(
+        "(#4-repository-responsibility-and-boundary-matrix)",
+        "(missing-authority.md)",
+    );
+    fixture.write(ECOSYSTEM_EN, &changed);
+    fixture.write(
+        ARCHITECTURE_MANIFEST,
+        manifest.replace(
+            &sha256::hex(source.as_bytes()),
+            &sha256::hex(changed.as_bytes()),
+        ),
+    );
+    let report = fixture.check(1);
+    assert!(report.contains(&format!("ERROR: {ECOSYSTEM_EN}: invalid link")));
+    assert!(!report.contains("architecture source SHA-256 mismatch"));
+}
+
+#[test]
+fn architecture_routes_use_the_owner_matrix_and_select_the_right_domains() {
+    let fixture = architecture_fixture();
+    write_architecture_routing(
+        &fixture,
+        &ROUTE_WEB.replace("cirnet_web", "foreign-repository"),
+        &ROUTE_FPGA.replace(", `lab-first`", ""),
+    );
+    let report = fixture.check(1);
+    assert!(report.contains("missing route for `cirnet_web`"));
+    assert!(report.contains("repository `foreign-repository` is outside the Ecosystem matrix"));
+    assert!(
+        report.contains("repository `cirnet-fpga` must select `ecosystem`, `lab-first`, `fpga`")
+    );
+}
+
+#[test]
+fn architecture_divergent_copies_are_advisory_and_stale_links_fail() {
+    let fixture = architecture_fixture();
+    let unresolved_copy = "# Ecosystem with conflicting decisions\n";
+    fixture.write(SPECIALIST_EN, unresolved_copy);
+    let report = fixture.check(0);
+    assert!(report.contains(&format!(
+        "WARN: {SPECIALIST_EN}: divergent architecture copy"
+    )));
+    assert_eq!(
+        fs::read_to_string(fixture.root.join(SPECIALIST_EN)).unwrap(),
+        unresolved_copy
+    );
+    fs::remove_file(fixture.root.join(SPECIALIST_EN)).unwrap();
+    let encoded = SPECIALIST_EN.replace("chuyen", "%63huyen");
+    fixture.write(
+        "README.md",
+        format!(
+            "# Index\n\n[Local]({encoded})\n\n[GitHub](https://github.com/cirnetlab/cirnet-rules/blob/main/{SPECIALIST_EN})\n"
+        ),
+    );
+    let report = fixture.check(1);
+    assert_eq!(
+        report.matches("superseded architecture path").count(),
+        2,
+        "{report}"
+    );
+    assert!(report.contains(ECOSYSTEM_EN));
 }
 
 const RETRY_INPUT: &str = "Load connection settings from the owner configuration. Keep the \

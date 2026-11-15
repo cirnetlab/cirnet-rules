@@ -9,9 +9,12 @@ Use for producer-owned data or wire changes. Use API compatibility for HTTP oper
 
 Minimum inputs: Canonical source and owner, current and proposed formats, selected readers/writers and codegen commands.
 
-1. Compare encoding, bounds, field/enum identity, byte order, units and ABI layout where applicable.
-2. Exercise old/new readers and writers, malformed data and saved fixtures in required directions. Generate bindings from the owner source.
-3. Document versioning, deprecation, data migration and rollback limits. Coordinate owner-side changes within authorized scope.
+1. For a CIRNET contract, use `en/policies/architecture.md` and its routing table
+   to resolve the authority and repository owner. Read the canonical schema and
+   exact selected versions before planning.
+2. Compare encoding, bounds, field/enum identity, byte order, units and ABI layout where applicable.
+3. Exercise old/new readers and writers, malformed data and saved fixtures in required directions. Generate bindings from the owner source.
+4. Document versioning, deprecation, data migration and rollback limits. Coordinate owner-side changes within authorized scope.
 
 Report contract revision, generated outputs, compared directions, results and missing evidence.
 

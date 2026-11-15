@@ -33,6 +33,15 @@ skills with linked local resources. A matching checksum detects content changes.
 Use a bundle from a source you trust. The manifest describes payload bytes.
 ZIP timestamps and container metadata can differ between builds.
 
+Architecture is read on demand. For Codex, Claude Code or Antigravity, provide
+an approved toolkit checkout or an approved extracted architecture artifact.
+Start at [architecture policy](../policies/architecture.md); keep the source revision
+and verify the needed bytes against
+[`docs/architecture-sources.tsv`](../../docs/architecture-sources.tsv). The
+bundle installs guidance and leaves the architecture sources outside the
+installed payload. If an approved reference is unavailable, record that limit
+before making architecture decisions.
+
 ## Update and restore
 
 Keep the previous reviewed bundle and the receipt returned by apply.

@@ -31,6 +31,13 @@ tiếng Anh và tài nguyên local liên kết. Checksum khớp giúp phát hi�
 nội dung. Chọn bundle từ nguồn tin cậy. Manifest mô tả byte payload.
 Timestamp và metadata container ZIP có thể khác giữa hai lần build.
 
+Chỉ đọc kiến trúc khi cần. Với Codex, Claude Code hoặc Antigravity, cung cấp
+checkout toolkit hoặc artifact kiến trúc đã giải nén, có phê duyệt. Bắt đầu từ
+[chính sách kiến trúc](../policies/architecture.md); giữ revision nguồn và đối
+chiếu byte cần dùng với [`docs/architecture-sources.tsv`](../../docs/architecture-sources.tsv).
+Bundle cài hướng dẫn, còn các nguồn kiến trúc nằm ngoài payload cài đặt.
+Nếu không có nguồn tham chiếu được phép, báo giới hạn trước khi quyết định về kiến trúc.
+
 ## Cập nhật và restore
 
 Giữ bundle đã review trước đó và receipt trả về khi apply. Dùng cùng lệnh
@@ -61,4 +68,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: ef893a644b1200747c29316c05dd153a4538d07ec1b447c1cba09831802c4951 -->
+<!-- source-sha256: ce2dd11553e636f74d7510b2a5797e9d03d30a0ff2d66a3447a1feb71dd693b2 -->

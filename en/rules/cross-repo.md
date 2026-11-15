@@ -1,13 +1,16 @@
 # Changes across ownership boundaries
 
-Use when a task changes an API, shared model, generated SDK or integration input.
-Start from the [baseline](../AGENTS.md); the
-[repository map](../references/repository-map.md) is a dated navigation aid.
+Use for changes to repository ownership, an API, a shared model, a generated SDK
+or an integration input. Start with [architecture selection](../policies/architecture.md)
+and [ownership routing](../references/architecture-routing.md).
 
-1. Identify the producer and direct consumers from their current source and manifests.
-   Compare the consumer's selected dependency with the producer revision being read.
-2. Distinguish implementation details from canonical contract changes. Trace schema,
-   serialization and compatibility fixtures before choosing where to edit.
+1. Select the architecture for the affected boundary. Verify the owner, producer
+   and direct consumers from their current source and manifests. Use the target
+   repository's instructions for implementation, commands and tests.
+2. Compare the exact selected dependency with the producer revision being read.
+   Trace schemas, serialization and fixtures to distinguish implementation
+   details from canonical contract changes. Bring material architecture conflicts
+   to the affected owners for review before changing that boundary.
 3. If the task needs a producer change outside the permitted repo, describe the exact
    owner-side change and blocked consumer work. Continue independent scoped work;
    obtain explicit scope before editing another repository.
@@ -16,6 +19,5 @@ Start from the [baseline](../AGENTS.md); the
 5. Report compatibility and availability separately from deployment or release
    selection. A newer source version does not update a consumer's selected artifact.
 
-For CIRNET, Contracts owns canonical schemas and SDK; Remote owns system release
-selection. Confirm current ownership in those repositories. Do not copy their
-versions, product safety rules or release gates into the common baseline.
+Use the [dated repository map](../references/repository-map.md) for earlier
+observations. Keep product versions, safety rules and release gates at their owners.
