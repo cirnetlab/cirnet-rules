@@ -34,5 +34,19 @@ không thuộc ngoại lệ. Tương đồng chỉ phát cảnh báo. CI chuyể
 tham số nguyên văn. Khi thiếu base hợp lệ, báo giới hạn quét. Kiểm thử luồng
 này bằng fixture Git cô lập và bảo toàn bằng chứng native.
 
+## Tuân thủ kiến trúc
+
+Giữ nguyên các cặp nguồn Ecosystem, Lab-First và FPGA dưới `docs/`, kèm
+revision và hash. Dùng [chính sách](../../../policies/architecture.md) và
+[định tuyến chủ sở hữu](../../../references/architecture-routing.md) khi cần.
+Mặc định `LAB_FIRST_PRIMARY`; chỉ ưu tiên song hành khi có bằng chứng đã ghi
+cho lát cắt xuyên suốt với artifact được ghim. Ghi kết quả VD-01–VD-10 riêng.
+
+Mở rộng checker offline và CI hiện có để báo lỗi khi thiếu hoặc sai bản chụp,
+liên kết kiến trúc đã lỗi thời hay bảng định tuyến không hợp lệ. Cảnh báo bản
+khác biệt mà không sửa tệp. Xác nhận gói và bộ cài bằng fixture cô lập.
+Hành vi sản phẩm, vận hành phần cứng, cấu hình client thật và bằng chứng lịch
+sử E01–E08 nằm ngoài thay đổi này.
+
 <!-- source: en/specs/cirnet-rules/toolkit-upgrade/spec.md -->
-<!-- source-sha256: cfe944f25558772afb5cb37e8c7fc6ad54f0bbd8595ab17a90b1cfb26c5bdd5f -->
+<!-- source-sha256: 162ad860a125300eb3c42e272cfe0dc351b240ac068351cba2dbb23de4162d83 -->

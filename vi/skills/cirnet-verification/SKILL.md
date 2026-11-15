@@ -18,6 +18,13 @@ Tối thiểu cần: Tuyên bố, revision/diff chính xác, kết quả mong đ
    thực tế của client và bằng chứng vật lý. Ca bị bỏ qua vẫn thiếu coverage
    ngay cả khi lệnh báo thành công.
 
+Khi cần chứng minh tuân thủ kiến trúc CIRNET, ghi revision của nguồn áp dụng và
+bên sở hữu từ `en/policies/architecture.md` cùng bảng định tuyến ở đó. Gắn
+các ràng buộc bị ảnh hưởng về an toàn điện và dây nối của sinh viên với test
+của bên sở hữu. Kiểm tra tĩnh xác nhận tính hợp lệ của tài liệu và metadata.
+Dùng artifact được pin và test tích hợp của bên sở hữu làm bằng chứng cho
+chuỗi tiến trình đã thực thi.
+
 Liệt kê từng lệnh và PASS, FAIL, NOT_RUN hoặc BLOCKED cùng phạm vi. Nếu có
 khoảng trống, nêu điều kiện còn thiếu hoặc phép kiểm tra chưa giải quyết.
 
@@ -40,4 +47,4 @@ trên thực thi. Nếu chưa kiểm chứng vật lý, thêm chính xác dòng
 sở hữu cho phép.
 
 <!-- source: en/skills/cirnet-verification/SKILL.md -->
-<!-- source-sha256: 1cf17236a92ef6e2ba89c55916cc6be2a434945b3434724c1f81de8b4a0dc2f3 -->
+<!-- source-sha256: a2b7f350751d5dec896eff065f45b8b277a1cf96bf748975c41743ccdc06a1b1 -->

@@ -11,6 +11,12 @@ rule for its specific constraint. Search symbols and paths, then read enough
 surrounding code and error output to understand the change. Reload material when
 revision, scope or missing context warrants it.
 
+When a task affects a CIRNET architecture decision, use
+[architecture selection](../policies/architecture.md) to find the applicable
+sections and [ownership routing](../references/architecture-routing.md) to find
+the repository owner. After installation, locate the policy in an approved
+`cirnet-rules` checkout or a verified architecture artifact.
+
 Open [Engineering examples](../skills/cirnet-implementation/references/engineering-examples.md)
 when a comparable Before/After would clarify a change. The examples travel with
 the implementation skill and stay out of startup context.
@@ -26,8 +32,8 @@ loads that baseline once. A managed adapter should never import the library.
 | --- | --- | --- |
 | Fix a README typo | Applicable local instruction and the relevant paragraph | Handle local review requirements without loading the skill library |
 | Document a bug fix | Search the authorized repo for the topic, issue and owning guide | Update the canonical guide and link dated evidence. Follow the [documentation lifecycle](../policies/documentation.md#documentation-lifecycle) |
-| Change an HTTP response field | API compatibility, producer contract and a direct consumer test | Inspect SDK/default/null behavior without loading FPGA references |
-| Debug FPGA testbench timing | FPGA nested instruction, debugging skill, relevant RTL and testbench | Report simulation results with physical readiness unverified |
+| Change a shared HTTP response field | Ecosystem ownership, applicable domain contract, API compatibility and a direct consumer test | Inspect SDK/default/null behavior at the selected revision |
+| Debug FPGA testbench timing | FPGA nested instruction, debugging skill, relevant RTL and testbench. Add Lab-First safety and FPGA architecture sections for changes at a Lab safety or RTL boundary | Report simulation results alongside the physical verification status |
 
 These are documentation walkthroughs. The separate
 [behavioral evaluation](behavioral-evaluation.md) uses synthetic projects and

@@ -19,8 +19,14 @@
 - [x] Truyền danh sách tệp Git thêm vào checker trong CI và xác minh bằng fixture cục bộ.
 - [x] Kiểm tra kích thước baseline, đồng bộ EN/VI và bằng chứng đã lưu.
 
+## Tuân thủ kiến trúc
+
+- [x] Xác nhận `rules-common` tại `004c318` và đối chiếu bản chụp với revision nguồn.
+- [x] So sánh các bản kiến trúc, định tuyến chủ sở hữu và ghi bằng chứng sản phẩm.
+- [x] Kiểm chứng checker offline, cập nhật EN/VI và phân phối trong môi trường cô lập.
+
 [Đặc tả](../../../specs/cirnet-rules/toolkit-upgrade/spec.md) ·
 [Kiểm chứng](../../../docs/toolkit-verification.md)
 
 <!-- source: en/plans/cirnet-rules/toolkit-upgrade/plan.md -->
-<!-- source-sha256: 968facd190e0113b19317bf858342a6b93ec5eb8f97e9954ac5d94993ba264b7 -->
+<!-- source-sha256: e0213a5956a20a7bf3fe1d4eee26c087edbc0996da90a66daf48599cc5f3989b -->

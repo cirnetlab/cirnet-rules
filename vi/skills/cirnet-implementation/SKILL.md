@@ -9,9 +9,11 @@ Dùng cho thay đổi đã thống nhất. Dùng debugging trước khi chưa r�
 
 Tối thiểu cần: File được phép sửa, hành vi đích, interface của owner và test gần đó.
 
-1. Đọc luồng bị ảnh hưởng, nơi gọi trực tiếp, contract của bên sở hữu và test.
-   Nêu giả định ảnh hưởng đến hành vi, tương thích, dữ liệu hoặc an toàn. Làm
-   rõ điểm mơ hồ quan trọng hoặc quyền còn thiếu trước khi sửa phần liên quan.
+1. Khi cần quyết định kiến trúc CIRNET, mở `en/policies/architecture.md` từ
+   nguồn được phép nêu trong baseline. Chọn kiến trúc áp dụng và bên sở hữu.
+   Đọc luồng bị ảnh hưởng, nơi gọi, contract, artifact và test. Nêu giả định
+   ảnh hưởng đến hành vi, tương thích, dữ liệu hoặc an toàn. Làm rõ điểm mơ hồ
+   quan trọng hoặc quyền còn thiếu trước khi sửa phần liên quan.
    Tiếp tục với giả định thông thường có thể đảo ngược nếu nhiệm vụ cho phép.
 2. Với việc xuất/tiết lộ dữ liệu, dùng yêu cầu, mã và contract đáng tin cậy để xác
    lập ai thực hiện, họ được xuất bản ghi của ai và những trường nào được phép.
@@ -32,7 +34,8 @@ Tối thiểu cần: File được phép sửa, hành vi đích, interface của
    và các biện pháp an toàn cần thiết. Sinh đầu ra dẫn xuất từ đầu vào của bên
    sở hữu.
 5. Bổ sung coverage có ý nghĩa khi cần. Cập nhật cặp tài liệu bị ảnh hưởng và
-   chạy các phép kiểm tra gắn với nghiệm thu.
+   chạy các phép kiểm tra gắn với nghiệm thu, gồm kiểm tra kiến trúc của bên
+   sở hữu đối với ranh giới bị ảnh hưởng.
 
 Báo diff, hành vi, kiểm tra và giới hạn. Đối chiếu mỗi tuyên bố nghiệm thu
 với kết quả quan sát được và chỉ rõ phần còn thiếu.
@@ -41,4 +44,4 @@ Mở [Ví dụ kỹ thuật](references/engineering-examples.md#ví-dụ-kỹ-th
 thể tham khảo ca tương tự về API, Vue, testbench RTL hoặc kiểm thử hồi quy.
 
 <!-- source: en/skills/cirnet-implementation/SKILL.md -->
-<!-- source-sha256: 5414035fedb76627c12699bca0e5a6f34cfd24354ce90898d7d11a01bfc26c97 -->
+<!-- source-sha256: 850a4365a3e9a257f59b23b9e61f5a31f8075570ba81b5a0e28520875f2cd9ce -->

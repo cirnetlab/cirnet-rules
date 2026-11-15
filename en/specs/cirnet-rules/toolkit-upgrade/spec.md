@@ -33,3 +33,17 @@ new. Similarity remains advisory. CI delegates committed Markdown additions to
 the offline checker using a verified local Git base and literal arguments.
 Without a usable base, report the limited scan. Verify this path with isolated
 Git fixtures and preserve native evidence.
+
+## Architecture compliance
+
+Preserve the Ecosystem, Lab-First and FPGA source pairs under `docs/` with
+revision and hashes. Use the [policy](../../../policies/architecture.md) and
+[owner routing](../../../references/architecture-routing.md) on demand.
+Default to `LAB_FIRST_PRIMARY`; allow parallel prioritization only with
+recorded evidence from a pinned vertical slice. Record VD-01–VD-10 separately.
+
+Extend the existing offline check and CI to reject missing or mismatched
+snapshots, stale architecture links and invalid routing. Warn about divergent
+copies without editing them. Confirm package and installer behavior in isolated
+fixtures. Product behavior, hardware operation, real client configuration and
+historical E01–E08 evidence are outside this change.

@@ -1,5 +1,8 @@
 # Reference material
 
+Use [architecture routing](architecture-routing.md) for ecosystem ownership
+and [architecture policy](../policies/architecture.md) to select the applicable source.
+
 The [six-repository map](repository-map.md) records locally inspected product
 sources and pinned revisions from the initial rebuild. It is navigation and evidence,
 not an instruction authority or a claim that current releases are unchanged.

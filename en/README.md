@@ -11,6 +11,7 @@ agent work and Vietnamese for translation review. Load only the relevant
 | Review acceptance or reproduce an evaluation | [E01–E08 results](docs/e01-e08-followup.md) · [Evaluation procedure](docs/behavioral-evaluation.md) |
 | Package, update or restore a local bundle | [Distribution](docs/distribution.md) |
 | Compare versions, contracts and selected artifacts | [Compatibility evidence](docs/compatibility.md) |
+| Select architecture, find the owner and check Lab-First priority | [Architecture policy](policies/architecture.md) · [Repository routing](references/architecture-routing.md) |
 | Identify file ownership and check a move | [Repository map template](templates/repository-map.md) |
 | Maintain bilingual documents and run checks | [Documentation policy](policies/documentation.md) · [Checks](hooks/README.md) |
 | Check authorization and specific constraints | [Permissions](policies/permissions.md) · [Coding](rules/coding.md) · [Security](rules/security.md) · [Testing](rules/testing.md) · [Cross-repo](rules/cross-repo.md) |

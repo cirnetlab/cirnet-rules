@@ -1,3 +1,4 @@
+mod architecture;
 mod context;
 mod document_hygiene;
 mod markdown;
@@ -21,6 +22,8 @@ and renderer-specific anchor rules are outside this subset.
 
 Checks direct English Skill metadata and portable local resources, and
 matches VERSION to Cargo.toml and the first release heading in both changelogs.
+In the toolkit, checks architecture source integrity and Markdown links,
+owner routes in both languages, superseded links and divergent copies.
 Context and cross-document similarity warnings are advisory. Use repeatable
 --new-file PATH to review a readable, root-relative Markdown file in the scan.
 The checker uses the paths you list. Unprotected byte or normalized duplicates
@@ -72,21 +75,21 @@ fn valid_version(version: &str) -> bool {
     }) && parts.next().is_none()
 }
 
-// Recognize this repository's [package] version declaration, not arbitrary TOML.
-fn cargo_version(manifest: &str) -> Option<&str> {
+// Recognize the toolkit's string declarations in [package], not arbitrary TOML.
+fn cargo_package_field<'a>(manifest: &'a str, field: &str) -> Option<&'a str> {
     let mut package = manifest
         .lines()
         .map(str::trim)
         .skip_while(|line| *line != "[package]");
     package.next()?;
-    let mut versions = package
+    let mut values = package
         .take_while(|line| !line.starts_with('['))
         .filter_map(|line| {
             let (key, value) = line.split_once('=')?;
-            (key.trim() == "version").then_some(value.trim())
+            (key.trim() == field).then_some(value.trim())
         });
-    let version = versions.next()?.strip_prefix('"')?.strip_suffix('"')?;
-    versions.next().is_none().then_some(version)
+    let value = values.next()?.strip_prefix('"')?.strip_suffix('"')?;
+    values.next().is_none().then_some(value)
 }
 
 fn path_text(path: &Path) -> String {
@@ -343,13 +346,7 @@ impl Checker {
 
     fn read(&mut self, path: &Path) -> Option<&str> {
         if !self.documents.contains_key(path) {
-            let content = self.metadata(path).and_then(|metadata| {
-                if !metadata.is_file() {
-                    return Err("expected a regular Markdown file".into());
-                }
-                fs::read_to_string(self.root.join(path)).map_err(|error| error.to_string())
-            });
-            let text = match content {
+            let text = match self.regular_file_text(path, false) {
                 Ok(text) => text,
                 Err(error) => {
                     self.fail(path, error);
@@ -365,6 +362,13 @@ impl Checker {
             self.documents.insert(path.to_path_buf(), text);
         }
         self.documents.get(path).map(String::as_str)
+    }
+
+    fn regular_file_text(&self, path: &Path, exact_case: bool) -> Result<String, String> {
+        if !self.path_metadata(path, exact_case)?.is_file() {
+            return Err("expected a regular file".into());
+        }
+        fs::read_to_string(self.root.join(path)).map_err(|error| error.to_string())
     }
 
     fn translations(&mut self, english: &BTreeSet<PathBuf>, vietnamese: &BTreeSet<PathBuf>) {
@@ -426,12 +430,7 @@ impl Checker {
     }
 
     fn version_file(&mut self, path: &Path) -> Option<String> {
-        match self.metadata(path).and_then(|metadata| {
-            if !metadata.is_file() {
-                return Err("expected a regular file".into());
-            }
-            fs::read_to_string(self.root.join(path)).map_err(|error| error.to_string())
-        }) {
+        match self.regular_file_text(path, false) {
             Ok(text) => Some(text),
             Err(error) => {
                 self.fail(path, error);
@@ -440,7 +439,7 @@ impl Checker {
         }
     }
 
-    fn versions(&mut self) {
+    fn versions(&mut self, manifest: Option<&str>) {
         let version_path = Path::new("VERSION");
         let Some(file) = self.version_file(version_path) else {
             return;
@@ -455,11 +454,10 @@ impl Checker {
             );
             return;
         };
-        let manifest = Path::new("Cargo.toml");
-        if let Some(contents) = self.version_file(manifest) {
-            if cargo_version(&contents) != Some(version) {
+        if let Some(contents) = manifest {
+            if cargo_package_field(contents, "version") != Some(version) {
                 self.fail(
-                    manifest,
+                    Path::new("Cargo.toml"),
                     format!("[package] version must match VERSION ({version})"),
                 );
             }
@@ -678,6 +676,7 @@ impl Checker {
     ) -> Result<Option<PathBuf>, String> {
         let destination = destination.trim_matches(['<', '>']);
         if skill_root.map_or_else(|| external(destination), |_| skill_citation(destination)) {
+            architecture::check_github_link(destination)?;
             return Ok(None);
         }
         let (url, fragment) = destination.split_once('#').unwrap_or((destination, ""));
@@ -688,7 +687,9 @@ impl Checker {
         } else {
             link_target(source, &name.replace('\\', "/"))?
         };
-        let metadata = self.path_metadata(&target, skill_root.is_some())?;
+        architecture::check_link(&target)?;
+        let snapshot = architecture::is_snapshot(&target);
+        let metadata = self.path_metadata(&target, skill_root.is_some() || snapshot)?;
         if skill_root.is_some() && !metadata.is_file() {
             return Err("expected a regular resource file".into());
         }
@@ -696,7 +697,13 @@ impl Checker {
             if !is_markdown(&target) || !metadata.is_file() {
                 return Err("fragment target must be Markdown".into());
             }
-            let text = self.read(&target).ok_or("could not read Markdown target")?;
+            let snapshot_text;
+            let text = if snapshot {
+                snapshot_text = self.regular_file_text(&target, true)?;
+                &snapshot_text
+            } else {
+                self.read(&target).ok_or("could not read Markdown target")?
+            };
             if !markdown::anchors(text).contains(&percent_decode(fragment)) {
                 return Err("heading fragment does not exist".into());
             }
@@ -726,7 +733,12 @@ impl Checker {
         }
         self.translations(&english, &vietnamese);
         self.entrypoints();
-        self.versions();
+        let cargo_manifest = self.version_file(Path::new("Cargo.toml"));
+        self.versions(cargo_manifest.as_deref());
+        let is_toolkit = cargo_manifest
+            .as_deref()
+            .and_then(|text| cargo_package_field(text, "name"))
+            == Some("cirnet-rules");
         let skills = self.skills(&english);
         self.context_checks(&root_files, &skills);
         let inventory: Vec<_> = self.documents.keys().cloned().collect();
@@ -769,6 +781,7 @@ impl Checker {
         // Keep those link targets out of similarity and new-file review.
         self.documents
             .retain(|path, _| inventory.binary_search(path).is_ok());
+        architecture::check(self, is_toolkit);
         for diagnostic in document_hygiene::review(&self.documents, new_files, &incoming) {
             use document_hygiene::Diagnostic;
             match diagnostic {

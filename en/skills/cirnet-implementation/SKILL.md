@@ -9,8 +9,10 @@ Use for an agreed change. Use debugging first when the cause is unknown.
 
 Minimum inputs: Authorized files, intended behavior, owning interfaces and nearby tests.
 
-1. Inspect the affected flow, direct callers, owning contracts and tests. State
-   assumptions that affect behavior, compatibility, data or safety. Resolve
+1. For a CIRNET architecture decision, open `en/policies/architecture.md` from the
+   approved source described in the baseline. Select the applicable architecture
+   and owner. Inspect the affected flow, callers, contracts, artifacts and tests.
+   State assumptions affecting behavior, compatibility, data or safety. Resolve
    material ambiguity or missing permission before editing the affected part.
    Proceed with routine, reversible assumptions where the task allows.
 2. For export/disclosure work, use trusted requirements, code and contracts to
@@ -31,7 +33,8 @@ Minimum inputs: Authorized files, intended behavior, owning interfaces and nearb
 4. Make the smallest coherent change in the existing flow. Keep required failure
    handling and safety controls. Generate derived output from its owning input.
 5. Add meaningful coverage where warranted. Update affected documentation pairs
-   and run the checks tied to acceptance.
+   and run the checks tied to acceptance, including the owner's architecture
+   checks for affected boundaries.
 
 Report the diff, behavior, checks and limits. Match each acceptance claim to an
 observed result and identify any gaps.

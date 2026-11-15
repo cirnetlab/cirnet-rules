@@ -11,6 +11,7 @@ chọn. Xem [nạp context](vi/docs/context.md) và [thiết lập](vi/docs/setu
 
 - Setup / Thiết lập — [EN](en/docs/setup.md) · [VI](vi/docs/setup.md)
 - Package and restore / Đóng gói và restore — [EN](en/docs/distribution.md) · [VI](vi/docs/distribution.md)
+- Architecture and ownership / Kiến trúc và chủ sở hữu — [EN](en/policies/architecture.md) · [VI](vi/policies/architecture.md)
 - Verification / Kiểm chứng — [EN](en/docs/toolkit-verification.md) · [VI](vi/docs/toolkit-verification.md)
 
 ```powershell

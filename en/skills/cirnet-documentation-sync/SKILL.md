@@ -22,3 +22,8 @@ Use the repository's documentation policy for the affected scope.
    checker covers a path, review purpose, overlap, links and translation
    freshness manually within scope. Review duplicate suggestions and report
    changed pairs, decisions and verification limits.
+
+For architecture snapshots, follow `en/policies/architecture.md`. Preserve the
+supplied source text and confirm the EN/VI paths and digests in
+`docs/architecture-sources.tsv`. Review divergent copies and retain their history
+when recommending replacement links.

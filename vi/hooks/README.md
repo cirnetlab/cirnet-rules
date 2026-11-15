@@ -35,6 +35,16 @@ fixture dưới `.superpowers/bilingual-tests/` đã được ignore của repo 
 Kiểm tra bao gồm cặp đường dẫn, nguồn/hash bản dịch còn khớp, UTF-8/LF,
 whitespace, link/fragment Markdown local, bản baseline root, adapter Claude,
 sự thống nhất phiên bản toolkit và skill tiếng Anh được khám phá tự động.
+Checker còn đối chiếu sáu bản chụp kiến trúc với
+[manifest nguồn](../../docs/architecture-sources.tsv) và kiểm tra
+[định tuyến chủ sở hữu](../references/architecture-routing.md) EN/VI theo các
+bảng Ecosystem và Lab-First chuẩn. Checker báo link kiến trúc đã bị thay thế,
+cảnh báo bản cùng tên nhưng khác nội dung và không sửa chúng. Kiểm tra bản
+chụp giữ nguyên byte nguồn đã duyệt; kiểm tra định dạng và tệp mới thông thường
+vẫn chỉ quét Markdown ở root và hai cây `en/`, `vi/`. Đây là kiểm tra tài
+liệu. Xem [kiểm chứng kiến trúc](../docs/toolkit-verification.md#tuân-thủ-kiến-trúc)
+về test của chủ sở hữu sản phẩm và các giới hạn.
+
 Subset frontmatter portable có fence `---` chính xác và một dòng `name`,
 một dòng `description` không thụt lề. Dùng chuỗi thuần một dòng hoặc chuỗi
 nháy đơn không escape. Dẫn file bắt buộc bằng link Markdown trong cùng thư mục
@@ -108,4 +118,4 @@ entrypoint của common-rules. Kiểm tra sản phẩm và bộ cấp phát outp
 Xem [chính sách tài liệu](../policies/documentation.md) về nghĩa vụ cập nhật.
 
 <!-- source: en/hooks/README.md -->
-<!-- source-sha256: 9eb6ea8ac0cc86a950df0c1c8fcbd91b4b10b88ad3aadbf21c76ef237b48d35e -->
+<!-- source-sha256: b760597545dfeca4909534de48ccb24008f883b04954fa4ba6bfaa3c3146ae8b -->

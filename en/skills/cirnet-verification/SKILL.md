@@ -18,6 +18,12 @@ Minimum inputs: Claim, exact revision/diff, expected result and local check prer
    behavior and physical evidence. A skipped case is uncovered even when the
    command exits successfully.
 
+For a CIRNET architecture claim, record the applicable source revision and owner
+from `en/policies/architecture.md` and its routing table. Map affected electrical
+safety and student wiring invariants to the owner's tests. Static checks cover
+document and metadata validity. Use pinned artifacts and owner integration tests
+as evidence for an exercised process chain.
+
 List each command and PASS, FAIL, NOT_RUN or BLOCKED with its scope. For gaps,
 state the missing prerequisite or unresolved check.
 

@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Thêm cách chọn kiến trúc Lab-First, định tuyến chủ sở hữu repository và
+  điều kiện bằng chứng để phát triển song hành. Xác minh bản chụp EN/VI đã
+  ghim và bảng định tuyến bằng checker offline và CI hiện có.
 - Tìm tài liệu sở hữu nội dung trước khi tạo Markdown. Rà soát tệp thêm và
   báo lỗi với bản trùng đã xác nhận ngoài diện bảo vệ qua `check-docs` và
   script Git diff trong CI.
@@ -29,4 +32,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 9d19015ba234f1ab73eb133125735a910cb288386c56e511fb8b8b983bc4d58c -->
+<!-- source-sha256: 74d34c2747c7528d20f41621766f225ab6f4368c3a4af47df88c30ba03b4b891 -->
