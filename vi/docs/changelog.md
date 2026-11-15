@@ -1,6 +1,6 @@
 # Nhật ký thay đổi
 
-## 0.2.0 (candidate)
+## 0.2.0
 
 - Tìm tài liệu sở hữu nội dung trước khi tạo Markdown. Rà soát tệp thêm và
   báo lỗi với bản trùng đã xác nhận ngoài diện bảo vệ qua `check-docs` và
@@ -17,6 +17,7 @@
 - Thêm 12 skill có namespace cho triển khai, review, tương thích và bảo trì.
 - Đổi `implementation`, `debugging` và `verification` sang tên tiền tố `cirnet-`.
 - Thêm gói local, cài đặt có quản lý, xác minh và restore từ backup.
+- Chuẩn hóa Git tag và tên GitHub Release CIRNETLAB theo `<repo_name>-<version>`; ghi rõ kiểm tra trước phát hành và nguồn gốc artifact.
 - Checker Rust khám phá skill động, kiểm tra tài nguyên portable, độ mới bản dịch
   và sự thống nhất phiên bản toolkit. Thêm CI cho toolkit.
 
@@ -29,4 +30,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 9d19015ba234f1ab73eb133125735a910cb288386c56e511fb8b8b983bc4d58c -->
+<!-- source-sha256: 38c4987530799c589a86236256f88f2ed7888dd88323802ec142ddaaf9b1fbec -->
