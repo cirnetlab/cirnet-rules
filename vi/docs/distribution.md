@@ -2,7 +2,28 @@
 
 `VERSION` là phiên bản toolkit. Checker Cargo và mục release đầu ở changelog
 mỗi ngôn ngữ dùng cùng version. Phiên bản sản phẩm tách riêng. Version 0.2.0
-là candidate vì đổi tên skill mặc định và thêm định dạng phân phối local.
+đổi tên skill mặc định và bổ sung định dạng bundle local; bản cài cũ cần
+migration được rà soát.
+
+## Quy tắc tên release và kiểm tra trước phát hành
+
+Git tag và tên GitHub Release của CIRNETLAB dùng `<repo_name>-<version>`,
+với đúng tên repository và phiên bản đã duyệt, không tự thêm tiền tố `v`.
+Với toolkit này, cả tag và tên release là `cirnet-rules-0.2.0`.
+Giữ `VERSION` và `bundle.json.version` là `0.2.0`. Tên ZIP có thể
+chứa SHA ngắn của mã nguồn để truy vết; đó không phải tên release.
+
+Trước khi phát hành, xác nhận commit `master` đã duyệt và checkout sạch,
+`VERSION`/Cargo/changelog thống nhất, CI Windows/Linux đạt trên commit đó,
+license/notices và bundle đã kiểm tra cùng các bài test install/restore.
+Xác nhận tag và release chưa tồn tại. Xem [bằng chứng kiểm chứng toolkit](toolkit-verification.md)
+để biết giới hạn: CI chưa chứng minh client AI thật đã nạp quy tắc.
+
+Chỉ tạo tag sau khi commit cuối đã review nằm trên `master` và có quyền
+phát hành. Đóng gói checkout sạch với `-Revision cirnet-rules-0.2.0`,
+kiểm tra bundle đã giải nén, rồi đính kèm ZIP và ghi chú đã review vào
+GitHub Release tên `cirnet-rules-0.2.0`. Việc đóng gói thông thường không
+được tự tạo tag hay phát hành.
 
 ## Chuẩn bị bundle local
 
@@ -61,4 +82,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: ef893a644b1200747c29316c05dd153a4538d07ec1b447c1cba09831802c4951 -->
+<!-- source-sha256: 755c2b11e9f6cd9abea6af9dd250220d59d6e542ce557a783c94d4912ad1e4cb -->
