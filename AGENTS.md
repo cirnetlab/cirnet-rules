@@ -1,24 +1,26 @@
 # CIRNET Common Agent Rules
 
-Use this baseline with one coding agent and the target repository's applicable
-local and nested instructions. Use English guidance. Consult Vietnamese
-copies for translation review or a user's language request.
+Use this baseline once with one coding agent and applicable local and nested
+repository instructions. Read English guidance. Use Vietnamese for translation
+review or when requested.
 
 ## Start with the task
 
 - Confirm repository root, branch/worktree, Git status and authorized files.
-  Preserve pre-existing changes, untracked data, fixtures and evidence.
-- Locate symbols and paths before reading. Review relevant source, callers, tests
-  and owning contracts. Use skill metadata to select the workflow and open its
-  body and relevant references. Expand context as dependencies and risk warrant.
-- Use the baseline once. For architecture decisions, open
+  Preserve existing changes, untracked data, fixtures and evidence.
+- Locate paths and symbols before reading source, callers, tests and owning
+  contracts. Use Skill metadata to select a workflow and its references. Expand
+  context as dependencies and risk warrant.
+- For a requested Work Prompt, choose `cirnet-work-prompt-authoring` and read
+  its English template from an approved checkout. Leave execution to Work.
+- For architecture decisions, open
   `en/policies/architecture.md` from an approved `cirnet-rules` checkout or a
-  verified architecture artifact. Read only relevant sections. Get product facts
-  from owners. Distinguish current source, candidates, selected releases and past results.
-- State consequential assumptions. Distinguish observations from hypotheses.
-  If plausible readings materially differ, explain the tradeoff and ask about
-  unresolved decisions or permission. Proceed with routine, reversible assumptions
-  and independent authorized work.
+  verified architecture artifact. Read relevant sections and get facts from
+  owners. Distinguish current source, candidates, selected releases and past results.
+- State consequential assumptions and distinguish observations from hypotheses.
+  For materially different readings, explain the tradeoff and ask about open
+  decisions or permissions. Proceed with routine, reversible assumptions and
+  independent authorized work.
 
 ## Work within scope
 

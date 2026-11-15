@@ -48,5 +48,20 @@ khác biệt mà không sửa tệp. Xác nhận gói và bộ cài bằng fixtu
 Hành vi sản phẩm, vận hành phần cứng, cấu hình client thật và bằng chứng lịch
 sử E01–E08 nằm ngoài thay đổi này.
 
+## Biên soạn Chat-to-Work
+
+Một [mẫu](../../../templates/chat-to-work-prompt.md) quy định bản bàn giao
+12 mục và một [Skill](../../../skills/cirnet-work-prompt-authoring/SKILL.md)
+áp dụng mẫu khi người dùng yêu cầu Work Prompt. Dùng mẫu tiếng Anh từ checkout
+được phép, tách bằng chứng quan sát khỏi giả định và giữ các ràng buộc CIRNET
+áp dụng về chủ sở hữu, kiến trúc và quyền. Trả bản bàn giao hoặc điểm chặn
+cụ thể trong chat. Work kiểm tra trước, triển khai và kiểm chứng trong phạm
+vi đã được cấp.
+
+Nghiệm thu bằng tài liệu theo cặp EN/VI, chỉ dẫn kích hoạt ngắn trong baseline,
+kết quả checker local, chọn Skill tường minh khi cài bundle và các Prompt
+giả lập cho bàn giao thông thường, thiếu bằng chứng và yêu cầu bị chặn.
+Bundle chuyển Skill, checkout đã được phép cung cấp mẫu.
+
 <!-- source: en/specs/cirnet-rules/toolkit-upgrade/spec.md -->
-<!-- source-sha256: 162ad860a125300eb3c42e272cfe0dc351b240ac068351cba2dbb23de4162d83 -->
+<!-- source-sha256: 841ef2d4ef840930be66d7d04334d462bc41fdd832caeb73467c1f56e9acd49b -->

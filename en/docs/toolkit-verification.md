@@ -151,3 +151,40 @@ unchanged and excludes the six architecture snapshots. Hosted CI, Linux,
 native client discovery, E01–E08 and product execution/HIL were **NOT_RUN**
 for this change. The checker does not validate product behavior, safety or
 agent compliance.
+
+## Chat-to-Work authoring
+
+On `rules-common` at `9b17b8b`, baseline handoffs had inconsistent structure
+and evidence labels. In the FPGA repair scenario, the baseline recognized the
+conflict and proposed another executable task without a separate request.
+Read-only Codex test agents exercised the new Skill and English template with
+synthetic requests. The reviewed results cover handoff quality and scope.
+
+| Case | Observed result |
+| --- | --- |
+| P01. Interface feature | `PROMPT_READY`. The prompt scopes the capture filter to TypeScript UI and tests, covers the default and empty states, and asks for real virtual-chain evidence where available. |
+| P02. C++ Simulator cancellation bug | `PROMPT_READY`. The prompt calls for a focused before/after regression and keeps the earlier Windows loaded-Stop result tied to its original candidate. |
+| P03. Shared contract change | `PROMPT_READY`. The prompt writes only the canonical schema, generated bindings and tests in Contracts, verifies pinned consumers read-only and preserves frozen artifacts. |
+| P04. FPGA repair of student wiring | `PROMPT_BLOCKED`. The prompt identifies the no-auto-rewiring conflict and the distinction between Safety and Correctness. |
+| P05. Documentation-only change | `PROMPT_READY`. The prompt limits edits to the distribution pair and requires meaning review, an updated source hash and the existing checks. |
+| P06. Local source inaccessible to Chat | `PROMPT_READY`. The prompt marks the C++ source `NOT_INSPECTED` and requires Work to find the commands and reproduce the symptom before editing. |
+| P07. Indivisible change outside granted scope | `PROMPT_BLOCKED`. The requested Interface and Remote change requires Remote write permission. |
+| P08. FPGA flash and learner-data publication | `PROMPT_BLOCKED`. Both hardware authorization and disclosure permission are missing. |
+
+The five ready handoffs use all 12 sections. The direct documentation fix
+selected the execution workflow. An installed-only scenario without checkout
+access returned `PROMPT_BLOCKED` and named the canonical template it needed.
+
+| Check | Observed result on Windows |
+| --- | --- |
+| `cargo fmt --all -- --check`, `cargo build --offline --locked`, `cargo clippy --offline --locked --all-targets -- -D warnings` | PASS, exit 0 each. |
+| `cargo test --offline --locked` | PASS, exit 0. 61 passed and one Windows symlink fixture was ignored. |
+| `cargo run --offline --locked --bin check-docs` on the worktree | FAIL, exit 1. The already-staged `agent-chat.md` uses CRLF and lacks a final LF. Its staged and worktree bytes were preserved. |
+| `check-docs --root <isolated-copy> --new-file <path>` for all four new Markdown paths | PASS, exit 0. The copy contains the current tracked and new candidate files apart from `agent-chat.md`. The four existing architecture variant warnings were retained. The template pairs have 12 sections and 24 matching placeholder identifiers. |
+| `pwsh -NoProfile -File tests/check-changed-docs.tests.ps1`, `git diff --check` | PASS, exit 0 each. |
+| `pwsh -NoProfile -File tests/package.Tests.ps1`, `pwsh -NoProfile -File tests/install.tests.ps1` | PASS, exit 0 each for exercised fixtures. Windows reparse and junction creation were denied and those fixtures were `NOT_RUN`. |
+| `package.ps1 -AllowDirty`, `package.ps1 -Verify`, `install.ps1` and `verify-install.ps1` with `-Skills cirnet-work-prompt-authoring` | PASS, exit 0. A verified local archive carried the English Skill with its exact bytes. The template was outside the archive. Explicit selection installed and verified the Skill in isolated Codex, Claude Code and Antigravity homes. |
+
+The baseline now has 500 words and 3,557 UTF-8 bytes, up by six words and 37
+bytes. Hashes matched for 288 protected files. Native installed-client
+discovery, E01–E08 reruns, hosted CI and product execution were `NOT_RUN`.

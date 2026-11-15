@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Thêm Skill biên soạn Work Prompt có thể chọn cài và mẫu song ngữ để bàn
+  giao nhiệm vụ đúng phạm vi cho Agent khác.
 - Thêm cách chọn kiến trúc Lab-First, định tuyến chủ sở hữu repository và
   điều kiện bằng chứng để phát triển song hành. Xác minh bản chụp EN/VI đã
   ghim và bảng định tuyến bằng checker offline và CI hiện có.
@@ -32,4 +34,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 74d34c2747c7528d20f41621766f225ab6f4368c3a4af47df88c30ba03b4b891 -->
+<!-- source-sha256: 0b0e3a8b4e8550a6bcbdc821285da2eedb834eba60f0579f914db495703f309d -->

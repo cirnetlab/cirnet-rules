@@ -6,6 +6,7 @@ matches the task and open another only when its trigger applies.
 - [Implementation](cirnet-implementation/SKILL.md)
 - [Debugging](cirnet-debugging/SKILL.md)
 - [Verification](cirnet-verification/SKILL.md)
+- [Work Prompt authoring](cirnet-work-prompt-authoring/SKILL.md) for a requested handoff
 - [Code review](cirnet-code-review/SKILL.md)
 - [Refactoring](cirnet-refactoring/SKILL.md)
 - [Regression testing](cirnet-regression-testing/SKILL.md)

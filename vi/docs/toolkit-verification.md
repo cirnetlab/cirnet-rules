@@ -151,5 +151,42 @@ và không chứa sáu bản chụp kiến trúc. CI chạy trên máy chủ, Li
 native của client, E01–E08 và thực thi/HIL sản phẩm đều **NOT_RUN** trong đợt
 này. Checker không chứng minh hành vi, an toàn sản phẩm hay sự tuân thủ của Agent.
 
+## Biên soạn Chat-to-Work
+
+Trên `rules-common` ở `9b17b8b`, bản bàn giao baseline thiếu cấu trúc và nhãn
+bằng chứng thống nhất. Với ca sửa dây qua FPGA, baseline nhận ra xung đột rồi
+đề xuất một nhiệm vụ thực thi khác dù chưa có yêu cầu riêng. Các Agent Codex
+chạy thử ở chế độ chỉ đọc đã dùng Skill mới và mẫu tiếng Anh với yêu cầu
+giả lập. Các kết quả đã soát bao phủ chất lượng và phạm vi bàn giao.
+
+| Ca | Kết quả quan sát |
+| --- | --- |
+| P01. Tính năng Interface | `PROMPT_READY`. Prompt giới hạn bộ lọc capture vào UI TypeScript và test, kiểm tra trạng thái mặc định và rỗng, yêu cầu bằng chứng chuỗi chạy ảo thật khi sẵn có. |
+| P02. Lỗi hủy trên C++ Simulator | `PROMPT_READY`. Prompt yêu cầu test hồi quy trước/sau và giữ kết quả Stop dưới tải trên Windows gắn với đúng ứng viên cũ. |
+| P03. Đổi contract dùng chung | `PROMPT_READY`. Prompt chỉ sửa schema chuẩn, binding sinh tự động và test của Contracts, kiểm tra chỉ đọc consumer đã ghim và giữ artifact đóng băng. |
+| P04. Dùng FPGA để sửa dây sinh viên | `PROMPT_BLOCKED`. Prompt chỉ ra xung đột với nguyên tắc không tự sửa dây và phân biệt Safety với Correctness. |
+| P05. Chỉ sửa tài liệu | `PROMPT_READY`. Prompt giới hạn sửa vào cặp hướng dẫn phân phối, yêu cầu soát nghĩa, cập nhật hash nguồn và chạy các kiểm tra hiện có. |
+| P06. Chat không truy cập được source local | `PROMPT_READY`. Prompt đánh dấu source C++ `NOT_INSPECTED`, giao Work tìm lệnh và tái hiện triệu chứng trước khi sửa. |
+| P07. Thay đổi không tách được và vượt quyền | `PROMPT_BLOCKED`. Thay đổi đồng thời Interface và Remote cần quyền sửa Remote. |
+| P08. Nạp FPGA và công bố dữ liệu người học | `PROMPT_BLOCKED`. Thiếu cả quyền vận hành phần cứng và quyền công bố dữ liệu. |
+
+Năm bản bàn giao sẵn sàng đều có đủ 12 mục. Yêu cầu sửa tài liệu trực tiếp
+chọn quy trình thực thi. Ca chỉ có Skill đã cài và thiếu quyền đọc checkout
+trả `PROMPT_BLOCKED` và nêu mẫu chuẩn cần truy cập.
+
+| Kiểm tra | Kết quả quan sát trên Windows |
+| --- | --- |
+| `cargo fmt --all -- --check`, `cargo build --offline --locked`, `cargo clippy --offline --locked --all-targets -- -D warnings` | PASS, từng lệnh thoát 0. |
+| `cargo test --offline --locked` | PASS, thoát 0. Đạt 61 test, bỏ qua một fixture symlink trên Windows. |
+| `cargo run --offline --locked --bin check-docs` trên worktree | FAIL, thoát 1. Tệp đã staged `agent-chat.md` dùng CRLF và thiếu LF cuối. Byte trong vùng staged và worktree được bảo toàn. |
+| `check-docs --root <bản-sao-cô-lập> --new-file <đường-dẫn>` cho cả bốn Markdown mới | PASS, thoát 0. Bản sao gồm tệp tracked và tệp mới của ứng viên hiện tại, trừ `agent-chat.md`. Bốn cảnh báo bản kiến trúc khác biệt đã có vẫn xuất hiện. Hai bản mẫu có 12 mục và 24 mã placeholder giống nhau. |
+| `pwsh -NoProfile -File tests/check-changed-docs.tests.ps1`, `git diff --check` | PASS, từng lệnh thoát 0. |
+| `pwsh -NoProfile -File tests/package.Tests.ps1`, `pwsh -NoProfile -File tests/install.tests.ps1` | PASS, từng lệnh thoát 0 với fixture đã chạy. Ca reparse và junction trên Windows thiếu quyền tạo nên `NOT_RUN`. |
+| `package.ps1 -AllowDirty`, `package.ps1 -Verify`, `install.ps1` và `verify-install.ps1` với `-Skills cirnet-work-prompt-authoring` | PASS, thoát 0. Gói local đã xác minh chứa đúng byte của Skill tiếng Anh. Mẫu nằm ngoài gói. Chọn Skill tường minh đã cài và xác minh được trong profile Codex, Claude Code và Antigravity cô lập. |
+
+Baseline hiện có 500 từ và 3.557 byte UTF-8, tăng sáu từ và 37 byte. Hash của
+288 tệp được bảo vệ đều khớp. Phát hiện Skill trong client native đã cài, chạy
+lại E01–E08, CI từ xa và thực thi sản phẩm đều `NOT_RUN`.
+
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: bcb99a79a0948050041e7f95a678ff3c9dde13e1d9c355f4a972a1b7a29e2ff4 -->
+<!-- source-sha256: d7fa39d005973731bbbf71ddf4775054b415855c05f7cf8fcd9650cb6eff14ea -->

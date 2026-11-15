@@ -42,6 +42,16 @@ bundle installs guidance and leaves the architecture sources outside the
 installed payload. If an approved reference is unavailable, record that limit
 before making architecture decisions.
 
+## Work Prompt authoring
+
+The bundle includes `cirnet-work-prompt-authoring`. Select it with
+`-Skills 'cirnet-work-prompt-authoring'` when installing and verifying, along
+with any other skills you want in the selection. For a requested handoff, an
+agent using the checkout opens the [English template](../templates/chat-to-work-prompt.md)
+directly. An agent using the installed Skill needs separate read access to
+the same template in an approved checkout. The template stays outside the
+bundle. If that access is missing, the Skill reports `PROMPT_BLOCKED`.
+
 ## Update and restore
 
 Keep the previous reviewed bundle and the receipt returned by apply.

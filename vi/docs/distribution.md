@@ -38,6 +38,16 @@ chiếu byte cần dùng với [`docs/architecture-sources.tsv`](../../docs/arch
 Bundle cài hướng dẫn, còn các nguồn kiến trúc nằm ngoài payload cài đặt.
 Nếu không có nguồn tham chiếu được phép, báo giới hạn trước khi quyết định về kiến trúc.
 
+## Soạn Work Prompt
+
+Bundle có `cirnet-work-prompt-authoring`. Chọn qua
+`-Skills 'cirnet-work-prompt-authoring'` khi cài và xác minh, cùng các Skill
+khác bạn muốn chọn. Khi được yêu cầu bàn giao, Agent dùng checkout sẽ mở
+trực tiếp [mẫu tiếng Anh](../../en/templates/chat-to-work-prompt.md). Agent
+dùng Skill đã cài cần quyền đọc riêng đối với cùng mẫu trong checkout được
+phép. Mẫu nằm ngoài bundle. Nếu thiếu quyền truy cập, Skill báo
+`PROMPT_BLOCKED`.
+
 ## Cập nhật và restore
 
 Giữ bundle đã review trước đó và receipt trả về khi apply. Dùng cùng lệnh
@@ -68,4 +78,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: ce2dd11553e636f74d7510b2a5797e9d03d30a0ff2d66a3447a1feb71dd693b2 -->
+<!-- source-sha256: eaabf273641bf5e0690b12b7d566448d4cb71534236a0b38686eb999948108ae -->

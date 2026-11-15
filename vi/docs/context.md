@@ -25,6 +25,15 @@ và bản đồ sản phẩm dành cho review hoặc task có nhu cầu. Baselin
 bản tiếng Anh là hai bản sao của cùng chỉ dẫn. Import Claude nạp baseline một
 lần. Adapter managed chỉ nên đưa vào baseline.
 
+## Chat-to-Work
+
+Khi được yêu cầu chuẩn bị Prompt cho Agent khác, chọn Skill biên soạn và mở
+mẫu tiếng Anh từ checkout đã được phép. Chỉ đọc kiến trúc, chỉ dẫn của chủ
+sở hữu và bằng chứng sẵn có liên quan. Trả bản bàn giao đúng phạm vi trong
+chat. Yêu cầu sửa mã trực tiếp dùng các Skill thực thi thông thường.
+[Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
+[Mẫu](../templates/chat-to-work-prompt.md) · [Truy cập từ bundle](distribution.md#soạn-work-prompt)
+
 ## Tình huống đọc thử
 
 | Nhiệm vụ | Đọc chọn lọc | Nhận định dự kiến |
@@ -45,4 +54,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 và cảnh báo tham khảo. Số token phụ thuộc phần client nạp và tokenizer.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: f316a623ebd22fc9308e766247884e04fe0ef9ee535e1518a08eafecce88d40a -->
+<!-- source-sha256: 28837cde97ad6005aa44ea458d1395168bec19df98ffda4dccd3c085451e7d2e -->

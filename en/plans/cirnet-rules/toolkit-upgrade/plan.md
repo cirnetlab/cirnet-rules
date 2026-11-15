@@ -26,5 +26,13 @@
 - [x] Compare architecture variants, route owners and record product evidence.
 - [x] Verify offline architecture checks, EN/VI updates and isolated distribution.
 
+## Chat-to-Work authoring
+
+- [x] Inspect the `rules-common` checkout, existing templates and packaging.
+  Review baseline outputs from synthetic requests.
+- [x] Add the paired template and Skill. Align navigation and context guidance.
+- [x] Review candidate handoffs and verify the bilingual files and opt-in
+  installation. Record the worktree checker failure and isolated pass.
+
 [Specification](../../../specs/cirnet-rules/toolkit-upgrade/spec.md) ·
 [Verification](../../../docs/toolkit-verification.md)

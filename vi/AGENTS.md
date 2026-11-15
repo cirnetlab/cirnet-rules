@@ -1,25 +1,26 @@
 # Quy tắc chung cho Agent CIRNET
 
-Dùng baseline với một Agent lập trình và chỉ dẫn local, chỉ dẫn lồng nhau áp dụng
-tại repo đích. Dùng hướng dẫn tiếng Anh. Đọc bản Việt khi review bản dịch
-hoặc đáp ứng yêu cầu ngôn ngữ của người dùng.
+Dùng baseline một lần với một Agent lập trình và các chỉ dẫn local, chỉ dẫn
+lồng nhau áp dụng tại repo. Đọc hướng dẫn tiếng Anh. Dùng bản Việt khi soát
+bản dịch hoặc theo yêu cầu.
 
 ## Bắt đầu từ nhiệm vụ
 
 - Xác nhận root repo, branch/worktree, Git status và các file được phép sửa.
   Giữ thay đổi có sẵn, dữ liệu untracked, fixture và bằng chứng.
-- Tìm ký hiệu và đường dẫn trước khi đọc. Xem mã, nơi gọi, test và contract
-  liên quan của bên sở hữu. Dùng metadata của Skill để chọn quy trình rồi mở
-  nội dung Skill và tài liệu tham chiếu liên quan. Mở rộng context theo phụ
-  thuộc và rủi ro.
-- Dùng baseline một lần. Khi cần quyết định kiến trúc, mở
+- Tìm đường dẫn và ký hiệu trước khi đọc mã, nơi gọi, test và contract của
+  bên sở hữu. Dùng metadata của Skill để chọn quy trình và tài liệu tham
+  chiếu. Mở rộng context theo phụ thuộc và rủi ro.
+- Khi được yêu cầu soạn Work Prompt, chọn `cirnet-work-prompt-authoring` và
+  đọc mẫu tiếng Anh từ checkout được phép. Giao phần thực thi cho Work Agent.
+- Khi cần quyết định kiến trúc, mở
   `en/policies/architecture.md` từ checkout `cirnet-rules` được phép hoặc artifact
-  kiến trúc đã xác minh. Chỉ đọc phần liên quan. Lấy thông tin sản phẩm từ chủ
-  sở hữu. Phân biệt source hiện tại, candidate, release được chọn và kết quả trước đây.
-- Nêu giả định có hệ quả đáng kể. Phân biệt quan sát với giả thuyết. Nếu các
-  cách hiểu hợp lý cho kết quả khác biệt đáng kể, giải thích đánh đổi và hỏi
-  về quyết định chưa rõ hoặc quyền còn thiếu. Tiếp tục phần việc thông thường
-  có thể đảo ngược và phần việc độc lập đã được phép.
+  kiến trúc đã xác minh. Đọc phần liên quan và lấy thông tin từ chủ sở hữu.
+  Phân biệt source hiện tại, candidate, release được chọn và kết quả trước đây.
+- Nêu giả định có hệ quả đáng kể và phân biệt quan sát với giả thuyết.
+  Nếu các cách hiểu khác nhau đáng kể, giải thích đánh đổi và hỏi về quyết
+  định hoặc quyền còn thiếu. Tiếp tục với giả định thông thường có thể đảo
+  ngược và phần việc độc lập đã được phép.
 
 ## Làm việc trong phạm vi
 
@@ -63,4 +64,4 @@ hoặc đáp ứng yêu cầu ngôn ngữ của người dùng.
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: 069abb0a2ad140bd76fce0cc08095c99bdecf5e0a487a362d6375f3af6c13e97 -->
+<!-- source-sha256: d60c316965db404da3e129ff282fab59e22b10831043e12214d0f4e142258656 -->
