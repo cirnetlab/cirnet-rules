@@ -25,8 +25,16 @@
 - [x] So sánh các bản kiến trúc, định tuyến chủ sở hữu và ghi bằng chứng sản phẩm.
 - [x] Kiểm chứng checker offline, cập nhật EN/VI và phân phối trong môi trường cô lập.
 
+## Biên soạn Chat-to-Work
+
+- [x] Kiểm tra checkout `rules-common`, các mẫu hiện có và cơ chế đóng gói.
+  Rà soát đầu ra baseline với yêu cầu giả lập.
+- [x] Thêm cặp mẫu và cặp Skill. Đồng bộ mục tra cứu và hướng dẫn nạp context.
+- [x] Rà soát bản bàn giao của ứng viên, kiểm chứng tệp song ngữ và cài Skill
+  theo lựa chọn. Ghi lỗi checker trên worktree và kết quả đạt ở bản sao cô lập.
+
 [Đặc tả](../../../specs/cirnet-rules/toolkit-upgrade/spec.md) ·
 [Kiểm chứng](../../../docs/toolkit-verification.md)
 
 <!-- source: en/plans/cirnet-rules/toolkit-upgrade/plan.md -->
-<!-- source-sha256: e0213a5956a20a7bf3fe1d4eee26c087edbc0996da90a66daf48599cc5f3989b -->
+<!-- source-sha256: 8712c7f092401582ee8a7d2c1ddccbb9de01a1eafc7670e6ffbf59b1f3ccfb65 -->

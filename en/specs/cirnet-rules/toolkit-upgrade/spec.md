@@ -47,3 +47,18 @@ snapshots, stale architecture links and invalid routing. Warn about divergent
 copies without editing them. Confirm package and installer behavior in isolated
 fixtures. Product behavior, hardware operation, real client configuration and
 historical E01–E08 evidence are outside this change.
+
+## Chat-to-Work authoring
+
+One [template](../../../templates/chat-to-work-prompt.md) defines a 12-section
+handoff and one [Skill](../../../skills/cirnet-work-prompt-authoring/SKILL.md)
+applies it when the user requests a Work Prompt. Use the English template
+from an approved checkout, separate observed evidence from assumptions, and
+carry forward applicable CIRNET ownership, architecture and permissions.
+Return the handoff or a specific blocker in chat. Work performs preflight,
+implementation and verification within the granted scope.
+
+Accept the change with paired EN/VI documents, a short baseline trigger, local
+checker results, explicit bundle selection and synthetic prompts covering
+normal handoffs, missing evidence and blocked requests. The bundle carries the
+Skill and the approved checkout supplies the template.

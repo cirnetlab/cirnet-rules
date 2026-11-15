@@ -8,6 +8,7 @@ agent work and Vietnamese for translation review. Load only the relevant
 | --- | --- |
 | Set up a client or read the checkout directly | [Setup](docs/setup.md) |
 | Choose context and measure startup contribution | [Context loading](docs/context.md) |
+| Author a Work Prompt for another agent | [Authoring Skill](skills/cirnet-work-prompt-authoring/SKILL.md) · [Chat-to-Work template](templates/chat-to-work-prompt.md) |
 | Review acceptance or reproduce an evaluation | [E01–E08 results](docs/e01-e08-followup.md) · [Evaluation procedure](docs/behavioral-evaluation.md) |
 | Package, update or restore a local bundle | [Distribution](docs/distribution.md) |
 | Compare versions, contracts and selected artifacts | [Compatibility evidence](docs/compatibility.md) |

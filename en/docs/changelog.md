@@ -2,6 +2,8 @@
 
 ## 0.2.0 (candidate)
 
+- Add the opt-in Work Prompt authoring Skill and a bilingual template for
+  handing scoped tasks to another agent.
 - Add Lab-First architecture selection, repository ownership routing and an
   evidence gate for parallel development. Verify pinned EN/VI snapshots and
   routing with the existing offline checker and CI.

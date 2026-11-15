@@ -8,6 +8,7 @@ source liên quan đến task.
 | --- | --- |
 | Thiết lập client hoặc đọc trực tiếp checkout | [Thiết lập](docs/setup.md) |
 | Chọn context và đo phần context khởi động | [Nạp context](docs/context.md) |
+| Soạn Work Prompt để giao cho Agent khác | [Skill biên soạn](skills/cirnet-work-prompt-authoring/SKILL.md) · [Mẫu Chat-to-Work](templates/chat-to-work-prompt.md) |
 | Xem nghiệm thu hoặc tái hiện đánh giá | [Kết quả E01–E08](docs/e01-e08-followup.md) · [Quy trình đánh giá](docs/behavioral-evaluation.md) |
 | Đóng gói, cập nhật hoặc restore bundle local | [Phân phối](docs/distribution.md) |
 | So phiên bản, contract và artifact được chọn | [Bằng chứng tương thích](docs/compatibility.md) |
@@ -25,4 +26,4 @@ và [kiểm chứng song ngữ trước đây](docs/bilingual-verification.md) v
 [Giấy phép](../LICENSE) · [Thông báo bên thứ ba](../THIRD_PARTY_NOTICES.md)
 
 <!-- source: en/README.md -->
-<!-- source-sha256: d9d29cec602ce8cfc038ec4a6f87c6e4faaf68d49da987cd4766eec409684d8c -->
+<!-- source-sha256: b95be64ac303c90a0091074d6294a0a615e597e66ba61356ce266e7fa99ced68 -->
