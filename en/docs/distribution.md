@@ -2,8 +2,28 @@
 
 `VERSION` is the toolkit version. The Cargo checker and first release entry
 in each language changelog use the same version. Product versions are separate.
-Version 0.2.0 is a candidate because it changes the default skill names and adds
-the local distribution format.
+Version 0.2.0 changes the default skill names and introduces the local bundle
+format; existing installations need a reviewed migration.
+
+## Release naming and preflight
+
+CIRNETLAB Git tags and GitHub Release titles use `<repo_name>-<version>` with
+the exact repository name and approved version, without an automatic `v` prefix.
+For this toolkit the tag and release title are both `cirnet-rules-0.2.0`.
+Keep `VERSION` and `bundle.json.version` as `0.2.0`. The generated archive
+may include a short source SHA for provenance; its filename is not the release title.
+
+Before publishing, verify the clean reviewed `master` commit, matching
+`VERSION`/Cargo/changelog, successful Windows and Linux CI for that commit,
+license/notices, and the checked bundle with install/restore tests. Confirm the
+tag and release names are unused. See the [toolkit verification record](toolkit-verification.md)
+for known limits: hosted checks do not prove native client discovery.
+
+Create a tag only after the final reviewed commit is on `master`, and only
+with release authorization. Package the clean checkout using
+`-Revision cirnet-rules-0.2.0`, verify the extracted bundle, and attach the
+archive and reviewed notes to a GitHub Release titled `cirnet-rules-0.2.0`.
+Do not publish a tag or release as part of routine packaging.
 
 ## Prepare a local bundle
 
