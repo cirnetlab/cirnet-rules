@@ -11,6 +11,9 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
 
 1. **Interpret.** Xác định mục tiêu quan sát được, hành vi mong muốn và thao tác
    người dùng đã thực sự cấp quyền. Đọc được repo chỉ xác lập quyền đọc.
+   Ghi nội bộ dấu vân tay mục tiêu gồm thao tác, owner, tệp và symbol, phép đổi,
+   kết quả mong đợi, giới hạn phạm vi, ca âm tính và quyền. Chỉ dẫn rõ của người
+   dùng là bằng chứng về yêu cầu.
 2. **Locate Owner.** Mở `en/policies/architecture.md` và
    `en/references/architecture-routing.md` trong toolkit được phép. Xác định
    owner, consumer trực tiếp và ranh giới ghi/đọc cho từng repo.
@@ -26,6 +29,13 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    `BLOCKED` cho điều kiện còn thiếu. Dẫn repo/path/symbol/revision đã xác minh.
    Với CI, ghi run URL/ID, commit SHA, job/step và lỗi đầu tiên có thể xử lý.
    Giữ kết quả lịch sử gắn với đầu vào và ngày ban đầu.
+   Chọn cách đọc an toàn trước khi gọi công cụ. Tìm đường dẫn, cấu trúc,
+   định danh và tên trường được phép. Lọc giá trị trước khi chúng vào output.
+   Tránh in nguyên kho bản ghi, literal nhạy cảm, thông tin xác thực hoặc nội
+   dung môi trường. Nếu chưa có cách đọc an toàn, đánh dấu lần đọc `BLOCKED`
+   và dùng nguồn an toàn nếu có. Giữ các giá trị ngoài bàn giao và bằng chứng.
+   Tìm tên trường có thể in cả dòng source chứa giá trị. Chỉ xuất định danh
+   hoặc trích đoạn đã lọc giá trị.
 5. **Draft Adaptive Prompt.** Đọc `en/templates/chat-to-work-prompt.md` từ
    checkout được phép. Bundle đã cài cung cấp Skill này và cần quyền đọc
    checkout riêng để lấy mẫu. Thiếu quyền đọc mẫu thì trả `PROMPT_BLOCKED`.
@@ -33,14 +43,21 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    bất định và khả năng truy cập nguồn. Xét đủ 12 trường ngữ nghĩa, gom thông
    tin áp dụng vào các heading Markdown thông thường.
 6. **Deduplicate.** Mỗi dữ kiện, ràng buộc và tiêu chí nghiệm thu có một vị trí.
+   Dùng các quyết định Required, Conditional và Already-loaded trong
+   `en/docs/context.md`.
    Tham chiếu Rules, Skills và kiến trúc truy cập được bằng đường dẫn tương đối
    chính xác, nơi lấy nguồn và revision đã xác minh nếu biết. Giữ điều kiện an
    toàn và quyền riêng của nhiệm vụ. Mở rộng bằng chứng khi nguồn không truy cập
    được, lỗi tạm thời, khó tái hiện hoặc có rủi ro bảo mật/tương thích.
 7. **Editorial Gate.** Rà mục tiêu, owner, phạm vi, bằng chứng, phụ thuộc, ca từ
    chối, invariant và nghiệm thu để Work có thể bắt đầu. Gắn mỗi tiêu chí với
-   lệnh/quan sát đã xác minh hoặc giao Work tìm lệnh trong chỉ dẫn owner. Bổ sung
-   chi tiết quyết định còn thiếu hoặc báo `PROMPT_BLOCKED`. Đây là rà soát
+   lệnh/quan sát đã xác minh hoặc giao Work tìm lệnh trong chỉ dẫn owner.
+   Đối chiếu mục tiêu, phạm vi và nghiệm thu với dấu vân tay mục tiêu. Khôi phục
+   thao tác hay ràng buộc bị mất trước khi rút gọn. Khi yêu cầu rõ và có quyền,
+   ghi `NOT_INSPECTED` và giao Work kiểm tra trước đối với source chưa đọc,
+   chi tiết triển khai và lệnh kiểm thử chưa biết. Chỉ dùng `PROMPT_BLOCKED`
+   khi thiếu quyết định hoặc thẩm quyền thiết yếu, thao tác không an toàn hay
+   xung đột chưa giải quyết cản trở bàn giao an toàn. Đây là rà soát
    biên tập. Kết quả thực thi cần bằng chứng thực tế từ Work.
 8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
    chép theo định dạng được yêu cầu. Loại chỉ dẫn dùng mẫu và placeholder thừa.
@@ -73,4 +90,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 15bea1aec4a1dfd80d25ff43306f67317267b2969d70ee54214311af24272d35 -->
+<!-- source-sha256: 2e798f389f794776fb3a0a64efc8a47c8ab0b85c52b2887c5e409c06db5c1b74 -->

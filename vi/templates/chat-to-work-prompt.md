@@ -12,6 +12,13 @@ vụ cần. Bỏ phần không áp dụng và placeholder thừa. Giữ chỉ d�
 checklist trường thông tin ở ngoài bản bàn giao cuối. Mỗi dữ kiện, ràng buộc và
 tiêu chí có một vị trí.
 
+Đối chiếu mục tiêu, phạm vi và nghiệm thu của bản nháp với thao tác, đích,
+phép đổi, kết quả, ràng buộc, ca âm tính và quyền người dùng yêu cầu. Khôi
+phục yêu cầu còn thiếu trước khi rút gọn. Giữ phép đối chiếu này ở nội bộ.
+Khi thao tác, owner và phạm vi an toàn đã rõ, ghi `NOT_INSPECTED` cho source
+chưa đọc hay lệnh chưa biết, rồi giao Work kiểm tra trước. Chỉ chặn khi quyết
+định, thẩm quyền, xung đột hoặc điều kiện an toàn thiết yếu cản trở bàn giao.
+
 ### Chọn mức chi tiết theo nhiệm vụ
 
 | Mode | Cách chọn | Cách trình bày gợi ý |
@@ -49,6 +56,9 @@ xác tới chỉ dẫn local, mục kiến trúc, Rules và Skills áp dụng. K
 xác minh nếu biết. Trong Applicable Work Skills, chỉ liệt kê đúng tên và trách
 nhiệm liên quan. Dùng metadata để chọn Skill rồi đọc thân áp dụng. Tham chiếu
 workflow chung, ghi trực tiếp quyết định và invariant then chốt của nhiệm vụ.
+Dùng lại context đã nạp khi xác minh được định danh. Ghi trực tiếp dữ kiện
+Work cần nhưng khó mở lại. Mở thêm source khi phụ thuộc, rủi ro hoặc lỗi đầu
+tiên đòi hỏi.
 
 Nén bằng chứng theo Claim / Status / Locator / Impact or Next check.
 Dùng `CONFIRMED`, `INFERRED`, `NOT_INSPECTED`, `BLOCKED` cho từng nhận định.
@@ -57,6 +67,9 @@ Với source, ghi repo/path/symbol/revision thực sự đã xem. Giao Work tìm
 hoặc lệnh còn chưa biết. Giữ kết quả lịch sử gắn với đầu vào ban đầu.
 Dẫn log và source truy cập được thay vì chép cả tệp. Chỉ kèm trích đoạn ngắn
 khi cần để khôi phục bằng chứng.
+Chọn đoạn source an toàn trước khi gọi công cụ. Xem cấu trúc và tên trường
+được phép trước. Lọc literal nhạy cảm trước output, giữ chúng ngoài prompt
+và bằng chứng. Đánh dấu lần đọc `BLOCKED` khi thiếu cách truy cập an toàn.
 
 Giao Work mở lại tham chiếu trong checkout được phép và đối chiếu source local
 hiện tại trước khi thao tác. Nếu Work không đọc được tham chiếu, đưa trực tiếp
@@ -114,4 +127,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: 48bf58388f5c677997341f717b763123335db92efe719bdc0a8b25bdaa8fcefe -->
+<!-- source-sha256: f898201ed19a8b62a401db66249dc710fef8fcf7aca85e4be83f825548eedbb3 -->

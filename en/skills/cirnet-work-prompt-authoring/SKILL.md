@@ -11,6 +11,9 @@ checkout, branch, instructions, permissions and evidence before implementation.
 
 1. **Interpret.** Establish the observable goal, expected behavior and operations
    actually authorized by the user. A readable repository grants read access only.
+   Keep an internal objective fingerprint: requested action, owner, file and
+   symbol, transformation, expected outcome, hard scope, negative cases and
+   permissions. Treat explicit user instructions as evidence of the request.
 2. **Locate Owner.** Open `en/policies/architecture.md` and
    `en/references/architecture-routing.md` in the approved toolkit. Identify the
    owner, direct consumers and write/read boundaries per repository.
@@ -26,6 +29,13 @@ checkout, branch, instructions, permissions and evidence before implementation.
    prerequisites. Give verified repo/path/symbol/revision locators. For CI,
    include run URL/ID, commit SHA, job/step and first actionable error. Preserve
    historical results with their original inputs and date.
+   Choose safe reads before running tools. Locate paths, structure, identifiers
+   and allowed field names. Filter values before they reach tool output. Avoid
+   dumping record stores, sensitive literals, credentials or environment
+   contents. If safe inspection is unavailable, mark that read `BLOCKED` and
+   use a safe source if available. Keep values out of handoffs and evidence.
+   A search for a field name may print its whole source line. Emit only the
+   identifier or a value-filtered excerpt.
 5. **Draft Adaptive Prompt.** Read `en/templates/chat-to-work-prompt.md` from an
    approved checkout. The installed bundle supplies this Skill and needs separate
    checkout access for that template. Missing template access yields
@@ -33,14 +43,20 @@ checkout, branch, instructions, permissions and evidence before implementation.
    dependencies, uncertainty and source accessibility. Consider all 12 semantic
    fields, grouping the applicable information into ordinary Markdown headings.
 6. **Deduplicate.** Keep each fact, constraint and acceptance criterion in one
-   place. Reference accessible Rules, Skills and architecture by exact relative
-   path, source location and verified revision when known. Retain task-specific
+   place. Use Required, Conditional and Already-loaded context decisions from
+   `en/docs/context.md`. Give exact relative paths, source locations and verified
+   revisions for accessible Rules, Skills and architecture. Retain task-specific
    safety and permission conditions. Expand evidence for inaccessible sources,
    transient failures, difficult reproduction or security/compatibility risks.
 7. **Editorial Gate.** Review the draft for a usable goal, owner, scope, evidence,
    dependencies, negative cases, invariants and acceptance. Pair every criterion
    with a verified command/observation or ask Work to find the command in owner
-   instructions. Expand missing critical detail or report `PROMPT_BLOCKED`.
+   instructions. Compare goal, scope and acceptance to the objective fingerprint.
+   Restore any lost operation or constraint before choosing how short to make
+   the handoff. If the task is clear and authorized, use `NOT_INSPECTED` and Work
+   preflight for unread source, unknown implementation details and test commands.
+   Reserve `PROMPT_BLOCKED` for an indispensable missing decision, authority,
+   unsafe operation or unresolved conflict that prevents a safe handoff.
    This is editorial review. Execution results require Work's actual evidence.
 8. **Hand Off.** Return `PROMPT_READY` and one complete copyable Work Prompt in
    the requested format. Exclude template instructions and unused placeholders.

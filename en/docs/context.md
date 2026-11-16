@@ -8,8 +8,15 @@
 
 Use [Skills](../skills/README.md) if the client does not list metadata. Open a
 rule for its specific constraint. Search symbols and paths, then read enough
-surrounding code and error output to understand the change. Reload material when
-revision, scope or missing context warrants it.
+surrounding code and error output to understand the change. Decide per role:
+
+- **Required** covers the baseline, applicable local and nested instructions,
+  selected Skill bodies and decisive source or acceptance evidence.
+- **Conditional** covers extra source, architecture, logs or tool probes when
+  dependencies, risk, a first failure or an unresolved decision warrants them.
+- **Already-loaded** covers material whose identity and applicable revision or
+  digest is known and whose contents remain available. Reuse it within the role.
+  Reload for a changed revision, a new scope or an identified evidence gap.
 
 When a task affects a CIRNET architecture decision, use
 [architecture selection](../policies/architecture.md) to find the applicable
@@ -23,7 +30,8 @@ the implementation skill and stay out of startup context.
 
 Agent context ordinarily comes from English. Vietnamese translations, old
 plans, history and product maps serve review or a task that calls for them.
-The root and English baseline are copies of one instruction. A Claude import
+The root and English baseline are copies of one instruction. Skip a second copy
+when its identity is verified. A Claude import
 loads that baseline once. A managed adapter should never import the library.
 
 ## Chat-to-Work

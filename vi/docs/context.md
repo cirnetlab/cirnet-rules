@@ -8,7 +8,15 @@
 
 Dùng [danh mục Skill](../skills/README.md) nếu client không liệt kê metadata.
 Mở rule theo ràng buộc liên quan. Tìm ký hiệu và đường dẫn, rồi đọc đủ code
-quanh đó và output lỗi để hiểu thay đổi. Đọc lại khi revision, scope hoặc context thiếu.
+quanh đó và output lỗi để hiểu thay đổi. Quyết định theo từng vai trò:
+
+- **Required** gồm baseline, chỉ dẫn local và lồng nhau áp dụng, thân Skill
+  đã chọn và bằng chứng source hoặc nghiệm thu mang tính quyết định.
+- **Conditional** gồm source, kiến trúc, log hoặc kiểm tra công cụ bổ sung
+  khi phụ thuộc, rủi ro, lỗi đầu tiên hoặc quyết định còn mở đòi hỏi.
+- **Already-loaded** gồm tài liệu đã rõ định danh và revision hoặc digest áp
+  dụng, còn sẵn nội dung. Dùng lại trong cùng vai trò. Đọc lại khi revision
+  đổi, phạm vi mở rộng hoặc xác định được khoảng trống bằng chứng.
 
 Khi nhiệm vụ ảnh hưởng đến một quyết định kiến trúc CIRNET, dùng
 [chọn kiến trúc](../policies/architecture.md) để tìm các phần áp dụng và
@@ -22,7 +30,8 @@ và nằm ngoài context khởi động.
 
 Context cho Agent thường lấy từ tiếng Anh. Bản dịch Việt, plan cũ, lịch sử
 và bản đồ sản phẩm dành cho review hoặc task có nhu cầu. Baseline root và
-bản tiếng Anh là hai bản sao của cùng chỉ dẫn. Import Claude nạp baseline một
+bản tiếng Anh là hai bản sao của cùng chỉ dẫn. Bỏ lần đọc bản sao thứ hai khi
+đã xác minh chúng giống nhau. Import Claude nạp baseline một
 lần. Adapter managed chỉ nên đưa vào baseline.
 
 ## Chat-to-Work
@@ -63,4 +72,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 và cảnh báo tham khảo. Số token phụ thuộc phần client nạp và tokenizer.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: e4d91ee03a1a7e2fcb56b47d6f7c447fde3e926ff2bc9f418f05c33de6304756 -->
+<!-- source-sha256: ef4f16165e60e043425364d93cbe51e72fa03caca0b85a321f4e37e46d5603c7 -->

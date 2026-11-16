@@ -12,6 +12,14 @@ headings the task needs. Omit inapplicable material and unused placeholders.
 Keep these authoring instructions and the field checklist out of the final
 handoff. Each fact, constraint and criterion belongs in one place.
 
+Compare the draft goal, scope and acceptance against the user's requested
+action, target, transformation, outcome, constraints, negative cases and
+permissions. Restore any missing requirement before compressing. Keep this
+comparison internal. An unread source or unknown command is `NOT_INSPECTED`
+with a Work preflight when the requested operation, owner and safe scope are
+clear. Block only when an essential decision, authority, conflict or safety
+condition prevents a safe handoff.
+
 ### Choose detail by task
 
 | Mode | Selection | Suggested presentation |
@@ -50,6 +58,9 @@ a verified revision when known. Under Applicable Work Skills, list only exact
 names and their relevant responsibilities. Use metadata to select Skills, then
 read applicable bodies. Reference shared workflows and include task-specific
 decisions and decisive invariants directly.
+Reuse already-loaded context when its identity is verified. Include inline
+facts that Work needs and cannot reliably reopen. Reopen more source when a
+dependency, risk or first failure requires it.
 
 Compress evidence using Claim / Status / Locator / Impact or Next check.
 Use `CONFIRMED`, `INFERRED`, `NOT_INSPECTED` and `BLOCKED` per claim.
@@ -58,6 +69,9 @@ For source, record repo/path/symbol/revision actually inspected. Identify unknow
 locators or commands for Work to discover. Keep historical results bound to
 their original inputs. Link accessible logs and source rather than copying
 whole files. Include a short excerpt only when necessary to recover the evidence.
+Choose safe source slices before invoking a tool. Inspect structure and allowed
+field names first. Filter sensitive literals before output and exclude them from
+the prompt and evidence. Mark inspection `BLOCKED` when safe access is absent.
 
 Have Work reopen references in its authorized checkout and reconcile them with
 current local source before acting. If Work cannot access a reference, include

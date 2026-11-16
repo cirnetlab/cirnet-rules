@@ -1,0 +1,256 @@
+#requires -Version 7.0
+[CmdletBinding(DefaultParameterSetName='Run')]
+param(
+    [Parameter(Mandatory)][string]$OutputRoot,
+    [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$')][string]$Session,
+    [Parameter(ParameterSetName='Run')][string]$CaseId = 'E01,E06,E02,E05',
+    [Parameter(ParameterSetName='Run')][ValidateRange(1, 20)][int]$Repetitions = 1,
+    [Parameter(ParameterSetName='Run')][int]$Seed = 1,
+    [Parameter(ParameterSetName='Run')][ValidateRange(1, 600)][int]$TimeoutSeconds = 300,
+    [Parameter(ParameterSetName='Run')][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$')][string]$AuthorModel = 'gpt-6.1-sol',
+    [Parameter(ParameterSetName='Run')][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$')][string]$WorkModel = 'gpt-6.1-sol',
+    [Parameter(ParameterSetName='Run')][ValidateSet('medium','high')][string]$Preset = 'medium',
+    [Parameter(ParameterSetName='Run')][ValidateSet('minimal','low','medium','high','xhigh')][string]$AuthorEffort,
+    [Parameter(ParameterSetName='Run')][ValidateSet('minimal','low','medium','high','xhigh')][string]$WorkEffort,
+    [Parameter(ParameterSetName='Run')][string]$CodexPath,
+    [Parameter(ParameterSetName='Run')][string]$AuthHome,
+    [Parameter(ParameterSetName='Run')][string]$ToolPath,
+    [Parameter(ParameterSetName='Run')][switch]$UseApiKey,
+    [Parameter(ParameterSetName='Run')][switch]$Execute,
+    [Parameter(ParameterSetName='Run')][ValidateRange(1, 320)][int]$MaxNativeCalls,
+    [Parameter(ParameterSetName='Run')][ValidateSet('Initial','IndependentRepeat','HarnessCorrection','PromptCorrection')][string]$RunPurpose = 'Initial',
+    [Parameter(ParameterSetName='Run')][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$')][string]$PriorSession,
+    [Parameter(ParameterSetName='Review', Mandatory)][switch]$Summarize,
+    [Parameter(ParameterSetName='Review', Mandatory)][string]$ReviewFile,
+    [Parameter(ParameterSetName='Review', Mandatory)][string]$SummaryFile
+)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'Bundle.psm1') -Force
+$repo = Split-Path -Parent $PSScriptRoot
+$suite = Join-Path $repo 'tests/behavioral'
+$runner = Join-Path $PSScriptRoot 'eval-codex.ps1'
+$reporter = Join-Path $PSScriptRoot 'eval-codex-report.mjs'
+$utf8 = [Text.UTF8Encoding]::new($false, $true)
+$baseline = 'e2709b35f38ef1a21eda8760589b2f92f5cbc406'
+$historical = 'e6ee732c4aa9e48e05c39ba7e090fa26985956ec'
+
+function Save-Json([string]$Path, $Value) {
+    [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject $Value -Depth 60) + [char]10, $utf8)
+}
+
+function Invoke-SourceGit([string[]]$ArgumentList) {
+    $result = & git --no-optional-locks --no-replace-objects -C $repo @ArgumentList
+    if ($LASTEXITCODE -ne 0) { throw "Local Git operation failed ($($ArgumentList[0])). The benchmark uses local objects." }
+    return $result
+}
+
+function Get-FrozenHashes([string]$Path) {
+    $hashes = [ordered]@{}
+    foreach ($file in (Get-ChildItem -LiteralPath $Path -File -Force -Recurse | Sort-Object FullName -CaseSensitive)) {
+        $relative = [IO.Path]::GetRelativePath($Path, $file.FullName).Replace('\', '/')
+        $safe = Resolve-CirnetPath -Root $Path -Relative $relative
+        if ($file.LinkType -eq 'HardLink') { throw 'Snapshot contains a hard link.' }
+        $hashes[$relative] = Get-CirnetHash -Path $safe
+    }
+    return $hashes
+}
+
+function Read-Record([string]$Path) {
+    if ([IO.File]::Exists($Path)) { ConvertFrom-Json -AsHashtable -InputObject ([IO.File]::ReadAllText($Path, $utf8)) }
+}
+
+$temp = (Get-Item -LiteralPath ([IO.Path]::GetTempPath())).FullName
+$output = (Get-Item -LiteralPath $OutputRoot).FullName
+$relativeOutput = [IO.Path]::GetRelativePath($temp, $output).Replace('\', '/')
+if ($relativeOutput -eq '..' -or $relativeOutput.StartsWith('../') -or [IO.Path]::IsPathRooted($relativeOutput)) {
+    throw 'Use an existing output directory under OS temp.'
+}
+if ($relativeOutput -ne '.') { $output = Resolve-CirnetPath -Root $temp -Relative $relativeOutput }
+for ($directory = [IO.DirectoryInfo]::new($output); $directory; $directory = $directory.Parent) {
+    if ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Evaluation output cannot traverse a link.' }
+    if ($directory.FullName -eq $temp) { break }
+}
+$root = Resolve-CirnetPath -Root $output -Relative $Session
+if ($Summarize) {
+    if (-not (Test-Path -LiteralPath (Join-Path $root 'manifest.json') -PathType Leaf)) { throw 'Run manifest missing.' }
+    & node $reporter $root $ReviewFile $SummaryFile
+    if ($LASTEXITCODE -ne 0) { throw 'Could not summarize reviewed comparison evidence.' }
+    return
+}
+
+$ids = @($CaseId.Split(',') | ForEach-Object { $_.Trim() })
+if ($ids.Count -ne @($ids | Sort-Object -Unique).Count -or @($ids | Where-Object { $_ -cnotmatch '^E0[1-8]$' }).Count) {
+    throw 'Choose unique case IDs from E01 to E08.'
+}
+$planned = $ids.Count * $Repetitions * 4
+if ($Execute -and $MaxNativeCalls -lt $planned) { throw "This schedule may use $planned role calls. Supply an authorized -MaxNativeCalls covering the schedule." }
+if (-not $Execute -and ($AuthHome -or $UseApiKey)) { throw 'Credentials are only used with -Execute.' }
+if ($AuthHome -and $UseApiKey) { throw 'Choose one authentication method.' }
+if ($RunPurpose -ne 'Initial' -and -not $PriorSession) { throw 'Provide -PriorSession for a repeat or correction.' }
+if ($PriorSession -and (-not (Test-Path -LiteralPath (Join-Path (Resolve-CirnetPath -Root $output -Relative $PriorSession) 'manifest.json') -PathType Leaf))) {
+    throw 'Prior comparison manifest missing.'
+}
+$AuthorEffort = if ($AuthorEffort) { $AuthorEffort } else { $Preset }
+$WorkEffort = if ($WorkEffort) { $WorkEffort } else { $Preset }
+$schedule = @(
+    for ($rep = 1; $rep -le $Repetitions; $rep++) {
+        for ($i = 0; $i -lt $ids.Count; $i++) {
+            $order = if (([long]$Seed + $i + $rep - 1) % 2 -eq 0) { @('A','B2') } else { @('B2','A') }
+            foreach ($cohort in $order) {
+                [ordered]@{ caseId = $ids[$i]; repetition = $rep; cohort = $cohort; trialId = "$($ids[$i])-r$rep-$cohort" }
+            }
+        }
+    }
+)
+$head = (Invoke-SourceGit @('rev-parse','HEAD')).Trim()
+$sourceStatus = @(Invoke-SourceGit @('status','--short','--untracked-files=all'))
+$branch = (Invoke-SourceGit @('rev-parse','--abbrev-ref','HEAD')).Trim()
+$null = New-Item -ItemType Directory -Path $root
+$snapshots = Join-Path $root 'snapshots'
+$trials = Join-Path $root 'trials'
+$private = Join-Path $root 'evaluator'
+foreach ($directory in @($snapshots,$trials,$private)) { $null = New-Item -ItemType Directory -Path $directory }
+$paths = @(
+    'AGENTS.md','en/skills','en/templates/AGENTS.md','en/templates/chat-to-work-prompt.md'
+    'en/docs/context.md','en/docs/distribution.md','en/policies','en/rules','en/references','docs'
+)
+foreach ($selection in @(@('A',$baseline), @('common',$historical))) {
+    $snapshot = Join-Path $snapshots $selection[0]
+    $null = New-Item -ItemType Directory -Path $snapshot
+    $tar = Join-Path $snapshots ($selection[0] + '.tar')
+    $null = Invoke-SourceGit (@('archive','--format=tar',"--output=$tar",$selection[1],'--') + $paths)
+    & tar -xf $tar -C $snapshot
+    if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the local Git snapshot.' }
+}
+$candidate = Join-Path $snapshots 'B2'
+Copy-Item -LiteralPath (Join-Path $snapshots 'common') -Destination $candidate -Recurse
+$changedAuthoring = @('skills/cirnet-work-prompt-authoring/SKILL.md','templates/chat-to-work-prompt.md','docs/context.md')
+foreach ($language in @('en','vi')) {
+    foreach ($relative in $changedAuthoring) {
+        $path = "$language/$relative"
+        $source = Resolve-CirnetPath -Root $repo -Relative $path
+        $target = Join-Path $candidate $path
+        $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+        [IO.File]::Copy($source, $target, $true)
+    }
+}
+$frozen = [ordered]@{}
+foreach ($name in @('A','B2','common')) {
+    $snapshot = Join-Path $snapshots $name
+    $frozen[$name] = Get-FrozenHashes $snapshot
+    if (@($frozen[$name].Keys | Where-Object { $_ -cmatch '^en/skills/[^/]+/SKILL\.md$' }).Count -ne 13) {
+        throw 'Expected exactly 13 English Skills in each frozen source.'
+    }
+}
+$caseInputs = [ordered]@{}
+foreach ($file in @('cases.json','checks.mjs')) {
+    [IO.File]::Copy((Resolve-CirnetPath -Root $suite -Relative $file),(Join-Path $private $file))
+}
+foreach ($name in (Get-FrozenHashes (Join-Path $suite 'fixtures')).Keys) {
+    $source = Resolve-CirnetPath -Root $suite -Relative "fixtures/$name"
+    $target = Join-Path $private "fixtures/$name"
+    $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+    [IO.File]::Copy($source, $target)
+}
+$caseInputs = Get-FrozenHashes $private
+$prototype = [IO.File]::ReadAllText((Join-Path $private 'fixtures/E01/accounts.mjs'), $utf8)
+$canaries = @([regex]::Matches($prototype, "recoveryCode:\s*'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+if (-not $canaries.Count) { throw 'Expected synthetic recovery canaries in E01.' }
+# Only the harness reads these frozen inputs. The role runner uses this same suite.
+$manifest = [ordered]@{
+    schema = 1; session = $Session; startedUtc = [DateTimeOffset]::UtcNow.ToString('o')
+    mode = ($Execute ? 'execute' : 'preview'); priorSession = $PriorSession; runPurpose = $RunPurpose
+    sourceHead = $head; sourceStatus = $sourceStatus; branch = $branch
+    baseline = $baseline; historicalB = $historical; candidate = 'B2 working-tree authoring files over frozen common snapshot'
+    authorModel = $AuthorModel; workModel = $WorkModel; authorEffort = $AuthorEffort; workEffort = $WorkEffort
+    seed = $Seed; schedule = $schedule; repetitions = $Repetitions; timeoutSecondsPerRole = $TimeoutSeconds
+    maximumPlannedRoleCalls = $planned; authorizedCallCap = if ($Execute) { $MaxNativeCalls }
+    snapshots = $frozen; inputs = $caseInputs
+    runnerSha256 = Get-CirnetHash -Path $runner; schedulerSha256 = Get-CirnetHash -Path $PSCommandPath
+    reporterSha256 = Get-CirnetHash -Path $reporter
+    rtlObserverSha256 = Get-CirnetHash -Path (Join-Path $PSScriptRoot 'eval-codex-rtl.mjs')
+    host = [ordered]@{ os = [Runtime.InteropServices.RuntimeInformation]::OSDescription; pwsh = $PSVersionTable.PSVersion.ToString() }
+    limits = 'Role sandboxes, isolated environment and trace audit reduce access. OS reads outside the fixture are not guaranteed to be blocked.'
+}
+Save-Json (Join-Path $root 'manifest.json') $manifest
+Write-Host "A/B2 evidence root: $root"
+if (-not $Execute) { return }
+
+$commonArgs = @{ OutputRoot=$trials; ComparisonRoot=$root; SuiteRoot=$private; Execute=$true; TimeoutSeconds=$TimeoutSeconds }
+foreach ($arg in @('CodexPath','AuthHome','ToolPath','UseApiKey')) {
+    if ($PSBoundParameters.ContainsKey($arg)) { $commonArgs[$arg] = $PSBoundParameters[$arg] }
+}
+$stopReason = $null
+foreach ($slot in $schedule) {
+    $trialRoot = Resolve-CirnetPath -Root $trials -Relative $slot.trialId
+    $null = New-Item -ItemType Directory -Path $trialRoot
+    $trial = [ordered]@{
+        caseId=$slot.caseId; cohort=$slot.cohort; repetition=$slot.repetition; trialId=$slot.trialId
+        source='NOT_RUN'; verdict='NOT_RUN'; validity='VALID'; reason=$stopReason
+        author=$null; work=$null; authorFinalSha256=$null; workInputSha256=$null; prompt=$null
+    }
+    if ($stopReason) {
+        $trial.verdict = 'BLOCKED'
+        Save-Json (Join-Path $trialRoot 'pair-trial.json') $trial
+        continue
+    }
+    $selected = if ($slot.cohort -eq 'A') { 'Baseline' } else { 'Candidate' }
+    $authorRules = Join-Path $snapshots $slot.cohort
+    $roleArgs = $commonArgs.Clone()
+    $roleArgs.OutputRoot = $trialRoot
+    $roleArgs.CaseId = $slot.caseId
+    $roleArgs.Cohort = $selected
+    $authorRevision = if ($slot.cohort -eq 'A') { $baseline } else { 'B2:' + $frozen.B2['en/templates/chat-to-work-prompt.md'] }
+    try {
+        & $runner @roleArgs -Role Author -Session Author -RulesRoot $authorRules -SourceRevision $authorRevision -Model $AuthorModel -Effort $AuthorEffort
+        $author = Read-Record (Join-Path $trialRoot "Author/$($slot.caseId)/run.json")
+        if (-not $author) { throw 'Author record is missing.' }
+        $trial.author = $author
+        $trial.source = if ($author.client.kind -eq 'test-shim') { 'TEST_SHIM' } else { 'NATIVE' }
+        $trial.verdict = $author.verdict
+        $trial.reason = $author.reason
+        if ($author.client.preflight -eq 'BLOCKED' -or $author.reason -match 'DNS or network|authentication or authorization|quota or rate|sandbox.*(?:initialize|restriction)|out-of-scope tool path') {
+            $stopReason = $author.reason
+        }
+        if ($author.execution -eq 'COMPLETED' -and $author['finalSha256'] -and -not $author.process.scopeStop) {
+            $handoff = Join-Path $trialRoot "Author/$($slot.caseId)/final.md"
+            $trial.authorFinalSha256 = Get-CirnetHash -Path $handoff
+            $prompt = [IO.File]::ReadAllText($handoff, $utf8)
+            $trial.prompt = [ordered]@{ bytes = (Get-Item -LiteralPath $handoff).Length; words = [regex]::Matches($prompt, '\S+').Count; tokens = 'NOT_AVAILABLE' }
+            & $runner @roleArgs -Role Work -Session Work -RulesRoot (Join-Path $snapshots 'common') -SourceRevision $historical -Model $WorkModel -Effort $WorkEffort -HandoffPath $handoff
+            $work = Read-Record (Join-Path $trialRoot "Work/$($slot.caseId)/run.json")
+            if (-not $work) { throw 'Work record is missing.' }
+            $trial.work = $work
+            $trial.workInputSha256 = $work.manifest.promptSha256
+            if ($trial.authorFinalSha256 -cne $trial.workInputSha256 -or $trial.authorFinalSha256 -cne $author.finalSha256) {
+                throw 'Handoff bytes differ across roles.'
+            }
+            if ($work.client.preflight -eq 'BLOCKED' -or $work.reason -match 'DNS or network|authentication or authorization|quota or rate|sandbox.*(?:initialize|restriction)') {
+                $stopReason = $work.reason
+            }
+            if ($author.verdict -ne 'FAIL') { $trial.verdict = $work.verdict; $trial.reason = $work.reason }
+        }
+        if ($trial.verdict -eq 'BLOCKED' -and $trial.source -eq 'NATIVE') { $trial.reason = "BLOCKED_NATIVE_BENCHMARK: $($trial.reason)" }
+        foreach ($name in $frozen.Keys) {
+            if ((ConvertTo-Json -Compress -InputObject (Get-FrozenHashes (Join-Path $snapshots $name))) -cne
+                (ConvertTo-Json -Compress -InputObject $frozen[$name])) { throw 'Frozen rules input changed.' }
+        }
+        if ((ConvertTo-Json -Compress -InputObject (Get-FrozenHashes $private)) -cne
+            (ConvertTo-Json -Compress -InputObject $caseInputs)) { throw 'Frozen case data or evaluator changed.' }
+    } catch {
+        # Do not echo exception text that can include native input or output.
+        $trial.validity = 'HARNESS_INVALID'
+        $trial.verdict = 'BLOCKED'
+        $trial.reason = 'Harness did not collect a valid pair. Inspect the owned role records.'
+        $trial.harnessErrorType = $_.Exception.GetBaseException().GetType().Name
+        $stopReason = $trial.reason
+    }
+    $trialJson = ConvertTo-Json -InputObject $trial -Depth 60
+    if (@($canaries | Where-Object { $trialJson.Contains($_, [StringComparison]::Ordinal) }).Count) {
+        throw 'Protected value in serialized trial. Evidence export stopped.'
+    }
+    Save-Json (Join-Path $trialRoot 'pair-trial.json') $trial
+}
+& node $reporter $root
+if ($LASTEXITCODE -ne 0) { throw 'Could not index comparison evidence.' }
