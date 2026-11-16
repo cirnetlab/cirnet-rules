@@ -5,42 +5,72 @@ description: Dùng khi được yêu cầu viết Work Prompt hoặc chỉ dẫn
 
 # Biên soạn Work Prompt
 
-Trong vai trò Chat, khảo sát chỉ đọc trong phạm vi được phép và soạn nội dung
-bàn giao. Khi được yêu cầu trực tiếp thực hiện nhiệm vụ, dùng Skill triển khai,
-gỡ lỗi hoặc kiểm chứng phù hợp. Work Agent kiểm tra lại checkout local, nhánh,
-quyền và bằng chứng, sau đó lập kế hoạch, sửa, kiểm thử và báo cáo đúng phạm vi.
+Chat khảo sát chỉ đọc trong phạm vi được phép và soạn một bản bàn giao rõ phạm vi.
+Yêu cầu sửa source trực tiếp dùng Skill thực thi phù hợp. Work kiểm tra lại
+checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi triển khai.
 
-1. Đọc yêu cầu và xác định kết quả cần đạt, đường dẫn repo được phép sửa,
-   phụ thuộc chỉ đọc và thao tác đã được cấp quyền.
-2. Mở `en/policies/architecture.md` và `en/references/architecture-routing.md`
-   từ toolkit được phép. Xác định chủ sở hữu, chọn các mục tiếng Anh Ecosystem,
-   Lab-First hoặc FPGA áp dụng cùng Rules và Skills liên quan. Giữ các ràng
-   buộc công nghệ áp dụng và `LAB_FIRST_PRIMARY`. Công việc Ecosystem độc lập
-   có thể tiếp tục trong ranh giới của mình. Chuyển sang `PARALLEL_ALLOWED`
-   cần bằng chứng theo chính sách.
-3. Khảo sát source, contract, test và manifest của chủ sở hữu khi truy cập
-   được. Ghi dữ kiện quan sát cùng phạm vi và đánh dấu nhận định chưa xác minh.
-   Nếu Chat không truy cập source nhưng biết chủ sở hữu và phạm vi an toàn,
-   dùng `NOT_INSPECTED` và giao Work xác nhận khi kiểm tra trước. Kết quả test
-   trước đây chỉ là bằng chứng cho đầu vào ban đầu của chúng.
-4. Đọc `en/templates/chat-to-work-prompt.md` từ checkout `cirnet-rules` đã
-   được phép và điền chỉ dẫn chuyên biệt. Bundle đã cài cung cấp Skill này và
-   cần quyền truy cập checkout đó để đọc mẫu. Nếu không truy cập được checkout
-   hoặc mẫu, báo `PROMPT_BLOCKED` cùng quyền truy cập cần có.
+1. **Interpret.** Xác định mục tiêu quan sát được, hành vi mong muốn và thao tác
+   người dùng đã thực sự cấp quyền. Đọc được repo chỉ xác lập quyền đọc.
+2. **Locate Owner.** Mở `en/policies/architecture.md` và
+   `en/references/architecture-routing.md` trong toolkit được phép. Xác định
+   owner, consumer trực tiếp và ranh giới ghi/đọc cho từng repo.
+3. **Select Authority/Skills.** Đọc các mục kiến trúc tiếng Anh và Rules liên
+   quan. Xem metadata của 13 Skills, dùng `en/skills/README.md` nếu client
+   không cung cấp metadata. Chỉ đọc thân Work Skills có trigger áp dụng. Liệt kê
+   đúng tên trong Applicable Work Skills cùng trách nhiệm theo nhiệm vụ.
+   Tham chiếu workflow chung và giữ invariant mang tính quyết định.
+4. **Gather Minimum Evidence.** Xem source, contract, manifest và output lỗi của
+   owner khi truy cập được. Ghi nhận định, trạng thái, vị trí nguồn và tác động
+   hoặc phép kiểm tiếp theo. Dùng `CONFIRMED` cho quan sát, `INFERRED` cho giả
+   thuyết kèm phép kiểm để xác định, `NOT_INSPECTED` cho đầu vào chưa đọc,
+   `BLOCKED` cho điều kiện còn thiếu. Dẫn repo/path/symbol/revision đã xác minh.
+   Với CI, ghi run URL/ID, commit SHA, job/step và lỗi đầu tiên có thể xử lý.
+   Giữ kết quả lịch sử gắn với đầu vào và ngày ban đầu.
+5. **Draft Adaptive Prompt.** Đọc `en/templates/chat-to-work-prompt.md` từ
+   checkout được phép. Bundle đã cài cung cấp Skill này và cần quyền đọc
+   checkout riêng để lấy mẫu. Thiếu quyền đọc mẫu thì trả `PROMPT_BLOCKED`.
+   Chọn `LIGHT`, `STANDARD` hoặc `DEEP` theo độ phức tạp, rủi ro, phụ thuộc,
+   bất định và khả năng truy cập nguồn. Xét đủ 12 trường ngữ nghĩa, gom thông
+   tin áp dụng vào các heading Markdown thông thường.
+6. **Deduplicate.** Mỗi dữ kiện, ràng buộc và tiêu chí nghiệm thu có một vị trí.
+   Tham chiếu Rules, Skills và kiến trúc truy cập được bằng đường dẫn tương đối
+   chính xác, nơi lấy nguồn và revision đã xác minh nếu biết. Giữ điều kiện an
+   toàn và quyền riêng của nhiệm vụ. Mở rộng bằng chứng khi nguồn không truy cập
+   được, lỗi tạm thời, khó tái hiện hoặc có rủi ro bảo mật/tương thích.
+7. **Editorial Gate.** Rà mục tiêu, owner, phạm vi, bằng chứng, phụ thuộc, ca từ
+   chối, invariant và nghiệm thu để Work có thể bắt đầu. Gắn mỗi tiêu chí với
+   lệnh/quan sát đã xác minh hoặc giao Work tìm lệnh trong chỉ dẫn owner. Bổ sung
+   chi tiết quyết định còn thiếu hoặc báo `PROMPT_BLOCKED`. Đây là rà soát
+   biên tập. Kết quả thực thi cần bằng chứng thực tế từ Work.
+8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
+   chép theo định dạng được yêu cầu. Loại chỉ dẫn dùng mẫu và placeholder thừa.
+   Báo `PROMPT_BLOCKED` cùng đầu vào, quyền hoặc quyết định còn thiếu nếu chưa
+   thể bàn giao an toàn. Nhiệm vụ tách riêng cần được cấp quyền riêng.
 
-Trước khi trả Prompt, kiểm tra chủ sở hữu, kiến trúc, ranh giới với repo khác,
-nhãn bằng chứng và tiêu chí nghiệm thu quan sát được. Giữ tính tương thích của
-contract, pin chính xác và artifact đóng băng. Tại ranh giới Lab vật lý, tách
-Safety khỏi Correctness, gắn kết theo topology đã quan sát và loại bỏ việc tự
-sửa dây sinh viên. Dùng khả năng và kết quả có bằng chứng. Gắn kết luận E2E thật
-với các ranh giới thực sự được chạy. Chỉ chuyển quyền đã được cấp, nhất là khi sửa nhiều repo, công bố,
-triển khai hoặc vận hành vật lý.
+## Truy cập và thẩm quyền
 
-Trả `PROMPT_READY` và một Work Prompt có thể sao chép trong chat khi đủ điều
-kiện bàn giao đúng phạm vi. Work vẫn phải cung cấp bằng chứng để xác nhận
-`IMPLEMENTATION_VERIFIED`. Trả `PROMPT_BLOCKED` cùng đầu vào, quyền còn thiếu
-hoặc quyết định xung đột nếu điểm đó cản trở việc bàn giao an toàn. Chỉ kèm
-Work Prompt cho một nhiệm vụ tách được nếu nhiệm vụ đó đã được cấp quyền riêng.
+Giao Work mở lại chỉ dẫn local/lồng nhau, Rules, Skills và nguồn owner áp dụng
+trong checkout được phép, đối chiếu revision trước khi thao tác. Nếu Work không
+đọc được nguồn tham chiếu, đưa trực tiếp dữ kiện đáng tin cậy thiết yếu, định
+danh/phiên bản nguồn, ràng buộc và nghiệm thu vào bản bàn giao. Chỉ dùng fallback
+khi bằng chứng đáng tin cậy xác lập phạm vi an toàn. Đánh dấu phần chưa giải
+quyết là `BLOCKED`, hoặc cả bản bàn giao là `PROMPT_BLOCKED` nếu thiếu thẩm
+quyền hay quyết định thiết yếu. Chat thiếu quyền đọc source sản phẩm có thể ghi
+`NOT_INSPECTED` và giao Work kiểm tra trước khi đã rõ owner, phạm vi an toàn.
+Phân biệt quyền đọc mẫu với quyền Work đọc source.
+
+Giữ lựa chọn công nghệ áp dụng, `LAB_FIRST_PRIMARY`, pin chính xác, artifact
+bất biến và provenance. `PARALLEL_ALLOWED` cần bằng chứng theo chính sách kiến
+trúc. Công việc Ecosystem độc lập nằm trong ranh giới owner của mình. Ở Lab vật
+lý, phân biệt Safety, Topology và Correctness, gắn với topology quan sát được,
+giữ routing chỉ cho hạ tầng và dây sinh viên. Dùng khả năng có bằng chứng.
+Kết luận E2E thật cần chuỗi thực thi thật đã chọn. Vận hành vật lý cần ủy quyền
+rõ ràng và bằng chứng an toàn của owner.
+
+Bản bàn giao chỉ chuyển quyền đã cấp, gồm ghi liên repo, commit/push/merge,
+công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của bản bàn giao.
+`IMPLEMENTATION_VERIFIED` cần bằng chứng mới từ Work. Phép kiểm người dùng
+hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: a2d00eb57892c7d9dcf9bcf11f9feeae2a80dc656e8a1c3e22e994bac083e7c7 -->
+<!-- source-sha256: 15bea1aec4a1dfd80d25ff43306f67317267b2969d70ee54214311af24272d35 -->

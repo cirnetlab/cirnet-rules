@@ -5,41 +5,70 @@ description: Use when asked to write a Work Prompt or implementation handoff for
 
 # Author a Work Prompt
 
-In the Chat role, do authorized read-only discovery and author the handoff.
-Use the applicable implementation, debugging or verification skill when
-asked to do the work directly. The Work Agent rechecks local checkout, branch,
-permissions and evidence, then plans, edits, tests and reports within scope.
+Chat performs authorized read-only discovery and authors one scoped handoff.
+Direct source changes use the applicable execution Skill. Work rechecks local
+checkout, branch, instructions, permissions and evidence before implementation.
 
-1. Read the request and identify the intended outcome, allowed repository
-   paths, read-only dependencies and authorized operations.
-2. Open `en/policies/architecture.md` and `en/references/architecture-routing.md`
-   from the approved toolkit. Identify the owner and select the applicable
-   English Ecosystem, Lab-First or FPGA sections and relevant Rules and Skills.
-   Carry forward the applicable technology and `LAB_FIRST_PRIMARY` constraints.
-   Independent Ecosystem work can proceed within its boundaries. Any switch to
-   `PARALLEL_ALLOWED` needs the policy's evidence.
-3. Inspect the owner's source, contracts, tests and manifests when accessible.
-   Record observed facts with their scope and mark unverified claims. If Chat
-   lacks source access but the owner and safe scope are clear, use
-   `NOT_INSPECTED` and make confirmation part of Work preflight. Treat earlier
-   test results as evidence for their original inputs.
-4. Read `en/templates/chat-to-work-prompt.md` from an approved `cirnet-rules`
-   checkout and fill it with task-specific instructions. The installed bundle
-   supplies this Skill and requires access to that checkout for the template.
-   If the checkout or template is inaccessible, report `PROMPT_BLOCKED` and
-   the access needed.
+1. **Interpret.** Establish the observable goal, expected behavior and operations
+   actually authorized by the user. A readable repository grants read access only.
+2. **Locate Owner.** Open `en/policies/architecture.md` and
+   `en/references/architecture-routing.md` in the approved toolkit. Identify the
+   owner, direct consumers and write/read boundaries per repository.
+3. **Select Authority/Skills.** Read the relevant English architecture sections
+   and Rules. Inspect the 13 Skills' metadata, using `en/skills/README.md` when
+   client metadata is unavailable. Read only Work Skill bodies whose triggers
+   apply. List those exact names under Applicable Work Skills with their task
+   responsibilities. Refer to shared workflows and carry decisive invariants.
+4. **Gather Minimum Evidence.** Inspect accessible owner source, contracts,
+   manifests and error output. Record claim, status, locator and impact or next
+   check. Use `CONFIRMED` for observations, `INFERRED` for hypotheses with a
+   resolving check, `NOT_INSPECTED` for unread inputs and `BLOCKED` for unmet
+   prerequisites. Give verified repo/path/symbol/revision locators. For CI,
+   include run URL/ID, commit SHA, job/step and first actionable error. Preserve
+   historical results with their original inputs and date.
+5. **Draft Adaptive Prompt.** Read `en/templates/chat-to-work-prompt.md` from an
+   approved checkout. The installed bundle supplies this Skill and needs separate
+   checkout access for that template. Missing template access yields
+   `PROMPT_BLOCKED`. Choose `LIGHT`, `STANDARD` or `DEEP` by complexity, risk,
+   dependencies, uncertainty and source accessibility. Consider all 12 semantic
+   fields, grouping the applicable information into ordinary Markdown headings.
+6. **Deduplicate.** Keep each fact, constraint and acceptance criterion in one
+   place. Reference accessible Rules, Skills and architecture by exact relative
+   path, source location and verified revision when known. Retain task-specific
+   safety and permission conditions. Expand evidence for inaccessible sources,
+   transient failures, difficult reproduction or security/compatibility risks.
+7. **Editorial Gate.** Review the draft for a usable goal, owner, scope, evidence,
+   dependencies, negative cases, invariants and acceptance. Pair every criterion
+   with a verified command/observation or ask Work to find the command in owner
+   instructions. Expand missing critical detail or report `PROMPT_BLOCKED`.
+   This is editorial review. Execution results require Work's actual evidence.
+8. **Hand Off.** Return `PROMPT_READY` and one complete copyable Work Prompt in
+   the requested format. Exclude template instructions and unused placeholders.
+   Report `PROMPT_BLOCKED` with the missing input, permission or decision when a
+   safe handoff is unavailable. A separable task needs its own authorization.
 
-Before returning a prompt, check the owner and architecture, the boundary with
-other repositories, the evidence labels and observable acceptance criteria.
-Preserve contract compatibility, exact pins and frozen artifacts. At physical
-Lab boundaries, keep Safety separate from Correctness, bind to observed topology
-and reject automatic repair of student wiring. Use evidenced capabilities and
-results. Tie real E2E claims to real boundaries. Carry only granted permissions,
-especially for cross-repository edits, publication, deployment and physical
-operation.
+## Access and authority
 
-Return `PROMPT_READY` and one copyable Work Prompt in chat when the scoped
-handoff is ready. Work must still provide evidence for
-`IMPLEMENTATION_VERIFIED`. Return `PROMPT_BLOCKED` with the missing input,
-permission or conflicting decision when it prevents a safe handoff. Include a
-Work Prompt for a separable task only if that task is independently authorized.
+Have Work reopen the applicable local/nested instructions, Rules, Skills and
+owner sources in its authorized checkout and reconcile their revisions before
+acting. If Work cannot read a referenced source, include the essential trusted
+facts, source identity/version, constraints and acceptance directly in the
+handoff. Use that fallback only when reliable evidence establishes safe scope.
+Mark unresolved portions `BLOCKED`, or the handoff `PROMPT_BLOCKED` if an
+essential authority or decision is missing. Chat's lack of product-source access
+can be `NOT_INSPECTED` with a Work preflight obligation when the owner and safe
+scope are established. Keep template access distinct from Work source access.
+
+Preserve applicable technology choices, `LAB_FIRST_PRIMARY`, exact pins,
+immutable artifacts and provenance. `PARALLEL_ALLOWED` requires the architecture
+policy's evidence. Independent Ecosystem work stays within its owners' bounds.
+At physical Lab boundaries, distinguish Safety, Topology and Correctness, bind
+to observed topology and preserve infrastructure-only routing and student
+wiring. Use evidenced capabilities. Real E2E claims require the real selected
+chain. Physical operation needs explicit authorization and owner safety evidence.
+
+The handoff carries only granted permissions, including cross-repo writes,
+commit/push/merge, publication and deployment. `PROMPT_READY` describes handoff
+readiness. `IMPLEMENTATION_VERIFIED` requires fresh Work evidence. User-deferred
+checks remain `NOT_RUN` with the reason, including `DEFERRED_BY_USER_PHASE_1`
+where applicable.

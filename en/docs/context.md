@@ -29,9 +29,17 @@ loads that baseline once. A managed adapter should never import the library.
 ## Chat-to-Work
 
 When asked to prepare a prompt for another agent, select the authoring Skill
-and open the English template in an approved checkout. Read only the applicable
-architecture, owner instructions and available evidence. Return the scoped
-handoff in chat. Direct code changes use the normal execution Skills.
+and open the English template in an approved checkout. Select applicable Work
+Skills from metadata and read only their bodies, relevant architecture, owner
+instructions and evidence. Choose LIGHT, STANDARD or DEEP by complexity, risk,
+dependencies, uncertainty and source access. Consider all 12 semantic fields
+and group the applicable content into the headings the task needs.
+
+Reference sources Work can read and retain task-specific constraints directly.
+When Work lacks source access, include essential trusted facts, source identity,
+constraints and acceptance, or block the dependent work if authority is missing.
+The English template still needs separate checkout access as described below.
+Return one scoped handoff in chat. Direct source changes use execution Skills.
 [Authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Template](../templates/chat-to-work-prompt.md) · [Bundle access](distribution.md#work-prompt-authoring)
 
