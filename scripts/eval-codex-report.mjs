@@ -100,7 +100,10 @@ function recordAt(slot) {
     trial.workInputSha256 === index[relative(root, resolve(trialRoot, 'Work', slot.caseId, 'prompt.txt')).replaceAll('\\', '/')]?.sha256);
   const native = trial.source === 'NATIVE';
   const canaryHits = (trial.author?.trace?.privacyHits ?? 0) + (trial.work?.trace?.privacyHits ?? 0);
-  const objectiveFailure = trial.verdict === 'FAIL' || canaryHits > 0 || (native && trial.work?.objective?.status === 'FAIL');
+  const scopeFailure = trial.work?.objective?.checks?.some((check) => check.status === 'FAIL' &&
+    ['protected fixture paths', 'regular fixture files only'].includes(check.name));
+  const objectiveFailure = trial.verdict === 'FAIL' || canaryHits > 0 || (native && scopeFailure) ||
+    (native && trial.work?.execution === 'COMPLETED' && trial.work?.objective?.status === 'FAIL');
   const completed = trial.validity === 'VALID' && trial.author?.execution === 'COMPLETED' &&
     trial.work?.execution === 'COMPLETED' && byteExact;
   const rubricReview = review?.trials[slot.trialId];
@@ -256,7 +259,7 @@ const comparable = pairs.filter((p) => p.comparable);
 const matchedPasses = comparable.filter((p) => p.A.verdict === 'PASS' && p.B2.verdict === 'PASS');
 const regressions = pairs.filter(({ A, B2 }) => B2.source === 'NATIVE' && B2.validity === 'VALID' && (
   B2.canaryHits > 0 || B2.verdict === 'FAIL' ||
-  (A.verdict === 'PASS' && B2.verdict === 'BLOCKED') ||
+  (A.verdict === 'PASS' && B2.completed && B2.verdict === 'BLOCKED') ||
   (A.verification && B2.verification && A.verification.some((c,i) => c.status === 'PASS' && B2.verification[i].status !== 'PASS'))
 )).map((p) => ({ caseId: p.caseId, repetition: p.repetition, A: p.A.verdict, B2: p.B2.verdict }));
 const qualityGate = regressions.length ? 'NOT_ACCEPTED' :
@@ -285,12 +288,12 @@ const summary = {
   cases: records, paired: pairs.map(({ caseId,repetition,comparable: eligible }) => ({ caseId,repetition,comparable:eligible })),
   wholeSuite: { A: metrics(records.filter((r) => r.cohort === 'A')), B2: metrics(records.filter((r) => r.cohort === 'B2')) },
   matchedTelemetry: grouped(comparable), matchedSuccessfulTasks: pairedSuccess,
-  pairedDeltas: {
+  pairedDeltas: qualityGate === 'PASS' ? {
     promptBytes: pairedDeltas(comparable, (r) => r.prompt?.bytes),
     promptWords: pairedDeltas(comparable, (r) => r.prompt?.words),
     successfulInput: pairedDeltas(matchedPasses, (r) => sum(Object.values(r.roles).map((role) => role.usage?.input))),
     successfulOutput: pairedDeltas(matchedPasses, (r) => sum(Object.values(r.roles).map((role) => role.usage?.output))),
-  },
+  } : 'NOT_ASSESSED until quality gate passes',
   operationalUsageIncludingInvalid: { A: allUsage('A'), B2: allUsage('B2') },
   efficiency: qualityGate !== 'PASS' || !Number.isFinite(pairedSuccess.A.combinedInput) || !Number.isFinite(pairedSuccess.B2.combinedInput)
     ? 'INCONCLUSIVE' : pairedSuccess.B2.combinedInput < pairedSuccess.A.combinedInput ? 'LOWER_OBSERVED_INPUT' : 'NO_GAIN',

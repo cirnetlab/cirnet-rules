@@ -71,6 +71,17 @@ Chọn đoạn source an toàn trước khi gọi công cụ. Xem cấu trúc v�
 được phép trước. Lọc literal nhạy cảm trước output, giữ chúng ngoài prompt
 và bằng chứng. Đánh dấu lần đọc `BLOCKED` khi thiếu cách truy cập an toàn.
 
+Đưa giới hạn đọc an toàn theo nhiệm vụ vào nội dung cuối dành cho Work,
+kể cả `PROMPT_BLOCKED`. Khi thiếu thẩm quyền xuất dữ liệu, Work có thể xác nhận
+chỉ dẫn local, revision và phạm vi rồi hỏi các quyết định còn thiếu. Dùng lại
+dữ kiện projection và tên trường đã xem cùng vị trí nguồn; không yêu cầu đọc
+lại kho bản ghi chỉ để xác nhận lại trạng thái bị chặn. Nếu có quyền thực hiện
+một lần đọc độc lập cần thiết, chỉ xuất định danh hoặc mã projection đã lọc
+giá trị. Loại literal nhạy cảm trong bộ nhớ trước khi trích source, dòng tìm
+kiếm khớp, lỗi hay log được đưa ra output. Xuất tệp chưa lọc hay dòng tìm kiếm
+khớp chứa giá trị đều không an toàn. Nếu không thể lọc an toàn, giữ lần đọc đó
+ở trạng thái bị chặn và yêu cầu đường truy cập an toàn hơn.
+
 Giao Work mở lại tham chiếu trong checkout được phép và đối chiếu source local
 hiện tại trước khi thao tác. Nếu Work không đọc được tham chiếu, đưa trực tiếp
 dữ kiện đáng tin cậy thiết yếu, định danh/phiên bản nguồn, ràng buộc và nghiệm
@@ -127,4 +138,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: f898201ed19a8b62a401db66249dc710fef8fcf7aca85e4be83f825548eedbb3 -->
+<!-- source-sha256: 7b705db86919bbebc1a9254ce7fc76449b667da7cdf5e5d484fd3b56b879b39e -->

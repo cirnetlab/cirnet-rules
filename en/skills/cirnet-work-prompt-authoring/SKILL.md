@@ -62,6 +62,9 @@ checkout, branch, instructions, permissions and evidence before implementation.
    the requested format. Exclude template instructions and unused placeholders.
    Report `PROMPT_BLOCKED` with the missing input, permission or decision when a
    safe handoff is unavailable. A separable task needs its own authorization.
+   Include Work's permitted preflight and task-specific privacy, safety and read
+   boundaries even in a blocked handoff, following the template's safe-inspection
+   procedure. Blocking implementation does not protect later tool output.
 
 ## Access and authority
 

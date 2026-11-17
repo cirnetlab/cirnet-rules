@@ -63,6 +63,10 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    chép theo định dạng được yêu cầu. Loại chỉ dẫn dùng mẫu và placeholder thừa.
    Báo `PROMPT_BLOCKED` cùng đầu vào, quyền hoặc quyết định còn thiếu nếu chưa
    thể bàn giao an toàn. Nhiệm vụ tách riêng cần được cấp quyền riêng.
+   Giữ bước kiểm tra trước được phép của Work cùng giới hạn quyền riêng tư,
+   an toàn và quyền đọc theo nhiệm vụ ngay cả trong bản bàn giao bị chặn,
+   theo quy trình đọc an toàn của mẫu. Chặn triển khai không bảo vệ output
+   công cụ về sau.
 
 ## Truy cập và thẩm quyền
 
@@ -90,4 +94,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 2e798f389f794776fb3a0a64efc8a47c8ab0b85c52b2887c5e409c06db5c1b74 -->
+<!-- source-sha256: 662211bcd540edada7669bd51394c446f6230150bfd747acdc5fd454eaf6d655 -->

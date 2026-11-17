@@ -92,6 +92,18 @@ sự kiện native không cung cấp. Để chạy đủ, chọn
 Dùng tên mới và gắn `-PriorSession` khi ghi lượt sửa hoặc lặp độc lập qua
 `-RunPurpose`.
 
+Sau khi bị gián đoạn bởi quota hoặc xác thực, dùng phiên mới với
+`-RunPurpose Continuation -PriorSession <interrupted-session>` và giữ nguyên
+các ca, số lần lặp, seed, timeout và thiết lập từng vai trò. Scheduler xác minh
+danh mục bằng chứng cũ, dùng lại rules và tệp đánh giá gốc theo hash đã ghi,
+rồi sao chép đúng từng byte các lượt đã hoàn tất (kể cả FAIL). Scheduler chỉ
+chạy các lượt còn thiếu và ghi ID lượt được giữ cùng digest danh mục cũ.
+Đặt `-MaxNativeCalls` đủ hai lượt gọi vai trò cho mỗi lượt thử còn thiếu.
+Giữ phiên bị gián đoạn vì các lần
+bị chặn vẫn là bằng chứng vận hành. Ghi riêng mọi thay đổi hồ sơ xác thực,
+không xuất thông tin đăng nhập. Nếu đổi đầu vào hoặc thiết lập, dùng lượt sửa
+hoặc lặp độc lập.
+
 Author có shell chỉ đọc và nguồn biên soạn đã chọn. Work bắt đầu từ fixture
 mới với đúng byte bản bàn giao cuối trên stdin. Cả hai có thể đọc producer
 giả lập của E04 trong fixture. Chỉ đường dẫn consumer được phép ghi. Rubric
@@ -135,4 +147,4 @@ Giữ profile, cây fixture và log runtime tạm trong thư mục riêng của 
 Chỉ chia sẻ báo cáo đã chấm hoặc bằng chứng đã lọc được phép.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: d49420f259ff683c691bbff6b24506703cd00cdd60d79e81351155d3d35fad3c -->
+<!-- source-sha256: 1ed7e9c45dc44d00d43ed893dce6c3d42495f608764ff51b2637b2a91a31bae6 -->

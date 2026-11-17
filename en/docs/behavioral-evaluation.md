@@ -95,6 +95,18 @@ For the full lane select `'E01,E06,E02,E05,E03,E04,E07,E08'` and
 Choose a new session and link `-PriorSession` when recording a correction
 or an independent repeat with `-RunPurpose`.
 
+After a quota or authentication interruption, use a new session with
+`-RunPurpose Continuation -PriorSession <interrupted-session>` and repeat the
+original cases, repetitions, seed, timeout and role settings. The scheduler
+verifies the prior evidence index, reuses the original rules and evaluator
+files by their recorded hashes, and copies indexed completed trials byte for
+byte (including failures). It executes only the remaining slots and records
+the carried trial IDs and prior index digest. Set `-MaxNativeCalls` to cover
+two role calls per remaining slot.
+Keep the interrupted session: its blocked attempts remain operational evidence.
+Record any authentication-profile change separately without exporting credentials.
+Changed inputs or settings require a correction or independent repeat instead.
+
 Author has a read-only shell and access to the selected authoring sources.
 Work starts in a fresh fixture with the exact final Author bytes on stdin.
 Both may read the synthetic E04 producer within the fixture. Only the

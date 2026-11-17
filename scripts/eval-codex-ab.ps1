@@ -18,7 +18,7 @@ param(
     [Parameter(ParameterSetName='Run')][switch]$UseApiKey,
     [Parameter(ParameterSetName='Run')][switch]$Execute,
     [Parameter(ParameterSetName='Run')][ValidateRange(1, 320)][int]$MaxNativeCalls,
-    [Parameter(ParameterSetName='Run')][ValidateSet('Initial','IndependentRepeat','HarnessCorrection','PromptCorrection')][string]$RunPurpose = 'Initial',
+    [Parameter(ParameterSetName='Run')][ValidateSet('Initial','IndependentRepeat','HarnessCorrection','PromptCorrection','Continuation')][string]$RunPurpose = 'Initial',
     [Parameter(ParameterSetName='Run')][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$')][string]$PriorSession,
     [Parameter(ParameterSetName='Review', Mandatory)][switch]$Summarize,
     [Parameter(ParameterSetName='Review', Mandatory)][string]$ReviewFile,
@@ -60,6 +60,18 @@ function Read-Record([string]$Path) {
     if ([IO.File]::Exists($Path)) { ConvertFrom-Json -AsHashtable -InputObject ([IO.File]::ReadAllText($Path, $utf8)) }
 }
 
+function Copy-FrozenInputs([string]$Source, [string]$Destination, [System.Collections.IDictionary]$Hashes) {
+    if (-not $Hashes.Count) { throw 'No frozen input hashes in prior manifest.' }
+    foreach ($entry in $Hashes.GetEnumerator()) {
+        $file = Resolve-CirnetPath -Root $Source -Relative $entry.Key
+        if ((Get-Item -LiteralPath $file).LinkType -eq 'HardLink') { throw 'Snapshot contains a hard link.' }
+        $target = Resolve-CirnetPath -Root $Destination -Relative $entry.Key
+        $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+        [IO.File]::Copy($file, $target)
+        if ((Get-CirnetHash -Path $target) -cne $entry.Value) { throw 'Frozen prior input hash mismatch.' }
+    }
+}
+
 $temp = (Get-Item -LiteralPath ([IO.Path]::GetTempPath())).FullName
 $output = (Get-Item -LiteralPath $OutputRoot).FullName
 $relativeOutput = [IO.Path]::GetRelativePath($temp, $output).Replace('\', '/')
@@ -84,7 +96,6 @@ if ($ids.Count -ne @($ids | Sort-Object -Unique).Count -or @($ids | Where-Object
     throw 'Choose unique case IDs from E01 to E08.'
 }
 $planned = $ids.Count * $Repetitions * 4
-if ($Execute -and $MaxNativeCalls -lt $planned) { throw "This schedule may use $planned role calls. Supply an authorized -MaxNativeCalls covering the schedule." }
 if (-not $Execute -and ($AuthHome -or $UseApiKey)) { throw 'Credentials are only used with -Execute.' }
 if ($AuthHome -and $UseApiKey) { throw 'Choose one authentication method.' }
 if ($RunPurpose -ne 'Initial' -and -not $PriorSession) { throw 'Provide -PriorSession for a repeat or correction.' }
@@ -103,6 +114,53 @@ $schedule = @(
         }
     }
 )
+$carry = @{}
+$priorRoot = $null
+if ($RunPurpose -eq 'Continuation') {
+    $priorRoot = Resolve-CirnetPath -Root $output -Relative $PriorSession
+    $prior = Read-Record (Join-Path $priorRoot 'manifest.json')
+    foreach ($setting in @('authorModel','workModel','authorEffort','workEffort','seed','repetitions','timeoutSecondsPerRole')) {
+        $expected = switch ($setting) {
+            authorModel { $AuthorModel }; workModel { $WorkModel }; authorEffort { $AuthorEffort }
+            workEffort { $WorkEffort }; seed { $Seed }; repetitions { $Repetitions }; timeoutSecondsPerRole { $TimeoutSeconds }
+        }
+        if ($prior[$setting] -cne $expected) { throw "Continuation settings differ: $setting" }
+    }
+    if ($prior.schedule.Count -ne $schedule.Count) { throw 'Continuation schedule differs from the original.' }
+    for ($index = 0; $index -lt $schedule.Count; $index++) {
+        foreach ($field in @('caseId','repetition','cohort','trialId')) {
+            if ($schedule[$index][$field] -cne $prior.schedule[$index][$field]) {
+                throw 'Continuation schedule differs from the original.'
+            }
+        }
+    }
+    $priorIndex = Read-Record (Join-Path $priorRoot 'evidence-index.json')
+    if (-not $priorIndex.files -or -not $priorIndex.files.Contains('manifest.json')) {
+        throw 'Continuation requires an indexed prior manifest.'
+    }
+    foreach ($entry in $priorIndex.files.GetEnumerator()) {
+        $file = Resolve-CirnetPath -Root $priorRoot -Relative $entry.Key
+        if ((Get-CirnetHash -Path $file) -cne $entry.Value.sha256 -or (Get-Item -LiteralPath $file).Length -ne $entry.Value.bytes) {
+            throw 'Prior evidence integrity check failed.'
+        }
+    }
+    if ((Get-CirnetHash -Path $runner) -cne $prior.runnerSha256 -or
+        (Get-CirnetHash -Path (Join-Path $PSScriptRoot 'eval-codex-rtl.mjs')) -cne $prior.rtlObserverSha256) {
+        throw 'Continuation requires the original role runner and RTL observer.'
+    }
+    foreach ($slot in $schedule) {
+        $recordPath = "trials/$($slot.trialId)/pair-trial.json"
+        if (-not $priorIndex.files.Contains($recordPath)) { throw 'Prior trial record is not indexed.' }
+        $trial = Read-Record (Resolve-CirnetPath -Root $priorRoot -Relative $recordPath)
+        if ($trial -and $trial.validity -eq 'VALID' -and $trial.author -and $trial.author.execution -eq 'COMPLETED' -and
+            $trial.work -and $trial.work.execution -eq 'COMPLETED' -and $trial.authorFinalSha256 -and
+            $trial.authorFinalSha256 -ceq $trial.workInputSha256) { $carry[$slot.trialId] = $true }
+    }
+    $planned = ($schedule.Count - $carry.Count) * 2
+}
+if ($Execute -and ($MaxNativeCalls -lt $planned -or -not $PSBoundParameters.ContainsKey('MaxNativeCalls'))) {
+    throw "This schedule may use $planned role calls. Supply an authorized -MaxNativeCalls covering the schedule."
+}
 $head = (Invoke-SourceGit @('rev-parse','HEAD')).Trim()
 $sourceStatus = @(Invoke-SourceGit @('status','--short','--untracked-files=all'))
 $branch = (Invoke-SourceGit @('rev-parse','--abbrev-ref','HEAD')).Trim()
@@ -111,28 +169,47 @@ $snapshots = Join-Path $root 'snapshots'
 $trials = Join-Path $root 'trials'
 $private = Join-Path $root 'evaluator'
 foreach ($directory in @($snapshots,$trials,$private)) { $null = New-Item -ItemType Directory -Path $directory }
-$paths = @(
-    'AGENTS.md','en/skills','en/templates/AGENTS.md','en/templates/chat-to-work-prompt.md'
-    'en/docs/context.md','en/docs/distribution.md','en/policies','en/rules','en/references','docs'
-)
-foreach ($selection in @(@('A',$baseline), @('common',$historical))) {
-    $snapshot = Join-Path $snapshots $selection[0]
-    $null = New-Item -ItemType Directory -Path $snapshot
-    $tar = Join-Path $snapshots ($selection[0] + '.tar')
-    $null = Invoke-SourceGit (@('archive','--format=tar',"--output=$tar",$selection[1],'--') + $paths)
-    & tar -xf $tar -C $snapshot
-    if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the local Git snapshot.' }
+if ($priorRoot) {
+    foreach ($name in @('A','B2','common')) {
+        Copy-FrozenInputs (Resolve-CirnetPath -Root $priorRoot -Relative "snapshots/$name") (Join-Path $snapshots $name) $prior.snapshots[$name]
+    }
+    Copy-FrozenInputs (Resolve-CirnetPath -Root $priorRoot -Relative 'evaluator') $private $prior.inputs
+    $baseline = $prior.baseline
+    $historical = $prior.historicalB
 }
-$candidate = Join-Path $snapshots 'B2'
-Copy-Item -LiteralPath (Join-Path $snapshots 'common') -Destination $candidate -Recurse
-$changedAuthoring = @('skills/cirnet-work-prompt-authoring/SKILL.md','templates/chat-to-work-prompt.md','docs/context.md')
-foreach ($language in @('en','vi')) {
-    foreach ($relative in $changedAuthoring) {
-        $path = "$language/$relative"
-        $source = Resolve-CirnetPath -Root $repo -Relative $path
-        $target = Join-Path $candidate $path
+else {
+    $paths = @(
+        'AGENTS.md','en/skills','en/templates/AGENTS.md','en/templates/chat-to-work-prompt.md'
+        'en/docs/context.md','en/docs/distribution.md','en/policies','en/rules','en/references','docs'
+    )
+    foreach ($selection in @(@('A',$baseline), @('common',$historical))) {
+        $snapshot = Join-Path $snapshots $selection[0]
+        $null = New-Item -ItemType Directory -Path $snapshot
+        $tar = Join-Path $snapshots ($selection[0] + '.tar')
+        $null = Invoke-SourceGit (@('archive','--format=tar',"--output=$tar",$selection[1],'--') + $paths)
+        & tar -xf $tar -C $snapshot
+        if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the local Git snapshot.' }
+    }
+    $candidate = Join-Path $snapshots 'B2'
+    Copy-Item -LiteralPath (Join-Path $snapshots 'common') -Destination $candidate -Recurse
+    $changedAuthoring = @('skills/cirnet-work-prompt-authoring/SKILL.md','templates/chat-to-work-prompt.md','docs/context.md')
+    foreach ($language in @('en','vi')) {
+        foreach ($relative in $changedAuthoring) {
+            $path = "$language/$relative"
+            $source = Resolve-CirnetPath -Root $repo -Relative $path
+            $target = Join-Path $candidate $path
+            $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+            [IO.File]::Copy($source, $target, $true)
+        }
+    }
+    foreach ($file in @('cases.json','checks.mjs')) {
+        [IO.File]::Copy((Resolve-CirnetPath -Root $suite -Relative $file),(Join-Path $private $file))
+    }
+    foreach ($name in (Get-FrozenHashes (Join-Path $suite 'fixtures')).Keys) {
+        $source = Resolve-CirnetPath -Root $suite -Relative "fixtures/$name"
+        $target = Join-Path $private "fixtures/$name"
         $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
-        [IO.File]::Copy($source, $target, $true)
+        [IO.File]::Copy($source, $target)
     }
 }
 $frozen = [ordered]@{}
@@ -143,16 +220,6 @@ foreach ($name in @('A','B2','common')) {
         throw 'Expected exactly 13 English Skills in each frozen source.'
     }
 }
-$caseInputs = [ordered]@{}
-foreach ($file in @('cases.json','checks.mjs')) {
-    [IO.File]::Copy((Resolve-CirnetPath -Root $suite -Relative $file),(Join-Path $private $file))
-}
-foreach ($name in (Get-FrozenHashes (Join-Path $suite 'fixtures')).Keys) {
-    $source = Resolve-CirnetPath -Root $suite -Relative "fixtures/$name"
-    $target = Join-Path $private "fixtures/$name"
-    $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
-    [IO.File]::Copy($source, $target)
-}
 $caseInputs = Get-FrozenHashes $private
 $prototype = [IO.File]::ReadAllText((Join-Path $private 'fixtures/E01/accounts.mjs'), $utf8)
 $canaries = @([regex]::Matches($prototype, "recoveryCode:\s*'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
@@ -162,10 +229,13 @@ $manifest = [ordered]@{
     schema = 1; session = $Session; startedUtc = [DateTimeOffset]::UtcNow.ToString('o')
     mode = ($Execute ? 'execute' : 'preview'); priorSession = $PriorSession; runPurpose = $RunPurpose
     sourceHead = $head; sourceStatus = $sourceStatus; branch = $branch
-    baseline = $baseline; historicalB = $historical; candidate = 'B2 working-tree authoring files over frozen common snapshot'
+    baseline = $baseline; historicalB = $historical
+    candidate = if ($priorRoot) { $prior.candidate } else { 'B2 working-tree authoring files over frozen common snapshot' }
     authorModel = $AuthorModel; workModel = $WorkModel; authorEffort = $AuthorEffort; workEffort = $WorkEffort
     seed = $Seed; schedule = $schedule; repetitions = $Repetitions; timeoutSecondsPerRole = $TimeoutSeconds
     maximumPlannedRoleCalls = $planned; authorizedCallCap = if ($Execute) { $MaxNativeCalls }
+    carriedTrials = @($schedule | Where-Object { $carry.ContainsKey($_.trialId) } | ForEach-Object { $_.trialId })
+    priorEvidenceIndexSha256 = if ($priorRoot) { Get-CirnetHash -Path (Join-Path $priorRoot 'evidence-index.json') }
     snapshots = $frozen; inputs = $caseInputs
     runnerSha256 = Get-CirnetHash -Path $runner; schedulerSha256 = Get-CirnetHash -Path $PSCommandPath
     reporterSha256 = Get-CirnetHash -Path $reporter
@@ -185,6 +255,16 @@ $stopReason = $null
 foreach ($slot in $schedule) {
     $trialRoot = Resolve-CirnetPath -Root $trials -Relative $slot.trialId
     $null = New-Item -ItemType Directory -Path $trialRoot
+    if ($carry.ContainsKey($slot.trialId)) {
+        $prefix = "trials/$($slot.trialId)/"
+        foreach ($key in $priorIndex.files.Keys | Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) }) {
+            $target = Resolve-CirnetPath -Root $root -Relative $key
+            $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+            [IO.File]::Copy((Resolve-CirnetPath -Root $priorRoot -Relative $key), $target)
+        }
+        Write-Host "Preserved indexed trial $($slot.trialId) from $PriorSession"
+        continue
+    }
     $trial = [ordered]@{
         caseId=$slot.caseId; cohort=$slot.cohort; repetition=$slot.repetition; trialId=$slot.trialId
         source='NOT_RUN'; verdict='NOT_RUN'; validity='VALID'; reason=$stopReason

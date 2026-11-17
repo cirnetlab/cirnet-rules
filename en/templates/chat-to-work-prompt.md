@@ -73,6 +73,17 @@ Choose safe source slices before invoking a tool. Inspect structure and allowed
 field names first. Filter sensitive literals before output and exclude them from
 the prompt and evidence. Mark inspection `BLOCKED` when safe access is absent.
 
+Carry the task-specific safe-inspection boundary into the final Work text,
+including `PROMPT_BLOCKED`. When export authority is missing, Work may confirm
+local instructions, revision and scope and ask for the missing decisions.
+Reuse the inspected projection and field-name facts with their locators; do
+not require another record-store read merely to reconfirm the block. If an
+independently necessary read is authorized, emit identifiers or value-filtered
+projection code only. Remove sensitive literals in memory before any source
+excerpt, matched search line, error or log reaches output. Unfiltered file output
+and value-bearing search matches are unsafe. If filtering cannot be made
+safe, keep that read blocked and request a safer access path.
+
 Have Work reopen references in its authorized checkout and reconcile them with
 current local source before acting. If Work cannot access a reference, include
 essential trusted facts, source identity/version, constraints and acceptance

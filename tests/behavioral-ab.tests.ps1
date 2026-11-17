@@ -75,6 +75,22 @@ foreach ($file in $trials) {
 foreach ($trace in Get-ChildItem -LiteralPath (Join-Path $output 'shim') -Include '*.json','*.jsonl','final.md','stderr.log' -File -Recurse) {
     if ([IO.File]::ReadAllText($trace.FullName).Contains($canary)) { throw 'Canary escaped into evidence.' }
 }
+& $runner -OutputRoot $output -Session continuation -PriorSession shim -RunPurpose Continuation -CaseId 'E06,E01' -CodexPath 'must-not-execute' -Execute -MaxNativeCalls 8
+$continued = Get-Content -Raw -LiteralPath (Join-Path $output 'continuation/manifest.json') | ConvertFrom-Json
+if ($continued.carriedTrials.Count -ne 4 -or $continued.maximumPlannedRoleCalls -ne 0) {
+    throw 'Continuation must preserve completed trials including failures without another role call.'
+}
+foreach ($file in $trials) {
+    $copy = Join-Path $output ('continuation/trials/' + $file.Directory.Name + '/pair-trial.json')
+    if ((Get-FileHash -LiteralPath $copy).Hash -cne (Get-FileHash -LiteralPath $file.FullName).Hash) {
+        throw 'Continuation changed existing trial bytes.'
+    }
+}
+$settingRejected = $false
+try {
+    & $runner -OutputRoot $output -Session wrong-effort -PriorSession shim -RunPurpose Continuation -CaseId 'E06,E01' -Preset high
+} catch { $settingRejected = $_.Exception.Message -match 'Continuation settings differ' }
+if (-not $settingRejected) { throw 'Continuation must reject changed model settings.' }
 $review = Join-Path $output 'review.json'
 $reviewed = Join-Path $output 'shim/reviewed-test.json'
 [IO.File]::WriteAllText($review, '{"reviewer":"offline harness test","trials":{}}', $utf8)
@@ -96,4 +112,103 @@ if ($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $rejected) -or
     ($failure -join ' ') -notmatch 'Reviewed evidence differs from the original index') {
     throw 'Changed evidence must be rejected before exporting a reviewed summary.'
 }
+$tamperRejected = $false
+try {
+    & $runner -OutputRoot $output -Session changed-evidence -PriorSession tamper-copy -RunPurpose Continuation -CaseId 'E06,E01'
+} catch { $tamperRejected = $_.Exception.Message -match 'Prior evidence integrity check failed' }
+if (-not $tamperRejected) { throw 'Continuation must reject changed indexed prior evidence.' }
+
+# Synthetic interrupted Work: its unchanged fixture fails the grader, but no
+# model execution occurred. It is BLOCKED and must be retried, not graded FAIL.
+$blockedRoot = Join-Path $output 'blocked-copy'
+$null = New-Item -ItemType Directory -Path $blockedRoot
+Copy-Item -LiteralPath @((Join-Path $output 'shim/evaluator'), (Join-Path $output 'shim/trials'), (Join-Path $output 'shim/snapshots')) -Destination $blockedRoot -Recurse
+Copy-Item -LiteralPath (Join-Path $output 'shim/manifest.json') -Destination $blockedRoot
+$blockedPath = Join-Path $blockedRoot 'trials/E06-r1-B2/pair-trial.json'
+$blocked = Get-Content -Raw -LiteralPath $blockedPath | ConvertFrom-Json -AsHashtable
+$blocked.source = 'NATIVE'
+$blocked.verdict = 'BLOCKED'
+$blocked.reason = 'Synthetic quota interruption; not native evidence.'
+$blocked.work.execution = 'BLOCKED'
+$blocked.work.objective.status = 'FAIL'
+[IO.File]::WriteAllText($blockedPath, (ConvertTo-Json -InputObject $blocked -Depth 60), $utf8)
+& node $reporter $blockedRoot
+if ($LASTEXITCODE -ne 0) { throw 'Could not index synthetic interrupted evidence.' }
+$blockedSummary = Get-Content -Raw -LiteralPath (Join-Path $blockedRoot 'summary.json') | ConvertFrom-Json
+if (($blockedSummary.cases | Where-Object trialId -eq 'E06-r1-B2').verdict -ne 'BLOCKED') {
+    throw 'A blocked execution must not fail because its untouched fixture fails the objective grader.'
+}
+& $runner -OutputRoot $output -Session recovered -PriorSession blocked-copy -RunPurpose Continuation -CaseId 'E06,E01' -CodexPath $shim -Execute -MaxNativeCalls 2
+$recovered = Get-Content -Raw -LiteralPath (Join-Path $output 'recovered/manifest.json') | ConvertFrom-Json
+if ($recovered.carriedTrials.Count -ne 3 -or $recovered.maximumPlannedRoleCalls -ne 2) {
+    throw 'Continuation must execute exactly the missing two-role chain.'
+}
+$retried = Get-Content -Raw -LiteralPath (Join-Path $output 'recovered/trials/E06-r1-B2/pair-trial.json') | ConvertFrom-Json
+if ($retried.source -ne 'TEST_SHIM' -or $retried.work.execution -ne 'COMPLETED') { throw 'Missing chain was not retried.' }
+
+# Report quality guards using synthetic metadata only; no model is invoked.
+$guardBase = Join-Path $output ('reporter-guards-' + [guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $guardBase
+function New-ReporterScenario([string]$Name) {
+    $scenario = Join-Path $guardBase $Name
+    $null = New-Item -ItemType Directory -Path $scenario
+    Copy-Item -LiteralPath @((Join-Path $blockedRoot 'evaluator'), (Join-Path $blockedRoot 'trials')) -Destination $scenario -Recurse
+    Copy-Item -LiteralPath (Join-Path $blockedRoot 'manifest.json') -Destination $scenario
+    return $scenario
+}
+$guardIssues = [Collections.Generic.List[string]]::new()
+$scopeRoot = New-ReporterScenario 'scope'
+$scopePath = Join-Path $scopeRoot 'trials/E06-r1-B2/pair-trial.json'
+$scopeTrial = Get-Content -Raw -LiteralPath $scopePath | ConvertFrom-Json -AsHashtable
+($scopeTrial.work.objective.checks | Where-Object name -eq 'protected fixture paths').status = 'FAIL'
+[IO.File]::WriteAllText($scopePath, (ConvertTo-Json -InputObject $scopeTrial -Depth 60), $utf8)
+& node $reporter $scopeRoot
+if ($LASTEXITCODE -ne 0) { throw 'Could not index synthetic scope violation.' }
+$scopeSummary = Get-Content -Raw -LiteralPath (Join-Path $scopeRoot 'summary.json') | ConvertFrom-Json
+if (($scopeSummary.cases | Where-Object trialId -eq 'E06-r1-B2').verdict -ne 'FAIL') {
+    $guardIssues.Add('A protected-scope violation must remain FAIL when Work is interrupted.')
+}
+
+$quotaRoot = New-ReporterScenario 'quota'
+foreach ($cohort in @('A','B2')) {
+    $trialPath = Join-Path $quotaRoot "trials/E01-r1-$cohort/pair-trial.json"
+    $synthetic = Get-Content -Raw -LiteralPath $trialPath | ConvertFrom-Json -AsHashtable
+    # Exercise native eligibility branches with explicitly synthetic records.
+    # Remaining shim records ensure the report is never native acceptance.
+    $synthetic.source = 'NATIVE'
+    $synthetic.verdict = if ($cohort -eq 'A') { 'NOT_RUN' } else { 'BLOCKED' }
+    $synthetic.reason = 'OFFLINE SYNTHETIC reporter-only quota fixture; no native evidence.'
+    foreach ($role in @('author','work')) {
+        $synthetic[$role].trace.privacyHits = 0
+        $synthetic[$role].trace.normalizedUsage = $null
+        $synthetic[$role].verdict = 'NOT_RUN'
+    }
+    if ($cohort -eq 'B2') { $synthetic.work.execution = 'BLOCKED'; $synthetic.work.verdict = 'BLOCKED' }
+    [IO.File]::WriteAllText($trialPath, (ConvertTo-Json -InputObject $synthetic -Depth 60), $utf8)
+}
+& node $reporter $quotaRoot
+if ($LASTEXITCODE -ne 0) { throw 'Could not index synthetic quota fixture.' }
+$quotaReview = Get-Content -Raw -LiteralPath (Join-Path $quotaRoot 'review-template.json') | ConvertFrom-Json -AsHashtable
+$controlReview = $quotaReview.trials['E01-r1-A']
+foreach ($slot in @($controlReview.rubric) + @($controlReview.architecture)) {
+    $slot.status = 'PASS'; $slot.reason = 'OFFLINE SYNTHETIC no-op control for reporter eligibility only.'; $slot.evidence = @('Work/run.json')
+}
+$quotaReview.reviewer = 'OFFLINE SYNTHETIC reporter test; not a native model evaluation'
+$quotaReview.trials = @{ 'E01-r1-A' = $controlReview }
+$quotaReviewPath = Join-Path $quotaRoot 'synthetic-review.json'
+[IO.File]::WriteAllText($quotaReviewPath, (ConvertTo-Json -InputObject $quotaReview -Depth 60), $utf8)
+$quotaReviewedPath = Join-Path $quotaRoot 'reviewed-quota-test.json'
+& node $reporter $quotaRoot $quotaReviewPath $quotaReviewedPath
+if ($LASTEXITCODE -ne 0) { throw 'Could not review synthetic quota fixture.' }
+$quotaReviewed = Get-Content -Raw -LiteralPath $quotaReviewedPath | ConvertFrom-Json
+if ($quotaReviewed.source -ne 'TEST_SHIM' -or ($quotaReviewed.cases | Where-Object trialId -eq 'E01-r1-A').verdict -ne 'PASS') {
+    throw 'Reporter guard fixture must retain shim provenance and a synthetic passing control.'
+}
+if (@($quotaReviewed.regressions | Where-Object caseId -eq 'E01').Count -or $quotaReviewed.qualityGate -ne 'INCONCLUSIVE') {
+    $guardIssues.Add('External quota without a completed B2 must not count as a behavioral regression.')
+}
+if ($quotaReviewed.pairedDeltas -isnot [string] -or $quotaReviewed.pairedDeltas -notlike 'NOT_ASSESSED*') {
+    $guardIssues.Add('Efficiency deltas must not be assessed before the quality gate passes.')
+}
+if ($guardIssues.Count) { throw ('Reporter guard failures: ' + ($guardIssues -join ' ')) }
 Write-Host "PASS two-role harness checks with test shims. Native Codex NOT_RUN. Evidence $output"
