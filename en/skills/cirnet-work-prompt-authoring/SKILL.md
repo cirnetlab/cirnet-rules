@@ -9,14 +9,17 @@ Chat performs authorized read-only discovery and authors one scoped handoff.
 Direct source changes use the applicable execution Skill. Work rechecks local
 checkout, branch, instructions, permissions and evidence before implementation.
 
-1. **Interpret.** Establish the observable goal, expected behavior and operations
-   actually authorized by the user. A readable repository grants read access only.
+1. **Interpret.** Extract the supplied task from the user's request, including an
+   embedded original task. State its goal in the handoff. Establish expected
+   behavior and authorized operations; repository access grants only reading.
    Keep an internal objective fingerprint: requested action, owner, file and
    symbol, transformation, expected outcome, hard scope, negative cases and
-   permissions. Treat explicit user instructions as evidence of the request.
-2. **Locate Owner.** Open `en/policies/architecture.md` and
-   `en/references/architecture-routing.md` in the approved toolkit. Identify the
-   owner, direct consumers and write/read boundaries per repository.
+   permissions. Before claiming a missing goal, reread the supplied request;
+   template placeholders and unread source do not prove its absence.
+2. **Locate Owner.** Identify the owner and write/read boundaries. Use
+   `en/policies/architecture.md` and `en/references/architecture-routing.md`
+   when ownership, consumers, contracts or a safety boundary need resolution.
+   Read their governing sections from the approved toolkit, once per role.
 3. **Select Authority/Skills.** Read the relevant English architecture sections
    and Rules. Inspect the 13 Skills' metadata, using `en/skills/README.md` when
    client metadata is unavailable. Read only Work Skill bodies whose triggers
@@ -36,6 +39,9 @@ checkout, branch, instructions, permissions and evidence before implementation.
    use a safe source if available. Keep values out of handoffs and evidence.
    A search for a field name may print its whole source line. Emit only the
    identifier or a value-filtered excerpt.
+   For record data, prefer a verified bounded inspector returning structural
+   metadata without evaluating source. Carry its exact invocation and limits into Work's handoff.
+   A post-run leak scan detects exposure; it does not prevent tool-output exposure.
 5. **Draft Adaptive Prompt.** Read `en/templates/chat-to-work-prompt.md` from an
    approved checkout. The installed bundle supplies this Skill and needs separate
    checkout access for that template. Missing template access yields
@@ -51,7 +57,10 @@ checkout, branch, instructions, permissions and evidence before implementation.
 7. **Editorial Gate.** Review the draft for a usable goal, owner, scope, evidence,
    dependencies, negative cases, invariants and acceptance. Pair every criterion
    with a verified command/observation or ask Work to find the command in owner
-   instructions. Compare goal, scope and acceptance to the objective fingerprint.
+   instructions. Compare goal, scope, constraints and acceptance to the
+   objective fingerprint.
+   Keep supplied action, target and transformation explicit; a generic goal is
+   insufficient when it loses the requested operation, even in LIGHT mode.
    Restore any lost operation or constraint before choosing how short to make
    the handoff. If the task is clear and authorized, use `NOT_INSPECTED` and Work
    preflight for unread source, unknown implementation details and test commands.
@@ -68,9 +77,10 @@ checkout, branch, instructions, permissions and evidence before implementation.
 
 ## Access and authority
 
-Have Work reopen the applicable local/nested instructions, Rules, Skills and
-owner sources in its authorized checkout and reconcile their revisions before
-acting. If Work cannot read a referenced source, include the essential trusted
+Have Work establish applicable local/nested instructions, Rules, Skills and
+owner sources once in its own role, reusing available matching revisions and
+reopening changed or missing evidence before acting. If Work cannot read a
+referenced source, include the essential trusted
 facts, source identity/version, constraints and acceptance directly in the
 handoff. Use that fallback only when reliable evidence establishes safe scope.
 Mark unresolved portions `BLOCKED`, or the handoff `PROMPT_BLOCKED` if an

@@ -2,6 +2,10 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path -Parent $PSScriptRoot
+& (Join-Path $PSScriptRoot 'eval-codex-privacy.tests.ps1')
+& (Join-Path $PSScriptRoot 'eval-codex-rtl.tests.ps1')
+& node --test (Join-Path $PSScriptRoot 'eval-codex-privacy.test.mjs') (Join-Path $PSScriptRoot 'eval-codex-rtl.test.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Focused privacy/RTL boundary tests failed.' }
 $output = Join-Path ([IO.Path]::GetTempPath()) ('cirnet-ab-test-' + [guid]::NewGuid().ToString('N'))
 $null = New-Item -ItemType Directory -Path $output
 $shim = Join-Path $output 'shim.ps1'
@@ -38,10 +42,14 @@ if (Test-Path -LiteralPath accounts.mjs) {
         item = @{id='test-leak'; type='command_execution'; aggregated_output=$value; exit_code=0}
     } | ConvertTo-Json -Depth 4 -Compress
     if ($args -notcontains 'read-only') {
-        $escaped = ($value.ToCharArray() | ForEach-Object { '\u{0:x4}' -f [int]$_ }) -join ''
+        $escaped = ($value.ToCharArray() | ForEach-Object { '\\u{0:x4}' -f [int]$_ }) -join ''
         $event = $event.Replace($value, $escaped)
     }
     $event
+}
+if ($final -match 'cross-case') {
+    $value = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'test-client-private-canary.txt'))
+    @{type='item.completed';item=@{id='cross-case-leak';type='command_execution';aggregated_output=$value;exit_code=0}} | ConvertTo-Json -Depth 4 -Compress
 }
 [IO.File]::WriteAllText($final, $answer, [Text.UTF8Encoding]::new($false))
 @{type='item.completed';item=@{type='agent_message';id='answer';text=$answer}} | ConvertTo-Json -Depth 4 -Compress
@@ -211,4 +219,94 @@ if ($quotaReviewed.pairedDeltas -isnot [string] -or $quotaReviewed.pairedDeltas 
     $guardIssues.Add('Efficiency deltas must not be assessed before the quality gate passes.')
 }
 if ($guardIssues.Count) { throw ('Reporter guard failures: ' + ($guardIssues -join ' ')) }
+
+# A repaired candidate is a separate cohort identity, including independent
+# model settings, snapshots and summary keys. This remains a shim-only test.
+& $runner -OutputRoot $output -Session repaired-candidate -CandidateId B2.1 -CaseId E06 -Preset high -AuthorModel gpt-6.1-sol -WorkModel gpt-6.1-sol -CodexPath $shim -Execute -MaxNativeCalls 4
+$repairedRoot = Join-Path $output 'repaired-candidate'
+$repaired = Get-Content -Raw -LiteralPath (Join-Path $repairedRoot 'manifest.json') | ConvertFrom-Json
+$repairedSummary = Get-Content -Raw -LiteralPath (Join-Path $repairedRoot 'summary.json') | ConvertFrom-Json
+if ($repaired.candidateId -ne 'B2.1' -or $repaired.candidateSourceHead -cnotmatch '^[a-f0-9]{40}$' -or
+    $repaired.candidateSnapshotSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+    $repairedSummary.candidateId -ne 'B2.1' -or $null -eq $repairedSummary.wholeSuite.'B2.1' -or
+    $repairedSummary.wholeSuite.PSObject.Properties.Name -contains 'B2' -or $repairedSummary.qualityGate -ne 'INCONCLUSIVE') {
+    throw 'Repaired source identity must not overwrite or masquerade as historical B2.'
+}
+foreach ($cohort in @('A','B2.1')) {
+    $pair = Get-Content -Raw -LiteralPath (Join-Path $repairedRoot "trials/E06-r1-$cohort/pair-trial.json") | ConvertFrom-Json
+    foreach ($role in @('author','work')) {
+        $command = [string[]]$pair.$role.command
+        $position = [array]::IndexOf($command, '--model')
+        if ($position -lt 0 -or $command[$position + 1] -cne 'gpt-6.1-sol' -or $command -cnotcontains 'model_reasoning_effort="high"') {
+            throw 'Both role invocations must carry the locked explicit model and high effort.'
+        }
+    }
+}
+$candidateRejected = $false
+try {
+    & $runner -OutputRoot $output -Session wrong-candidate -PriorSession repaired-candidate -RunPurpose Continuation -CandidateId B2.2 -CaseId E06 -Preset high
+} catch { $candidateRejected = $_.Exception.Message -match 'candidate ID differs' }
+if (-not $candidateRejected) { throw 'A continuation must reject a different candidate identity.' }
+
+# Deliberately mutate only newly allocated synthetic copies. Refresh the copied
+# manifest index so the check reaches the pinned implementation boundary.
+foreach ($field in @('runnerSha256','rtlObserverSha256','privacyHelperSha256','bundleSha256')) {
+    $name = 'changed-' + $field
+    $copy = Join-Path $output $name
+    Copy-Item -LiteralPath (Join-Path $output 'shim') -Destination $copy -Recurse
+    $manifestPath = Join-Path $copy 'manifest.json'
+    $changed = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -AsHashtable
+    $changed[$field] = '0' * 64
+    [IO.File]::WriteAllText($manifestPath, (ConvertTo-Json -InputObject $changed -Depth 60), $utf8)
+    $indexPath = Join-Path $copy 'evidence-index.json'
+    $index = Get-Content -Raw -LiteralPath $indexPath | ConvertFrom-Json -AsHashtable
+    $index.files['manifest.json'].sha256 = (Get-FileHash -LiteralPath $manifestPath).Hash.ToLowerInvariant()
+    $index.files['manifest.json'].bytes = (Get-Item -LiteralPath $manifestPath).Length
+    [IO.File]::WriteAllText($indexPath, (ConvertTo-Json -InputObject $index -Depth 60), $utf8)
+    $pinnedRejected = $false
+    try {
+        & $runner -OutputRoot $output -Session ($name + '-rejected') -PriorSession $name -RunPurpose Continuation -CaseId 'E06,E01'
+    } catch { $pinnedRejected = $_.Exception.Message -match 'original role runner|original privacy inspector|original bundle/path' }
+    if (-not $pinnedRejected) { throw "Continuation did not reject changed $field." }
+}
+
+foreach ($role in @('Author','Work')) {
+    foreach ($encoding in @('nested-unicode','hex')) {
+        $auditRoot = New-ReporterScenario ('audit-' + $role + '-' + $encoding)
+        $encoded = ($canary.ToCharArray() | ForEach-Object {
+            if ($encoding -eq 'hex') { '\x{0:x2}' -f [int]$_ } else { '\\u{0:x4}' -f [int]$_ }
+        }) -join ''
+        [IO.File]::WriteAllText((Join-Path $auditRoot "trials/E01-r1-A/$role/E01/stderr.log"), $encoded, $utf8)
+        $auditOutput = & node $reporter $auditRoot 2>&1
+        if ($LASTEXITCODE -eq 0 -or (Test-Path (Join-Path $auditRoot 'evidence-index.json')) -or
+            ($auditOutput -join ' ') -notmatch 'Protected value in evidence') {
+            throw 'Escaped role errors must stop export before an evidence index is published.'
+        }
+    }
+}
+
+# Changing private rubric or fixture bytes in a synthetic prior copy must
+# stop continuation before another role starts; canonical inputs stay intact.
+foreach ($relative in @('evaluator/cases.json','evaluator/fixtures/E06/src/labels.mjs')) {
+    $name = if ($relative -like '*cases.json') { 'changed-rubric' } else { 'changed-fixture' }
+    $copy = Join-Path $output $name
+    Copy-Item -LiteralPath (Join-Path $output 'shim') -Destination $copy -Recurse
+    [IO.File]::AppendAllText((Join-Path $copy $relative), [char]10, $utf8)
+    $inputRejected = $false
+    try {
+        & $runner -OutputRoot $output -Session ($name + '-rejected') -PriorSession $name -RunPurpose Continuation -CaseId 'E06,E01'
+    } catch { $inputRejected = $_.Exception.Message -match 'Prior evidence integrity check failed|Frozen prior input hash mismatch' }
+    if (-not $inputRejected) { throw 'Changed frozen rubric/fixture input must be rejected.' }
+}
+
+# The private test client emits a known synthetic value in an E06 role. No
+# model receives the protected evaluator value and no native call is made.
+[IO.File]::WriteAllText((Join-Path $output 'test-client-private-canary.txt'), $canary, $utf8)
+& $runner -OutputRoot $output -Session cross-case -CandidateId B2.1 -CaseId E06 -CodexPath $shim -Execute -MaxNativeCalls 4
+foreach ($cohort in @('A','B2.1')) {
+    $cross = Get-Content -Raw -LiteralPath (Join-Path $output "cross-case/trials/E06-r1-$cohort/pair-trial.json") | ConvertFrom-Json
+    if ($cross.author.trace.privacyHits -lt 1 -or $cross.work.trace.privacyHits -lt 1 -or $cross.verdict -ne 'FAIL') {
+        throw 'Both-role canary audit must also cover output from other selected cases.'
+    }
+}
 Write-Host "PASS two-role harness checks with test shims. Native Codex NOT_RUN. Evidence $output"

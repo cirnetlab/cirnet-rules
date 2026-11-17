@@ -7,6 +7,11 @@ discovery and authoring. Work owns local preflight, implementation, authorized
 build/test and reporting. Render one complete handoff in ordinary Markdown,
 using the user's requested format.
 
+Start with the actual task in the authoring request, including an embedded or
+quoted original request. State that task's goal in the handoff. Before declaring
+the goal missing, recheck the supplied task text; unresolved template fields do
+not establish its absence.
+
 Consider all 12 semantic fields below. Group applicable information under the
 headings the task needs. Omit inapplicable material and unused placeholders.
 Keep these authoring instructions and the field checklist out of the final
@@ -84,8 +89,14 @@ excerpt, matched search line, error or log reaches output. Unfiltered file outpu
 and value-bearing search matches are unsafe. If filtering cannot be made
 safe, keep that read blocked and request a safer access path.
 
-Have Work reopen references in its authorized checkout and reconcile them with
-current local source before acting. If Work cannot access a reference, include
+When a verified bounded inspector is available, give Work its exact relative
+path and metadata/projection invocation, source digest and output limitations.
+Prefer its allowlisted identifiers over hand-written value-bearing searches.
+An unrestricted shell can still disclose data; a later trace sanitizer or audit
+cannot undo model exposure. Keep authorization questions and that limit explicit.
+
+Have Work reconcile references with its authorized current source, reuse
+already-loaded matching evidence, and reopen changed or missing material. If Work cannot access a reference, include
 essential trusted facts, source identity/version, constraints and acceptance
 directly. If authority or decisive information is missing, mark the dependent
 portion `BLOCKED` or return `PROMPT_BLOCKED`. If Chat cannot inspect product
@@ -115,6 +126,12 @@ For LIGHT or STANDARD, these groups can carry the relevant fields.
 - **Acceptance & Verification** pairs every outcome with a verified command,
   test or observation, or directs Work to find the command in owner instructions.
   State environment/prerequisites and expected evidence.
+  Group criteria covered by the same check, retaining every original assertion.
+  Do not request the same unchanged test twice under focused/full-suite labels;
+  repeat when source, inputs, scope or missing evidence warrants it.
+  When filtering verification output, retain verified safe machine-readable
+  stage markers, numeric child exit codes and assertion identities. Redact
+  sensitive payloads without relabelling their output protocol.
 - **Deliverables & Reporting** covers affected docs, EN/VI pairs where required,
   artifacts, destinations, changed paths, actual commands/exit codes and per-check
   `PASS` / `FAIL` / `NOT_RUN` / `BLOCKED`, compatibility impact and limits.

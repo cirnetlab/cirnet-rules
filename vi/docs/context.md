@@ -49,6 +49,10 @@ nguồn, ràng buộc và nghiệm thu, hoặc chặn phần phụ thuộc khi t
 Mẫu tiếng Anh vẫn cần quyền đọc checkout riêng như hướng dẫn bên dưới.
 Trả một bản bàn giao đúng phạm vi trong chat. Sửa source trực tiếp dùng Skills
 thực thi.
+Theo dõi Required / Conditional / Already-loaded riêng cho từng vai trò.
+Có thể dẫn dữ kiện Author đã xem; context trong bộ nhớ của Author không phải cache
+của Work. Giao Work lần đọc đầu tối thiểu, chỉ mở lại bằng chứng quyết định đã đổi
+hoặc còn thiếu.
 [Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Mẫu](../templates/chat-to-work-prompt.md) · [Truy cập từ bundle](distribution.md#soạn-work-prompt)
 
@@ -72,4 +76,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 và cảnh báo tham khảo. Số token phụ thuộc phần client nạp và tokenizer.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: ef4f16165e60e043425364d93cbe51e72fa03caca0b85a321f4e37e46d5603c7 -->
+<!-- source-sha256: 017373a38fda334d5e83cfb2030e7054f36c0ba55486d30669c2fb12a591017c -->

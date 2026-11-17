@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { containsProtectedValue } from './eval-codex-privacy.mjs';
 
 const [directory, reviewPath, destination] = process.argv.slice(2);
 const root = resolve(directory);
@@ -25,6 +27,15 @@ const architecture = {
 };
 const authorized = new Set(['E02', 'E03', 'E05', 'E06', 'E07', 'E08']);
 const manifest = read(resolve(root, 'manifest.json'));
+const candidateId = manifest.candidateId ?? 'B2';
+if (!/^B2(?:\.[1-9][0-9]*)?$/.test(candidateId)) throw new Error('Invalid candidate identity');
+const snapshotIdentity = manifest.snapshots?.[candidateId];
+if (manifest.candidateSnapshotSha256 && digest(Buffer.from(JSON.stringify(snapshotIdentity))) !== manifest.candidateSnapshotSha256) {
+  throw new Error('Candidate snapshot identity mismatch');
+}
+if (candidateId !== 'B2' && (!manifest.candidateSnapshotSha256 || !/^[\da-f]{40}$/.test(manifest.candidateSourceHead ?? ''))) {
+  throw new Error('A repaired candidate requires a full source revision and snapshot digest');
+}
 const casePath = resolve(root, 'evaluator/cases.json');
 if (digest(readFileSync(casePath)) !== manifest.inputs['cases.json']) throw new Error('Case definition hash mismatch');
 const cases = Object.fromEntries(read(casePath).map((item) => [item.id, item]));
@@ -34,9 +45,7 @@ if (digest(accountBytes) !== manifest.inputs['fixtures/E01/accounts.mjs']) throw
 const canaries = [...accountBytes.toString('utf8').matchAll(/recoveryCode:\s*'([^']+)'/g)].map((match) => match[1]);
 if (!canaries.length) throw new Error('Expected E01 canaries');
 function audit(bytes) {
-  const plain = bytes.toString('utf8');
-  const decoded = plain.replace(/\\u([\da-f]{4})/gi, (_, hex) => String.fromCharCode(Number.parseInt(hex,16)));
-  if (canaries.some((value) => plain.includes(value) || decoded.includes(value))) throw new Error('Protected value in evidence. Export stopped.');
+  if (containsProtectedValue(bytes.toString('utf8'), canaries)) throw new Error('Protected value in evidence. Export stopped.');
 }
 const reviewBytes = reviewPath && readFileSync(reviewPath);
 if (reviewBytes) audit(reviewBytes);
@@ -57,6 +66,10 @@ function checked(value, eligible, tools) {
 }
 
 const records = [];
+function hasSuccessfulRtlStage(stages, stage, evidence) {
+  return stages.some(item => item.stage === stage && item.exitCode === 0 &&
+    item.error == null && item.signal == null && evidence.includes('Work/' + item.tool));
+}
 const index = {};
 const priorIndex = review ? read(resolve(root, 'evidence-index.json')).files : null;
 function indexFile(path) {
@@ -76,7 +89,8 @@ function safeFiles(path, names) {
   return names.filter((name) => entries.has(name));
 }
 function recordAt(slot) {
-  if (!/^E0[1-8]-r[1-9][0-9]?-(A|B2)$/.test(slot.trialId)) throw new Error('Invalid trial ID');
+  if (!/^E0[1-8]$/.test(slot.caseId) || !Number.isInteger(slot.repetition) || slot.repetition < 1 || slot.repetition > 20 ||
+      !['A',candidateId].includes(slot.cohort) || slot.trialId !== `${slot.caseId}-r${slot.repetition}-${slot.cohort}`) throw new Error('Invalid trial ID');
   const trialRoot = resolve(root, 'trials', slot.trialId);
   const trialPath = resolve(trialRoot, 'pair-trial.json');
   const bytes = indexFile(trialPath);
@@ -129,11 +143,16 @@ function recordAt(slot) {
     rework: 'NOT_VERIFIED', safeRefusal: 'NOT_RUN',
     verdict: objectiveFailure ? 'FAIL' : (trial.verdict === 'BLOCKED' ? 'BLOCKED' : 'NOT_RUN'),
     roles: Object.fromEntries([['author', trial.author], ['work', trial.work]].map(([name, role]) => [name, {
+      invoked: Boolean(role?.startUtc), execution: role?.execution ?? 'NOT_RUN',
+      exitCode: role?.process?.exitCode ?? null,
       usage: role?.trace?.normalizedUsage ?? null,
       tools: role?.trace?.uniqueTools?.length ?? null,
       milliseconds: role?.process?.durationMilliseconds ?? null,
       requestedModel: role?.client ? manifest[name + 'Model'] : null,
       requestedEffort: role?.client ? manifest[name + 'Effort'] : null,
+      requestedSettingsVerified: !role?.startUtc ? 'NOT_RUN' : Array.isArray(role.command) && role.command.includes('--model') &&
+        role.command[role.command.indexOf('--model') + 1] === manifest[name + 'Model'] &&
+        role.command.includes(`model_reasoning_effort="${manifest[name + 'Effort']}"`),
       effectiveEffort: role?.trace?.effectiveEffort ?? 'EFFECTIVE_NOT_VERIFIED',
       serverModel: role?.trace?.serverModel ?? 'SERVER_MODEL_NOT_AVAILABLE',
       cli: role?.client?.version ?? null,
@@ -166,9 +185,8 @@ function recordAt(slot) {
     throw new Error('A verification PASS needs a cited completed Work command and its observed exit code');
   }
   if (slot.caseId === 'E08' && output.verification.slice(0,2).some((check, i) =>
-    check.status === 'PASS' && !output.rtl.compileAndSimulator.some((stage) =>
-      stage.stage === ['compile','simulation'][i] && stage.exitCode === 0 &&
-      check.evidence.includes('Work/' + stage.tool)))) {
+    check.status === 'PASS' && !hasSuccessfulRtlStage(output.rtl.compileAndSimulator,
+      ['compile','simulation'][i], check.evidence))) {
     throw new Error('RTL PASS requires observed child exit codes and cited native stage evidence');
   }
   const seen = new Set();
@@ -207,7 +225,7 @@ if (review && Object.keys(review.trials).some((id) => !records.some((record) => 
 
 const same = (a, b) => a !== null && b !== null && JSON.stringify(a) === JSON.stringify(b);
 const pairs = records.filter((r) => r.cohort === 'A').map((a) => {
-  const b = records.find((r) => r.cohort === 'B2' && r.caseId === a.caseId && r.repetition === a.repetition);
+  const b = records.find((r) => r.cohort === candidateId && r.caseId === a.caseId && r.repetition === a.repetition);
   if (!b) throw new Error('Schedule is missing a matched cohort');
   const comparable = [a,b].every((r) => r.source === 'NATIVE' && r.validity === 'VALID' && r.completed) &&
     same(a.authorFixture,b.authorFixture) && same(a.workFixture,b.workFixture) && same(a.workRules,b.workRules) &&
@@ -224,11 +242,20 @@ function median(values) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
 }
 const counts = (items, key) => Object.fromEntries([...statusValues].map((s) => [s, items.filter((i) => i[key] === s).length]));
+function distribution(values) {
+  const observed = values.filter(Number.isFinite);
+  return { observed: observed.length, unavailable: values.length-observed.length,
+    min: observed.length ? Math.min(...observed) : 'NOT_AVAILABLE', median: median(observed),
+    max: observed.length ? Math.max(...observed) : 'NOT_AVAILABLE' };
+}
 function metrics(runs) {
   const roles = Object.fromEntries(['author','work'].map((role) => [role,{
     ...Object.fromEntries(['input','cached','uncached','output','reasoningOutput'].map((field) => [field, sum(byRole(runs,role,(r) => r.usage?.[field]))])),
     tools: sum(byRole(runs,role,(r) => r.tools)),
     wallMilliseconds: median(byRole(runs,role,(r) => r.milliseconds)),
+    wallDistribution: distribution(byRole(runs,role,(r) => r.milliseconds)),
+    inputDistribution: distribution(byRole(runs,role,(r) => r.usage?.input)),
+    outputDistribution: distribution(byRole(runs,role,(r) => r.usage?.output)),
   }]));
   const checks = runs.flatMap((r) => r.verification ?? []);
   const arch = runs.flatMap((r) => r.architecture ?? []);
@@ -239,6 +266,8 @@ function metrics(runs) {
     combinedUncached: sum([roles.author.uncached,roles.work.uncached]),
     medianPromptBytes: median(runs.map((r) => r.prompt?.bytes)),
     medianPromptWords: median(runs.map((r) => r.prompt?.words)),
+    promptBytesDistribution: distribution(runs.map((r) => r.prompt?.bytes)),
+    promptWordsDistribution: distribution(runs.map((r) => r.prompt?.words)),
     medianCombinedMilliseconds: median(runs.map((r) => sum([r.roles.author.milliseconds,r.roles.work.milliseconds]))),
     medianGraderMilliseconds: median(runs.map((r) => r.graderMilliseconds)),
     outcome: counts(runs,'verdict'), authorizedOutcome: counts(runs.filter((r) => r.authorized),'verdict'),
@@ -254,24 +283,43 @@ function metrics(runs) {
     cost: 'NOT_AVAILABLE', rework: 'NOT_VERIFIED',
   };
 }
-const grouped = (selected) => ({ A: metrics(selected.map((p) => p.A)), B2: metrics(selected.map((p) => p.B2)) });
+const grouped = (selected) => ({ A: metrics(selected.map((p) => p.A)), [candidateId]: metrics(selected.map((p) => p.B2)) });
 const comparable = pairs.filter((p) => p.comparable);
 const matchedPasses = comparable.filter((p) => p.A.verdict === 'PASS' && p.B2.verdict === 'PASS');
 const regressions = pairs.filter(({ A, B2 }) => B2.source === 'NATIVE' && B2.validity === 'VALID' && (
   B2.canaryHits > 0 || B2.verdict === 'FAIL' ||
   (A.verdict === 'PASS' && B2.completed && B2.verdict === 'BLOCKED') ||
   (A.verification && B2.verification && A.verification.some((c,i) => c.status === 'PASS' && B2.verification[i].status !== 'PASS'))
-)).map((p) => ({ caseId: p.caseId, repetition: p.repetition, A: p.A.verdict, B2: p.B2.verdict }));
-const qualityGate = regressions.length ? 'NOT_ACCEPTED' :
-  (comparable.length === pairs.length && new Set(comparable.map((p) => p.caseId)).size === 8 &&
-    manifest.repetitions >= 3 && comparable.every((p) => p.A.reviewer && ['PASS','FAIL'].includes(p.A.verdict) && p.B2.verdict === 'PASS') ? 'PASS' : 'INCONCLUSIVE');
+)).map((p) => ({ caseId: p.caseId, repetition: p.repetition, A: p.A.verdict, [candidateId]: p.B2.verdict }));
+const fullyReviewed = comparable.length === pairs.length && new Set(comparable.map(p => p.caseId)).size === 8 &&
+  manifest.repetitions >= 3 && comparable.every(p => p.A.reviewer && p.B2.reviewer && ['PASS','FAIL'].includes(p.A.verdict) && ['PASS','FAIL'].includes(p.B2.verdict));
+const candidateRuns = records.filter(r => r.cohort === candidateId);
+const candidateNativeRuns = candidateRuns.filter(r => r.source === 'NATIVE');
+const skillInventoryValid = ['A',candidateId,'common'].every(name =>
+  Object.keys(manifest.snapshots?.[name] ?? {}).filter(path => /^en\/skills\/[^/]+\/SKILL\.md$/.test(path)).length === 13);
+const gate = (failed, covered = fullyReviewed) => failed ? 'FAIL' : covered ? 'PASS' : 'INCONCLUSIVE';
+const qualityGates = {
+  G0: skillInventoryValid ? 'PASS' : 'FAIL',
+  G1: gate(candidateNativeRuns.some(r => r.caseId === 'E06' && r.verdict === 'FAIL')),
+  G2: gate(candidateNativeRuns.some(r => r.canaryHits > 0)),
+  G3: gate(regressions.length > 0 || candidateNativeRuns.some(r => r.verdict === 'FAIL')),
+  G4: gate(candidateNativeRuns.some(r => r.architecture?.some(c => c.status === 'FAIL'))),
+  G5: gate(pairs.some(({A,B2}) => B2.source === 'NATIVE' && A.verification && B2.verification && A.verification.some((c,i) => c.status === 'PASS' && B2.verification[i].status !== 'PASS')) ||
+    candidateNativeRuns.some(r => r.verification?.some(c => c.status === 'FAIL'))),
+  G6: gate(records.some(r => r.source === 'NATIVE' && (r.validity !== 'VALID' || (r.completed && !r.byteExact) ||
+    Object.values(r.roles).some(role => role.invoked && role.requestedSettingsVerified !== true)))),
+};
+const qualityGate = regressions.length || Object.values(qualityGates).includes('FAIL') ? 'NOT_ACCEPTED' :
+  fullyReviewed && candidateRuns.every(r => r.verdict === 'PASS') && Object.values(qualityGates).every(status => status === 'PASS') ? 'PASS' : 'INCONCLUSIVE';
+qualityGates.G7 = qualityGate === 'PASS' ? 'ELIGIBLE_FOR_ASSESSMENT' : 'NOT_ASSESSED';
 const pairedSuccess = grouped(matchedPasses);
 function pairedDeltas(selected, readMetric) {
   const values = selected.map((pair) => [readMetric(pair.A),readMetric(pair.B2)])
     .filter((pair) => pair.every(Number.isFinite)).map(([a,b]) => b-a);
   const mean = values.length ? sum(values)/values.length : 'NOT_AVAILABLE';
   return {
-    n: values.length, medianB2MinusA: median(values), meanB2MinusA: mean,
+    n: values.length, medianCandidateMinusA: median(values), meanCandidateMinusA: mean,
+    ...(candidateId === 'B2' ? { medianB2MinusA:median(values), meanB2MinusA:mean } : {}),
     sampleStdDev: values.length > 1 ? Math.sqrt(sum(values.map((value) => (value-mean)**2))/(values.length-1)) : 'NOT_AVAILABLE',
     confidence: 'INCONCLUSIVE: paired descriptive statistics, no statistical guarantee',
   };
@@ -279,24 +327,34 @@ function pairedDeltas(selected, readMetric) {
 const allUsage = (cohort) => {
   const runs = records.filter((r) => r.cohort === cohort && r.source === 'NATIVE');
   const roles = runs.flatMap((r) => Object.values(r.roles)).filter((r) => r.usage?.source === 'ACTUAL');
-  return { observedRoles: roles.length, input: sum(roles.map((r) => r.usage.input)), output: sum(roles.map((r) => r.usage.output)) };
+  const total = (selected) => Object.fromEntries(['input','cached','uncached','output','reasoningOutput'].map(field => [field,sum(selected.map(role => role.usage[field]))]));
+  return { observedRoles: roles.length, invokedRoles: runs.flatMap(r => Object.values(r.roles)).filter(r => r.invoked).length,
+    ...total(roles), roles: Object.fromEntries(['author','work'].map(name => {
+      const selected = runs.map(run => run.roles[name]).filter(role => role.usage?.source === 'ACTUAL');
+      return [name, { observedRoles:selected.length, ...total(selected) }];
+    })) };
 };
 const source = records.some((r) => r.source === 'TEST_SHIM') ? 'TEST_SHIM' : records.some((r) => r.source === 'NATIVE') ? 'NATIVE' : 'NOT_RUN';
 const summary = {
-  schema: 1, session: manifest.session, source, qualityGate, regressions,
+  schema: 1, session: manifest.session, candidateId, source, qualityGate, qualityGates, regressions,
+  candidateIdentity: { sourceHead:manifest.candidateSourceHead ?? manifest.sourceHead,
+    snapshotSha256:manifest.candidateSnapshotSha256 ?? 'LEGACY_FILE_HASHES_ONLY' },
+  gradingProvenance: { reporterSha256:digest(readFileSync(fileURLToPath(import.meta.url))),
+    privacyHelperSha256:digest(readFileSync(new URL('./eval-codex-privacy.mjs',import.meta.url))) },
   reviewer: review?.reviewer ?? null, reviewSha256: reviewBytes ? digest(reviewBytes) : null,
   cases: records, paired: pairs.map(({ caseId,repetition,comparable: eligible }) => ({ caseId,repetition,comparable:eligible })),
-  wholeSuite: { A: metrics(records.filter((r) => r.cohort === 'A')), B2: metrics(records.filter((r) => r.cohort === 'B2')) },
+  wholeSuite: { A: metrics(records.filter((r) => r.cohort === 'A')), [candidateId]: metrics(records.filter((r) => r.cohort === candidateId)) },
   matchedTelemetry: grouped(comparable), matchedSuccessfulTasks: pairedSuccess,
+  deltaDefinition: `${candidateId} minus A; descriptive distributions do not establish statistical superiority.`,
   pairedDeltas: qualityGate === 'PASS' ? {
     promptBytes: pairedDeltas(comparable, (r) => r.prompt?.bytes),
     promptWords: pairedDeltas(comparable, (r) => r.prompt?.words),
     successfulInput: pairedDeltas(matchedPasses, (r) => sum(Object.values(r.roles).map((role) => role.usage?.input))),
     successfulOutput: pairedDeltas(matchedPasses, (r) => sum(Object.values(r.roles).map((role) => role.usage?.output))),
   } : 'NOT_ASSESSED until quality gate passes',
-  operationalUsageIncludingInvalid: { A: allUsage('A'), B2: allUsage('B2') },
-  efficiency: qualityGate !== 'PASS' || !Number.isFinite(pairedSuccess.A.combinedInput) || !Number.isFinite(pairedSuccess.B2.combinedInput)
-    ? 'INCONCLUSIVE' : pairedSuccess.B2.combinedInput < pairedSuccess.A.combinedInput ? 'LOWER_OBSERVED_INPUT' : 'NO_GAIN',
+  operationalUsageIncludingInvalid: { A: allUsage('A'), [candidateId]: allUsage(candidateId) },
+  efficiency: qualityGate !== 'PASS' || !Number.isFinite(pairedSuccess.A.combinedInput) || !Number.isFinite(pairedSuccess[candidateId].combinedInput)
+    ? 'INCONCLUSIVE' : pairedSuccess[candidateId].combinedInput < pairedSuccess.A.combinedInput ? 'LOWER_OBSERVED_INPUT' : 'NO_GAIN',
   limits: [
     'ACTUAL means CLI-reported native usage. NOT_AVAILABLE means telemetry or billing was unavailable.',
     'NOT_RUN means no eligible check ran or independent grading is pending. BLOCKED means a prerequisite is missing.',

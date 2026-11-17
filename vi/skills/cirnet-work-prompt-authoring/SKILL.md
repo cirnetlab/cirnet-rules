@@ -9,14 +9,18 @@ Chat khảo sát chỉ đọc trong phạm vi được phép và soạn một b�
 Yêu cầu sửa source trực tiếp dùng Skill thực thi phù hợp. Work kiểm tra lại
 checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi triển khai.
 
-1. **Interpret.** Xác định mục tiêu quan sát được, hành vi mong muốn và thao tác
-   người dùng đã thực sự cấp quyền. Đọc được repo chỉ xác lập quyền đọc.
+1. **Interpret.** Rút ra nhiệm vụ đã được cung cấp trong yêu cầu người dùng, kể
+   cả nhiệm vụ gốc lồng trong yêu cầu biên soạn. Nêu mục tiêu đó trong bản bàn
+   giao. Xác định hành vi mong muốn và thao tác được phép; truy cập repo chỉ
+   xác lập quyền đọc.
    Ghi nội bộ dấu vân tay mục tiêu gồm thao tác, owner, tệp và symbol, phép đổi,
-   kết quả mong đợi, giới hạn phạm vi, ca âm tính và quyền. Chỉ dẫn rõ của người
-   dùng là bằng chứng về yêu cầu.
-2. **Locate Owner.** Mở `en/policies/architecture.md` và
-   `en/references/architecture-routing.md` trong toolkit được phép. Xác định
-   owner, consumer trực tiếp và ranh giới ghi/đọc cho từng repo.
+   kết quả mong đợi, giới hạn phạm vi, ca âm tính và quyền. Trước khi kết luận
+   thiếu mục tiêu, đọc lại yêu cầu đã cung cấp; placeholder trong mẫu và source
+   chưa đọc không chứng minh rằng mục tiêu vắng mặt.
+2. **Locate Owner.** Xác định owner và ranh giới ghi/đọc. Dùng
+   `en/policies/architecture.md` và `en/references/architecture-routing.md`
+   khi cần làm rõ chủ sở hữu, consumer, contract hoặc ranh giới an toàn.
+   Đọc các mục chi phối trong toolkit được phép, một lần cho mỗi vai trò.
 3. **Select Authority/Skills.** Đọc các mục kiến trúc tiếng Anh và Rules liên
    quan. Xem metadata của 13 Skills, dùng `en/skills/README.md` nếu client
    không cung cấp metadata. Chỉ đọc thân Work Skills có trigger áp dụng. Liệt kê
@@ -36,6 +40,9 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    và dùng nguồn an toàn nếu có. Giữ các giá trị ngoài bàn giao và bằng chứng.
    Tìm tên trường có thể in cả dòng source chứa giá trị. Chỉ xuất định danh
    hoặc trích đoạn đã lọc giá trị.
+   Với dữ liệu bản ghi, ưu tiên inspector đã xác minh, có giới hạn, trả metadata
+   cấu trúc mà không thực thi source. Đưa đúng lệnh gọi và giới hạn vào bàn giao cho Work.
+   Quét rò rỉ sau lượt chạy phát hiện phơi lộ, không ngăn phơi lộ qua output công cụ.
 5. **Draft Adaptive Prompt.** Đọc `en/templates/chat-to-work-prompt.md` từ
    checkout được phép. Bundle đã cài cung cấp Skill này và cần quyền đọc
    checkout riêng để lấy mẫu. Thiếu quyền đọc mẫu thì trả `PROMPT_BLOCKED`.
@@ -52,7 +59,9 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
 7. **Editorial Gate.** Rà mục tiêu, owner, phạm vi, bằng chứng, phụ thuộc, ca từ
    chối, invariant và nghiệm thu để Work có thể bắt đầu. Gắn mỗi tiêu chí với
    lệnh/quan sát đã xác minh hoặc giao Work tìm lệnh trong chỉ dẫn owner.
-   Đối chiếu mục tiêu, phạm vi và nghiệm thu với dấu vân tay mục tiêu. Khôi phục
+   Đối chiếu mục tiêu, phạm vi, ràng buộc và nghiệm thu với dấu vân tay mục tiêu.
+   Giữ rõ thao tác, đích và phép đổi đã được cung cấp; mục tiêu chung chung
+   không đủ nếu làm mất thao tác được yêu cầu, kể cả ở LIGHT. Khôi phục
    thao tác hay ràng buộc bị mất trước khi rút gọn. Khi yêu cầu rõ và có quyền,
    ghi `NOT_INSPECTED` và giao Work kiểm tra trước đối với source chưa đọc,
    chi tiết triển khai và lệnh kiểm thử chưa biết. Chỉ dùng `PROMPT_BLOCKED`
@@ -70,8 +79,9 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
 
 ## Truy cập và thẩm quyền
 
-Giao Work mở lại chỉ dẫn local/lồng nhau, Rules, Skills và nguồn owner áp dụng
-trong checkout được phép, đối chiếu revision trước khi thao tác. Nếu Work không
+Giao Work xác lập chỉ dẫn local/lồng nhau, Rules, Skills và nguồn owner áp dụng
+một lần trong vai trò của mình, dùng lại revision khớp còn sẵn và mở lại bằng chứng
+đã đổi hoặc còn thiếu trước khi thao tác. Nếu Work không
 đọc được nguồn tham chiếu, đưa trực tiếp dữ kiện đáng tin cậy thiết yếu, định
 danh/phiên bản nguồn, ràng buộc và nghiệm thu vào bản bàn giao. Chỉ dùng fallback
 khi bằng chứng đáng tin cậy xác lập phạm vi an toàn. Đánh dấu phần chưa giải
@@ -94,4 +104,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 662211bcd540edada7669bd51394c446f6230150bfd747acdc5fd454eaf6d655 -->
+<!-- source-sha256: 33f90d8b4379532c0d0ab1aa3387655b70bed15683a189c5179aaee5b4a26b20 -->

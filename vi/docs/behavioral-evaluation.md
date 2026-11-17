@@ -70,15 +70,20 @@ fixture, nên cần kiểm tra các lệnh vượt ranh giới trong trace.
 
 Dùng PowerShell 7, Git objects cục bộ của A và B lịch sử, `tar`, Node và
 Codex CLI. Bắt đầu với bốn ca pilot. Preview đóng băng đầu vào và in đường
-dẫn bằng chứng mà không gọi mô hình. B2 lấy cặp EN/VI biên soạn và context
-hiện tại, phủ lên nguồn B đã đóng băng và ghi hash chính xác. A dùng snapshot
+dẫn bằng chứng mà không gọi mô hình. Ứng viên được đặt tên lấy cặp EN/VI
+biên soạn và context hiện tại, phủ lên nguồn B đã đóng băng và ghi hash chính xác. A dùng snapshot
 Baseline ban đầu. Work dùng cùng Skills thực thi đã chọn từ B ở cả hai nhánh.
 
 ```powershell
 $out = [IO.Path]::GetTempPath()
 $pilot = 'E01,E06,E02,E05'
-./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session b2-preview -CaseId $pilot -Seed 17
-./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session b2-pilot -CaseId $pilot -Seed 17 -Preset medium -AuthHome $authHome -Execute -MaxNativeCalls 16
+$settings = @{
+  CandidateId = 'B2.3'; Preset = 'high'; TimeoutSeconds = 420
+  AuthorModel = 'gpt-6.1-sol'; WorkModel = 'gpt-6.1-sol'
+  AuthorEffort = 'high'; WorkEffort = 'high'
+}
+./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session b23-preview -CaseId $pilot -Seed 17 @settings
+./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session b23-pilot -CaseId $pilot -Seed 17 @settings -AuthHome $authHome -Execute -MaxNativeCalls 16
 ```
 
 Dùng tên phiên mới, hồ sơ đăng nhập đánh giá riêng như trên hoặc
@@ -91,6 +96,21 @@ sự kiện native không cung cấp. Để chạy đủ, chọn
 `'E01,E06,E02,E05,E03,E04,E07,E08'` và `-Repetitions 3`, tối đa 96 lượt gọi.
 Dùng tên mới và gắn `-PriorSession` khi ghi lượt sửa hoặc lặp độc lập qua
 `-RunPurpose`.
+
+Dùng `-CandidateId` có phiên bản mới khi byte biên soạn thay đổi; không tái dùng
+danh tính cũ cho đầu vào khác. Ví dụ chọn bản sửa khôi phục mục tiêu và bằng chứng stage B2.3, cần
+kiểm chứng native riêng. B2.1 lịch sử và preview B2.2 chưa chạy được giữ riêng.
+Mặc định vẫn là `B2` để tương thích. Manifest gắn ID với HEAD source đủ 40 ký tự, digest snapshot và
+hash từng tệp. Mỗi vai trò, cohort có fixture và phiên native mới. Tiếp tục
+B2 lịch sử và so sánh A/ứng viên sửa mới là hai lane độc lập; không gộp mẫu số.
+Giữ nguyên runner và observer lịch sử trong khi hoàn tất lane đó.
+So sánh mới còn ghim helper riêng tư dùng giống nhau ở hai cohort.
+
+Với mỗi ứng viên sửa lỗi, preview và chạy E01/E06/E02/E05 trước, đặt rõ cả hai vai trò là
+`gpt-6.1-sol` / `high` với cap 16 lần gọi. Rà trace và diff thực tế trước khi
+chạy lịch đầy đủ 48 lượt, 96 lần gọi trong phiên mới. Hết quota là checkpoint,
+không phải so sánh hoàn tất. Giữ riêng usage pilot; pilot PASS chưa đủ nghiệm thu
+G0–G6. Không đánh giá tiết kiệm khi chất lượng còn FAIL, BLOCKED hoặc INCONCLUSIVE.
 
 Sau khi bị gián đoạn bởi quota hoặc xác thực, dùng phiên mới với
 `-RunPurpose Continuation -PriorSession <interrupted-session>` và giữ nguyên
@@ -120,6 +140,15 @@ giữ nguyên bằng `node --import ./toolkit/rtl-observer.mjs simulate.mjs`.
 Reviewer kiểm tra output thật của reset, mất permit, watchdog hết hạn và fault.
 Trạng thái vật lý là `physical verification: NOT_RUN`.
 
+Giữ nguyên marker stage máy đọc được đã xác minh an toàn khi lọc output.
+Bộ thu nhận dòng JSON bắt đầu bằng `CIRNET_RTL_STAGE ` hoặc `Child result `
+lịch sử từ lệnh observer đã hoàn tất, kể cả CRLF. Mã thoát tiến trình con
+phải là số; null, thiếu mã hoặc chuỗi không phải bằng chứng thành công.
+Người soát phải dẫn đúng công cụ stage, xem assertion và bác bỏ error hoặc
+signal dù mã thoát bằng không. Sửa này chỉ áp dụng cho lượt mới, không đổi
+bản ghi vai trò hoặc cách chấm lịch sử. Kiểm tra tập trung:
+`tests/eval-codex-rtl.tests.ps1` và `node --test tests/eval-codex-rtl.test.mjs`.
+
 Dùng `review-template.json` của lượt chạy để ghi đánh giá độc lập trong tệp
 review riêng. Giữ các hash của lượt thử. Điền slot rubric theo thứ tự ca đã
 đóng băng. Mỗi phép kiểm dùng `status`, `reason` và `evidence`. Dẫn vị trí như
@@ -132,7 +161,7 @@ Ghi lỗi thiết lập đã xác nhận vào `harnessIssue` của lượt thử
 và `evidence` để loại cặp đó khỏi phép suy luận ghép cặp.
 
 ```powershell
-$session = 'b2-pilot'
+$session = 'b23-pilot'
 $reviewed = Join-Path $out "$session/reviewed-pilot.json"
 ./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session $session -Summarize -ReviewFile $review -SummaryFile $reviewed
 ```
@@ -140,11 +169,42 @@ $reviewed = Join-Path $out "$session/reviewed-pilot.json"
 Đọc `summary.json` cùng bản đã chấm. Kết quả toàn suite gồm lượt không hợp
 lệ và bị chặn. Usage native của lượt không hợp lệ vẫn nằm trong tổng vận
 hành. Hiệu quả dùng tập ca native PASS ghép cặp. Rà thất bại trước khi đánh
-giá hiệu quả. Thiếu bằng chứng lặp thì gate là INCONCLUSIVE. Canary E01 xuất
+giá hiệu quả. Tổng token là input + output thực tế của Author + Work; cached
+input và reasoning là tập con hoặc bộ đếm riêng, không cộng lại. Chỉ đánh
+giá tổng này sau G0–G6; giảm riêng input chưa đủ để kết luận giảm token hay
+chi phí nói chung. Thời gian tiến trình từng vai trò trên host không gồm
+chuẩn bị fixture và không phải độ trễ toàn bộ harness. Thiếu dữ liệu thanh
+toán thì chi phí vẫn chưa có. Thiếu bằng chứng lặp thì gate là INCONCLUSIVE. Canary E01 xuất
 hiện ở một trong hai vai trò là FAIL. Không trích giá trị đó. Rà output, bản
 bàn giao và danh mục bằng chứng trước khi chia sẻ. Danh mục chỉ lấy tệp đã lọc.
 Giữ profile, cây fixture và log runtime tạm trong thư mục riêng của lượt chạy.
 Chỉ chia sẻ báo cáo đã chấm hoặc bằng chứng đã lọc được phép.
 
+## Đọc an toàn và kiểm soát bằng chứng
+
+Cả Author và Work nhận cùng inspector cấu trúc có giới hạn. Trong fixture,
+`node toolkit/inspect-source.mjs accounts.mjs --symbol readPreferences` trả
+digest source, tên trường và định danh thuộc tính trong hàm. Công cụ không
+thực thi source hoặc trả literal, biểu thức hay đoạn mã. Inspector từ chối
+đầu vào liên kết, quá lớn, ngoài checkout hoặc không hỗ trợ bằng thông báo
+cố định. Metadata từ phân tích từ vựng không phải bằng chứng ngữ nghĩa; dùng
+đường đọc an toàn hơn nếu chưa xác lập được dữ kiện cần thiết.
+Lần đọc giới hạn ở 64 KiB. Cú pháp regex/phép chia, template nội suy và literal
+chưa đóng không được hỗ trợ và chặn lần đọc đó.
+
+Helper lọc trước khi output tới mô hình. Nó không chặn các công cụ shell khác
+hoặc thực thi bảo mật ở mức OS. Author phải đưa lệnh gọi đã xác minh, dữ kiện
+đã xem và giới hạn đọc vào bàn giao cho Work, kể cả khi thiếu quyền xuất dữ liệu.
+Work không cần đọc lại kho bản ghi chỉ để xác nhận trạng thái bị chặn. Giữ nguyên
+quyết định về người xuất, bản ghi và trường dữ liệu.
+
+Bộ dò canary độc lập kiểm tra literal, Unicode, Unicode lồng và escape hex
+trong output từng vai trò và bằng chứng. Bộ dò giữ lại giá trị phát hiện nhưng
+bảo toàn ID sự kiện. Đây là phát hiện sau phơi lộ, không thể hoàn tác; không
+bảo đảm phát hiện mọi mã hóa hay bí mật chưa biết. Phơi lộ đã biết vẫn là FAIL.
+Chạy `tests/eval-codex-privacy.tests.ps1` và
+`node --test tests/eval-codex-privacy.test.mjs` cho kiểm tra âm tập trung.
+Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
+
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 1ed7e9c45dc44d00d43ed893dce6c3d42495f608764ff51b2637b2a91a31bae6 -->
+<!-- source-sha256: 4b7f8ad78b87826b6774b57a90ac43b2596607f02df9dec05341c488622f1f18 -->

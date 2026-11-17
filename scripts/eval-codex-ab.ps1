@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory)][string]$OutputRoot,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$')][string]$Session,
     [Parameter(ParameterSetName='Run')][string]$CaseId = 'E01,E06,E02,E05',
+    [Parameter(ParameterSetName='Run')][ValidatePattern('^B2(?:\.[1-9][0-9]*)?$')][string]$CandidateId = 'B2',
     [Parameter(ParameterSetName='Run')][ValidateRange(1, 20)][int]$Repetitions = 1,
     [Parameter(ParameterSetName='Run')][int]$Seed = 1,
     [Parameter(ParameterSetName='Run')][ValidateRange(1, 600)][int]$TimeoutSeconds = 300,
@@ -28,6 +29,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Bundle.psm1') -Force
 $repo = Split-Path -Parent $PSScriptRoot
+$sourceGitRoot = (& git --no-optional-locks --no-replace-objects -C $repo rev-parse --show-toplevel).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'The source must belong to the approved local Git checkout.' }
 $suite = Join-Path $repo 'tests/behavioral'
 $runner = Join-Path $PSScriptRoot 'eval-codex.ps1'
 $reporter = Join-Path $PSScriptRoot 'eval-codex-report.mjs'
@@ -40,7 +43,7 @@ function Save-Json([string]$Path, $Value) {
 }
 
 function Invoke-SourceGit([string[]]$ArgumentList) {
-    $result = & git --no-optional-locks --no-replace-objects -C $repo @ArgumentList
+    $result = & git --no-optional-locks --no-replace-objects -C $sourceGitRoot @ArgumentList
     if ($LASTEXITCODE -ne 0) { throw "Local Git operation failed ($($ArgumentList[0])). The benchmark uses local objects." }
     return $result
 }
@@ -107,7 +110,7 @@ $WorkEffort = if ($WorkEffort) { $WorkEffort } else { $Preset }
 $schedule = @(
     for ($rep = 1; $rep -le $Repetitions; $rep++) {
         for ($i = 0; $i -lt $ids.Count; $i++) {
-            $order = if (([long]$Seed + $i + $rep - 1) % 2 -eq 0) { @('A','B2') } else { @('B2','A') }
+            $order = if (([long]$Seed + $i + $rep - 1) % 2 -eq 0) { @('A',$CandidateId) } else { @($CandidateId,'A') }
             foreach ($cohort in $order) {
                 [ordered]@{ caseId = $ids[$i]; repetition = $rep; cohort = $cohort; trialId = "$($ids[$i])-r$rep-$cohort" }
             }
@@ -119,6 +122,8 @@ $priorRoot = $null
 if ($RunPurpose -eq 'Continuation') {
     $priorRoot = Resolve-CirnetPath -Root $output -Relative $PriorSession
     $prior = Read-Record (Join-Path $priorRoot 'manifest.json')
+    $priorCandidateId = if ($prior.Contains('candidateId')) { $prior.candidateId } else { 'B2' }
+    if ($CandidateId -cne $priorCandidateId) { throw 'Continuation candidate ID differs from the original.' }
     foreach ($setting in @('authorModel','workModel','authorEffort','workEffort','seed','repetitions','timeoutSecondsPerRole')) {
         $expected = switch ($setting) {
             authorModel { $AuthorModel }; workModel { $WorkModel }; authorEffort { $AuthorEffort }
@@ -148,6 +153,14 @@ if ($RunPurpose -eq 'Continuation') {
         (Get-CirnetHash -Path (Join-Path $PSScriptRoot 'eval-codex-rtl.mjs')) -cne $prior.rtlObserverSha256) {
         throw 'Continuation requires the original role runner and RTL observer.'
     }
+    if ($prior.Contains('privacyHelperSha256') -and
+        (Get-CirnetHash -Path (Join-Path $PSScriptRoot 'eval-codex-privacy.mjs')) -cne $prior.privacyHelperSha256) {
+        throw 'Continuation requires the original privacy inspector.'
+    }
+    if ($prior.Contains('bundleSha256') -and
+        (Get-CirnetHash -Path (Join-Path $PSScriptRoot 'Bundle.psm1')) -cne $prior.bundleSha256) {
+        throw 'Continuation requires the original bundle/path implementation.'
+    }
     foreach ($slot in $schedule) {
         $recordPath = "trials/$($slot.trialId)/pair-trial.json"
         if (-not $priorIndex.files.Contains($recordPath)) { throw 'Prior trial record is not indexed.' }
@@ -170,7 +183,7 @@ $trials = Join-Path $root 'trials'
 $private = Join-Path $root 'evaluator'
 foreach ($directory in @($snapshots,$trials,$private)) { $null = New-Item -ItemType Directory -Path $directory }
 if ($priorRoot) {
-    foreach ($name in @('A','B2','common')) {
+    foreach ($name in @('A',$CandidateId,'common')) {
         Copy-FrozenInputs (Resolve-CirnetPath -Root $priorRoot -Relative "snapshots/$name") (Join-Path $snapshots $name) $prior.snapshots[$name]
     }
     Copy-FrozenInputs (Resolve-CirnetPath -Root $priorRoot -Relative 'evaluator') $private $prior.inputs
@@ -190,7 +203,7 @@ else {
         & tar -xf $tar -C $snapshot
         if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the local Git snapshot.' }
     }
-    $candidate = Join-Path $snapshots 'B2'
+    $candidate = Join-Path $snapshots $CandidateId
     Copy-Item -LiteralPath (Join-Path $snapshots 'common') -Destination $candidate -Recurse
     $changedAuthoring = @('skills/cirnet-work-prompt-authoring/SKILL.md','templates/chat-to-work-prompt.md','docs/context.md')
     foreach ($language in @('en','vi')) {
@@ -213,7 +226,7 @@ else {
     }
 }
 $frozen = [ordered]@{}
-foreach ($name in @('A','B2','common')) {
+foreach ($name in @('A',$CandidateId,'common')) {
     $snapshot = Join-Path $snapshots $name
     $frozen[$name] = Get-FrozenHashes $snapshot
     if (@($frozen[$name].Keys | Where-Object { $_ -cmatch '^en/skills/[^/]+/SKILL\.md$' }).Count -ne 13) {
@@ -230,7 +243,10 @@ $manifest = [ordered]@{
     mode = ($Execute ? 'execute' : 'preview'); priorSession = $PriorSession; runPurpose = $RunPurpose
     sourceHead = $head; sourceStatus = $sourceStatus; branch = $branch
     baseline = $baseline; historicalB = $historical
-    candidate = if ($priorRoot) { $prior.candidate } else { 'B2 working-tree authoring files over frozen common snapshot' }
+    candidateId = $CandidateId
+    candidate = if ($priorRoot) { $prior.candidate } else { "$CandidateId working-tree authoring files over frozen common snapshot" }
+    candidateSourceHead = if ($priorRoot -and $prior.Contains('candidateSourceHead')) { $prior.candidateSourceHead } elseif ($priorRoot) { $prior.sourceHead } else { $head }
+    candidateSnapshotSha256 = Get-CirnetPayloadHash -Bytes $utf8.GetBytes((ConvertTo-Json -Compress -InputObject $frozen[$CandidateId]))
     authorModel = $AuthorModel; workModel = $WorkModel; authorEffort = $AuthorEffort; workEffort = $WorkEffort
     seed = $Seed; schedule = $schedule; repetitions = $Repetitions; timeoutSecondsPerRole = $TimeoutSeconds
     maximumPlannedRoleCalls = $planned; authorizedCallCap = if ($Execute) { $MaxNativeCalls }
@@ -240,11 +256,13 @@ $manifest = [ordered]@{
     runnerSha256 = Get-CirnetHash -Path $runner; schedulerSha256 = Get-CirnetHash -Path $PSCommandPath
     reporterSha256 = Get-CirnetHash -Path $reporter
     rtlObserverSha256 = Get-CirnetHash -Path (Join-Path $PSScriptRoot 'eval-codex-rtl.mjs')
+    privacyHelperSha256 = Get-CirnetHash -Path (Join-Path $PSScriptRoot 'eval-codex-privacy.mjs')
+    bundleSha256 = Get-CirnetHash -Path (Join-Path $PSScriptRoot 'Bundle.psm1')
     host = [ordered]@{ os = [Runtime.InteropServices.RuntimeInformation]::OSDescription; pwsh = $PSVersionTable.PSVersion.ToString() }
     limits = 'Role sandboxes, isolated environment and trace audit reduce access. OS reads outside the fixture are not guaranteed to be blocked.'
 }
 Save-Json (Join-Path $root 'manifest.json') $manifest
-Write-Host "A/B2 evidence root: $root"
+Write-Host "A/$CandidateId evidence root: $root"
 if (-not $Execute) { return }
 
 $commonArgs = @{ OutputRoot=$trials; ComparisonRoot=$root; SuiteRoot=$private; Execute=$true; TimeoutSeconds=$TimeoutSeconds }
@@ -281,7 +299,7 @@ foreach ($slot in $schedule) {
     $roleArgs.OutputRoot = $trialRoot
     $roleArgs.CaseId = $slot.caseId
     $roleArgs.Cohort = $selected
-    $authorRevision = if ($slot.cohort -eq 'A') { $baseline } else { 'B2:' + $frozen.B2['en/templates/chat-to-work-prompt.md'] }
+    $authorRevision = if ($slot.cohort -eq 'A') { $baseline } else { $CandidateId + ':' + $frozen[$CandidateId]['en/templates/chat-to-work-prompt.md'] }
     try {
         & $runner @roleArgs -Role Author -Session Author -RulesRoot $authorRules -SourceRevision $authorRevision -Model $AuthorModel -Effort $AuthorEffort
         $author = Read-Record (Join-Path $trialRoot "Author/$($slot.caseId)/run.json")
@@ -327,7 +345,12 @@ foreach ($slot in $schedule) {
         $stopReason = $trial.reason
     }
     $trialJson = ConvertTo-Json -InputObject $trial -Depth 60
-    if (@($canaries | Where-Object { $trialJson.Contains($_, [StringComparison]::Ordinal) }).Count) {
+    $decodedTrialJson = [regex]::Replace($trialJson, '\\+(?:u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2}))', {
+        param($match)
+        $hex = if ($match.Groups[1].Success) { $match.Groups[1].Value } else { $match.Groups[2].Value }
+        [string][char][Convert]::ToInt32($hex, 16)
+    })
+    if (@($canaries | Where-Object { $trialJson.Contains($_, [StringComparison]::Ordinal) -or $decodedTrialJson.Contains($_, [StringComparison]::Ordinal) }).Count) {
         throw 'Protected value in serialized trial. Evidence export stopped.'
     }
     Save-Json (Join-Path $trialRoot 'pair-trial.json') $trial

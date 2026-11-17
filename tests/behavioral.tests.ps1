@@ -3,6 +3,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repo = Split-Path -Parent $PSScriptRoot
+& (Join-Path $PSScriptRoot 'eval-codex-privacy.tests.ps1')
+& node --test (Join-Path $PSScriptRoot 'eval-codex-privacy.test.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Focused privacy boundary tests failed.' }
 $runner = Join-Path $repo 'scripts/eval-codex.ps1'
 $data = Join-Path $PSScriptRoot 'behavioral'
 $checks = Join-Path $data 'checks.mjs'

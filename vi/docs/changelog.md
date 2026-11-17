@@ -2,6 +2,17 @@
 
 ## 0.2.0 (candidate)
 
+- Giữ giao thức stage kiểm chứng an toàn khi lọc output; nhận marker lịch sử
+  với mã thoát con dạng số và chặn PASS giả khi có error/signal. Bao phủ cả
+  hai kiểu xuống dòng và giữ nguyên bằng chứng chấm lịch sử.
+
+- Khôi phục nhiệm vụ gốc được cung cấp bên trong yêu cầu biên soạn trước khi
+  kết luận thiếu mục tiêu; giữ riêng bằng chứng benchmark của ứng viên đóng
+  băng không đạt.
+- Giữ thao tác bàn giao rõ ràng và dùng lại context riêng theo vai trò. Ưu tiên
+  đọc cấu trúc có giới hạn và giữ giới hạn riêng tư trong bàn giao bị chặn.
+- Tách danh tính ứng viên sửa lỗi khỏi bằng chứng B2 lịch sử. Mở rộng audit
+  giá trị escape và đặt nghiệm thu native trước đánh giá hiệu quả.
 - Thêm Skill biên soạn Work Prompt có thể chọn cài và mẫu song ngữ để bàn
   giao nhiệm vụ đúng phạm vi cho Agent khác.
 - Thêm cách chọn kiến trúc Lab-First, định tuyến chủ sở hữu repository và
@@ -34,4 +45,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 0b0e3a8b4e8550a6bcbdc821285da2eedb834eba60f0579f914db495703f309d -->
+<!-- source-sha256: c1009944ae146acd9878ce89d7b27e730a51cf09274efdf3f132f384e79b4b9f -->

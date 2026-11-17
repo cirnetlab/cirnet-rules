@@ -7,6 +7,11 @@ soạn. Work phụ trách kiểm tra local trước, triển khai, build/test đ
 báo cáo. Trình bày một bản bàn giao hoàn chỉnh bằng Markdown thông thường theo
 định dạng người dùng yêu cầu.
 
+Bắt đầu từ nhiệm vụ thực tế trong yêu cầu biên soạn, kể cả yêu cầu gốc được
+lồng hoặc trích dẫn. Nêu mục tiêu của nhiệm vụ đó trong bản bàn giao. Trước khi
+kết luận thiếu mục tiêu, kiểm tra lại nội dung nhiệm vụ đã cung cấp; các trường
+trong mẫu chưa được điền không chứng minh rằng mục tiêu vắng mặt.
+
 Xét đủ 12 trường ngữ nghĩa bên dưới. Gom thông tin áp dụng vào các heading nhiệm
 vụ cần. Bỏ phần không áp dụng và placeholder thừa. Giữ chỉ dẫn dùng mẫu cùng
 checklist trường thông tin ở ngoài bản bàn giao cuối. Mỗi dữ kiện, ràng buộc và
@@ -82,8 +87,14 @@ kiếm khớp, lỗi hay log được đưa ra output. Xuất tệp chưa lọc 
 khớp chứa giá trị đều không an toàn. Nếu không thể lọc an toàn, giữ lần đọc đó
 ở trạng thái bị chặn và yêu cầu đường truy cập an toàn hơn.
 
-Giao Work mở lại tham chiếu trong checkout được phép và đối chiếu source local
-hiện tại trước khi thao tác. Nếu Work không đọc được tham chiếu, đưa trực tiếp
+Khi có inspector đã xác minh và có giới hạn, đưa cho Work đúng đường dẫn tương đối,
+lệnh gọi metadata/projection, digest source và giới hạn output. Ưu tiên định danh
+trong allowlist thay cho tự viết tìm kiếm chứa giá trị. Shell không bị giới hạn vẫn
+có thể làm lộ dữ liệu; sanitizer trace hoặc audit về sau không thể hoàn tác phơi lộ
+cho mô hình. Giữ rõ câu hỏi về quyền và giới hạn này.
+
+Giao Work đối chiếu tham chiếu với source hiện tại được phép, dùng lại bằng chứng
+khớp đã nạp và mở lại phần đã đổi hoặc còn thiếu. Nếu Work không đọc được tham chiếu, đưa trực tiếp
 dữ kiện đáng tin cậy thiết yếu, định danh/phiên bản nguồn, ràng buộc và nghiệm
 thu. Nếu thiếu thẩm quyền hay thông tin quyết định, đánh dấu phần phụ thuộc là
 `BLOCKED` hoặc trả `PROMPT_BLOCKED`. Khi Chat chưa xem được source sản phẩm
@@ -112,6 +123,12 @@ Với LIGHT hoặc STANDARD, có thể đưa các trường áp dụng vào các
 - **Acceptance & Verification** gắn mỗi kết quả với lệnh, test hoặc quan sát
   đã xác minh, hoặc giao Work tìm lệnh trong chỉ dẫn owner. Nêu môi trường,
   điều kiện tiên quyết và bằng chứng cần thu.
+  Gom tiêu chí cùng một phép kiểm bao phủ, giữ nguyên mọi assertion ban đầu.
+  Không yêu cầu chạy hai lần cùng test chưa đổi dưới nhãn focused/full-suite;
+  chỉ lặp khi source, đầu vào, phạm vi hoặc bằng chứng còn thiếu yêu cầu.
+  Khi lọc output kiểm chứng, giữ các dữ kiện đã xác minh an toàn: marker stage
+  máy đọc được, mã thoát tiến trình con dạng số và định danh assertion. Loại
+  payload nhạy cảm mà không đổi nhãn trong giao thức output.
 - **Deliverables & Reporting** gồm tài liệu, cặp EN/VI khi bắt buộc, artifact,
   nơi lưu, đường dẫn đã sửa, lệnh/mã thoát thực tế và trạng thái từng phép kiểm
   `PASS` / `FAIL` / `NOT_RUN` / `BLOCKED`, ảnh hưởng tương thích và giới hạn.
@@ -138,4 +155,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: 7b705db86919bbebc1a9254ce7fc76449b667da7cdf5e5d484fd3b56b879b39e -->
+<!-- source-sha256: e3ea966c1dc76c0d0bb98492b3d63e4e28aa56b3b32dff25847df54bc065e393 -->

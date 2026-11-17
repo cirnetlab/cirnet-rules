@@ -48,6 +48,9 @@ When Work lacks source access, include essential trusted facts, source identity,
 constraints and acceptance, or block the dependent work if authority is missing.
 The English template still needs separate checkout access as described below.
 Return one scoped handoff in chat. Direct source changes use execution Skills.
+Track Required / Conditional / Already-loaded independently in each role.
+Author's inspected facts can be cited; its in-memory context is not Work's cache.
+Give Work a minimal first read and reopen only changed or missing decisive evidence.
 [Authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Template](../templates/chat-to-work-prompt.md) · [Bundle access](distribution.md#work-prompt-authoring)
 
