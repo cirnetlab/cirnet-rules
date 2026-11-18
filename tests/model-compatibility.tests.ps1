@@ -52,10 +52,11 @@ if ($author) {
         & node --test *> $null
         if ($LASTEXITCODE -ne 0) { exit 11 }
     }
-    if (-not $e01 -and $mode -ne 'mock-objective-fail') {
+    if (-not $e01) {
         $path = Join-Path $PWD 'src/labels.mjs'
         $source = [IO.File]::ReadAllText($path)
         $edited = $source -replace "(?m)^import \{ trimAlias \} from '\./text\.mjs';\r?\n(?:\r?\n)?", ''
+        if ($mode -eq 'mock-objective-fail') { $edited = "`n" + $edited }
         [IO.File]::WriteAllText($path, $edited.Replace('trimAlias(name)', 'name.trim()'))
     }
     $answer = 'Synthetic Work evidence.'
@@ -102,6 +103,31 @@ $guideHash = (Get-FileHash -LiteralPath (Join-Path $repo $guide)).Hash.ToLowerIn
 $casesHash = (Get-FileHash -LiteralPath (Join-Path $repo 'tests/behavioral/cases.json')).Hash.ToLowerInvariant()
 if ($preview.rules[$guide] -cne $guideHash -or $preview.evaluator['cases.json'] -cne $casesHash) {
     throw 'Snapshot did not capture the actual guide and fixture suite hashes.'
+}
+
+foreach ($id in @('P01', 'E05')) {
+    & $smoke -Session "preview-$id" -Model mock -OutputRoot $output -CaseId $id
+    if ($LASTEXITCODE -ne 0) { throw "Could not preview $id." }
+    $lane = Read-Evidence "preview-$id/manifest.json"
+    if ($lane.mode -cne 'PREVIEW' -or @($lane.cases).Count -ne 1 -or $lane.cases[0] -cne $id -or $lane.maximumRoleCalls -ne 2 -or
+        @(Get-ChildItem -LiteralPath (Join-Path $output "preview-$id/trials")).Count) {
+        throw "Expected a two-role preview for only $id."
+    }
+    if ($lane.evaluator['fixtures/E01/accounts.mjs'] -cne $preview.evaluator['fixtures/E01/accounts.mjs'] -or
+        $lane.rules['en/skills/cirnet-refactoring/SKILL.md'] -cne $preview.rules['en/skills/cirnet-refactoring/SKILL.md']) {
+        throw 'The independent lane must preserve the privacy auditor and use the current execution Skill.'
+    }
+    if ($id -ceq 'P01') {
+        $pythonSuite = Join-Path $repo 'tests/behavioral-python'
+        foreach ($file in @('cases.json', 'checks.mjs', 'fixtures/P01/retry_count.py', 'fixtures/P01/qa/contract_retries.py')) {
+            $hash = (Get-FileHash -LiteralPath (Join-Path $pythonSuite $file)).Hash.ToLowerInvariant()
+            if ($lane.evaluator[$file] -cne $hash) { throw "P01 did not freeze $file." }
+        }
+        if ($lane.evaluator.Contains('fixtures/E05/rank.mjs')) { throw 'The Python suite must stay separate.' }
+    } elseif ($lane.evaluator['cases.json'] -cne $casesHash) {
+        throw 'E05 must use the original engineering suite.'
+    }
+    Assert-Rejected "wrong-budget-$id" @{ CaseId=$id; Execute=$true; MaxNativeCalls=4; CodexPath=$shim } 'Authorize up to 2'
 }
 Assert-Rejected preview @{} 'exist'
 Assert-Rejected wrong-cap @{ Execute=$true; CodexPath=$shim; MaxNativeCalls=3 } 'MaxNativeCalls 4'
@@ -195,7 +221,7 @@ $objectiveCode = $LASTEXITCODE
 $objective = Read-Evidence 'objective-fail/compatibility-summary.json'
 if ($objectiveCode -ne 1 -or $objective.cases[1].status -ne 'FAIL' -or
     $objective.cases[1].work.execution -ne 'COMPLETED' -or -not $objective.cases[1].handoffShaMatches) {
-    throw 'A completed, byte-exact Work role with a failed objective must fail.'
+    throw 'A completed, byte-exact Work role must fail if it leaves the removed import separator.'
 }
 
 & $smoke @execute -Session blocked -Model mock-blocked
@@ -205,6 +231,20 @@ if ($blockedCode -ne 2 -or @($blocked.cases | Where-Object {
     $_.status -ne 'BLOCKED' -or $_.author.usage -ne 'NOT_AVAILABLE' -or $_.work.execution -ne 'NOT_RUN'
 }).Count) {
     throw 'Incomplete turns must stay blocked with missing usage marked unavailable.'
+}
+
+$singleArgs = $execute.Clone()
+$singleArgs.MaxNativeCalls = 2
+& $smoke @singleArgs -CaseId E05 -Session blocked-single -Model mock-blocked
+$singleCode = $LASTEXITCODE
+$single = Read-Evidence 'blocked-single/compatibility-summary.json'
+if ($singleCode -ne 2 -or $single.cases -isnot [array] -or $single.cases.Count -ne 1 -or
+    $single.cases[0].id -cne 'E05' -or $single.cases[0].status -cne 'BLOCKED') {
+    throw 'Single-case summaries must retain the cases array.'
+}
+$authorPrompt = [IO.File]::ReadAllText((Join-Path $output 'blocked-single/trials/E05/Author/E05/prompt.txt'))
+if (-not $authorPrompt.Contains('Cite only sources available to Work')) {
+    throw 'Single-case Author must be told to avoid prerequisites that are available only to Author.'
 }
 Write-Host "PASS Candidate-only smoke preview and local shim checks. Evidence $output"
 # The CI shell forwards $LASTEXITCODE. Return success only after every assertion passes.

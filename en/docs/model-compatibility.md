@@ -61,6 +61,23 @@ session and share only sanitized evidence. A detected E01 synthetic canary is a
 failure. The existing privacy audit detects exposure and the filesystem read
 isolation limit still applies.
 
+## Check generalization separately
+
+Select `-CaseId E05` for an existing debugging and regression case or
+`-CaseId P01` for the independent Python refactor. Each preview freezes the
+selected suite, the current Author and Work Skills, and the runner. Each
+authorized execution uses `-Execute -MaxNativeCalls 2` and the same handoff
+validation as the default smoke. P01 requires an approved Python executable
+available to the evaluation sandbox. Use `-ToolPath` for a verified portable
+interpreter under the OS temporary directory when needed.
+
+Review the chosen prompt level and the actual checks. Require E05's new
+regression to fail for the ordering defect before the source edit and pass
+afterward. Require P01's owner-provided unittest command to pass on the actual
+fixture before and after the edit, with the error contract and user data
+preserved. The Candidate-only runs use the current execution Skills.
+Legacy A/B stages the frozen common execution Skills for both cohorts.
+
 ## Assess release readiness
 
 Use **Adaptive Stable** for the single release line once its applicable gates

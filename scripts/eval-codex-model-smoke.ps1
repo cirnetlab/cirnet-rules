@@ -3,11 +3,13 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}\z')][string]$Session,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}\z')][string]$Model,
+    [ValidateSet('E05', 'P01')][string]$CaseId,
     [ValidateSet('minimal', 'low', 'medium', 'high', 'xhigh')][string]$Effort = 'high',
     [ValidateRange(1, 600)][int]$TimeoutSeconds = 300,
     [string]$OutputRoot = [IO.Path]::GetTempPath(),
     [string]$AuthHome,
     [string]$CodexPath,
+    [string]$ToolPath,
     [switch]$UseApiKey,
     [switch]$Execute,
     [ValidateRange(1, 4)][int]$MaxNativeCalls
@@ -20,7 +22,7 @@ Import-Module (Join-Path $PSScriptRoot 'Bundle.psm1') -Force
 $repo = Split-Path -Parent $PSScriptRoot
 $runner = Join-Path $PSScriptRoot 'eval-codex.ps1'
 $utf8 = [Text.UTF8Encoding]::new($false, $true)
-$cases = @('E01', 'E06')
+$cases = @(if ($CaseId) { $CaseId.ToUpperInvariant() } else { 'E01', 'E06' })
 $plannedCalls = 2 * $cases.Count
 $isShim = $CodexPath -and [IO.Path]::GetExtension($CodexPath) -ieq '.ps1'
 
@@ -131,8 +133,15 @@ $rulesPaths = @(Invoke-SourceGit @('ls-files', '--deduplicate', '--', 'AGENTS.md
     'en/docs', 'en/policies', 'en/rules', 'en/references', 'docs'))
 # The new guide belongs to this candidate even before it is tracked by Git.
 $rulesPaths += 'en/docs/model-compatibility.md'
-$suitePaths = @(Invoke-SourceGit @('ls-files', '--deduplicate', '--', 'tests/behavioral') |
-    ForEach-Object { $_.Substring('tests/behavioral/'.Length) })
+$suiteSource = 'tests/behavioral'
+if ($CaseId -eq 'P01') {
+    $suiteSource = 'tests/behavioral-python'
+    $suitePaths = @(Invoke-SourceGit @('ls-files', '--cached', '--others', '--exclude-standard', '--deduplicate', '--', $suiteSource) |
+        ForEach-Object { $_.Substring($suiteSource.Length + 1) })
+} else {
+    $suitePaths = @(Invoke-SourceGit @('ls-files', '--deduplicate', '--', $suiteSource) |
+        ForEach-Object { $_.Substring($suiteSource.Length + 1) })
+}
 $runnerHashes = [ordered]@{}
 foreach ($relative in @('scripts/eval-codex-model-smoke.ps1', 'scripts/eval-codex.ps1', 'scripts/eval-codex-privacy.mjs', 'scripts/Bundle.psm1')) {
     $runnerHashes[$relative] = Get-InputHash $repo $relative
@@ -153,7 +162,13 @@ $suite = Join-Path $root 'evaluator'
 $trials = Join-Path $root 'trials'
 foreach ($directory in @($rules, $suite, $trials)) { $null = New-Item -ItemType Directory -Path $directory }
 $ruleHashes = Copy-Snapshot $repo $rules $rulesPaths
-$suiteHashes = Copy-Snapshot (Join-Path $repo 'tests/behavioral') $suite $suitePaths
+$suiteHashes = Copy-Snapshot (Join-Path $repo $suiteSource) $suite $suitePaths
+if ($CaseId -eq 'P01') {
+    # The existing privacy audit remains active in the independent suite.
+    $auditFixture = 'fixtures/E01/accounts.mjs'
+    $auditHashes = Copy-Snapshot (Join-Path $repo 'tests/behavioral') $suite @($auditFixture)
+    $suiteHashes[$auditFixture] = $auditHashes[$auditFixture]
+}
 $mode = if (-not $Execute) { 'PREVIEW' } elseif ($isShim) { 'TEST_SHIM' } else { 'NATIVE_COMPATIBILITY' }
 Save-Record (Join-Path $root 'manifest.json') ([ordered]@{
     schema=1; mode=$mode; cohort='Candidate'; sourceRevision=$revision; sourceKind='WORKTREE'
@@ -167,7 +182,7 @@ $common = @{
     Cohort='Candidate'; Attempt=2; RulesRoot=$rules; ComparisonRoot=$root; SuiteRoot=$suite; Execute=$true
     TimeoutSeconds=$TimeoutSeconds; Model=$Model; Effort=$Effort; SourceRevision=$revision; ValidateCandidateHandoff=$true
 }
-foreach ($arg in @('AuthHome', 'UseApiKey', 'CodexPath')) {
+foreach ($arg in @('AuthHome', 'UseApiKey', 'CodexPath', 'ToolPath')) {
     if ($PSBoundParameters.ContainsKey($arg)) { $common[$arg] = $PSBoundParameters[$arg] }
 }
 
@@ -229,7 +244,7 @@ $results = foreach ($id in $cases) {
 
 Save-Record (Join-Path $root 'compatibility-summary.json') ([ordered]@{
     schema=1; mode=$mode; cohort='Candidate'; fullBenchmark='NOT_RUN'; independentReview='NOT_RUN'
-    modelRequested=$Model; effortRequested=$Effort; maximumRoleCalls=$plannedCalls; cases=$results
+    modelRequested=$Model; effortRequested=$Effort; maximumRoleCalls=$plannedCalls; cases=@($results)
 })
 if ($results.status -contains 'FAIL') { exit 1 }
 if ($results.status -contains 'BLOCKED') { exit 2 }

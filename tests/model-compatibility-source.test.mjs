@@ -68,3 +68,9 @@ test('refactoring preserves contracted error behavior and reports incidental dia
   assert.match(skill, /Preserve error types, codes and documented message text/);
   assert.match(skill, /Report incidental runtime diagnostic wording changes without expanding the edit/);
 });
+
+test('refactoring checks the separators left behind by a removed declaration', () => {
+  const skill = read(`en/${refactoring}`);
+  assert.match(skill, /remove the blank separator that belonged only to the declaration/);
+  assert.match(skill, /review the scoped diff including whitespace/i);
+});

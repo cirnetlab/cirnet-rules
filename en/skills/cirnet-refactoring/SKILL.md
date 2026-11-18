@@ -15,6 +15,8 @@ Minimum inputs: Current behavior, callers, boundaries, covered invariants and pe
 3. Tie each hunk to the refactor or its verification. Remove imports or helpers
    made unused by the refactor after checking callers, generated references and
    dynamic use. Leave pre-existing dead code and unrelated formatting in place.
+   When removing an import or helper, remove the blank separator that belonged only to the declaration.
+   Review the scoped diff including whitespace and preserve neighboring bytes.
 4. Compare before/after behavior with the same inputs and assertions. Keep public
    names, persisted formats and fixture meaning stable where promised.
    Preserve error types, codes and documented message text. Treat message text

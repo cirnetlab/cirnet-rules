@@ -59,6 +59,23 @@ thuộc phạm vi quản lý và chỉ chia sẻ bằng chứng đã lọc. Phá
 lập E01 là lỗi. Bộ rà quyền riêng tư hiện có phát hiện việc lộ dữ liệu và giới
 hạn cách ly quyền đọc filesystem vẫn áp dụng.
 
+## Kiểm tra khả năng tổng quát hóa riêng
+
+Dùng `-CaseId E05` cho ca gỡ lỗi và hồi quy hiện có hoặc `-CaseId P01`
+cho ca refactor Python độc lập. Mỗi preview đóng băng bộ đánh giá được
+chọn, Skill hiện tại của Author và Work, cùng runner. Lượt chạy được cấp
+quyền dùng `-Execute -MaxNativeCalls 2` và áp dụng cùng kiểm tra handoff như
+smoke mặc định. P01 cần Python được duyệt và truy cập được từ sandbox.
+Khi cần, dùng `-ToolPath` với trình thông dịch portable đã xác minh trong
+thư mục tạm của hệ điều hành.
+
+Rà mức prompt đã chọn và phép kiểm thực tế. Với E05, regression mới phải
+thất bại vì lỗi thứ tự trước khi sửa source và đạt sau sửa. Với P01, lệnh
+unittest do owner công bố phải đạt trên fixture thực tế trước và sau sửa,
+đồng thời giữ hợp đồng lỗi và dữ liệu người dùng. Các lượt Candidate-only
+dùng Skill thực thi hiện tại. Lane A/B legacy dùng bộ Skill thực thi chung
+đã đóng băng cho cả hai cohort.
+
 ## Đánh giá điều kiện phát hành
 
 Dùng **Adaptive Stable** cho dòng phát hành duy nhất khi đạt các điều kiện áp
@@ -75,4 +92,4 @@ lập hiệu lực. Runner đánh dấu usage native là `ACTUAL` và usage mock
 Kết luận về chi phí và chất lượng cần bằng chứng riêng.
 
 <!-- source: en/docs/model-compatibility.md -->
-<!-- source-sha256: 25953c6240c1cdfebca8fcad8b0b2d118813657d0d4da9ffe42b93c599668abb -->
+<!-- source-sha256: 59b3965bf78ef9318a9fdb23e51b744e623088864e34bfa72ead95eb522edf10 -->

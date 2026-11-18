@@ -478,8 +478,8 @@ if ($Attempt -eq 2 -and ($Cohort -ne 'Candidate' -or -not $CaseId)) {
 if ($UseApiKey -and -not $Execute) { throw '-UseApiKey requires -Execute.' }
 if ($AuthHome -and (-not $Execute -or $UseApiKey)) { throw '-AuthHome requires -Execute and cannot be combined with -UseApiKey.' }
 if (($Role -eq 'Work') -ne [bool]$HandoffPath) { throw 'Exactly the Work role requires -HandoffPath.' }
-if ($ValidateCandidateHandoff -and ($Cohort -cne 'Candidate' -or $Attempt -ne 2 -or $Role -eq 'Direct' -or $CaseId -cnotin @('E01', 'E06'))) {
-    throw 'Candidate handoff validation requires an E01 or E06 Candidate chain role.'
+if ($ValidateCandidateHandoff -and ($Cohort -cne 'Candidate' -or $Attempt -ne 2 -or $Role -eq 'Direct' -or $CaseId -cnotin @('E01', 'E05', 'E06', 'P01'))) {
+    throw 'Candidate handoff validation requires one supported Candidate chain case.'
 }
 if ([bool]$ExpectedHandoffSha256 -ne ($ValidateCandidateHandoff -and $Role -eq 'Work')) {
     throw 'Exactly a Work role using Candidate handoff validation requires the expected Author SHA-256.'
@@ -562,11 +562,13 @@ if ($ToolPath) {
 
 $casesPath = Resolve-CirnetPath -Root $suite -Relative 'cases.json'
 $cases = @(Get-Content -Raw -LiteralPath $casesPath | ConvertFrom-Json -AsHashtable)
-$expected = @(1..8 | ForEach-Object { 'E{0:00}' -f $_ })
-if ($cases.Count -ne 8 -or (Compare-Object $expected @($cases.id))) { throw 'Expected one definition for each case E01 through E08.' }
+$expected = @(if ($ValidateCandidateHandoff -and $CaseId -ceq 'P01') { 'P01' } else { 1..8 | ForEach-Object { 'E{0:00}' -f $_ } })
+if ($cases.Count -ne $expected.Count -or (Compare-Object -CaseSensitive $expected @($cases.id))) {
+    throw 'The suite must define exactly the case IDs for the selected lane.'
+}
 $selected = @(if ($CaseId) { $CaseId.Split(',') | ForEach-Object { $_.Trim() } } else { $expected })
 if (@($selected | Sort-Object -Unique).Count -ne $selected.Count -or @($selected | Where-Object { $_ -cnotin $expected }).Count) {
-    throw 'Supply unique case IDs from E01 through E08.'
+    throw 'Supply unique case IDs from the selected lane.'
 }
 $cases = @($cases | Where-Object { $_.id -cin $selected } | Sort-Object id)
 $baseline = Resolve-CirnetPath -Root $rules -Relative 'AGENTS.md'
@@ -583,7 +585,9 @@ $safePath = ($env:PATH.Split([IO.Path]::PathSeparator) | Where-Object {
     }) -join [IO.Path]::PathSeparator
 if ($extraTools) { $safePath += [IO.Path]::PathSeparator + $extraTools }
 $toolchain = @{}
-foreach ($name in @('git', 'node', 'iverilog', 'vvp', 'pwsh')) {
+$toolNames = @('git', 'node', 'iverilog', 'vvp', 'pwsh')
+if ($CaseId -ceq 'P01') { $toolNames += 'python' }
+foreach ($name in $toolNames) {
     foreach ($path in $safePath.Split([IO.Path]::PathSeparator)) {
         $resolved = Join-Path $path ($IsWindows ? "$name.exe" : $name)
         if ([IO.File]::Exists($resolved)) { $toolchain[$name] = $resolved; break }
@@ -902,6 +906,9 @@ Carry the functional requirements, negative cases, privacy boundaries and permit
 "@
                 if ($id -ceq 'E06') {
                     $task += "`nIf source inspection refuses unsupported syntax, mark unread source NOT_INSPECTED and give Work a bounded local preflight. Reuse verified evidence and stop discovery when the original task and safe scope support handoff. Keep verification tied to the requested behavior and owner contract. Have Work run node --test before and after the edit."
+                }
+                if ($id -cin @('E05', 'P01')) {
+                    $task += "`nIn the requirements section, record the prompt level you chose from LIGHT, STANDARD or DEEP and the reason. Cite only sources available to Work. The authoring template is staged for Author only. Derive the verification command and acceptance evidence from the owner's sources and the applicable Skills."
                 }
             }
             $inputText = @"
