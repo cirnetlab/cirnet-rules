@@ -131,3 +131,5 @@ if ($blockedCode -ne 2 -or @($blocked.cases | Where-Object {
     throw 'Incomplete turns must stay blocked with missing usage marked unavailable.'
 }
 Write-Host "PASS Candidate-only smoke preview and local shim checks. Evidence $output"
+# The CI shell forwards $LASTEXITCODE. Return success only after every assertion passes.
+exit 0

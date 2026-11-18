@@ -29,3 +29,47 @@ Native smoke, independent behavioral review and the full native benchmark
 remain `NOT_RUN`. No native usage was measured. Native execution requires
 separate authorization, and compatibility requires independent review of
 the resulting evidence.
+
+## CI exit handling follow-up
+
+On `a7e14202`, the Windows GitHub Actions PowerShell wrapper printed the smoke
+suite's `PASS` message and exited `2` because `$LASTEXITCODE` still held the
+simulated blocked run's status. The test now exits `0` after all assertions
+pass. It still checks the smoke runner's expected failure and blocked exits
+of `1` and `2`.
+
+The workflow checks passed locally on Windows and in an offline Ubuntu 24.04
+container using the GitHub Actions checkout layout. Both smoke steps exited
+`0`. The Ubuntu checkout layout matters because the role runner derives the
+workspace parent from the checkout path. Hosted CI for the patch is pending
+publication.
+
+## Native Candidate-only follow-up
+
+One Windows session requested `gpt-6.2-sol` at `xhigh` and used three of the
+four allowed roles. The service did not report the effective model or effort.
+Independent review of the role traces, handoff bytes and fixture changes
+confirmed that E01 met the exercised Task Success, Architecture Compliance,
+Verification Coverage and Privacy criteria. Author used the structural
+inspector and requested the missing export authority. Work matched the store
+hash, reused those findings and made no changes. The privacy audit reported
+zero canary or credential hits in the observed roles.
+
+E06 Author timed out at 300 seconds without completing a handoff. Its trace
+records a rejected structural inspection, a PowerShell constrained-language
+error and repeated read-only probes. Work was `NOT_RUN`, so E06 implementation
+and before/after verification are `BLOCKED`. The release remains Candidate.
+
+| Role | Actual input tokens | Host runtime (s) | Observed tool calls |
+| --- | ---: | ---: | ---: |
+| E01 Author | 137,671 | 119.699 | 13 |
+| E01 Work | 63,854 | 37.825 | 8 |
+| E06 Author | `NOT_AVAILABLE` | 300.032 | 26 |
+
+E01 consumed 201,525 input tokens, including 161,792 cached. The complete
+session input total is `NOT_AVAILABLE`. The session took 766.333 seconds
+wall time including setup and checks. The two E01 inspector invocations
+returned equivalent JSON. E06 generated additional probes after inspection
+failed. These traces show repeated context, while the isolated token and
+latency effects of a source change remain unmeasured. The CI correction was
+the only code change.
