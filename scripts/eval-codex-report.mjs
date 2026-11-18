@@ -30,11 +30,18 @@ const manifest = read(resolve(root, 'manifest.json'));
 const candidateId = manifest.candidateId ?? 'B2';
 if (!/^B2(?:\.[1-9][0-9]*)?$/.test(candidateId)) throw new Error('Invalid candidate identity');
 const snapshotIdentity = manifest.snapshots?.[candidateId];
+const currentWorkRules = manifest.workRulesProfile === 'Current';
+if (manifest.workRulesProfile !== undefined && !currentWorkRules) throw new Error('Invalid Work rules profile');
 if (manifest.candidateSnapshotSha256 && digest(Buffer.from(JSON.stringify(snapshotIdentity))) !== manifest.candidateSnapshotSha256) {
   throw new Error('Candidate snapshot identity mismatch');
 }
 if (candidateId !== 'B2' && (!manifest.candidateSnapshotSha256 || !/^[\da-f]{40}$/.test(manifest.candidateSourceHead ?? ''))) {
   throw new Error('A repaired candidate requires a full source revision and snapshot digest');
+}
+if (currentWorkRules && (!manifest.candidateSnapshotSha256 ||
+    !/^[\da-f]{40}$/.test(manifest.candidateSourceHead ?? '') ||
+    JSON.stringify(manifest.snapshots.common) !== JSON.stringify(snapshotIdentity))) {
+  throw new Error('Current Work rules must match the frozen Candidate source');
 }
 const casePath = resolve(root, 'evaluator/cases.json');
 if (digest(readFileSync(casePath)) !== manifest.inputs['cases.json']) throw new Error('Case definition hash mismatch');
@@ -88,6 +95,27 @@ function safeFiles(path, names) {
   const entries = new Set(readdirSync(path));
   return names.filter((name) => entries.has(name));
 }
+function assertCurrentRole(role, session, slot, folder) {
+  const catalog = manifest.snapshots.common;
+  const author = folder === 'Author';
+  const skills = cases[slot.caseId].skills;
+  const selectedSkills = author ? [...skills, 'cirnet-work-prompt-authoring'] : skills;
+  const references = ['docs/', 'en/policies/', 'en/references/', 'en/rules/'];
+  if (author) references.push('en/templates/', 'en/docs/');
+  const staged = role.manifest?.rules ?? {};
+  if (role.sourceRevision !== manifest.candidateSourceHead || session.sourceRevision !== manifest.candidateSourceHead ||
+      session.baselineSha256 !== catalog['AGENTS.md'] || staged['toolkit/en/skills/README.md'] !== catalog['en/skills/README.md'] ||
+      selectedSkills.some(skill => !catalog[`en/skills/${skill}/SKILL.md`])) {
+    throw new Error('Current role source provenance mismatch');
+  }
+  for (const [path, hash] of Object.entries(catalog)) {
+    if (selectedSkills.some(skill => path.startsWith(`en/skills/${skill}/`))) {
+      if (staged[path.replace(/^en\//, '.agents/')] !== hash) throw new Error('Current role Skill hash mismatch');
+    } else if (references.some(prefix => path.startsWith(prefix)) && staged[`toolkit/${path}`] !== hash) {
+      throw new Error('Current role reference hash mismatch');
+    }
+  }
+}
 function recordAt(slot) {
   if (!/^E0[1-8]$/.test(slot.caseId) || !Number.isInteger(slot.repetition) || slot.repetition < 1 || slot.repetition > 20 ||
       !['A',candidateId].includes(slot.cohort) || slot.trialId !== `${slot.caseId}-r${slot.repetition}-${slot.cohort}`) throw new Error('Invalid trial ID');
@@ -106,8 +134,10 @@ function recordAt(slot) {
       eligible.add(folder + '/' + file);
     }
     for (const tool of role.trace?.uniqueTools ?? []) tools.add(folder + '/' + tool.id);
-    const session = resolve(trialRoot, folder, 'session.json');
-    indexFile(session);
+    const session = indexFile(resolve(trialRoot, folder, 'session.json'));
+    if (currentWorkRules && (folder === 'Work' || slot.cohort === candidateId)) {
+      assertCurrentRole(role, JSON.parse(session), slot, folder);
+    }
   }
   const byteExact = Boolean(trial.authorFinalSha256 && trial.authorFinalSha256 === trial.workInputSha256 &&
     trial.authorFinalSha256 === index[relative(root, resolve(trialRoot, 'Author', slot.caseId, 'final.md')).replaceAll('\\', '/')]?.sha256 &&
@@ -337,6 +367,7 @@ const allUsage = (cohort) => {
 const source = records.some((r) => r.source === 'TEST_SHIM') ? 'TEST_SHIM' : records.some((r) => r.source === 'NATIVE') ? 'NATIVE' : 'NOT_RUN';
 const summary = {
   schema: 1, session: manifest.session, candidateId, source, qualityGate, qualityGates, regressions,
+  ...(currentWorkRules ? { workRulesProfile: 'Current' } : {}),
   candidateIdentity: { sourceHead:manifest.candidateSourceHead ?? manifest.sourceHead,
     snapshotSha256:manifest.candidateSnapshotSha256 ?? 'LEGACY_FILE_HASHES_ONLY' },
   gradingProvenance: { reporterSha256:digest(readFileSync(fileURLToPath(import.meta.url))),

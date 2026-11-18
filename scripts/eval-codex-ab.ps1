@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$')][string]$Session,
     [Parameter(ParameterSetName='Run')][string]$CaseId = 'E01,E06,E02,E05',
     [Parameter(ParameterSetName='Run')][ValidatePattern('^B2(?:\.[1-9][0-9]*)?$')][string]$CandidateId = 'B2',
+    [Parameter(ParameterSetName='Run')][switch]$CurrentWorkRules,
     [Parameter(ParameterSetName='Run')][ValidateRange(1, 20)][int]$Repetitions = 1,
     [Parameter(ParameterSetName='Run')][int]$Seed = 1,
     [Parameter(ParameterSetName='Run')][ValidateRange(1, 600)][int]$TimeoutSeconds = 300,
@@ -122,6 +123,9 @@ $priorRoot = $null
 if ($RunPurpose -eq 'Continuation') {
     $priorRoot = Resolve-CirnetPath -Root $output -Relative $PriorSession
     $prior = Read-Record (Join-Path $priorRoot 'manifest.json')
+    if ($CurrentWorkRules.IsPresent -ne ($prior['workRulesProfile'] -ceq 'Current')) {
+        throw 'Continuation requires the original Work rules profile.'
+    }
     $priorCandidateId = if ($prior.Contains('candidateId')) { $prior.candidateId } else { 'B2' }
     if ($CandidateId -cne $priorCandidateId) { throw 'Continuation candidate ID differs from the original.' }
     foreach ($setting in @('authorModel','workModel','authorEffort','workEffort','seed','repetitions','timeoutSecondsPerRole')) {
@@ -195,24 +199,37 @@ else {
         'AGENTS.md','en/skills','en/templates/AGENTS.md','en/templates/chat-to-work-prompt.md'
         'en/docs/context.md','en/docs/distribution.md','en/policies','en/rules','en/references','docs'
     )
-    foreach ($selection in @(@('A',$baseline), @('common',$historical))) {
-        $snapshot = Join-Path $snapshots $selection[0]
+    $frozenGitSources = @{ A = $baseline }
+    if (-not $CurrentWorkRules) { $frozenGitSources.common = $historical }
+    foreach ($name in ($frozenGitSources.Keys | Sort-Object -CaseSensitive)) {
+        $snapshot = Join-Path $snapshots $name
         $null = New-Item -ItemType Directory -Path $snapshot
-        $tar = Join-Path $snapshots ($selection[0] + '.tar')
-        $null = Invoke-SourceGit (@('archive','--format=tar',"--output=$tar",$selection[1],'--') + $paths)
+        $tar = Join-Path $snapshots ($name + '.tar')
+        $null = Invoke-SourceGit (@('archive','--format=tar',"--output=$tar",$frozenGitSources[$name],'--') + $paths)
         & tar -xf $tar -C $snapshot
         if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the local Git snapshot.' }
     }
+    if ($CurrentWorkRules) {
+        $currentInputs = [ordered]@{}
+        $currentPaths = @(Invoke-SourceGit @('ls-files','--deduplicate','--','AGENTS.md','en/skills','en/templates',
+            'en/docs','en/policies','en/rules','en/references','docs'))
+        foreach ($relative in $currentPaths) {
+            $currentInputs[$relative] = Get-CirnetHash -Path (Resolve-CirnetPath -Root $repo -Relative $relative)
+        }
+        Copy-FrozenInputs $repo (Join-Path $snapshots 'common') $currentInputs
+    }
     $candidate = Join-Path $snapshots $CandidateId
     Copy-Item -LiteralPath (Join-Path $snapshots 'common') -Destination $candidate -Recurse
-    $changedAuthoring = @('skills/cirnet-work-prompt-authoring/SKILL.md','templates/chat-to-work-prompt.md','docs/context.md')
-    foreach ($language in @('en','vi')) {
-        foreach ($relative in $changedAuthoring) {
-            $path = "$language/$relative"
-            $source = Resolve-CirnetPath -Root $repo -Relative $path
-            $target = Join-Path $candidate $path
-            $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
-            [IO.File]::Copy($source, $target, $true)
+    if (-not $CurrentWorkRules) {
+        $changedAuthoring = @('skills/cirnet-work-prompt-authoring/SKILL.md','templates/chat-to-work-prompt.md','docs/context.md')
+        foreach ($language in @('en','vi')) {
+            foreach ($relative in $changedAuthoring) {
+                $path = "$language/$relative"
+                $source = Resolve-CirnetPath -Root $repo -Relative $path
+                $target = Join-Path $candidate $path
+                $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+                [IO.File]::Copy($source, $target, $true)
+            }
         }
     }
     foreach ($file in @('cases.json','checks.mjs')) {
@@ -261,6 +278,11 @@ $manifest = [ordered]@{
     host = [ordered]@{ os = [Runtime.InteropServices.RuntimeInformation]::OSDescription; pwsh = $PSVersionTable.PSVersion.ToString() }
     limits = 'Role sandboxes, isolated environment and trace audit reduce access. OS reads outside the fixture are not guaranteed to be blocked.'
 }
+if ($CurrentWorkRules) {
+    $manifest.workRulesProfile = 'Current'
+    $manifest.candidate = "$CandidateId current checkout snapshot with shared current Work rules"
+}
+$workRevision = if ($CurrentWorkRules) { $manifest.candidateSourceHead } else { $historical }
 Save-Json (Join-Path $root 'manifest.json') $manifest
 Write-Host "A/$CandidateId evidence root: $root"
 if (-not $Execute) { return }
@@ -299,7 +321,9 @@ foreach ($slot in $schedule) {
     $roleArgs.OutputRoot = $trialRoot
     $roleArgs.CaseId = $slot.caseId
     $roleArgs.Cohort = $selected
-    $authorRevision = if ($slot.cohort -eq 'A') { $baseline } else { $CandidateId + ':' + $frozen[$CandidateId]['en/templates/chat-to-work-prompt.md'] }
+    $authorRevision = if ($slot.cohort -eq 'A') { $baseline }
+        elseif ($CurrentWorkRules) { $manifest.candidateSourceHead }
+        else { $CandidateId + ':' + $frozen[$CandidateId]['en/templates/chat-to-work-prompt.md'] }
     try {
         & $runner @roleArgs -Role Author -Session Author -RulesRoot $authorRules -SourceRevision $authorRevision -Model $AuthorModel -Effort $AuthorEffort
         $author = Read-Record (Join-Path $trialRoot "Author/$($slot.caseId)/run.json")
@@ -316,7 +340,7 @@ foreach ($slot in $schedule) {
             $trial.authorFinalSha256 = Get-CirnetHash -Path $handoff
             $prompt = [IO.File]::ReadAllText($handoff, $utf8)
             $trial.prompt = [ordered]@{ bytes = (Get-Item -LiteralPath $handoff).Length; words = [regex]::Matches($prompt, '\S+').Count; tokens = 'NOT_AVAILABLE' }
-            & $runner @roleArgs -Role Work -Session Work -RulesRoot (Join-Path $snapshots 'common') -SourceRevision $historical -Model $WorkModel -Effort $WorkEffort -HandoffPath $handoff
+            & $runner @roleArgs -Role Work -Session Work -RulesRoot (Join-Path $snapshots 'common') -SourceRevision $workRevision -Model $WorkModel -Effort $WorkEffort -HandoffPath $handoff
             $work = Read-Record (Join-Path $trialRoot "Work/$($slot.caseId)/run.json")
             if (-not $work) { throw 'Work record is missing.' }
             $trial.work = $work

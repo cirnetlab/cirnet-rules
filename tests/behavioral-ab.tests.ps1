@@ -285,6 +285,54 @@ foreach ($role in @('Author','Work')) {
     }
 }
 
+# Both cohorts must run Work with the same current Skills while the Candidate
+# Author uses the current template. Exercise the actual role staging via a shim.
+& $runner -OutputRoot $output -Session current-work -CaseId E06 -CurrentWorkRules -CodexPath $shim -Execute -MaxNativeCalls 4
+$current = Join-Path $output 'current-work'
+$currentManifest = Get-Content -Raw -LiteralPath (Join-Path $current 'manifest.json') | ConvertFrom-Json -AsHashtable
+$currentSummary = Get-Content -Raw -LiteralPath (Join-Path $current 'summary.json') | ConvertFrom-Json -AsHashtable
+$skillPath = 'en/skills/cirnet-refactoring/SKILL.md'
+$templatePath = 'en/templates/chat-to-work-prompt.md'
+$skillHash = (Get-FileHash -LiteralPath (Join-Path $repo $skillPath)).Hash.ToLowerInvariant()
+$templateHash = (Get-FileHash -LiteralPath (Join-Path $repo $templatePath)).Hash.ToLowerInvariant()
+if ($currentManifest.workRulesProfile -cne 'Current' -or $currentSummary.workRulesProfile -cne 'Current' -or
+    $currentManifest.snapshots.common[$skillPath] -cne $skillHash -or $currentManifest.snapshots.B2[$templatePath] -cne $templateHash -or
+    $currentSummary.source -cne 'TEST_SHIM' -or $currentSummary.qualityGate -cne 'INCONCLUSIVE') {
+    throw 'The current Work profile must report the real current source and retain shim provenance.'
+}
+$stagedSkill = '.agents/skills/cirnet-refactoring/SKILL.md'
+foreach ($cohort in @('A','B2')) {
+    $pair = Get-Content -Raw -LiteralPath (Join-Path $current "trials/E06-r1-$cohort/pair-trial.json") | ConvertFrom-Json -AsHashtable
+    if ($pair.work.manifest.rules[$stagedSkill] -cne $skillHash -or
+        $pair.work.sourceRevision -cne $currentManifest.candidateSourceHead) {
+        throw 'Each Work role must stage the current Skill and identify the same source revision.'
+    }
+    if ($cohort -ceq 'B2' -and $pair.author.manifest.rules["toolkit/$templatePath"] -cne $templateHash) {
+        throw 'The Candidate Author must stage the current template.'
+    }
+}
+$profileRejected = $false
+try {
+    & $runner -OutputRoot $output -Session wrong-work-profile -CaseId E06 -PriorSession current-work -RunPurpose Continuation
+} catch { $profileRejected = $_.Exception.Message -match 'original Work rules profile' }
+if (-not $profileRejected) { throw 'Continuation must reject switching Work rules profiles.' }
+
+& $runner -OutputRoot $output -Session continued-current-work -CaseId E06 -CurrentWorkRules -PriorSession current-work -RunPurpose Continuation
+$currentContinue = Get-Content -Raw -LiteralPath (Join-Path $output 'continued-current-work/manifest.json') | ConvertFrom-Json -AsHashtable
+if ($currentContinue.workRulesProfile -cne 'Current' -or $currentContinue.candidateSnapshotSha256 -cne $currentManifest.candidateSnapshotSha256 -or
+    $currentContinue.carriedTrials.Count -ne 2) { throw 'Continuation must preserve frozen current provenance and completed trials.' }
+
+$substituted = Join-Path $output 'substituted-work-skill'
+Copy-Item -LiteralPath $current -Destination $substituted -Recurse
+$editedTrial = Join-Path $substituted 'trials/E06-r1-B2/pair-trial.json'
+$changed = Get-Content -Raw -LiteralPath $editedTrial | ConvertFrom-Json -AsHashtable
+$changed.work.manifest.rules[$stagedSkill] = '0' * 64
+[IO.File]::WriteAllText($editedTrial, (ConvertTo-Json -InputObject $changed -Depth 60), $utf8)
+$stagedRejected = & node $reporter $substituted 2>&1
+if ($LASTEXITCODE -eq 0 -or ($stagedRejected -join ' ') -notmatch 'Current role Skill hash mismatch') {
+    throw 'Reporter must reject attempts to label a substituted Work Skill as current.'
+}
+
 # Changing private rubric or fixture bytes in a synthetic prior copy must
 # stop continuation before another role starts; canonical inputs stay intact.
 foreach ($relative in @('evaluator/cases.json','evaluator/fixtures/E06/src/labels.mjs')) {

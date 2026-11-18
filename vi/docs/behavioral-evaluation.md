@@ -116,6 +116,38 @@ chạy lịch đầy đủ 48 lượt, 96 lần gọi trong phiên mới. Hết 
 không phải so sánh hoàn tất. Giữ riêng usage pilot; pilot PASS chưa đủ nghiệm thu
 G0–G6. Không đánh giá tiết kiệm khi chất lượng còn FAIL, BLOCKED hoặc INCONCLUSIVE.
 
+### So sánh biên soạn với Work Skills hiện tại
+
+Dùng `-CurrentWorkRules` trong phiên mới khi cần bằng chứng nghiệm thu
+cho Skill thực thi hiện tại. Runner đóng băng Rules runtime và tài liệu
+kiến trúc được Git theo dõi trong checkout. Candidate Author dùng nguồn đó,
+và hai cohort dùng chung Work Rules từ nguồn này để giữ phép so sánh theo
+cặp hợp lệ. Baseline Author vẫn dùng snapshot A gốc. Reporter đối chiếu
+hash baseline, tài liệu tham chiếu và Skill đã nạp với snapshot. Profile
+này giữ Work cố định khi so sánh cách biên soạn, đồng thời thu bằng chứng
+hành vi của Work Skills hiện tại.
+
+```powershell
+$current = @{
+  OutputRoot = [IO.Path]::GetTempPath()
+  CaseId = 'E01,E06,E02,E05'
+  CurrentWorkRules = $true
+  AuthorModel = 'gpt-6.2-sol'
+  WorkModel = 'gpt-6.2-sol'
+  AuthorEffort = 'xhigh'
+  WorkEffort = 'xhigh'
+  TimeoutSeconds = 300
+}
+./scripts/eval-codex-ab.ps1 @current -Session current-work-pilot-preview
+# Sau khi được cấp quyền riêng cho 16 lượt pilot.
+./scripts/eval-codex-ab.ps1 @current -Session current-work-pilot -AuthHome $authHome -Execute -MaxNativeCalls 16
+```
+
+Khi trích dẫn bằng chứng, ghi profile, HEAD source và SHA-256 snapshot.
+Lượt tiếp tục phải chọn lại cùng Work Rules profile và dùng các đầu vào
+đã đóng băng ban đầu. Giữ bằng chứng Candidate-only và giao thức A/B
+legacy riêng với phép so sánh sử dụng Work hiện tại.
+
 Sau khi bị gián đoạn bởi quota hoặc xác thực, dùng phiên mới với
 `-RunPurpose Continuation -PriorSession <interrupted-session>` và giữ nguyên
 các ca, số lần lặp, seed, timeout và thiết lập từng vai trò. Scheduler xác minh
@@ -211,4 +243,4 @@ Chạy `tests/eval-codex-privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: b73427c71a140ca7387b4afdbda622fbf13a44c626fbee3dd27c4e19b49a1b59 -->
+<!-- source-sha256: 4147940a98a9479e4299e79d84977294f3e581833d416f9547296fdb5f33479a -->

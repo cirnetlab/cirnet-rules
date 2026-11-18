@@ -122,6 +122,38 @@ An exhausted quota is a checkpoint, not a completed comparison. Keep pilot
 usage separate; a passing pilot is insufficient for G0–G6 acceptance.
 Do not assess savings while quality remains FAIL, BLOCKED or INCONCLUSIVE.
 
+### Compare authoring with current Work Skills
+
+Use `-CurrentWorkRules` in a fresh session when the release assessment needs
+evidence from the current execution Skills. The runner freezes the tracked
+runtime rules and architecture files from the checkout. Candidate Author uses
+that source, and both cohorts share its Work rules so the existing matched
+comparison stays valid. Baseline Author still uses the original A snapshot.
+The reporter checks the staged baseline, references and selected Skill hashes
+against that snapshot. The profile compares authoring with Work held constant.
+It supplies behavioral evidence for the current Work Skills.
+
+```powershell
+$current = @{
+  OutputRoot = [IO.Path]::GetTempPath()
+  CaseId = 'E01,E06,E02,E05'
+  CurrentWorkRules = $true
+  AuthorModel = 'gpt-6.2-sol'
+  WorkModel = 'gpt-6.2-sol'
+  AuthorEffort = 'xhigh'
+  WorkEffort = 'xhigh'
+  TimeoutSeconds = 300
+}
+./scripts/eval-codex-ab.ps1 @current -Session current-work-pilot-preview
+# After separate authorization for the 16-call pilot.
+./scripts/eval-codex-ab.ps1 @current -Session current-work-pilot -AuthHome $authHome -Execute -MaxNativeCalls 16
+```
+
+Use the profile, source HEAD and snapshot SHA-256 together when citing
+evidence. A continuation must select the same Work rules profile and reuse
+the original frozen inputs. Keep Candidate-only verification and the legacy
+A/B protocol evidence separate from the current Work comparison.
+
 After a quota or authentication interruption, use a new session with
 `-RunPurpose Continuation -PriorSession <interrupted-session>` and repeat the
 original cases, repetitions, seed, timeout and role settings. The scheduler
