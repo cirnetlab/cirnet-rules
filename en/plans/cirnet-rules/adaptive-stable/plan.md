@@ -145,3 +145,17 @@ Claims about fewer retries or lower token usage require native evidence.
 Preview verified 96 SHA-256 entries with `gpt-6.2-sol` and `xhigh` and invoked
 zero native roles. Run E01/E06 at the same settings, capped at four roles,
 after separate authorization. Keep Candidate pending independent review.
+
+## Ubuntu continuation and native readiness
+
+On `1725e8c`, the legacy A/B shim exited 1 on Ubuntu 24.04.5 with
+PowerShell 7.7.0. Continuation found the frozen E06 `.gitignore` during
+enumeration, then failed to read its metadata without `Get-Item -Force`.
+With `-Force` on that lookup, the same shim exited 0. Continuation still
+validates the path, rejects hard links and checks the copied SHA-256.
+
+The Candidate preview verified 96 input SHA-256 entries against
+`1725e8c70417f89e662cbbcb7b88570da0bef8c2`. Use `gpt-6.2-sol`, `xhigh`,
+300 seconds per role and at most four role calls. After separate authorization,
+verify the execution input hashes against the preview and review both cases
+independently. Native validation for this revision is `NOT_RUN`.

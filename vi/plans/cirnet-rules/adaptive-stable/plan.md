@@ -137,5 +137,19 @@ Kết luận giảm lượt thử lại hay token cần bằng chứng native. P
 cùng cấu hình, tối đa bốn lượt, sau khi có quyền riêng. Giữ Candidate trong
 khi chờ rà độc lập.
 
+## Tiếp tục trên Ubuntu và chuẩn bị native
+
+Trên `1725e8c`, A/B shim legacy trả mã 1 ở Ubuntu 24.04.5 với PowerShell
+7.7.0. Lượt tiếp tục liệt kê được `.gitignore` đã đóng băng của E06, sau đó
+không đọc được metadata nếu thiếu `Get-Item -Force`. Thêm `-Force` tại
+lần đọc đó giúp cùng bộ shim trả mã 0. Lượt tiếp tục vẫn xác thực đường
+dẫn, từ chối hard link và đối chiếu SHA-256 của bản sao.
+
+Preview Candidate đã đối chiếu 96 mục SHA-256 của đầu vào với
+`1725e8c70417f89e662cbbcb7b88570da0bef8c2`. Dùng `gpt-6.2-sol`, `xhigh`,
+300 giây mỗi vai trò và tối đa bốn lượt. Sau khi có quyền riêng, đối chiếu
+hash đầu vào của lượt chạy với preview và rà soát độc lập cả hai ca.
+Nghiệm thu native cho revision này là `NOT_RUN`.
+
 <!-- source: en/plans/cirnet-rules/adaptive-stable/plan.md -->
-<!-- source-sha256: 39b18f4799fe75789f305619c23cc3c6ae658359af2a6d6bf9f4a85b83ed2bc5 -->
+<!-- source-sha256: 8c7ff4ff30dea4ed52963dc25fd25ad47683ea9d23bf810340a81496084e37af -->

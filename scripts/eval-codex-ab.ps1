@@ -67,7 +67,7 @@ function Copy-FrozenInputs([string]$Source, [string]$Destination, [System.Collec
     if (-not $Hashes.Count) { throw 'No frozen input hashes in prior manifest.' }
     foreach ($entry in $Hashes.GetEnumerator()) {
         $file = Resolve-CirnetPath -Root $Source -Relative $entry.Key
-        if ((Get-Item -LiteralPath $file).LinkType -eq 'HardLink') { throw 'Snapshot contains a hard link.' }
+        if ((Get-Item -LiteralPath $file -Force).LinkType -eq 'HardLink') { throw 'Snapshot contains a hard link.' }
         $target = Resolve-CirnetPath -Root $Destination -Relative $entry.Key
         $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $target))
         [IO.File]::Copy($file, $target)
