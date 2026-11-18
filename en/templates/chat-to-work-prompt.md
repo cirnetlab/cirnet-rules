@@ -27,6 +27,13 @@ condition prevents a safe handoff.
 
 ### Choose detail by task
 
+Keep the handoff model-agnostic. State observable outcomes, permissions,
+required tool capabilities and verified commands. Record explicitly requested
+evaluation model and effort as runtime metadata. Work maps capabilities to its
+available tools and marks steps `BLOCKED` when required capabilities are
+unavailable. Preserve applicable safety checks and follow the
+[model compatibility procedure](../docs/model-compatibility.md) for runtime changes.
+
 | Mode | Selection | Suggested presentation |
 | --- | --- | --- |
 | `LIGHT` | Small task with clear scope, low risk and few dependencies | About 5–6 concise heading groups |

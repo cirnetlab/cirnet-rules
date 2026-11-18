@@ -19,6 +19,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - run: cargo fmt --all -- --check
+      - run: node --test ./tests/model-compatibility-source.test.mjs
       - run: cargo test --offline --locked
       - name: Check documentation and added Markdown files
         shell: pwsh
@@ -35,3 +36,6 @@ jobs:
           ./tests/package.Tests.ps1
           ./tests/install.tests.ps1
           ./tests/behavioral.tests.ps1
+      - name: Test Candidate-only model smoke with a local shim
+        shell: pwsh
+        run: ./tests/model-compatibility.tests.ps1

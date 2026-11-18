@@ -77,6 +77,9 @@ checkout, branch, instructions, permissions and evidence before implementation.
 
 ## Access and authority
 
+Model-agnostic handoff: specify required capabilities. Record evaluation
+model and effort as runtime metadata (`en/docs/model-compatibility.md`).
+
 Have Work establish applicable local/nested instructions, Rules, Skills and
 owner sources once in its own role, reusing available matching revisions and
 reopening changed or missing evidence before acting. If Work cannot read a

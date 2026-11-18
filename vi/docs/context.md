@@ -56,6 +56,13 @@ hoặc còn thiếu.
 [Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Mẫu](../templates/chat-to-work-prompt.md) · [Truy cập từ bundle](distribution.md#soạn-work-prompt)
 
+## Vòng đời mô hình
+
+Giao ước hành vi Adaptive Stable độc lập với các lần phát hành model.
+Chọn model và effort tại runtime. Dùng [quy trình tương thích theo rủi ro](model-compatibility.md)
+để chọn phép kiểm phù hợp với thay đổi thực tế. Tiếp tục chỉ nạp Skill cần
+thiết và giữ bằng chứng Baseline A lịch sử tại revision gốc.
+
 ## Tình huống đọc thử
 
 | Nhiệm vụ | Đọc chọn lọc | Nhận định dự kiến |
@@ -76,4 +83,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 và cảnh báo tham khảo. Số token phụ thuộc phần client nạp và tokenizer.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 017373a38fda334d5e83cfb2030e7054f36c0ba55486d30669c2fb12a591017c -->
+<!-- source-sha256: 2a1c7331a2f1c751dbe2ceed53b41790ee0cbc7fa790b04000fdf93cc65b5152 -->

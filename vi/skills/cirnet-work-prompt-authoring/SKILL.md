@@ -79,6 +79,9 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
 
 ## Truy cập và thẩm quyền
 
+Bàn giao độc lập model: nêu khả năng bắt buộc. Ghi model và effort đánh giá
+dưới dạng metadata runtime (`vi/docs/model-compatibility.md`).
+
 Giao Work xác lập chỉ dẫn local/lồng nhau, Rules, Skills và nguồn owner áp dụng
 một lần trong vai trò của mình, dùng lại revision khớp còn sẵn và mở lại bằng chứng
 đã đổi hoặc còn thiếu trước khi thao tác. Nếu Work không
@@ -104,4 +107,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 33f90d8b4379532c0d0ab1aa3387655b70bed15683a189c5179aaee5b4a26b20 -->
+<!-- source-sha256: 38c3388d596c4d57fb9b39a5e489e99f9ef8cb9fb22f0764782d58e78b74b322 -->

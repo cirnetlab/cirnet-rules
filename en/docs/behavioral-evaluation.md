@@ -1,5 +1,9 @@
 # Evaluate engineering behavior with Codex
 
+Use the [Candidate-only compatibility smoke](model-compatibility.md) for
+model-only changes. Use the full A/B procedure for significant behavioral or
+architecture changes when the acceptance run has explicit authorization.
+
 The runner prepares a temporary workspace for each selected case using the
 fixture in `tests/behavioral/fixtures`, the common baseline and selected skills.
 Keep the task definitions and grading criteria in `tests/behavioral/cases.json`

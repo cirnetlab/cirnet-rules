@@ -26,6 +26,13 @@ chưa đọc hay lệnh chưa biết, rồi giao Work kiểm tra trước. Chỉ
 
 ### Chọn mức chi tiết theo nhiệm vụ
 
+Giữ bản bàn giao độc lập model. Nêu kết quả quan sát được, quyền, khả năng
+công cụ bắt buộc và lệnh đã xác minh. Ghi model và effort được yêu cầu rõ ràng
+cho đợt đánh giá dưới dạng metadata runtime. Work ánh xạ các khả năng sang
+công cụ sẵn có và đánh dấu bước `BLOCKED` khi thiếu khả năng bắt buộc. Giữ các
+kiểm tra an toàn áp dụng và theo [quy trình tương thích model](../docs/model-compatibility.md)
+khi thay đổi runtime.
+
 | Mode | Cách chọn | Cách trình bày gợi ý |
 | --- | --- | --- |
 | `LIGHT` | Nhiệm vụ nhỏ, phạm vi rõ, rủi ro thấp và ít phụ thuộc | Khoảng 5–6 nhóm heading ngắn |
@@ -155,4 +162,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: e3ea966c1dc76c0d0bb98492b3d63e4e28aa56b3b32dff25847df54bc065e393 -->
+<!-- source-sha256: 421077dc500324eac19ece81483ad0ab2f84b54a6842ea6fb42f6bbce608e036 -->

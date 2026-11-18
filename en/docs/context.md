@@ -54,6 +54,13 @@ Give Work a minimal first read and reopen only changed or missing decisive evide
 [Authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Template](../templates/chat-to-work-prompt.md) · [Bundle access](distribution.md#work-prompt-authoring)
 
+## Model lifecycle
+
+The Adaptive Stable behavioral contract is independent of model releases.
+Select model and effort at runtime. Use the [risk-based compatibility procedure](model-compatibility.md)
+to choose checks for the actual change. Keep selective Skill loading and
+retain historical Baseline A evidence at its original revision.
+
 ## Walkthroughs
 
 | Task | Selective read | Expected judgment |

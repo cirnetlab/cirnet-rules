@@ -1,5 +1,9 @@
 # Đánh giá hành vi kỹ thuật với Codex
 
+Dùng [smoke tương thích Candidate-only](model-compatibility.md) khi chỉ đổi
+model. Dùng quy trình A/B đầy đủ cho thay đổi lớn về hành vi hoặc kiến trúc khi
+đợt nghiệm thu được cấp quyền rõ ràng.
+
 Runner tạo workspace tạm cho từng ca được chọn từ fixture trong
 `tests/behavioral/fixtures`, baseline chung và các skill đã chọn. Giữ định nghĩa
 nhiệm vụ và tiêu chí chấm trong `tests/behavioral/cases.json` và
@@ -207,4 +211,4 @@ Chạy `tests/eval-codex-privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 4b7f8ad78b87826b6774b57a90ac43b2596607f02df9dec05341c488622f1f18 -->
+<!-- source-sha256: b73427c71a140ca7387b4afdbda622fbf13a44c626fbee3dd27c4e19b49a1b59 -->
