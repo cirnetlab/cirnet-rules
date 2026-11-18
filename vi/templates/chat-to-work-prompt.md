@@ -7,10 +7,9 @@ soạn. Work phụ trách kiểm tra local trước, triển khai, build/test đ
 báo cáo. Trình bày một bản bàn giao hoàn chỉnh bằng Markdown thông thường theo
 định dạng người dùng yêu cầu.
 
-Bắt đầu từ nhiệm vụ thực tế trong yêu cầu biên soạn, kể cả yêu cầu gốc được
-lồng hoặc trích dẫn. Nêu mục tiêu của nhiệm vụ đó trong bản bàn giao. Trước khi
-kết luận thiếu mục tiêu, kiểm tra lại nội dung nhiệm vụ đã cung cấp; các trường
-trong mẫu chưa được điền không chứng minh rằng mục tiêu vắng mặt.
+Soạn mục tiêu và phạm vi được cấp quyền từ nhiệm vụ đã nêu trước khi khảo sát,
+kể cả yêu cầu gốc được lồng hoặc trích dẫn. Giữ rõ thao tác, đích và phép đổi
+được yêu cầu trong bàn giao. Đọc lại nhiệm vụ trước khi kết luận thiếu mục tiêu.
 
 Xét đủ 12 trường ngữ nghĩa bên dưới. Gom thông tin áp dụng vào các heading nhiệm
 vụ cần. Bỏ phần không áp dụng và placeholder thừa. Giữ chỉ dẫn dùng mẫu cùng
@@ -20,9 +19,6 @@ tiêu chí có một vị trí.
 Đối chiếu mục tiêu, phạm vi và nghiệm thu của bản nháp với thao tác, đích,
 phép đổi, kết quả, ràng buộc, ca âm tính và quyền người dùng yêu cầu. Khôi
 phục yêu cầu còn thiếu trước khi rút gọn. Giữ phép đối chiếu này ở nội bộ.
-Khi thao tác, owner và phạm vi an toàn đã rõ, ghi `NOT_INSPECTED` cho source
-chưa đọc hay lệnh chưa biết, rồi giao Work kiểm tra trước. Chỉ chặn khi quyết
-định, thẩm quyền, xung đột hoặc điều kiện an toàn thiết yếu cản trở bàn giao.
 
 ### Chọn mức chi tiết theo nhiệm vụ
 
@@ -68,9 +64,9 @@ xác tới chỉ dẫn local, mục kiến trúc, Rules và Skills áp dụng. K
 xác minh nếu biết. Trong Applicable Work Skills, chỉ liệt kê đúng tên và trách
 nhiệm liên quan. Dùng metadata để chọn Skill rồi đọc thân áp dụng. Tham chiếu
 workflow chung, ghi trực tiếp quyết định và invariant then chốt của nhiệm vụ.
-Dùng lại context đã nạp khi xác minh được định danh. Ghi trực tiếp dữ kiện
-Work cần nhưng khó mở lại. Mở thêm source khi phụ thuộc, rủi ro hoặc lỗi đầu
-tiên đòi hỏi.
+Dùng lại context đã nạp khi xác minh được định danh. Mở lại source khi revision
+đổi hoặc có thiếu sót ảnh hưởng tới quyết định. Dừng khảo sát khi mục tiêu,
+thẩm quyền, phạm vi và yêu cầu kiểm chứng đủ để bàn giao an toàn.
 
 Nén bằng chứng theo Claim / Status / Locator / Impact or Next check.
 Dùng `CONFIRMED`, `INFERRED`, `NOT_INSPECTED`, `BLOCKED` cho từng nhận định.
@@ -82,6 +78,15 @@ khi cần để khôi phục bằng chứng.
 Chọn đoạn source an toàn trước khi gọi công cụ. Xem cấu trúc và tên trường
 được phép trước. Lọc literal nhạy cảm trước output, giữ chúng ngoài prompt
 và bằng chứng. Đánh dấu lần đọc `BLOCKED` khi thiếu cách truy cập an toàn.
+
+Khi đọc thất bại, ưu tiên dùng lại bằng chứng đã xác nhận. Chỉ thử lại bằng
+cách đã xác minh nếu dữ kiện thiết yếu cho việc bàn giao an toàn và cách đó
+giữ nguyên phạm vi đọc và giới hạn output. Tuân thủ từ chối truy cập và chính
+sách shell. Khi thao tác đã nêu, owner và phạm vi an toàn đã rõ, ghi
+`NOT_INSPECTED` cho source chưa đọc hoặc lệnh chưa xác minh. Giao Work preflight
+có phạm vi, vị trí nguồn, phép kiểm được phép và điều kiện dừng. Chỉ chặn bàn
+giao khi quyết định, thẩm quyền, xung đột hoặc điều kiện an toàn thiết yếu cản
+trở bàn giao an toàn. Ghi rõ lần đọc bị chặn và phép kiểm chưa chạy.
 
 Đưa giới hạn đọc an toàn theo nhiệm vụ vào nội dung cuối dành cho Work,
 kể cả `PROMPT_BLOCKED`. Khi thiếu thẩm quyền xuất dữ liệu, Work có thể xác nhận
@@ -100,17 +105,15 @@ trong allowlist thay cho tự viết tìm kiếm chứa giá trị. Shell không
 có thể làm lộ dữ liệu; sanitizer trace hoặc audit về sau không thể hoàn tác phơi lộ
 cho mô hình. Giữ rõ câu hỏi về quyền và giới hạn này.
 
-Giao Work đối chiếu tham chiếu với source hiện tại được phép, dùng lại bằng chứng
-khớp đã nạp và mở lại phần đã đổi hoặc còn thiếu. Nếu Work không đọc được tham chiếu, đưa trực tiếp
-dữ kiện đáng tin cậy thiết yếu, định danh/phiên bản nguồn, ràng buộc và nghiệm
-thu. Nếu thiếu thẩm quyền hay thông tin quyết định, đánh dấu phần phụ thuộc là
-`BLOCKED` hoặc trả `PROMPT_BLOCKED`. Khi Chat chưa xem được source sản phẩm
-nhưng rõ owner và phạm vi an toàn, ghi `NOT_INSPECTED` và yêu cầu Work kiểm tra
-trước. Chat phải đọc được chính mẫu tiếng Anh được phép theo
-[Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md).
+Giao Work đối chiếu tham chiếu với source hiện tại được phép và dùng lại bằng
+chứng khớp. Với tham chiếu Work không mở lại được, đưa trực tiếp dữ kiện đáng
+tin cậy thiết yếu, định danh/phiên bản nguồn, ràng buộc và nghiệm thu. Dùng cách
+này khi bằng chứng đáng tin cậy xác lập phạm vi an toàn. Đánh dấu `BLOCKED` cho
+bước thiếu thẩm quyền hoặc bằng chứng thiết yếu. Chat phải đọc được chính mẫu
+tiếng Anh được phép theo [Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md).
 
-Mở rộng bằng chứng cho lỗi tạm thời hoặc khó tái hiện, nguồn không truy cập được,
-security, safety hoặc compatibility. Giữ thẩm quyền kiến trúc,
+Đưa bằng chứng cần thiết cho lỗi tạm thời, ca khó tái hiện, security, safety
+hoặc compatibility. Giữ thẩm quyền kiến trúc,
 `LAB_FIRST_PRIMARY` và quyết định ưu tiên có bằng chứng, ownership từng repo,
 tương thích, pin chính xác và artifact bất biến. Ở Lab vật lý, giữ Safety,
 Topology và Correctness riêng biệt, binding quan sát được và routing chỉ cho
@@ -162,4 +165,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: 421077dc500324eac19ece81483ad0ab2f84b54a6842ea6fb42f6bbce608e036 -->
+<!-- source-sha256: 608c5a24a300b7b44471b0d299b1255f38b82e52d8778c6d806d907d26a3c863 -->

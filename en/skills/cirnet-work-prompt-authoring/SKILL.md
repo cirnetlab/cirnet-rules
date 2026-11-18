@@ -9,13 +9,11 @@ Chat performs authorized read-only discovery and authors one scoped handoff.
 Direct source changes use the applicable execution Skill. Work rechecks local
 checkout, branch, instructions, permissions and evidence before implementation.
 
-1. **Interpret.** Extract the supplied task from the user's request, including an
-   embedded original task. State its goal in the handoff. Establish expected
-   behavior and authorized operations; repository access grants only reading.
-   Keep an internal objective fingerprint: requested action, owner, file and
-   symbol, transformation, expected outcome, hard scope, negative cases and
-   permissions. Before claiming a missing goal, reread the supplied request;
-   template placeholders and unread source do not prove its absence.
+1. **Interpret.** Draft the goal and granted scope before discovery. Use the
+   supplied task, including an embedded original request. Track its action,
+   owner, file and symbol, transformation, outcome, scope, negative cases and
+   permissions. Recheck the supplied request before declaring a missing goal.
+   Repository access grants only reading.
 2. **Locate Owner.** Identify the owner and write/read boundaries. Use
    `en/policies/architecture.md` and `en/references/architecture-routing.md`
    when ownership, consumers, contracts or a safety boundary need resolution.
@@ -35,30 +33,27 @@ checkout, branch, instructions, permissions and evidence before implementation.
    Choose safe reads before running tools. Locate paths, structure, identifiers
    and allowed field names. Filter values before they reach tool output. Avoid
    dumping record stores, sensitive literals, credentials or environment
-   contents. If safe inspection is unavailable, mark that read `BLOCKED` and
-   use a safe source if available. Keep values out of handoffs and evidence.
+   contents. Keep values out of handoffs and evidence.
    A search for a field name may print its whole source line. Emit only the
    identifier or a value-filtered excerpt.
    For record data, prefer a verified bounded inspector returning structural
-   metadata without evaluating source. Carry its exact invocation and limits into Work's handoff.
-   A post-run leak scan detects exposure; it does not prevent tool-output exposure.
+   metadata without evaluating source. Give Work its exact invocation and limits.
+   Stop discovery once you can hand off safely. Follow the template's read
+   recovery procedure and carry the applicable privacy controls into preflight.
 5. **Draft Adaptive Prompt.** Read `en/templates/chat-to-work-prompt.md` from an
    approved checkout. The installed bundle supplies this Skill and needs separate
    checkout access for that template. Missing template access yields
    `PROMPT_BLOCKED`. Choose `LIGHT`, `STANDARD` or `DEEP` by complexity, risk,
    dependencies, uncertainty and source accessibility. Consider all 12 semantic
    fields, grouping the applicable information into ordinary Markdown headings.
-6. **Deduplicate.** Keep each fact, constraint and acceptance criterion in one
-   place. Use Required, Conditional and Already-loaded context decisions from
-   `en/docs/context.md`. Give exact relative paths, source locations and verified
-   revisions for accessible Rules, Skills and architecture. Retain task-specific
-   safety and permission conditions. Expand evidence for inaccessible sources,
-   transient failures, difficult reproduction or security/compatibility risks.
+6. **Deduplicate.** Use Required, Conditional and Already-loaded context from
+   `en/docs/context.md`. Reuse matching evidence. Keep facts, requirements and
+   checks in one place with exact locators, applicable safety and permissions.
 7. **Editorial Gate.** Review the draft for a usable goal, owner, scope, evidence,
    dependencies, negative cases, invariants and acceptance. Pair every criterion
    with a verified command/observation or ask Work to find the command in owner
    instructions. Compare goal, scope, constraints and acceptance to the
-   objective fingerprint.
+   supplied task.
    Keep supplied action, target and transformation explicit; a generic goal is
    insufficient when it loses the requested operation, even in LIGHT mode.
    Restore any lost operation or constraint before choosing how short to make

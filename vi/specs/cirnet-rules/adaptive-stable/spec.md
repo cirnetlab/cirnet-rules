@@ -19,5 +19,12 @@ chứng chạy thật và rà độc lập. Các điều kiện phát hành áp 
 Success, Architecture Compliance, Verification Coverage và Privacy. Giữ nguyên
 fixtures, quy tắc chấm điểm, snapshot và kết quả lịch sử.
 
+Khi khôi phục, Author giữ thao tác, đích, phép đổi và phạm vi đã nêu trước khi
+khảo sát source. Sau khi đọc thất bại, chỉ dùng cách khác đã xác minh độc lập
+trong cùng giới hạn truy cập và output nếu bằng chứng thiết yếu cho việc bàn
+giao an toàn. Nếu không, chuyển chi tiết chưa xem sang preflight có phạm vi
+của Work khi đã xác lập mục tiêu, owner và phạm vi an toàn. Các kiểm soát đọc
+source và sandbox hiện có áp dụng cho cả hai vai trò.
+
 <!-- source: en/specs/cirnet-rules/adaptive-stable/spec.md -->
-<!-- source-sha256: 89deff6fd71896244daae22332a02cbbdc6846a16ceeb6c168d85cb255c3a2d0 -->
+<!-- source-sha256: 349237c38bb798128f267b2f40b81dae3ad1a54506229554b840256f38e22e7f -->

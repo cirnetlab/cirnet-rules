@@ -69,5 +69,42 @@ E06 dò thêm sau khi kiểm tra cấu trúc bị từ chối. Trace cho thấy 
 lặp, còn tác động riêng của việc sửa source lên token và độ trễ chưa được
 đo. Bản sửa CI là thay đổi mã duy nhất.
 
+## Khôi phục luồng Author
+
+| Bước | Phép kiểm |
+| --- | --- |
+| Tái hiện ranh giới trong trace | Rà lệnh đã ghi và so kết quả inspector trên source E06 và E01 gốc. |
+| Bổ sung cách khôi phục vào Skill biên soạn và mẫu | Xác minh cả hai ngôn ngữ giữ mục tiêu đã nêu, dừng đọc khi đủ và giữ ranh giới quyền riêng tư. |
+| Kiểm tra offline các ca smoke gốc | Xác minh E06 bàn giao đủ thao tác gốc khi inspector từ chối, và Work giữ dữ liệu ngoài phạm vi. Chạy các phép kiểm quyền riêng tư E01. |
+| Chuẩn bị kiểm chứng native | Xác minh preview với model và effort đặt lúc chạy và ghi yêu cầu cấp quyền riêng. |
+
+Trace native gốc của Author E06 ghi timeout sau 300,032 giây và 26 lượt gọi
+công cụ quan sát được. Inspector từ chối nội suy template trong
+`src/labels.mjs` và Author tiếp tục lặp các phép dò chỉ đọc. PowerShell từ
+chối `[pscustomobject]` ở chế độ Constrained Language. Tái hiện offline cho
+thấy inspector thoát mã `2` ở E06 và `0` ở E01, cùng lỗi PowerShell thoát
+mã `1`. Inspector và runner giữ các kiểm soát an toàn hiện có.
+
+Cặp hướng dẫn biên soạn nay soạn mục tiêu gốc trước khi khảo sát, dừng khi
+đủ bằng chứng để bàn giao an toàn và chuyển chi tiết chưa xem sang preflight
+có phạm vi của Work. Chỉ thử lại khi cần bằng chứng thiết yếu, có cách khác
+đã xác minh và giữ phạm vi đọc, giới hạn output cùng chính sách shell hiện có.
+
+Trên Windows và Ubuntu 24.04, shim Candidate-only tái hiện inspector từ chối
+E06 thật, chuyển nguyên byte yêu cầu gốc sang Work kèm `NOT_INSPECTED`, chạy
+kiểm thử nhãn trước và sau khi sửa và đạt các phép kiểm bảo toàn dữ liệu hiện
+có. Chốt E01 phát hiện và giữ canary giả lập ngoài bằng chứng. Harness hành vi,
+test shim A/B offline, test đóng gói, Cargo và kiểm tra EN/VI đều đạt. Windows
+bỏ qua các ca symlink/reparse point cần quyền và mô phỏng E08 cần Icarus. Kiểm
+kê lịch sử `.superpowers` khớp SHA-256 đã ghi của 5.525 file.
+
+Smoke trên Windows mất 108,160 giây và preview riêng mất 9,793 giây. Lượt
+Ubuntu gồm smoke, Cargo, kiểm tra source và quyền riêng tư mất 42,653 giây.
+Preview ghi E01/E06 và giới hạn bốn vai trò với model và effort đặt lúc chạy,
+gọi 0 lượt model. Theo [quy trình tương thích](../../../docs/model-compatibility.md)
+khi native được cấp quyền riêng. Hành vi, token và độ trễ native của revision
+này là `NOT_RUN` hoặc `NOT_AVAILABLE`. Giữ Candidate trong khi chờ rà độc lập
+E01/E06.
+
 <!-- source: en/plans/cirnet-rules/adaptive-stable/plan.md -->
-<!-- source-sha256: 9f0650451d09c68f2314625439d22f1e5606d9530608a16ca25951c3f1295963 -->
+<!-- source-sha256: e19fb0e6fe223d799662f68ca9cfa437e082e61b0f53042a5bd774b571fcf915 -->

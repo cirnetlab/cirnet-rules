@@ -19,3 +19,10 @@ failure, all 13 Skills, EN/VI parity and source hashes. Native compatibility
 requires actual role evidence and independent review. The applicable release
 gates cover Task Success, Architecture Compliance, Verification Coverage and
 Privacy. Historical fixtures, grading rules, snapshots and results are fixed.
+
+Author recovery preserves the supplied action, target, transformation and
+scope before source discovery. A failed read can use an independently verified
+alternative within the same access and output limits only when evidence is
+essential to a safe handoff. Otherwise hand off the uninspected detail to a
+scoped Work preflight when the objective, owner and safe scope are established.
+Existing source inspection and sandbox controls apply to both roles.

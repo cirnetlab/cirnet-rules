@@ -19,14 +19,26 @@ $mode = $args[[array]::IndexOf($args, '--model') + 1]
 $task = [Console]::In.ReadToEnd()
 $e01 = Test-Path -LiteralPath accounts.mjs
 $author = $args -contains 'read-only'
+$recovery = -not $e01 -and $mode -eq 'mock-success'
 $handoff = "PROMPT_READY`r`nApply the authorized operation and preserve unrelated changes.  `r`n"
 if ($mode -eq 'mock-blocked') { exit 7 }
 if ($author) {
     if ($task -notmatch 'replace the trimAlias call|data export feature') { exit 8 }
     $answer = $handoff
+    if ($recovery) {
+        $inspection = & node toolkit/inspect-source.mjs src/labels.mjs --symbol formatLabel 2>&1
+        if ($LASTEXITCODE -ne 2 -or $inspection -notmatch 'SOURCE_INSPECTION_BLOCKED') { exit 10 }
+        $goal = [regex]::Match($task, '(?m)^Original user task:\r?\n([^\r\n]+)').Groups[1].Value
+        if (-not $goal) { exit 8 }
+        $answer = "PROMPT_READY`r`n$goal`r`nNOT_INSPECTED: Verify the target under the existing scope before editing. Preserve all unrelated data.`r`n"
+    }
     if ($mode -eq 'mock-guards' -and -not $e01) { $answer = 'PROMPT_BLOCKED' }
 } else {
-    if ($task -cne $handoff) { exit 9 }
+    if ($recovery) {
+        if ($task -notmatch '^PROMPT_READY\r?\n[\s\S]*NOT_INSPECTED') { exit 9 }
+        & node --test ./labels.test.mjs *> $null
+        if ($LASTEXITCODE -ne 0) { exit 11 }
+    } elseif ($task -cne $handoff) { exit 9 }
     if (-not $e01 -and $mode -ne 'mock-objective-fail') {
         $path = Join-Path $PWD 'src/labels.mjs'
         $source = [IO.File]::ReadAllText($path)
@@ -34,6 +46,11 @@ if ($author) {
         [IO.File]::WriteAllText($path, $edited.Replace('trimAlias(name)', 'name.trim()'))
     }
     $answer = 'Synthetic Work evidence.'
+    if ($recovery) {
+        & node --test ./labels.test.mjs *> $null
+        if ($LASTEXITCODE -ne 0) { exit 12 }
+        $answer = 'The labels tests exited 0 before and after the scoped edit.'
+    }
 }
 '{"type":"thread.started","thread_id":"model-smoke-shim"}'
 '{"type":"turn.started"}'
@@ -97,6 +114,13 @@ foreach ($trial in $passed.cases) {
             throw 'Role summary must retain the runner verdict and normalized shim usage.'
         }
     }
+}
+
+$e06 = Get-Content -Raw -LiteralPath (Join-Path $repo 'tests/behavioral/cases.json') |
+    ConvertFrom-Json | Where-Object id -ceq 'E06'
+$e06Input = [IO.File]::ReadAllText((Join-Path $output 'success/trials/E06/Work/E06/prompt.txt'))
+if (-not ($e06Input -split '\r?\n' -ccontains $e06.prompt) -or $e06Input -notmatch 'NOT_INSPECTED') {
+    throw 'The E06 recovery handoff must preserve the original task and delegate the unread source to Work.'
 }
 
 & $smoke @execute -Session guards -Model mock-guards

@@ -7,10 +7,10 @@ discovery and authoring. Work owns local preflight, implementation, authorized
 build/test and reporting. Render one complete handoff in ordinary Markdown,
 using the user's requested format.
 
-Start with the actual task in the authoring request, including an embedded or
-quoted original request. State that task's goal in the handoff. Before declaring
-the goal missing, recheck the supplied task text; unresolved template fields do
-not establish its absence.
+Draft the goal and granted scope from the supplied task before discovery,
+including any embedded or quoted original request. Keep the requested action,
+target and transformation explicit in the handoff. Recheck the supplied task
+text before declaring the goal missing.
 
 Consider all 12 semantic fields below. Group applicable information under the
 headings the task needs. Omit inapplicable material and unused placeholders.
@@ -20,10 +20,7 @@ handoff. Each fact, constraint and criterion belongs in one place.
 Compare the draft goal, scope and acceptance against the user's requested
 action, target, transformation, outcome, constraints, negative cases and
 permissions. Restore any missing requirement before compressing. Keep this
-comparison internal. An unread source or unknown command is `NOT_INSPECTED`
-with a Work preflight when the requested operation, owner and safe scope are
-clear. Block only when an essential decision, authority, conflict or safety
-condition prevents a safe handoff.
+comparison internal.
 
 ### Choose detail by task
 
@@ -70,9 +67,9 @@ a verified revision when known. Under Applicable Work Skills, list only exact
 names and their relevant responsibilities. Use metadata to select Skills, then
 read applicable bodies. Reference shared workflows and include task-specific
 decisions and decisive invariants directly.
-Reuse already-loaded context when its identity is verified. Include inline
-facts that Work needs and cannot reliably reopen. Reopen more source when a
-dependency, risk or first failure requires it.
+Reuse already-loaded context when its identity is verified. Reopen source for
+a changed revision or a gap that affects a decision. Stop discovery once the
+objective, authority, scope and verification needs support a safe handoff.
 
 Compress evidence using Claim / Status / Locator / Impact or Next check.
 Use `CONFIRMED`, `INFERRED`, `NOT_INSPECTED` and `BLOCKED` per claim.
@@ -84,6 +81,16 @@ whole files. Include a short excerpt only when necessary to recover the evidence
 Choose safe source slices before invoking a tool. Inspect structure and allowed
 field names first. Filter sensitive literals before output and exclude them from
 the prompt and evidence. Mark inspection `BLOCKED` when safe access is absent.
+
+On a failed read, reuse confirmed evidence first. Only retry with a verified
+alternative when a fact is essential to a safe handoff and the alternative
+stays within the same read scope and output limits. Honor access and
+shell-policy denials. When the supplied operation, owner and safe scope are
+clear, record unread sources or unverified commands as `NOT_INSPECTED`. Give
+a scoped Work preflight with the locator, permitted check and stop condition.
+Only block the handoff when an essential decision, authority, conflict or
+safety condition prevents a safe handoff. Keep blocked reads and unrun checks
+explicit.
 
 Carry the task-specific safe-inspection boundary into the final Work text,
 including `PROMPT_BLOCKED`. When export authority is missing, Work may confirm
@@ -102,17 +109,15 @@ Prefer its allowlisted identifiers over hand-written value-bearing searches.
 An unrestricted shell can still disclose data; a later trace sanitizer or audit
 cannot undo model exposure. Keep authorization questions and that limit explicit.
 
-Have Work reconcile references with its authorized current source, reuse
-already-loaded matching evidence, and reopen changed or missing material. If Work cannot access a reference, include
-essential trusted facts, source identity/version, constraints and acceptance
-directly. If authority or decisive information is missing, mark the dependent
-portion `BLOCKED` or return `PROMPT_BLOCKED`. If Chat cannot inspect product
-source but ownership and safe scope are clear, mark it `NOT_INSPECTED` and
-require Work preflight. The approved English template itself must be accessible
-to Chat as described in the [authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md).
+Have Work reconcile references with its authorized current source and reuse
+matching evidence. For references Work cannot reopen, include essential trusted
+facts, source identity/version, constraints and acceptance. Use this fallback
+when reliable evidence establishes safe scope. Mark steps that lack essential
+authority or evidence `BLOCKED`. The approved English template itself must be
+accessible to Chat as described in the [authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md).
 
-Expand evidence for transient or difficult-to-reproduce failures, inaccessible
-sources, security, safety or compatibility. Preserve architecture authority,
+Carry the evidence needed for transient failures, difficult reproduction,
+security, safety or compatibility. Preserve architecture authority,
 `LAB_FIRST_PRIMARY` and any evidenced priority decision, per-repo ownership,
 compatibility, exact pins and immutable artifacts. At physical Lab boundaries,
 keep Safety, Topology and Correctness distinct, observed bindings and

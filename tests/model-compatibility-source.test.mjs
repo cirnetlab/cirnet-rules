@@ -49,3 +49,14 @@ test('the canonical authoring pair and evaluation guides route model changes to 
     }
   }
 });
+
+test('Author stops discovery at a safe handoff and preserves boundaries on read failure', () => {
+  const skill = read(`en/${authoring}`);
+  const guide = read(`en/${template}`);
+  assert.match(skill, /Draft the goal and granted scope before discovery/);
+  assert.match(skill, /Stop discovery once you can hand off safely/);
+  assert.match(guide, /Only retry with a verified\s+alternative[\s\S]*same read scope and output limits/);
+  assert.match(guide, /Honor access and\s+shell-policy denials/);
+  assert.match(guide, /`NOT_INSPECTED`[\s\S]*scoped Work preflight/);
+  assert.match(guide, /Only block the handoff when an essential decision, authority, conflict or\s+safety condition/);
+});

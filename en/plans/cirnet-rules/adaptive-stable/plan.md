@@ -73,3 +73,43 @@ returned equivalent JSON. E06 generated additional probes after inspection
 failed. These traces show repeated context, while the isolated token and
 latency effects of a source change remain unmeasured. The CI correction was
 the only code change.
+
+## Author recovery follow-up
+
+| Step | Check |
+| --- | --- |
+| Reproduce the trace boundary | Review the recorded commands and compare inspector results for the original E06 and E01 sources. |
+| Add recovery to the authoring Skill and template | Verify both languages preserve the supplied goal, stop unnecessary discovery and retain the privacy boundary. |
+| Exercise the original smoke cases offline | Verify the E06 handoff carries the original operation through inspector refusal, and Work preserves unrelated data. Run the E01 privacy checks. |
+| Prepare native validation | Verify preview with runtime model and effort and record the separate authorization requirement. |
+
+The original native E06 Author trace recorded a timeout after 300.032 s and
+26 observed tool calls. The inspector refused template interpolation in
+`src/labels.mjs` and the Author continued with repeated read-only probes.
+PowerShell rejected `[pscustomobject]` in Constrained Language mode. Offline
+reproduction returned inspector exit `2` on E06 and `0` on E01 and reproduced
+the PowerShell error with exit `1`. The inspector and the role runner keep
+their existing safety behavior.
+
+The authoring pair now drafts the original goal before discovery, stops when
+enough evidence supports a safe handoff and delegates unread details to a
+scoped Work preflight. Retries require essential evidence, a verified
+alternative and the existing read scope, output limits and shell policy.
+
+On Windows and Ubuntu 24.04, the Candidate-only shim exercised the real E06
+inspector refusal, passed the original request byte-for-byte to Work with
+`NOT_INSPECTED`, ran the label tests before and after the edit and passed the
+existing data-preservation checks. The E01 guard detected and withheld a
+synthetic canary. The behavioral harness, offline A/B shim checks, package
+tests, Cargo and EN/VI checks passed. Windows skipped symlink/reparse-point
+cases requiring permissions and the E08 simulation requiring Icarus. The
+historical `.superpowers` inventory matched its recorded SHA-256 across
+5,525 files.
+
+The Windows smoke took 108.160 s and the standalone preview took 9.793 s.
+The Ubuntu run of the smoke, Cargo, source and privacy checks took 42.653 s.
+Preview recorded E01/E06 and the four-role cap with runtime model and effort,
+and made zero model calls. Follow the [compatibility procedure](../../../docs/model-compatibility.md)
+once native execution has separate authorization. Native behavior, token
+usage and latency for this revision are `NOT_RUN` or `NOT_AVAILABLE`. Keep
+Candidate pending independent E01/E06 review.
