@@ -106,5 +106,36 @@ khi native được cấp quyền riêng. Hành vi, token và độ trễ native
 này là `NOT_RUN` hoặc `NOT_AVAILABLE`. Giữ Candidate trong khi chờ rà độc lập
 E01/E06.
 
+## Kiểm tra bản bàn giao Candidate
+
+| Bước | Phép kiểm |
+| --- | --- |
+| Tái hiện lỗi chuyển giao | Dùng bản bàn giao shim có byte hợp lệ nhưng mở rộng phạm vi E01 hoặc thiếu mục tiêu E06. Xác nhận Work có được gọi ở mỗi ca hay không. |
+| Kiểm tra bàn giao Candidate-only | Yêu cầu giữ nhiệm vụ và phạm vi đã đóng băng, trạng thái rõ ràng và các mục để rà. Kiểm tra lại byte khi Work nhận bàn giao. |
+| Xác minh cách chọn sandbox | E01 làm rõ quyền ở chế độ chỉ đọc và E06 dùng sandbox ghi hiện có. Chạy lại kiểm tra quyền riêng tư, dữ liệu được bảo vệ và harness cũ. |
+| Chuẩn bị kiểm chứng native | Kiểm tra preview mới và hash source. Giữ cấu hình native đối chứng và chờ quyền riêng. |
+
+Trên `5c705e9`, cả bàn giao E01 mở rộng phạm vi và bàn giao E06 làm mất thao
+tác được yêu cầu đều đến Work với SHA-256 khớp và đạt bộ chấm shim. Điểm kiểm
+tra Candidate-only nay từ chối cả hai trước khi gọi Work. Smoke offline còn
+xác minh E01 chỉ làm rõ trong chế độ đọc, E06 dùng sandbox ghi hiện có, Work
+từ chối hash sai và mục kiểm chứng rỗng. Ca khôi phục E06 vẫn chạy test nhãn
+trước và sau phép sửa đúng phạm vi. Các kiểm tra canary và lỗi objective vẫn chạy.
+
+Smoke Candidate-only đạt trên Windows và Ubuntu 24.04. Bộ A/B shim legacy
+trên Windows, Cargo, kiểm tra tài liệu và source SHA đều đạt. Ca tiếp tục
+legacy trên Ubuntu gặp cùng lỗi tìm `.gitignore` tại
+`scripts/eval-codex-ab.ps1:70` trên commit gốc và bản sửa. Phép dò độc lập
+xác nhận dotfile tồn tại và cần `Get-Item -Force` trên Ubuntu. Kiểm kê bằng
+chứng lịch sử vẫn khớp 5.525 file.
+
+Bằng chứng native E06 cũ ghi timeout sau 300,032 giây và 26 lượt gọi công cụ.
+Quy tắc biên soạn hiện tại đã nêu khi nào dùng lại bằng chứng, giao source
+chưa đọc cho Work và dừng khảo sát. Điểm kiểm tra mới giữ hướng dẫn đó.
+Kết luận giảm lượt thử lại hay token cần bằng chứng native. Preview xác minh
+96 mục SHA-256 với `gpt-6.2-sol` và `xhigh`, gọi 0 vai trò native. Chạy E01/E06
+cùng cấu hình, tối đa bốn lượt, sau khi có quyền riêng. Giữ Candidate trong
+khi chờ rà độc lập.
+
 <!-- source: en/plans/cirnet-rules/adaptive-stable/plan.md -->
-<!-- source-sha256: e19fb0e6fe223d799662f68ca9cfa437e082e61b0f53042a5bd774b571fcf915 -->
+<!-- source-sha256: 39b18f4799fe75789f305619c23cc3c6ae658359af2a6d6bf9f4a85b83ed2bc5 -->

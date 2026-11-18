@@ -113,3 +113,35 @@ and made zero model calls. Follow the [compatibility procedure](../../../docs/mo
 once native execution has separate authorization. Native behavior, token
 usage and latency for this revision are `NOT_RUN` or `NOT_AVAILABLE`. Keep
 Candidate pending independent E01/E06 review.
+
+## Candidate handoff validation
+
+| Step | Check |
+| --- | --- |
+| Reproduce the dispatch gap | Use byte-valid shim handoffs with a broadened E01 scope and an incomplete E06 goal. Confirm whether each reaches Work. |
+| Validate Candidate-only handoffs | Require the frozen task and scope, explicit readiness and review sections. Check the exact bytes again at Work intake. |
+| Verify sandbox selection | Expect read-only clarification in E01 and the existing write sandbox in E06. Retest privacy, protected data and the legacy harness. |
+| Prepare native validation | Verify a fresh preview and source hashes. Preserve the native control configuration and wait for separate authorization. |
+
+On `5c705e9`, both the E01 handoff that broadened scope and the E06 handoff
+that dropped the requested operation reached Work with matching SHA-256 and
+passed the shim objective checks. The Candidate-only gate now rejects both
+before dispatch. The offline smoke also verifies read-only E01 clarification,
+the existing E06 write sandbox, a wrong Work input digest and an empty handoff
+verification section. E06 recovery still runs the label tests before and
+after the scoped edit. The canary and objective failure checks still run.
+
+The Candidate-only smoke passed on Windows and Ubuntu 24.04. The Windows
+legacy A/B shim suite, Cargo, doc and source SHA checks passed. The Ubuntu
+legacy continuation hit the same `.gitignore` lookup error at
+`scripts/eval-codex-ab.ps1:70` on the base commit and the patch. An isolated
+probe confirmed the dotfile exists and requires `Get-Item -Force` on Ubuntu.
+The historical evidence inventory still matches 5,525 files.
+
+The old native E06 timeout evidence remains 300.032 seconds and 26 tool calls.
+The current authoring rules already say when to reuse evidence, defer an unread
+source to Work and stop discovery. The new gate leaves that guidance intact.
+Claims about fewer retries or lower token usage require native evidence.
+Preview verified 96 SHA-256 entries with `gpt-6.2-sol` and `xhigh` and invoked
+zero native roles. Run E01/E06 at the same settings, capped at four roles,
+after separate authorization. Keep Candidate pending independent review.

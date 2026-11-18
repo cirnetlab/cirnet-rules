@@ -165,7 +165,7 @@ if (-not $Execute) { exit 0 }
 
 $common = @{
     Cohort='Candidate'; Attempt=2; RulesRoot=$rules; ComparisonRoot=$root; SuiteRoot=$suite; Execute=$true
-    TimeoutSeconds=$TimeoutSeconds; Model=$Model; Effort=$Effort; SourceRevision=$revision
+    TimeoutSeconds=$TimeoutSeconds; Model=$Model; Effort=$Effort; SourceRevision=$revision; ValidateCandidateHandoff=$true
 }
 foreach ($arg in @('AuthHome', 'UseApiKey', 'CodexPath')) {
     if ($PSBoundParameters.ContainsKey($arg)) { $common[$arg] = $PSBoundParameters[$arg] }
@@ -195,7 +195,8 @@ $results = foreach ($id in $cases) {
                 $status = 'FAIL'
                 $reason = 'Author handoff hash mismatch. Work was skipped.'
             } else {
-                & $runner @common -OutputRoot $trial -CaseId $id -Role Work -Session Work -HandoffPath (Join-Path $root $handoff) | Out-Null
+                & $runner @common -OutputRoot $trial -CaseId $id -Role Work -Session Work `
+                    -HandoffPath (Join-Path $root $handoff) -ExpectedHandoffSha256 $author['finalSha256'] | Out-Null
                 $work = Read-Role $workPath
                 $consistent = $author['finalSha256'] -ceq $work['manifest']['promptSha256'] -and
                     $author['finalSha256'] -ceq (Get-InputHash $root $handoff) -and

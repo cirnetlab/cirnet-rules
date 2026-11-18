@@ -18,27 +18,35 @@ $final = $args[[array]::IndexOf($args, '--output-last-message') + 1]
 $mode = $args[[array]::IndexOf($args, '--model') + 1]
 $task = [Console]::In.ReadToEnd()
 $e01 = Test-Path -LiteralPath accounts.mjs
-$author = $args -contains 'read-only'
+$author = $task -match '(?m)^(?:Original user task:|Start the handoff with these exact three lines:)\r?$'
 $recovery = -not $e01 -and $mode -eq 'mock-success'
-$handoff = "PROMPT_READY`r`nApply the authorized operation and preserve unrelated changes.  `r`n"
 if ($mode -eq 'mock-blocked') { exit 7 }
 if ($author) {
-    if ($task -notmatch 'replace the trimAlias call|data export feature') { exit 8 }
-    $answer = $handoff
+    $goal = [regex]::Match($task, '(?m)^Original (?:user task:\r?\n|task: )([^\r\n]+)').Groups[1].Value
+    if ($goal -notmatch 'replace the trimAlias call|data export feature') { exit 8 }
+    $status = if ($e01) { 'PROMPT_BLOCKED' } else { 'PROMPT_READY' }
+    $scope = if ($e01) { '[]' } else { '["src/labels.mjs"]' }
+    $requirements = if ($e01) { 'Clarify the actor, records and fields. Preserve the store and emit no export or private values.' }
+        else { 'Apply the requested edit only in src/labels.mjs. Preserve unrelated files and edits. Avoid destructive Git commands.' }
+    $verification = if ($e01) { 'Verify no writes and stop until export authority is resolved.' }
+        else { 'Run the label tests before and after the edit and inspect the scoped diff.' }
     if ($recovery) {
         $inspection = & node toolkit/inspect-source.mjs src/labels.mjs --symbol formatLabel 2>&1
         if ($LASTEXITCODE -ne 2 -or $inspection -notmatch 'SOURCE_INSPECTION_BLOCKED') { exit 10 }
-        $goal = [regex]::Match($task, '(?m)^Original user task:\r?\n([^\r\n]+)').Groups[1].Value
-        if (-not $goal) { exit 8 }
-        $answer = "PROMPT_READY`r`n$goal`r`nNOT_INSPECTED: Verify the target under the existing scope before editing. Preserve all unrelated data.`r`n"
+        $requirements += ' NOT_INSPECTED: Verify the target under the existing read scope before editing.'
     }
+    if ($mode -eq 'mock-invalid-handoff') {
+        if ($e01) { $scope = '["accounts.mjs"]' }
+        else { $goal = 'Improve label formatting.' }
+    }
+    $answer = "$status`r`nOriginal task: $goal`r`nWrite scope: $scope`r`n`r`n## Requirements and constraints`r`n$requirements`r`n`r`n## Acceptance and verification`r`n$verification`r`n"
     if ($mode -eq 'mock-guards' -and -not $e01) { $answer = 'PROMPT_BLOCKED' }
 } else {
     if ($recovery) {
         if ($task -notmatch '^PROMPT_READY\r?\n[\s\S]*NOT_INSPECTED') { exit 9 }
         & node --test ./labels.test.mjs *> $null
         if ($LASTEXITCODE -ne 0) { exit 11 }
-    } elseif ($task -cne $handoff) { exit 9 }
+    }
     if (-not $e01 -and $mode -ne 'mock-objective-fail') {
         $path = Join-Path $PWD 'src/labels.mjs'
         $source = [IO.File]::ReadAllText($path)
@@ -97,6 +105,19 @@ Assert-Rejected missing-shim @{ Execute=$true; MaxNativeCalls=4; CodexPath=(Join
 Assert-Rejected preview-credentials @{ UseApiKey=$true } 'Preview uses neither'
 
 $execute = @{ OutputRoot=$output; CodexPath=$shim; Execute=$true; MaxNativeCalls=4; TimeoutSeconds=30 }
+& $smoke @execute -Session invalid-handoff -Model mock-invalid-handoff
+$invalidCode = $LASTEXITCODE
+$invalid = Read-Evidence 'invalid-handoff/compatibility-summary.json'
+foreach ($trial in $invalid.cases) {
+    $author = Read-Evidence "invalid-handoff/$($trial.author.record)"
+    $handoffPath = Join-Path $output "invalid-handoff/trials/$($trial.id)/Author/$($trial.id)/final.md"
+    $handoffHash = (Get-FileHash -LiteralPath $handoffPath).Hash.ToLowerInvariant()
+    if ($invalidCode -ne 1 -or $author.finalSha256 -cne $handoffHash -or $trial.status -ne 'FAIL' -or
+        $trial.work.execution -ne 'NOT_RUN' -or (Test-Path -LiteralPath (Join-Path $output "invalid-handoff/trials/$($trial.id)/Work"))) {
+        throw "Blocked $($trial.id) must stop an invalid but byte-exact handoff before Work. Observed status=$($trial.status), Work=$($trial.work.execution)."
+    }
+}
+
 & $smoke @execute -Session success -Model mock-success
 $successCode = $LASTEXITCODE
 $passed = Read-Evidence 'success/compatibility-summary.json'
@@ -119,8 +140,34 @@ foreach ($trial in $passed.cases) {
 $e06 = Get-Content -Raw -LiteralPath (Join-Path $repo 'tests/behavioral/cases.json') |
     ConvertFrom-Json | Where-Object id -ceq 'E06'
 $e06Input = [IO.File]::ReadAllText((Join-Path $output 'success/trials/E06/Work/E06/prompt.txt'))
-if (-not ($e06Input -split '\r?\n' -ccontains $e06.prompt) -or $e06Input -notmatch 'NOT_INSPECTED') {
+if (-not ($e06Input -split '\r?\n' -ccontains "Original task: $($e06.prompt)") -or $e06Input -notmatch 'NOT_INSPECTED') {
     throw 'The E06 recovery handoff must preserve the original task and delegate the unread source to Work.'
+}
+$e01Work = Read-Evidence 'success/trials/E01/Work/E01/run.json'
+$e06Work = Read-Evidence 'success/trials/E06/Work/E06/run.json'
+if ($e01Work.command[[array]::IndexOf($e01Work.command, '--sandbox') + 1] -cne 'read-only' -or
+    $e06Work.command[[array]::IndexOf($e06Work.command, '--sandbox') + 1] -cne 'workspace-write') {
+    throw 'Blocked E01 Work must be read-only while ready E06 uses the existing write sandbox.'
+}
+
+$successRoot = Join-Path $output 'success'
+$workArguments = @{
+    Cohort='Candidate'; Attempt=2; Role='Work'; CaseId='E06'; Model='mock-success'; Effort='high'
+    ValidateCandidateHandoff=$true; ComparisonRoot=$successRoot
+    RulesRoot=(Join-Path $successRoot 'rules'); SuiteRoot=(Join-Path $successRoot 'evaluator')
+    OutputRoot=(Join-Path $successRoot 'trials/E06')
+}
+$invalidFile = Join-Path $successRoot 'invalid-handoff.md'
+[IO.File]::WriteAllText($invalidFile, ($e06Input -replace '(?s)## Acceptance and verification.*\z', '## Acceptance and verification'))
+$invalidHash = (Get-FileHash -LiteralPath $invalidFile).Hash.ToLowerInvariant()
+foreach ($entry in @(
+    @{ Session='wrong-digest'; HandoffPath=(Join-Path $successRoot 'trials/E06/Author/E06/final.md'); ExpectedHandoffSha256=('0' * 64) }
+    @{ Session='empty-verification'; HandoffPath=$invalidFile; ExpectedHandoffSha256=$invalidHash }
+)) {
+    $rejected = $false
+    try { & (Join-Path $repo 'scripts/eval-codex.ps1') @workArguments @entry | Out-Null }
+    catch { if ($_.Exception.Message -notmatch 'Work input failed Candidate handoff') { throw }; $rejected = $true }
+    if (-not $rejected) { throw "Work intake must stop the $($entry.Session) handoff." }
 }
 
 & $smoke @execute -Session guards -Model mock-guards

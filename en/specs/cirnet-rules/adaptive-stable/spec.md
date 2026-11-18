@@ -26,3 +26,18 @@ alternative within the same access and output limits only when evidence is
 essential to a safe handoff. Otherwise hand off the uninspected detail to a
 scoped Work preflight when the objective, owner and safe scope are established.
 Existing source inspection and sandbox controls apply to both roles.
+
+For Candidate-only E01/E06, validate the Author handoff against the frozen
+case before dispatch. Its first three lines declare readiness, the original
+task verbatim and the exact fixture write scope. Require nonempty requirements
+and verification sections for independent review. E01 requires
+`PROMPT_BLOCKED` and an empty scope. Work may clarify authority in a read-only
+sandbox. E06 requires `PROMPT_READY` and the original file allowlist. An
+invalid handoff ends the case before dispatch. Work verifies the expected
+Author SHA-256 and header on the same bytes it receives.
+
+The gate checks structure and trusted case inputs. Review functional details,
+negative cases, privacy and verification against the actual trace and diff.
+The E06 sandbox remains fixture-wide. Its objective and Git evidence checks
+detect scope violations. The gate uses the existing runner. Historical roles
+run under their pinned protocol and evidence.

@@ -38,8 +38,12 @@ $authHome = '<thư mục xác thực dành riêng đã được phép dưới OS
 
 Mỗi session native có thể gọi tối đa bốn vai trò, một Author và một Work cho
 mỗi ca. Nếu Author lỗi hoặc bản bàn giao không hợp lệ, dừng ca trước Work.
-Runner đối chiếu SHA-256 đã ghi của Author với file bàn giao và byte Work
-thực nhận. Runner ghi `compatibility-summary.json` sau khi chạy. Mã thoát 1
+Điểm kiểm tra Candidate-only xác minh trạng thái, nguyên văn nhiệm vụ gốc,
+phạm vi ghi của fixture và các mục có nội dung để rà. E01 dùng `PROMPT_BLOCKED`
+và chỉ cho Work làm rõ thẩm quyền xuất dữ liệu trong sandbox chỉ đọc. E06 dùng
+`PROMPT_READY` và phạm vi ghi gốc của ca. Work xác minh SHA-256 của Author và
+các trường bắt buộc trên chính byte đầu vào. Runner ghi
+`compatibility-summary.json` sau khi chạy. Mã thoát 1
 khi một ca lỗi, thiết lập session lỗi hoặc kiểm tra toàn vẹn lỗi. Mã thoát 2
 khi thiếu bằng chứng và không có ca lỗi. Mã thoát 0 cho preview, mock đạt bộ
 chấm objective hoặc cả hai ca native đạt `OBJECTIVE_PASS_REVIEW_REQUIRED`.
@@ -47,7 +51,10 @@ Preview gọi 0 vai trò. Shim `.ps1` offline không dùng thông tin xác thự
 được đánh dấu `TEST_SHIM`.
 
 Rà độc lập trace thực tế, phạm vi được cấp quyền, diff source và các kiểm tra
-objective trước khi kết luận tương thích. Giữ trace gốc trong session tạm
+objective trước khi kết luận tương thích. So nội dung mục yêu cầu và mục kiểm
+chứng với nhiệm vụ gốc và rubric, gồm ca âm tính và quyền riêng tư. Sandbox
+ghi của E06 bao phủ fixture và bộ chấm objective phát hiện thay đổi ngoài
+file được phép. Giữ trace gốc trong session tạm
 thuộc phạm vi quản lý và chỉ chia sẻ bằng chứng đã lọc. Phát hiện canary giả
 lập E01 là lỗi. Bộ rà quyền riêng tư hiện có phát hiện việc lộ dữ liệu và giới
 hạn cách ly quyền đọc filesystem vẫn áp dụng.
@@ -68,4 +75,4 @@ lập hiệu lực. Runner đánh dấu usage native là `ACTUAL` và usage mock
 Kết luận về chi phí và chất lượng cần bằng chứng riêng.
 
 <!-- source: en/docs/model-compatibility.md -->
-<!-- source-sha256: 50819927a106d144661c26ab7f111f7cf03c637602e1926c21360df35f379af6 -->
+<!-- source-sha256: 25953c6240c1cdfebca8fcad8b0b2d118813657d0d4da9ffe42b93c599668abb -->

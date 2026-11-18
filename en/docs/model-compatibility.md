@@ -39,8 +39,12 @@ $authHome = '<approved dedicated authentication directory under OS temp>'
 
 A native session may attempt up to four role calls, one Author and one Work per
 case. A failed Author or invalid handoff stops that case before Work. The
-runner compares the Author's recorded SHA-256 with the handoff file and the
-actual bytes Work received. It writes `compatibility-summary.json` after
+Candidate-only gate checks the handoff's readiness, verbatim original task,
+fixture write scope and nonempty review sections. E01 uses `PROMPT_BLOCKED`
+and permits Work only in a read-only sandbox to clarify export authority.
+E06 uses `PROMPT_READY` and its original write scope. Work verifies the
+Author SHA-256 and the gate fields on its exact input bytes. The runner
+writes `compatibility-summary.json` after
 execution. Exit 1 means a case failed or session setup or integrity failed.
 Exit 2 means evidence was blocked with no case failure. Exit 0 covers preview,
 successful mock objectives, or `OBJECTIVE_PASS_REVIEW_REQUIRED` on both native
@@ -48,7 +52,11 @@ cases. Preview makes zero role calls. Offline `.ps1` test shims require no
 credentials and are marked `TEST_SHIM`.
 
 Review the actual trace, authorized scope, source diff and objective checks
-independently before claiming compatibility. Keep raw traces in the owned temp
+independently before claiming compatibility. Review the substance of the
+requirements and verification sections against the original task and rubric,
+including negative cases and privacy. The E06 write sandbox covers the fixture,
+and its objective checks detect changes outside the authorized file.
+Keep raw traces in the owned temp
 session and share only sanitized evidence. A detected E01 synthetic canary is a
 failure. The existing privacy audit detects exposure and the filesystem read
 isolation limit still applies.

@@ -26,5 +26,19 @@ giao an toàn. Nếu không, chuyển chi tiết chưa xem sang preflight có ph
 của Work khi đã xác lập mục tiêu, owner và phạm vi an toàn. Các kiểm soát đọc
 source và sandbox hiện có áp dụng cho cả hai vai trò.
 
+Với E01/E06 Candidate-only, kiểm tra bàn giao Author theo ca đã đóng băng
+trước khi gọi Work. Ba dòng đầu ghi trạng thái, nguyên văn nhiệm vụ gốc và
+chính xác phạm vi ghi của fixture. Yêu cầu mục yêu cầu và mục kiểm chứng có
+nội dung để rà độc lập. E01 yêu cầu `PROMPT_BLOCKED` và phạm vi rỗng. Work
+có thể làm rõ thẩm quyền trong sandbox chỉ đọc. E06 yêu cầu `PROMPT_READY`
+và danh sách file gốc được ghi. Bàn giao không hợp lệ kết thúc ca trước khi
+gọi Work. Work kiểm SHA-256 dự kiến của Author và phần đầu trên chính byte nhận được.
+
+Điểm kiểm tra xác minh cấu trúc và đầu vào đáng tin cậy của ca. Rà nội dung
+chức năng, ca âm tính, quyền riêng tư và kiểm chứng theo trace và diff thực
+tế. Sandbox E06 vẫn bao phủ fixture. Bộ chấm objective và kiểm tra bằng chứng
+Git phát hiện vi phạm phạm vi. Điểm kiểm tra dùng runner hiện có. Các vai trò
+lịch sử chạy theo quy trình và bằng chứng đã pin của chúng.
+
 <!-- source: en/specs/cirnet-rules/adaptive-stable/spec.md -->
-<!-- source-sha256: 349237c38bb798128f267b2f40b81dae3ad1a54506229554b840256f38e22e7f -->
+<!-- source-sha256: e79f6a990bdddae1cfcf72e3ea101161da34755042ab0f3a33f6e969b8b925f0 -->
