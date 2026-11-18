@@ -17,6 +17,9 @@ Minimum inputs: Current behavior, callers, boundaries, covered invariants and pe
    dynamic use. Leave pre-existing dead code and unrelated formatting in place.
 4. Compare before/after behavior with the same inputs and assertions. Keep public
    names, persisted formats and fixture meaning stable where promised.
+   Preserve error types, codes and documented message text. Treat message text
+   asserted by tests or used by callers as part of the contract.
+   Report incidental runtime diagnostic wording changes without expanding the edit.
 
 Report structural changes, protected behavior and observed checks. Surface any behavior difference explicitly.
 

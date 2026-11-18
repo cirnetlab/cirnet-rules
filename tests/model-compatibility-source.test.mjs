@@ -6,9 +6,11 @@ import { test } from 'node:test';
 const source = path => new URL(`../${path}`, import.meta.url);
 const read = path => readFileSync(source(path), 'utf8');
 const authoring = 'skills/cirnet-work-prompt-authoring/SKILL.md';
+const refactoring = 'skills/cirnet-refactoring/SKILL.md';
 const template = 'templates/chat-to-work-prompt.md';
 const pairs = [
   authoring,
+  refactoring,
   template,
   'docs/context.md',
   'docs/behavioral-evaluation.md',
@@ -59,4 +61,10 @@ test('Author stops discovery at a safe handoff and preserves boundaries on read 
   assert.match(guide, /Honor access and\s+shell-policy denials/);
   assert.match(guide, /`NOT_INSPECTED`[\s\S]*scoped Work preflight/);
   assert.match(guide, /Only block the handoff when an essential decision, authority, conflict or\s+safety condition/);
+});
+
+test('refactoring preserves contracted error behavior and reports incidental diagnostics', () => {
+  const skill = read(`en/${refactoring}`);
+  assert.match(skill, /Preserve error types, codes and documented message text/);
+  assert.match(skill, /Report incidental runtime diagnostic wording changes without expanding the edit/);
 });

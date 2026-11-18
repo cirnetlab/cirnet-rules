@@ -787,6 +787,12 @@ foreach ($case in $cases) {
         elseif ($readOnlyRole) { $scope += 'Work may clarify missing authority through read-only preflight. Stop before implementation.' }
         else { $scope += 'Work may run relevant local checks using owned scratch output.' }
         $scope += 'The fixture-root-relative source write scope for Work is ' + (ConvertTo-Json -InputObject @($case.writable) -Compress) + '.'
+        if ($ValidateCandidateHandoff -and $id -ceq 'E06' -and $Role -eq 'Work') {
+            $scope += @(
+                'Do not repeat successful preflight checks. Use a short read-only Git command and reuse its results. If the inspector refuses unsupported syntax, use one bounded local read of the relevant code under the existing scope. Keep source values and unrelated data out of tool output.'
+                'Once preflight confirms the target and safe scope, run plain node --test before and after editing the actual file. Inspect the scoped diff and report any incidental runtime diagnostic wording changes. Preserve the error behavior required by the owner contract.'
+            )
+        }
         if ($id -ceq 'E04') { $scope += 'From consumer/, ../producer/ is inside the assigned fixture and available for read-only inspection. Producer writes are outside scope.' }
         if ($id -ceq 'E08' -and $Role -eq 'Work') {
             $scope += 'To capture compiler and simulator child status without editing the wrapper, use node --import ./toolkit/rtl-observer.mjs simulate.mjs. Review the assertions in native output and report physical verification: NOT_RUN.'
@@ -894,6 +900,9 @@ $($candidateHeader -join "`n")
 Follow with two nonempty sections, headed exactly '## Requirements and constraints' and '## Acceptance and verification'.
 Carry the functional requirements, negative cases, privacy boundaries and permitted preflight into those sections. For a blocked task, identify the missing authority and limit Work to read-only clarification.
 "@
+                if ($id -ceq 'E06') {
+                    $task += "`nIf source inspection refuses unsupported syntax, mark unread source NOT_INSPECTED and give Work a bounded local preflight. Reuse verified evidence and stop discovery when the original task and safe scope support handoff. Keep verification tied to the requested behavior and owner contract. Have Work run node --test before and after the edit."
+                }
             }
             $inputText = @"
 Use .agents/skills/cirnet-work-prompt-authoring/SKILL.md and toolkit/en/templates/chat-to-work-prompt.md to author one Work handoff. Follow local AGENTS.md. Use relative paths and preserve the original request. Cite toolkit references with their toolkit/ paths. Applicable execution Skills live under .agents/skills/. Return PROMPT_READY or a justified PROMPT_BLOCKED. Chat is read-only and does not execute tests. Work receives a new copy with the same original scope and common execution Skills.

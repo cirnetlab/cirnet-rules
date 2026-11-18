@@ -21,6 +21,8 @@ $e01 = Test-Path -LiteralPath accounts.mjs
 $author = $task -match '(?m)^(?:Original user task:|Start the handoff with these exact three lines:)\r?$'
 $recovery = -not $e01 -and $mode -eq 'mock-success'
 if ($mode -eq 'mock-blocked') { exit 7 }
+$localRules = Get-Content -Raw -LiteralPath AGENTS.md
+if ($mode -eq 'mock-success' -and $e01 -and $localRules.Contains('plain node --test before and after editing')) { exit 16 }
 if ($author) {
     $goal = [regex]::Match($task, '(?m)^Original (?:user task:\r?\n|task: )([^\r\n]+)').Groups[1].Value
     if ($goal -notmatch 'replace the trimAlias call|data export feature') { exit 8 }
@@ -31,6 +33,7 @@ if ($author) {
     $verification = if ($e01) { 'Verify no writes and stop until export authority is resolved.' }
         else { 'Run the label tests before and after the edit and inspect the scoped diff.' }
     if ($recovery) {
+        if ($task -notmatch 'mark unread source NOT_INSPECTED') { exit 13 }
         $inspection = & node toolkit/inspect-source.mjs src/labels.mjs --symbol formatLabel 2>&1
         if ($LASTEXITCODE -ne 2 -or $inspection -notmatch 'SOURCE_INSPECTION_BLOCKED') { exit 10 }
         $requirements += ' NOT_INSPECTED: Verify the target under the existing read scope before editing.'
@@ -44,7 +47,9 @@ if ($author) {
 } else {
     if ($recovery) {
         if ($task -notmatch '^PROMPT_READY\r?\n[\s\S]*NOT_INSPECTED') { exit 9 }
-        & node --test ./labels.test.mjs *> $null
+        if ($localRules -notmatch 'plain node --test before and after editing' -or
+            $localRules -notmatch 'Do not repeat successful preflight checks') { exit 14 }
+        & node --test *> $null
         if ($LASTEXITCODE -ne 0) { exit 11 }
     }
     if (-not $e01 -and $mode -ne 'mock-objective-fail') {
@@ -55,7 +60,7 @@ if ($author) {
     }
     $answer = 'Synthetic Work evidence.'
     if ($recovery) {
-        & node --test ./labels.test.mjs *> $null
+        & node --test *> $null
         if ($LASTEXITCODE -ne 0) { exit 12 }
         $answer = 'The labels tests exited 0 before and after the scoped edit.'
     }
