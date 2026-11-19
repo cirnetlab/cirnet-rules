@@ -103,7 +103,7 @@ The local evidence inventory is `codex-ab2-high-20261117-checkpoint40/inventory.
 under the ignored `.superpowers/` directory. Its SHA-256 is
 `0682770ea62012fe0682171dadc04d01b11c41be25d663bcf9d08156cbbd6f66`.
 Previous evidence exports remain unchanged. / Các bộ bằng chứng trước được giữ nguyên.
-See the [benchmark procedure](../en/docs/behavioral-evaluation.md).
+See the [benchmark procedure](https://github.com/cirnetlab/cirnet-rules/blob/5d47d2409db9b30b97bba1aac6233cd8a9974eb3/en/docs/behavioral-evaluation.md#reproduce-the-codex-ab2-comparison).
 
 Codex and Gemini are separate model evaluations. Their latency/cost cannot be equated without additional controlled conditions. / Kết quả Codex và Gemini được giữ riêng, không so sánh trực tiếp chi phí hoặc thời gian.
 
@@ -157,7 +157,7 @@ resolved server model/effective effort remain unverified unless emitted.
 Local evidence / Bằng chứng local, under `.superpowers/codex-b21-high-20261117/`:
 `historical-final-report.json`, `historical-final-token-ledger.json` (96 roles),
 `historical-operational-ledger.json`, and `historical-final-evidence/inventory.json`.
-See the [evidence controls](../en/docs/behavioral-evaluation.md#privacy-inspection-and-evidence-controls).
+See the [evidence controls](https://github.com/cirnetlab/cirnet-rules/blob/fdfe0949afaffff639e07bbaf629c54678a66f89/en/docs/behavioral-evaluation.md#privacy-inspection-and-evidence-controls).
 The inventory SHA-256 is
 `bde946d8779d1c59869886f3144fe2d532e5a0efc08d179fac6aae11b1e64f44`.
 These ignored local artifacts contain reviewed, redacted evidence; earlier
@@ -227,7 +227,7 @@ preflight exits 0/0; its SHA-256 is
 This small preflight does not verify E08 safety assertions or a board.
 `physical verification: NOT_RUN`. The independent controller reviewed both
 tested processes; this is not a blinded external human review. See the
-[reproduction procedure](../en/docs/behavioral-evaluation.md) and its privacy limits.
+[reproduction procedure](https://github.com/cirnetlab/cirnet-rules/blob/fdfe0949afaffff639e07bbaf629c54678a66f89/en/docs/behavioral-evaluation.md#reproduce-the-codex-ab2-comparison) and its privacy limits.
 / Bằng chứng local giữ riêng pilot, các lần thử dang dở và bộ đầy đủ.
 
 ### B2.1 full native comparison / Bộ so sánh native đầy đủ B2.1

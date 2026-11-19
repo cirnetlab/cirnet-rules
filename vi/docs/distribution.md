@@ -40,21 +40,18 @@ Nếu không có nguồn tham chiếu được phép, báo giới hạn trước
 
 ## Soạn Work Prompt
 
-Bundle có `cirnet-work-prompt-authoring`. Chọn qua
-`-Skills 'cirnet-work-prompt-authoring'` khi cài và xác minh, cùng các Skill
-khác bạn muốn chọn. Khi được yêu cầu bàn giao, Agent dùng checkout sẽ mở
-trực tiếp [mẫu tiếng Anh](../../en/templates/chat-to-work-prompt.md). Agent
-dùng Skill đã cài cần quyền đọc riêng đối với cùng mẫu trong checkout được
-phép. Mẫu nằm ngoài bundle. Nếu thiếu quyền truy cập, Skill báo
-`PROMPT_BLOCKED`.
+Khi cài và xác minh, chọn Skill trong bundle bằng
+`-Skills 'cirnet-work-prompt-authoring'` cùng các Skill khác cần dùng. Khi được
+yêu cầu bàn giao, mở [mẫu tiếng Anh](../../en/templates/chat-to-work-prompt.md)
+trong checkout được phép. Mẫu nằm ngoài bundle nên Skill đã cài cần quyền đọc
+riêng. Nếu thiếu quyền này, Skill báo `PROMPT_BLOCKED`.
 
 ## Task Continuity
 
-Chạy công cụ PowerShell 7 cùng các module từ checkout `cirnet-rules` được phép
-ở revision đã duyệt. Bundle đã cài cung cấp baseline và Skills. Cấp cho agent
-quyền riêng vào checkout chứa công cụ. Đặt `Repository` là thư mục gốc của Git
-worktree sở hữu và giữ cùng `TaskId` viết thường và `AgentFamily` (`codex`
-hoặc `claude-code`).
+Chạy `scripts/task-continuity.ps1` cùng các module bằng PowerShell 7 từ checkout
+`cirnet-rules` được phép ở revision đã duyệt. Bundle đã cài cung cấp baseline và
+Skills. Cấp riêng quyền đọc checkout. Đặt `Repository` là thư mục gốc của worktree
+sở hữu và giữ cùng `TaskId` viết thường và `AgentFamily` (`codex` hoặc `claude-code`).
 
 Dùng quy ước lưu trữ cục bộ của bên sở hữu. Trước khi chọn `.cirnet/tasks/`,
 xác nhận Git chưa theo dõi và đã bỏ qua đường dẫn qua quy tắc của repo được
@@ -62,6 +59,12 @@ duyệt hoặc tệp loại trừ cục bộ của checkout. Dùng `CheckpointRo
 nếu chọn đường dẫn bị bỏ qua khác hoặc thư mục do bạn sở hữu ngoài worktree.
 Lưu ghi chú đầu vào và gói bàn giao ngoài đường dẫn Git theo dõi, chỉ cấp quyền
 cho người thực hiện có thẩm quyền.
+
+Trong `<CheckpointRoot>/<task-id>/`, `current.json` xác định snapshot đã công bố.
+Thư mục `snapshots/<checkpoint-id>/` của snapshot đó chứa `task.md`,
+`progress.md`, `state.json` và manifest ghi checksum `manifest.json`.
+
+### Khởi tạo và ghi nhận công việc
 
 Chuẩn bị ghi chú task và tiến độ bằng UTF-8 với các tiêu đề cấp hai (`##`). Chỉ
 giữ thông tin về task đã được phép lưu và đã loại bỏ dữ liệu nhạy cảm. Các tiêu
@@ -114,11 +117,16 @@ Các điểm tích hợp áp dụng cho lệnh gọi công cụ rõ ràng.
 Khi cập nhật tiến độ, quyết định hoặc trước khi bàn giao, dùng
 `save -ProgressFile -ConfirmScope` kèm `-ExpectedCheckpointId` đã xem.
 Thêm nội dung vào các phần việc đã làm, việc còn lại, quyết định, vướng mắc
-và kiểm chứng lại. Để chủ động thay thế nội dung, thêm
+và kiểm chứng lại. Cùng lệnh lưu đó có thể thay nội dung mục `Next Action`.
+Để sửa nội dung đã ghi ở các mục còn lại, thêm
 `-ConfirmProgressChange` và `-ProgressReason`. Lịch sử snapshot đã xác
 nhận giữ các ghi chú trước đó. Với v1, ghi thêm lý do vào phần
 Decisions & Blockers mới.
 
+### Kiểm tra và tiếp tục
+
+`status` hiển thị sai khác trong Git, tham chiếu đã ghim và bằng chứng.
+Lệnh `verify` cục bộ trả mã khác 0 khi kết quả là `FAIL`, `NOT_RUN` hoặc `BLOCKED`.
 `resume -ConfirmScope` trả ghi chú đã niêm phong để khôi phục chỉ đọc, kể cả
 khi kết quả hết hiệu lực, lệnh bị gián đoạn hoặc Git đã thay đổi. Đọc
 `Blockers`, `Git.Changes`, `Checks` và `Acceptance` trước khi hành động.
@@ -143,12 +151,14 @@ hoặc trong kho cũ có thể chưa có con trỏ dự phòng. Chỉ riêng th�
 chưa đủ chứng minh snapshot đã được công bố.
 
 `IntegrityStatus` mô tả tính toàn vẹn của checkpoint, `Ready` mô tả độ
-sẵn sàng kỹ thuật và `Status` là kết quả kiểm chứng tổng thể. `verify`
-thoát khác 0 khi `FAIL`, `NOT_RUN` hoặc `BLOCKED` ngay cả khi `Ready`
-là true. `CompletionStatus` cần hồ sơ đã đóng và bằng chứng còn hiệu lực.
+sẵn sàng kỹ thuật và `Status` là kết quả kiểm chứng tổng thể. Việc kiểm chứng
+có thể chưa hoàn tất ngay cả khi `Ready` là true. `CompletionStatus` cần hồ sơ
+đã đóng và bằng chứng còn hiệu lực.
 `AgentFamilyMatched` so sánh loại agent người gọi khai báo với loại đã lưu.
 Công cụ không xác minh độc lập danh tính client đang chạy hay quyền của tài
 khoản. Xác nhận cả hai trong phiên được cấp quyền.
+
+### Rà soát và đóng công việc
 
 Để ghi lượt rà soát của người có thẩm quyền, chuẩn bị `$reviewFile` là
 đối tượng JSON với `criteria` và `completedWork`. Mỗi mục tiêu chí có
@@ -157,10 +167,10 @@ hoặc dùng `null` nếu lượt rà soát đó giữ nguyên. Với `PASS` ho�
 khai báo ít nhất một bằng chứng được phép theo dạng
 `{"path":"relative/artifact.txt","sha256":"<reviewed SHA-256>"}`. Dùng
 tệp thường trong worktree nằm ngoài kho checkpoint. Tệp bằng chứng tách
-riêng khỏi yêu cầu rà soát. Công cụ kiểm tra nội dung theo byte và ghi
-nguồn rà soát riêng với ghi chú của agent và mã thoát tiến trình đã quan sát.
-Hash xác định đúng tệp và độ mới của bằng chứng. Người có thẩm quyền
-đánh giá bằng chứng chứng minh được điều gì.
+riêng khỏi yêu cầu rà soát. Công cụ kiểm tra lại hash để xác nhận đúng tệp và
+bằng chứng còn hiệu lực, đồng thời ghi nguồn rà soát riêng với ghi chú của
+agent và mã thoát tiến trình đã quan sát. Người có thẩm quyền đánh giá tệp
+chứng minh được điều gì.
 
 Thay đổi mã nguồn, tham chiếu hoặc kết quả liên kết làm lượt rà soát tương
 ứng hết hiệu lực. Thay đổi phần việc đã làm cũng làm lượt rà soát phần đó
@@ -181,25 +191,24 @@ khi tuyên bố đã hoàn thành.
 Mục tiêu chí cũ có cách diễn đạt chưa rõ vẫn đọc được. Cần bên sở hữu làm rõ
 từng tiêu chí trước khi nâng cấp hoặc xác nhận nghiệm thu.
 
-Trước khi bàn giao dạng tệp, rà quyền của người nhận, các phần được phép trong
-ghi chú công việc, tiến độ và tham chiếu tài liệu tương đối. Dùng
-`export -ConfirmScope -ConfirmExport -OutputFile <new-file>`. Gói chứa ngữ cảnh
-được phép, dấu vân tay repo và tóm tắt bằng chứng. Giữ bí mật, dữ liệu phiên và
-đoạn mã nguồn ngoài ghi chú chia sẻ. Chọn tệp đích nằm ngoài toàn bộ thư mục
-checkpoint đã cấu hình. Công cụ từ chối nội dung nhạy cảm nhận diện
-được và loại tệp mã nguồn, lệnh thô, log, đường dẫn Git cục bộ và tên tệp đã đổi
-khỏi gói. Người thực hiện phải xem văn bản tự do vì bộ lọc không nhận ra mọi giá
-trị nhạy cảm.
+### Xuất và đọc gói bàn giao
+
+Xác nhận quyền của người nhận. Rà các mục ghi chú công việc, tiến độ và đường
+dẫn tài liệu tương đối để loại thông tin bí mật, dữ liệu phiên và đoạn mã nguồn.
+Dùng `export -ConfirmScope -ConfirmExport -OutputFile <new-file>` với đích nằm
+ngoài toàn bộ thư mục checkpoint. Gói v2 chứa ngữ cảnh được phép, dấu vân tay repo
+và tóm tắt bằng chứng. Gói loại tệp mã nguồn, lệnh thô, log, đường dẫn Git cục
+bộ và tên tệp đã đổi. Bộ lọc từ chối nội dung nhạy cảm nhận diện được. Người
+thực hiện phải kiểm tra phần văn bản tự do còn lại.
 
 Cùng loại agent có thể dùng `verify -HandoffFile` với `-AgentFamily` dự kiến và
 `-ExpectedSha256` nhận từ lệnh export qua kênh đáng tin cậy. Để đọc ngữ cảnh rõ
 ràng, dùng `resume -HandoffFile` với các tùy chọn đó và `-ConfirmScope`. Gói
 có thể báo `IntegrityStatus: PASS` trong khi kiểm chứng trên trạng thái thực tế
 vẫn là `NOT_RUN`. Việc kiểm tra Git hiện tại, quyền, tham chiếu và hiệu lực
-bằng chứng cần worktree gốc và checkpoint cục bộ. Nghiệm thu Native cần chứng
-minh riêng việc khôi phục sau gián đoạn và bàn giao giữa các tài khoản thật
-được cấp quyền của cả hai loại agent được hỗ trợ. Xem
-[đặc tả Task Continuity](../specs/cirnet-rules/task-continuity/spec.md).
+bằng chứng cần worktree gốc và checkpoint cục bộ. Việc khôi phục sau gián đoạn
+Native và bàn giao giữa các tài khoản được cấp quyền của cả hai loại agent được
+quy định trong [tiêu chí nghiệm thu](../specs/cirnet-rules/task-continuity/spec.md#11-kiểm-chứng-và-tiêu-chí-nghiệm-thu).
 
 ## Cập nhật và restore
 
@@ -231,4 +240,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 4d0754a72d1951db4560185fe5ed6d574e4a2db7b8288f0335ec0cd1ed46d5ba -->
+<!-- source-sha256: 230ba8c0cd115ff478a213d5bdc4cdc645c1b5ad9a6ddbca84f2559e152319c3 -->

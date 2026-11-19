@@ -17,7 +17,8 @@ Hồ sơ task: [rebuild ban đầu](cirnet-rules/rules-common/plan.md) (lịch s
 [nâng cấp song ngữ](cirnet-rules/bilingual-upgrade/plan.md),
 [nâng cấp toolkit](cirnet-rules/toolkit-upgrade/plan.md),
 [hành vi kỹ thuật](cirnet-rules/engineering-behavior/plan.md),
+[tích hợp Adaptive Stable](cirnet-rules/adaptive-stable/plan.md) (lịch sử),
 [Task Continuity](cirnet-rules/task-continuity/plan.md).
 
 <!-- source: en/plans/README.md -->
-<!-- source-sha256: efe3abb69c3d3ff20bb2e2a8c8bc4c7ce4c8fba38981b3c7725e5d06cef7ff56 -->
+<!-- source-sha256: 6c81acd76709740542f4f24d7dfca02ad4a835d1c530db1af9b6f564dd6d90c0 -->

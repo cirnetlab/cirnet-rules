@@ -44,21 +44,19 @@ before making architecture decisions.
 
 ## Work Prompt authoring
 
-The bundle includes `cirnet-work-prompt-authoring`. Select it with
-`-Skills 'cirnet-work-prompt-authoring'` when installing and verifying, along
-with any other skills you want in the selection. For a requested handoff, an
-agent using the checkout opens the [English template](../templates/chat-to-work-prompt.md)
-directly. An agent using the installed Skill needs separate read access to
-the same template in an approved checkout. The template stays outside the
-bundle. If that access is missing, the Skill reports `PROMPT_BLOCKED`.
+Select the bundled Skill with `-Skills 'cirnet-work-prompt-authoring'` when
+installing and verifying, along with any other selected Skills. For a requested
+handoff, open the [English template](../templates/chat-to-work-prompt.md) in an
+approved checkout. The template stays outside the bundle, so an installed
+Skill needs separate read access. Without it, the Skill reports `PROMPT_BLOCKED`.
 
 ## Task Continuity
 
-Run the PowerShell 7 manager and its modules together from an approved
-`cirnet-rules` checkout at a reviewed revision. The installed bundle supplies
-the baseline and Skills. Give the agent separate access to the checkout that
-contains the manager. Set `Repository` to the owning Git worktree root and keep
-the same lowercase `TaskId` and `AgentFamily` (`codex` or `claude-code`).
+Run `scripts/task-continuity.ps1` and its modules with PowerShell 7 from an
+approved `cirnet-rules` checkout at a reviewed revision. The installed bundle
+supplies the baseline and Skills. Grant separate read access to the checkout.
+Set `Repository` to the owning worktree root and keep the same lowercase
+`TaskId` and `AgentFamily` (`codex` or `claude-code`).
 
 Use the owner's existing local storage convention. Before using the default
 `.cirnet/tasks/`, confirm it is untracked and ignored, using an owner approved
@@ -66,6 +64,12 @@ repository ignore rule or the checkout's local Git exclude file. Set
 `CheckpointRoot` on every call for a different ignored path or an owned directory
 outside a worktree. Keep input notes and handoff files out of tracked paths and
 restrict access to authorized operators.
+
+Under `<CheckpointRoot>/<task-id>/`, `current.json` identifies the published
+snapshot. Its `snapshots/<checkpoint-id>/` directory contains `task.md`,
+`progress.md`, `state.json` and the checksum manifest `manifest.json`.
+
+### Initialize and record work
 
 Prepare UTF-8 task and progress notes with level-two headings (`##`). Keep only
 authorized, redacted task information. The required headings are:
@@ -117,10 +121,15 @@ explicit tool calls.
 Update progress and decisions with `save -ProgressFile -ConfirmScope` and the
 reviewed `-ExpectedCheckpointId`, including before handoff. Append to the
 existing completed work, pending work, decisions, blockers and re-verification
-sections. For intentional replacements, add `-ConfirmProgressChange` with
+sections. The same save can replace `Next Action`. To revise earlier text in
+the other sections, add `-ConfirmProgressChange` with
 `-ProgressReason`. The confirmed snapshot history retains the previous notes.
 For v1, also record that reason in the new Decisions & Blockers section.
 
+### Inspect and resume
+
+`status` reports Git drift, pinned references and evidence. Local
+`verify` exits nonzero for `FAIL`, `NOT_RUN` or `BLOCKED`.
 `resume -ConfirmScope` returns the sealed notes for read-only recovery even
 when verification is stale, a command was interrupted or Git has drifted.
 Read `Blockers`, `Git.Changes`, `Checks` and `Acceptance` before taking action.
@@ -144,12 +153,14 @@ trusted evidence before further writes. A first save or an older store may
 have no previous pointer. Snapshot directories alone cannot establish publication.
 
 `IntegrityStatus` describes the sealed checkpoint, `Ready` describes technical
-readiness, and `Status` describes overall verification. `verify` exits nonzero
-for `FAIL`, `NOT_RUN` or `BLOCKED` even when `Ready` is true.
+readiness, and `Status` describes overall verification, which can be incomplete
+even when `Ready` is true.
 `CompletionStatus` requires a recorded closure and current evidence.
 `AgentFamilyMatched` compares the caller's declaration to the saved family.
 The tool does not independently verify client runtime identity or account
 authorization. Confirm both through the authorized session.
+
+### Review and close
 
 For an authorized human review, prepare `$reviewFile` as a JSON object with
 `criteria` and `completedWork`. Each criterion entry has `id`, `status` and
@@ -158,9 +169,9 @@ For an authorized human review, prepare `$reviewFile` as a JSON object with
 one approved evidence record of the form `{"path":"relative/artifact.txt",
 "sha256":"<reviewed SHA-256>"}`. Use a regular worktree file outside the
 checkpoint store. An evidence file is separate from the review request.
-The manager checks its bytes and records review provenance separately from
-agent notes and observed process exits. Hashes establish the identity and
-freshness of the evidence file. An authorized reviewer assesses what it proves.
+The manager rechecks the file's hash for identity and freshness, and records
+review provenance separately from agent notes and observed process exits.
+The authorized reviewer assesses what the file proves.
 
 Changes to source, references or linked results invalidate the corresponding
 review. Changes to the completed work section invalidate its review. Close
@@ -180,15 +191,15 @@ re-verification before any completion claim.
 An ambiguous legacy acceptance section remains readable. Get an owner approved
 criterion breakdown before attempting to upgrade or claim acceptance.
 
-For portable handoff, review the recipient's authorization and the approved
-sections of the task and progress notes and relative document references.
-Use `export -ConfirmScope -ConfirmExport -OutputFile <new-file>`. The handoff
-contains approved task context, repository fingerprints and evidence summaries.
-Choose a destination outside the entire configured checkpoint directory.
-Keep secrets, session data and source excerpts out of shared notes. The tool
-rejects recognized sensitive content and omits source files, raw commands,
-logs, local Git paths and changed file names from its projection. The operator
-must review free text because filtering cannot identify every sensitive value.
+### Export and read a handoff
+
+Confirm the recipient's authorization. Review the task and progress sections
+and relative document references for secrets, session data and source excerpts.
+Use `export -ConfirmScope -ConfirmExport -OutputFile <new-file>` outside the
+entire checkpoint directory. The v2 package includes approved context, repository
+fingerprints and evidence summaries. It omits source files, raw commands, logs,
+local Git paths and changed file names. Filtering rejects recognized sensitive
+content. The operator must check the remaining free text.
 
 The same agent family can use `verify -HandoffFile` with the expected
 `-AgentFamily` and `-ExpectedSha256` obtained from export through a trusted
@@ -196,9 +207,8 @@ channel. For reading context explicitly, use `resume -HandoffFile` with those
 options and `-ConfirmScope`. A portable read can report `IntegrityStatus: PASS`
 while live verification stays `NOT_RUN`. Live Git, authorization, references
 and evidence freshness require the original worktree and its local checkpoint.
-Native acceptance separately requires demonstrated interruption recovery and
-handoffs between actual authorized accounts in both supported agent families.
-See the [Task Continuity specification](../specs/cirnet-rules/task-continuity/spec.md).
+For native interruption recovery and handoffs between authorized accounts in
+both families, see the [acceptance criteria](../specs/cirnet-rules/task-continuity/spec.md#11-verification--acceptance-criteria).
 
 ## Update and restore
 

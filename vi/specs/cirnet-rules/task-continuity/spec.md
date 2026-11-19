@@ -96,8 +96,10 @@ Cấu trúc mặc định đề xuất:
             └── state.json
 ```
 
-Đây là cấu trúc đề xuất. Công cụ phải cho phép cấu hình đường dẫn khác để tuân
-theo quy tắc của repo đích, ví dụ quy ước `.superpowers/` hiện có.
+Sơ đồ đề xuất thể hiện ba tệp nội dung. Công cụ phải cho phép cấu hình đường dẫn
+khác để tuân theo quy tắc của repo đích, ví dụ quy ước `.superpowers/` hiện có.
+[Hướng dẫn vận hành](../../../docs/distribution.md#task-continuity) mô tả cách lưu
+các tệp trong snapshot trên đĩa và các lệnh của công cụ.
 
 ### 4.1. Trách nhiệm của từng tệp
 
@@ -353,4 +355,4 @@ phục ngữ cảnh từ checkpoint đáng tin cậy, xác minh trạng thái th
 tiếp tục các hành động đã được phép.
 
 <!-- source: en/specs/cirnet-rules/task-continuity/spec.md -->
-<!-- source-sha256: 6e2ccac2a7f741c2c2f8918bf204d1609f5c11fd1f1fc79ea4f15014eeeb06ed -->
+<!-- source-sha256: 74269017b3e1406054ef91227ac1d22cbb4dfe4e8be10f18bbd762acceb8f4ee -->

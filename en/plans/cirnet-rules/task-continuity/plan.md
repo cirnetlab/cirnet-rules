@@ -5,13 +5,14 @@ Implement the [Task Continuity specification](../../../specs/cirnet-rules/task-c
 - [x] Add a PowerShell integration suite in `tests/continuity/` using disposable Git repositories and the public script. The initial run without the entry point was not observed in this build.
 - [x] Implement read-only Git capture and pinned document references in `scripts/continuity/`. Check staged, unstaged, untracked, HEAD, branch, worktree and index drift. Check authorized references, including related checkouts.
 - [x] Implement complete snapshots and atomic current-pointer publication. Exercise corrupted snapshots, failed publication prerequisites, concurrent access and same-family resume. Verify the target index and existing Plans/Specs by hash.
-- [x] Add the controlled milestone runner and lifecycle commands in `scripts/task-continuity.ps1`. Exercise actual process exit codes, interrupted runs, input changes and closure with fresh evidence. Verify a versioned export containing only approved machine metadata and reject altered packages.
+- [x] Add the controlled milestone runner and lifecycle commands in `scripts/task-continuity.ps1`. Exercise actual process exit codes, interrupted runs, input changes and closure with fresh evidence. Verify the original v1 metadata-only export and reject altered packages. The distribution guide describes the current portable format.
 - [x] Document checkout usage in the [distribution guide](../../../docs/distribution.md#task-continuity), pair the English and Vietnamese documentation, and add the suite to the Windows/Ubuntu CI matrix.
-- [ ] Record a successful Ubuntu run and native recovery and handoff evidence for separate accounts in each supported agent family before claiming full specification acceptance.
+- [x] Record the successful Ubuntu run in the [revision-specific CI results](../../../docs/toolkit-verification.md#task-continuity-source-verification).
+- [ ] Demonstrate native recovery and handoff between separate accounts in each supported agent family before claiming full specification acceptance.
 
 ## Local verification
 
-Observed from the `cirnet-rules` root on Windows:
+Observed from the `cirnet-rules` root on Windows for the initial implementation recorded in `c2a7671`:
 
 - PASS: `cargo build --offline --locked`, `cargo fmt --all -- --check` and
   `cargo clippy --offline --locked --all-targets -- -D warnings`.
@@ -37,7 +38,7 @@ assertions and cleanup.
 
 The GitHub Actions PowerShell wrapper reproduced exit 1 on Windows before
 the fix and returned 0 afterward. An injected fixture setup failure still
-returned 1. A hosted CI run for the fix is pending.
+returned 1. Hosted CI was pending at that point. The linked CI record includes the fix at `67594ec`.
 
 ## Checkpoint hardening source changes
 
@@ -49,6 +50,6 @@ returned 1. A hosted CI run for the fix is pending.
   declared environment fingerprints, and explicit progress reconciliation
   against a reviewed checkpoint ID. Retain v1/v2 history and verify the
   portable package separately from live evidence.
-- NOT_RUN for this change: local build and test suites, CI, benchmarks and
+- NOT_RUN during the source phase recorded in `6ca1dcf`: local build and test suites, CI, benchmarks and
   Native interruption recovery and handoff. Earlier results above describe
   earlier revisions. Acceptance remains open.

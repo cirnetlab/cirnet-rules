@@ -21,7 +21,7 @@ tại, còn Work vẫn dùng Refactoring Skill đóng băng.
 | [A/B runner](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/scripts/eval-codex-ab.ps1) | Thêm profile `-CurrentWorkRules`. Candidate Author và cả hai Work dùng snapshot hiện tại gồm 54 file Rules và tài liệu. Baseline Author vẫn dùng A gốc. Continuation từ chối đổi profile và dùng lại bytes đã đóng băng. |
 | [Reporter](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/scripts/eval-codex-report.mjs) | Đối chiếu revision, baseline và hash các tham chiếu cùng Skills đã stage. Nếu Work Skill bị thay thế, reporter từ chối nhận kết quả dưới profile Current. |
 | [Regression](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/tests/behavioral-ab.tests.ps1) | Kiểm tra staging thực tế ở hai Work, template Candidate Author, continuation, và từ chối hash bị thay thế trên bản sao fixture test. |
-| [Hướng dẫn EN](../en/docs/behavioral-evaluation.md) và [VI](../vi/docs/behavioral-evaluation.md) | Mô tả profile, phạm vi suy luận và lệnh preview/pilot. Bản VI đã đồng bộ source SHA. |
+| [Hướng dẫn EN](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/en/docs/behavioral-evaluation.md#compare-authoring-with-current-work-skills) và [VI](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/vi/docs/behavioral-evaluation.md#so-sánh-biên-soạn-với-work-skills-hiện-tại) | Mô tả profile, phạm vi suy luận và lệnh preview/pilot. Bản VI đã đồng bộ source SHA. |
 
 Phép kiểm tập trung trả `1` trước sửa vì runner chưa nhận profile mới
 và trả `0` sau sửa khi snapshot chứa đúng Work Skill hiện tại. Profile
@@ -81,5 +81,5 @@ khác SHA-256. Native trên source hiện tại vẫn `NOT_RUN`.
 Sau khi owner cấp quota và phương thức xác thực, chạy bằng cấu hình
 `gpt-6.2-sol / xhigh`, 300 giây mỗi vai trò và session tạm mới. Đối chiếu
 SHA của đầu vào trong hai lượt E01/E06 trước khi kết luận độ lặp lại.
-[Lệnh Candidate-only](../en/docs/model-compatibility.md) ·
-[Lệnh A/B Current pilot](../en/docs/behavioral-evaluation.md)
+[Lệnh Candidate-only](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/en/docs/model-compatibility.md#run-the-candidate-only-smoke) ·
+[Lệnh A/B Current pilot](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/en/docs/behavioral-evaluation.md#compare-authoring-with-current-work-skills)

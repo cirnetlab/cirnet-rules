@@ -18,7 +18,8 @@ Hồ sơ task: [rebuild ban đầu](cirnet-rules/rules-common/spec.md) (lịch s
 [nâng cấp song ngữ](cirnet-rules/bilingual-upgrade/spec.md),
 [nâng cấp toolkit](cirnet-rules/toolkit-upgrade/spec.md),
 [hành vi kỹ thuật](cirnet-rules/engineering-behavior/spec.md),
+[tích hợp Adaptive Stable](cirnet-rules/adaptive-stable/spec.md) (lịch sử),
 [Task Continuity](cirnet-rules/task-continuity/spec.md).
 
 <!-- source: en/specs/README.md -->
-<!-- source-sha256: dfb7424197c7bd4f2f9cfdcd72e7a1b2bce51e99d7db05d38be2a53a877ff3a5 -->
+<!-- source-sha256: 269c8023617c7eaedfbaa6968124f1e7b8bf89053b58ec5c2f30c3c27e3a2869 -->

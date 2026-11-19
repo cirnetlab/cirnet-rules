@@ -80,7 +80,7 @@ Proposed default structure:
             └── state.json
 ```
 
-This is a proposed structure, not an existing directory. The Engine must allow alternative configurable paths to comply with the target repository's rules, such as existing `.superpowers/` conventions.
+This proposal shows the three payload files. The Engine must allow alternative configurable paths to comply with the target repository's rules, such as existing `.superpowers/` conventions. The [operator guide](../../../docs/distribution.md#task-continuity) describes their on-disk snapshot layout and the manager commands.
 
 ### 4.1. Responsibilities of Each File
 

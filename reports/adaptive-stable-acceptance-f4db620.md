@@ -6,7 +6,7 @@ Baseline là `f4db62063ac794b689fc28b30e3d7793b187a452`. Nghiệm thu sử dụn
 Codex CLI `0.169.0-alpha.11.1`, Windows MXC, model yêu cầu
 `gpt-6.2-sol`, effort yêu cầu `xhigh` và 300 giây mỗi vai trò. Báo cáo
 giữ riêng kết quả lặp trên baseline và các ca chạy sau khi đổi source.
-[Bằng chứng lần PASS trước](adaptive-candidate-native-recovery-5b6e413.md)
+[Bằng chứng lần PASS trước](https://github.com/cirnetlab/cirnet-rules/blob/f4db62063ac794b689fc28b30e3d7793b187a452/reports/adaptive-candidate-native-recovery-5b6e413.md)
 
 ## Lặp E01/E06 trên baseline
 
