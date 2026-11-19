@@ -16,7 +16,8 @@ không thay thế quy tắc đó.
 Hồ sơ task: [rebuild ban đầu](cirnet-rules/rules-common/plan.md) (lịch sử),
 [nâng cấp song ngữ](cirnet-rules/bilingual-upgrade/plan.md),
 [nâng cấp toolkit](cirnet-rules/toolkit-upgrade/plan.md),
-[hành vi kỹ thuật](cirnet-rules/engineering-behavior/plan.md).
+[hành vi kỹ thuật](cirnet-rules/engineering-behavior/plan.md),
+[Task Continuity](cirnet-rules/task-continuity/plan.md).
 
 <!-- source: en/plans/README.md -->
-<!-- source-sha256: 47121feca18a7a16b3a81998b612c17a4b99a12f2aefe1cff1da74b9169848cb -->
+<!-- source-sha256: efe3abb69c3d3ff20bb2e2a8c8bc4c7ce4c8fba38981b3c7725e5d06cef7ff56 -->

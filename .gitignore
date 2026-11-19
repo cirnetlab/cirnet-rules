@@ -1,4 +1,5 @@
 /target/
+/.cirnet/tasks/
 /.cnr/
 .superpowers/
 /.cirnetrules/

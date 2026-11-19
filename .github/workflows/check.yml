@@ -19,6 +19,9 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - run: cargo fmt --all -- --check
+      - name: Test Task Continuity
+        shell: pwsh
+        run: ./tests/continuity/task-continuity.tests.ps1
       - run: node --test ./tests/benchmark/source.test.mjs ./tests/benchmark/rtl.test.mjs
       - name: Test RTL trace evidence collection
         shell: pwsh
