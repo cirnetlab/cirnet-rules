@@ -102,6 +102,12 @@ function Get-ContinuityHead($Repository) {
     Get-GitLine (Invoke-ContinuityGit $Repository.root @('rev-parse', '--verify', '--quiet', 'HEAD^{commit}') @(0, 1))
 }
 
+function Test-ContinuityReferenceConflict($Repository, [string[]]$Paths) {
+    if (-not $Paths.Count) { return $false }
+    $unmerged = Invoke-ContinuityGit $Repository.root (@('ls-files', '--unmerged', '-z', '--') + $Paths)
+    return $unmerged.Text.Length -gt 0
+}
+
 function Test-ContinuityInside([string]$Root, [string]$Path) {
     $prefix = [IO.Path]::TrimEndingDirectorySeparator($Root) + [IO.Path]::DirectorySeparatorChar
     $Path.Equals($Root, $pathComparison) -or $Path.StartsWith($prefix, $pathComparison)
@@ -287,5 +293,6 @@ function Compare-ContinuityGit($Saved, $Current) {
 }
 
 Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityValueHash,
+    Test-ContinuityReferenceConflict,
     Assert-ContinuityDestination, Test-ContinuityInside, Resolve-ContinuityFile, Get-ContinuityFileDigest,
     Get-ContinuityGitFingerprint, Get-ContinuityGitSnapshot, Compare-ContinuityGit

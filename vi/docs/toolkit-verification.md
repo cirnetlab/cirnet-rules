@@ -188,5 +188,24 @@ Baseline hiện có 500 từ và 3.557 byte UTF-8, tăng sáu từ và 37 byte. 
 288 tệp được bảo vệ đều khớp. Phát hiện Skill trong client native đã cài, chạy
 lại E01–E08, CI từ xa và thực thi sản phẩm đều `NOT_RUN`.
 
+## Kiểm chứng mã nguồn Task Continuity
+
+Bước “Test Task Continuity” trên GitHub Actions có kết quả theo từng commit
+cho Windows Server 2022 và Ubuntu 24.04 như sau.
+
+| Commit và workflow | Windows | Ubuntu |
+| --- | --- | --- |
+| [c2a7671](https://github.com/cirnetlab/cirnet-rules/actions/runs/44495650591) | Đã hủy | FAIL, trình bao trả mã 1 |
+| [67594ec](https://github.com/cirnetlab/cirnet-rules/actions/runs/44497570440) | PASS | PASS |
+| [c7c7132](https://github.com/cirnetlab/cirnet-rules/actions/runs/44502972015) | PASS | PASS |
+| [6ca1dcf](https://github.com/cirnetlab/cirnet-rules/actions/runs/44543670740) | PASS | PASS |
+
+[Bộ kiểm thử hồi quy](../../tests/continuity/task-continuity.tests.ps1) dùng
+worktree tạm, tiến trình con thực và loại agent được khai báo. Bộ test kiểm
+tra gián đoạn khi công bố checkpoint và khi chạy lệnh, schema cũ, xung đột
+Git, tham chiếu đã ghim, hiệu lực của bằng chứng và gói bàn giao. Khôi phục
+do hết quota Native và bàn giao giữa các tài khoản là `NOT_RUN`. Những bước
+này cần tài khoản được cấp quyền cho từng loại agent ở giai đoạn nghiệm thu độc lập.
+
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: d7fa39d005973731bbbf71ddf4775054b415855c05f7cf8fcd9650cb6eff14ea -->
+<!-- source-sha256: ec992e8098db95ecb657f0eb801b6a69f12d917e65023d903447796135e1174c -->

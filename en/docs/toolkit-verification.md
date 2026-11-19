@@ -188,3 +188,22 @@ access returned `PROMPT_BLOCKED` and named the canonical template it needed.
 The baseline now has 500 words and 3,557 UTF-8 bytes, up by six words and 37
 bytes. Hashes matched for 288 protected files. Native installed-client
 discovery, E01–E08 reruns, hosted CI and product execution were `NOT_RUN`.
+
+## Task Continuity source verification
+
+The hosted “Test Task Continuity” step in the Windows Server 2022 and Ubuntu
+24.04 jobs has the following revision-specific results.
+
+| Revision and workflow | Windows | Ubuntu |
+| --- | --- | --- |
+| [c2a7671](https://github.com/cirnetlab/cirnet-rules/actions/runs/44495650591) | Cancelled | FAIL, wrapper exit 1 |
+| [67594ec](https://github.com/cirnetlab/cirnet-rules/actions/runs/44497570440) | PASS | PASS |
+| [c7c7132](https://github.com/cirnetlab/cirnet-rules/actions/runs/44502972015) | PASS | PASS |
+| [6ca1dcf](https://github.com/cirnetlab/cirnet-rules/actions/runs/44543670740) | PASS | PASS |
+
+The [regression suite](../../tests/continuity/task-continuity.tests.ps1) uses
+disposable worktrees, real child processes and declared agent families. It
+exercises interrupted publication and execution, historical schemas, Git
+conflicts, pinned references, evidence freshness and portable handoffs.
+Native quota loss and account-to-account handoffs are `NOT_RUN`. These
+require authorized accounts in each family during independent acceptance.

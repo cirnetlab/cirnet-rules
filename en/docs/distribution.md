@@ -134,6 +134,15 @@ references. If a milestone was left running, confirm its process and children
 stopped before using `-ConfirmStopped` with `save` or `run`. Its observation
 remains `NOT_RUN`.
 
+If the current pointer or its snapshot is damaged, use local
+`resume -ConfirmScope -RecoverPrevious`. On each replacement the manager saves
+the last confirmed pointer in `previous.json`. Recovery checks its manifest,
+payload hashes, worktree and declared agent family. When it returns that older
+snapshot, `RecoveredPrevious` is true and verification is `BLOCKED`. The owner
+must reconcile the missing interval and restore the current pointer from
+trusted evidence before further writes. A first save or an older store may
+have no previous pointer. Snapshot directories alone cannot establish publication.
+
 `IntegrityStatus` describes the sealed checkpoint, `Ready` describes technical
 readiness, and `Status` describes overall verification. `verify` exits nonzero
 for `FAIL`, `NOT_RUN` or `BLOCKED` even when `Ready` is true.
@@ -175,6 +184,7 @@ For portable handoff, review the recipient's authorization and the approved
 sections of the task and progress notes and relative document references.
 Use `export -ConfirmScope -ConfirmExport -OutputFile <new-file>`. The handoff
 contains approved task context, repository fingerprints and evidence summaries.
+Choose a destination outside the entire configured checkpoint directory.
 Keep secrets, session data and source excerpts out of shared notes. The tool
 rejects recognized sensitive content and omits source files, raw commands,
 logs, local Git paths and changed file names from its projection. The operator

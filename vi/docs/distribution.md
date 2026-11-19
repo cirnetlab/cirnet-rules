@@ -132,6 +132,16 @@ cùng các tham chiếu đã ghim còn hiệu lực. Nếu một mốc còn ở 
 xác nhận tiến trình và các tiến trình con đã dừng rồi dùng
 `-ConfirmStopped` với `save` hoặc `run`. Kết quả mốc vẫn là `NOT_RUN`.
 
+Nếu con trỏ hiện tại hoặc snapshot mà nó trỏ đến bị hỏng, dùng lệnh cục bộ
+`resume -ConfirmScope -RecoverPrevious`. Mỗi lần thay con trỏ, công cụ lưu
+con trỏ đã xác nhận trước đó vào `previous.json`. Khi khôi phục, công cụ kiểm
+tra manifest, hash từng tệp, worktree và loại agent đã khai báo. Nếu nhận được
+snapshot cũ, `RecoveredPrevious` là true và kết quả kiểm chứng là `BLOCKED`.
+Trước khi ghi tiếp, bên sở hữu phải đối chiếu những gì đã xảy ra sau snapshot
+đó và phục hồi con trỏ hiện tại từ bằng chứng đáng tin cậy. Sau lần lưu đầu
+hoặc trong kho cũ có thể chưa có con trỏ dự phòng. Chỉ riêng thư mục snapshot
+chưa đủ chứng minh snapshot đã được công bố.
+
 `IntegrityStatus` mô tả tính toàn vẹn của checkpoint, `Ready` mô tả độ
 sẵn sàng kỹ thuật và `Status` là kết quả kiểm chứng tổng thể. `verify`
 thoát khác 0 khi `FAIL`, `NOT_RUN` hoặc `BLOCKED` ngay cả khi `Ready`
@@ -175,7 +185,8 @@ Trước khi bàn giao dạng tệp, rà quyền của người nhận, các ph�
 ghi chú công việc, tiến độ và tham chiếu tài liệu tương đối. Dùng
 `export -ConfirmScope -ConfirmExport -OutputFile <new-file>`. Gói chứa ngữ cảnh
 được phép, dấu vân tay repo và tóm tắt bằng chứng. Giữ bí mật, dữ liệu phiên và
-đoạn mã nguồn ngoài ghi chú chia sẻ. Công cụ từ chối nội dung nhạy cảm nhận diện
+đoạn mã nguồn ngoài ghi chú chia sẻ. Chọn tệp đích nằm ngoài toàn bộ thư mục
+checkpoint đã cấu hình. Công cụ từ chối nội dung nhạy cảm nhận diện
 được và loại tệp mã nguồn, lệnh thô, log, đường dẫn Git cục bộ và tên tệp đã đổi
 khỏi gói. Người thực hiện phải xem văn bản tự do vì bộ lọc không nhận ra mọi giá
 trị nhạy cảm.
@@ -220,4 +231,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 24376feb7634ff42b74c8d0aded5ee8590c750622d079aa3d5ec899ef6efc7e6 -->
+<!-- source-sha256: 4d0754a72d1951db4560185fe5ed6d574e4a2db7b8288f0335ec0cd1ed46d5ba -->

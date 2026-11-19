@@ -23,7 +23,7 @@ function Assert-PortableText($Text) {
     if ($Text -isnot [string] -or -not $Text.Trim()) { throw 'Invalid portable handoff text.' }
     Assert-NoCredential $Text
     if ($Text -match '(?m)^\s*(?:```|~~~|diff --git |@@ |--- [ab]/|\+\+\+ [ab]/)|^[\t ]{4}\S' -or
-        $Text -match '(?i)(?:\b[A-Z]:[\\/]|\\\\[^\\\s]|(?:^|[\s"''(<])/(?:home|Users|root|tmp)/)' -or
+        $Text -match '(?i)(?:\b[A-Z]:[\\/]|\\\\[^\\\s]|(?:^|[\s"''(<`=])/(?=[^/\s]))' -or
         $Text -match '(?i)(?:\.codex[/\\](?:auth\.json|sessions|archived_sessions)|\.claude[/\\](?:projects|\.credentials\.json)|session(?:s|[-_ ](?:id|cookie|jsonl))\s*[:=]\s*\S+|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b|(?:token|password|secret|cookie|credential)\s*["'']?\s*[:=]\s*["'']?[^\s"'']+)') {
         throw 'Portable context contains a private path, credential, session identifier or source excerpt. Review the disclosure and supply shareable notes.'
     }
@@ -165,7 +165,7 @@ function Assert-PortableHandoff($Data, [string]$AgentFamily) {
 function Export-ContinuityHandoff($Repository, [string]$Store, $Checkpoint, $Report, [string]$Path) {
     $output = Get-ContinuityInputPath $Path
     Assert-ContinuityDestination $Repository $output
-    if (Test-ContinuityInside $Store $output) { throw 'Choose a new export file outside the checkpoint store.' }
+    if (Test-ContinuityInside (Split-Path -Parent $Store) $output) { throw 'Choose a new export file outside the checkpoint store.' }
     $state = $Checkpoint.State
     $changes = $Report.Git.Changes
     $projection = [ordered]@{

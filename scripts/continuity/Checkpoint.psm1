@@ -15,6 +15,7 @@ $commitPattern = '^(?:[a-f0-9]{40}|[a-f0-9]{64})\z'
 
 function Assert-ContinuityId([string]$Id) {
     if ($Id -cnotmatch $idPattern) { throw 'Use a lowercase task, repository or check ID with up to 64 letters, digits and hyphens.' }
+    Assert-NoCredential $Id
 }
 
 function Assert-Record($Value, [string[]]$Keys) {
@@ -33,9 +34,10 @@ function Test-Integer($Value) {
 function Assert-NoCredential([string]$Text) {
     $patterns = @(
         '(?i)\b(?:authorization\s*:\s*)?(?:bearer|basic)\s+[a-z0-9+/_.=-]{12,}',
-        '(?i)(?:api[ _-]?key|(?:access|refresh|session)[ _-]?token|password|passwd|secret(?:[ _-]?key)?|(?:session[ _-]?)?cookie)\s*[:=]\s*["'']?[^\s"'']{3,}',
+        '(?i)\b(?:api[ _-]?key|(?:access[ _-]?|refresh[ _-]?|session[ _-]?)?token|password|passwd|secret(?:[ _-]?key)?|(?:session[ _-]?)?cookie)["'']?\s*[:=]\s*["'']?[^\s"'']{3,}',
         '(?i)(?:^|\s)--?(?:api[-_]?key|(?:access[-_]?)?token|password|secret|cookie)\s+[^\s]{3,}',
         '-----BEGIN [A-Z ]*PRIVATE KEY-----',
+        '\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b',
         '\b(?:gh[opusr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-(?:proj-)?[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{12,}|AKIA[A-Z0-9]{16})\b',
         '(?i)\b[a-z][a-z0-9+.-]*://[^\s/@]+:[^\s/@]+@'
     )
@@ -437,8 +439,9 @@ function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId) {
     @{ State = $state; Task = $task; Progress = $progress; Directory = $directory; Seal = $seal }
 }
 
-function Read-ContinuityCheckpoint([string]$Store, [string]$TaskId) {
-    $current = Resolve-CirnetPath -Root $Store -Relative 'current.json'
+function Read-ContinuityCheckpoint([string]$Store, [string]$TaskId, [switch]$Previous) {
+    $name = if ($Previous) { 'previous.json' } else { 'current.json' }
+    $current = Resolve-CirnetPath -Root $Store -Relative $name
     if (-not [IO.File]::Exists($current)) { throw 'No confirmed checkpoint exists for this task.' }
     Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson (Read-ContinuityBytes $current 4096)) $TaskId
 }
@@ -451,14 +454,21 @@ function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [strin
     Assert-ContinuityState $State $State.taskId $State.checkpointId $Task $Progress
     $current = Resolve-CirnetPath -Root $Store -Relative 'current.json'
     $candidate = Resolve-CirnetPath -Root $Store -Relative ('.pending-' + $State.checkpointId + '.json')
+    $previous = Resolve-CirnetPath -Root $Store -Relative 'previous.json'
     $directory = Resolve-CirnetPath -Root $Store -Relative ('snapshots/' + $State.checkpointId)
     if ([IO.Directory]::Exists($directory)) { throw 'Checkpoint ID collision.' }
-    [void][IO.Directory]::CreateDirectory($directory)
     $contents = @{
         'task.md' = $utf8.GetBytes($Task)
         'progress.md' = $utf8.GetBytes($Progress)
         'state.json' = ConvertTo-ContinuityBytes $State
     }
+    # Inspect decoded metadata. An ordinary file named "token" may have a digest.
+    $git = $State.git
+    $names = @($git.worktree, $git.gitDirectory, $git.repository, $git.branch) + @($git.files.psbase.Keys)
+    $names += @($State.references.documents | ForEach-Object { $_.path })
+    $names += @($State.checks.psbase.Values | ForEach-Object { $_.toolPath })
+    Assert-NoCredential ($names -join [char]0)
+    [void][IO.Directory]::CreateDirectory($directory)
     $hashes = [ordered]@{}
     foreach ($name in $payloadNames) {
         Write-ContinuityNewFile (Join-Path $directory $name) $contents[$name]
@@ -469,7 +479,18 @@ function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [strin
     Write-ContinuityNewFile (Join-Path $directory 'manifest.json') $pointerBytes
     $confirmed = Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson (Read-ContinuityBytes (Join-Path $directory 'manifest.json') 4096)) $State.taskId
     Write-ContinuityNewFile $candidate $pointerBytes
-    try { [IO.File]::Move($candidate, $current, $true) }
+    try {
+        if ([IO.File]::Exists($current)) {
+            $priorBytes = Read-ContinuityBytes $current 4096
+            $prior = Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson $priorBytes) $State.taskId
+            if ($prior.State.taskKey -cne $State.taskKey) { throw 'Task identity changed during publication.' }
+            $backup = $candidate + '.prior'
+            Write-ContinuityNewFile $backup $priorBytes
+            try { [IO.File]::Move($backup, $previous, $true) }
+            finally { [IO.File]::Delete($backup) }
+        }
+        [IO.File]::Move($candidate, $current, $true)
+    }
     finally { [IO.File]::Delete($candidate) }
     $confirmed
 }

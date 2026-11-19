@@ -17,6 +17,12 @@ function Get-ReferenceRoots($Repository, $References, [hashtable]$RelatedRoot) {
         }
         $roots.Add($related.id, $checkout)
     }
+    foreach ($id in $roots.Keys) {
+        $paths = @($References.documents | Where-Object repository -CEQ $id | ForEach-Object { $_.path })
+        if (Test-ContinuityReferenceConflict $roots[$id] $paths) {
+            throw "A pinned document in '$id' has unmerged Git index entries."
+        }
+    }
     $roots
 }
 

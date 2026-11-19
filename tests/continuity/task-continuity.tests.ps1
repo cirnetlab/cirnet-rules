@@ -24,6 +24,26 @@ function Write-Fixture([string]$Path, [string]$Content) {
     [IO.File]::WriteAllText((Join-Path $fixture $Path), $Content, $utf8)
 }
 
+function Set-FixtureUnmerged([string]$Root, [string]$Path) {
+    $blob = Invoke-FixtureGit @('rev-parse', "HEAD:$Path") $Root
+    $info = [Diagnostics.ProcessStartInfo]::new('git')
+    $info.WorkingDirectory = $Root
+    $info.UseShellExecute = $false
+    $info.RedirectStandardInput = $true
+    $info.StandardInputEncoding = $utf8
+    foreach ($arg in @('update-index','--index-info')) { $info.ArgumentList.Add($arg) }
+    $process = [Diagnostics.Process]::Start($info)
+    try {
+        $process.StandardInput.Write("0 $('0' * $blob.Length)`t$Path`n")
+        foreach ($stage in 1..3) { $process.StandardInput.Write("100644 $blob $stage`t$Path`n") }
+        $process.StandardInput.Close()
+        $process.WaitForExit()
+        if ($process.ExitCode -ne 0) { throw 'Could not create unmerged fixture index entries.' }
+    }
+    finally { $process.Dispose() }
+    Assert-True (@(Invoke-FixtureGit @('ls-files','--unmerged','--',$Path) $Root).Count -eq 3) 'Missing fixture conflict stages.'
+}
+
 function Assert-Rejected([scriptblock]$Action, [string]$Expected) {
     try { & $Action | Out-Null }
     catch {
@@ -103,6 +123,22 @@ Review the process evidence after any change.
         ConfirmScope = $true
     }
     $codex = @{ Repository = $worktree; TaskId = 'first-task'; AgentFamily = 'codex' }
+    $secretTask = $codex.Clone()
+    $secretTask.TaskId = 'private-input'
+    $secretSeed = $seed.Clone()
+    $secretSeed.TaskFile = Join-Path $fixture 'redact-task.md'
+    Write-Fixture 'redact-task.md' ((Get-Content -LiteralPath $seed.TaskFile -Raw) + [Environment]::NewLine + '{"password":"fixture-only-value"}')
+    Assert-Rejected { & $manager save @secretTask @secretSeed } 'credential'
+    $privateStore = Join-Path $worktree '.cirnet/tasks/private-input'
+    Assert-True (-not [IO.Directory]::Exists((Join-Path $privateStore 'snapshots'))) 'Rejected notes were persisted.'
+    $privateName = 'token=fixture-only-value.txt'
+    Write-Fixture "primary/$privateName" 'ordinary bytes'
+    try {
+        Assert-Rejected { & $manager save @secretTask @seed } 'credential'
+        Assert-True (-not [IO.Directory]::Exists((Join-Path $privateStore 'snapshots'))) 'A credential-bearing Git name was persisted.'
+    }
+    finally { [IO.File]::Delete((Join-Path $worktree $privateName)) }
+    Write-Fixture 'primary/token' 'ordinary marker'
     $saved = & $manager save @codex @seed
     $firstId = $saved.CheckpointId
     Assert-True ($firstId -match '^[0-9a-f]{32}$') 'Save did not confirm a checkpoint.'
@@ -135,6 +171,14 @@ Review the process evidence after any change.
     Assert-True ($resumed.References.documents.Count -eq 4) 'Pinned references were omitted.'
     Assert-True ($resumed.IntegrityStatus -ceq 'PASS' -and $resumed.Status -ceq 'NOT_RUN' -and
         $resumed.AgentFamilyMatched -and -not $resumed.AgentIdentityVerified) 'Integrity or a declared family was confused with verification.'
+    # Make the final pointer rotation fail after a complete candidate has been written.
+    $previous = Join-Path $store 'previous.json'
+    [void][IO.Directory]::CreateDirectory($previous)
+    $publicationFailed = $false
+    try { $null = & $manager save @codex }
+    catch [IO.IOException], [UnauthorizedAccessException] { $publicationFailed = $true }
+    finally { [IO.Directory]::Delete($previous) }
+    Assert-True ($publicationFailed -and (& $manager status @codex).CheckpointId -ceq $firstId) 'Failed pointer publication displaced the confirmed checkpoint.'
     $incomplete = & $manager verify @codex
     Assert-True ($LASTEXITCODE -eq 1 -and $incomplete.Ready -and $incomplete.Status -ceq 'NOT_RUN') 'Missing evidence did not fail overall verification.'
     $editedProgress = $resumed.Progress.Replace('Use the primary checkout. No blocker recorded.', 'Use the primary checkout. Fixture decision reviewed.')
@@ -146,6 +190,21 @@ Review the process evidence after any change.
     $audit = (& $manager status @codex).ProgressReconciliation
     Assert-True ($audit.priorCheckpointId -ceq $firstId -and $audit.sections -ccontains 'Decisions & Blockers' -and
         [IO.File]::ReadAllText($savedProgress) -ceq $resumed.Progress -and $updated.CheckpointId -cne $firstId) 'Progress reconciliation lost its prior decision.'
+    $current = Join-Path $store 'current.json'
+    $currentBytes = [IO.File]::ReadAllBytes($current)
+    try {
+        [IO.File]::WriteAllText($current, '{')
+        Assert-Rejected { & $manager resume @codex -ConfirmScope } 'Invalid continuity JSON'
+        $prior = & $manager resume @codex -ConfirmScope -RecoverPrevious
+        Assert-True ($prior.CheckpointId -ceq $firstId -and $prior.ContextRecovered -and
+            $prior.Status -ceq 'BLOCKED' -and -not $prior.CanContinue -and -not $prior.CanCorrect -and
+            $prior.Progress -ceq $resumed.Progress) 'Recovery selected an unpublished candidate or authorized stale work.'
+        [IO.File]::Delete($current)
+        Assert-Rejected { & $manager save @codex @seed } 'confirmed checkpoint'
+        Assert-Rejected { & $manager resume -Repository $worktree -TaskId $codex.TaskId -AgentFamily claude-code -RecoverPrevious -ConfirmScope } 'Agent family'
+        Assert-True ((& $manager resume @codex -ConfirmScope -RecoverPrevious).CheckpointId -ceq $firstId) 'Missing current pointer prevented recovery.'
+    }
+    finally { [IO.File]::WriteAllBytes($current, $currentBytes) }
     Assert-Rejected { & $manager resume @codex } 'ConfirmScope'
     Assert-Rejected { & $manager resume -Repository $worktree -TaskId 'first-task' -AgentFamily 'claude-code' -ConfirmScope } 'Agent family'
     $legacy = @{ Repository = $worktree; TaskId = 'legacy-task'; AgentFamily = 'codex' }
@@ -158,6 +217,27 @@ Review the process evidence after any change.
     Assert-Rejected { & $manager close @legacy -ConfirmScope -ConfirmAcceptance } 'save -AcceptanceFile'
     $null = & $manager save @legacy -ConfirmScope -AcceptanceFile $seed.AcceptanceFile
     Assert-True ((& $manager status @legacy).Acceptance.Count -eq 2) 'Legacy criteria were not declared on upgrade.'
+
+    # Build a sealed v2 fixture with the historical string-review representation.
+    Import-Module (Join-Path $repo 'scripts/continuity/Checkpoint.psm1')
+    $legacyStore = Join-Path (Split-Path -Parent $store) $legacy.TaskId
+    $historical = Read-ContinuityCheckpoint $legacyStore $legacy.TaskId
+    $historical.State.schemaVersion = 2
+    $historical.State.Remove('completedReview')
+    $historical.State.Remove('progressReconciliation')
+    $criterion = $historical.State.criteria[1]
+    $historical.State.reviews[$criterion.id] = @{
+        status = 'PASS'; evidence = 'Legacy operator statement.'
+        basis = Get-ContinuityReviewBasis $historical.State $criterion
+        reviewedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    }
+    $v2 = Save-ContinuityCheckpoint $legacyStore $historical.State $historical.Task $historical.Progress
+    $historicalStatus = & $manager resume @legacy -ConfirmScope
+    Assert-True ($historicalStatus.Acceptance[1].ReviewOrigin -ceq 'legacy-statement' -and $historicalStatus.Acceptance[1].Status -ceq 'NOT_RUN') 'A historical v2 statement supplied current evidence.'
+    $migrated = & $manager save @legacy
+    $v3 = Read-ContinuityCheckpoint $legacyStore $legacy.TaskId
+    Assert-True ($v3.State.schemaVersion -eq 3 -and $v3.State.taskKey -ceq $v2.State.taskKey -and $v3.Task -ceq $v2.Task -and
+        $migrated.CheckpointId -cne $v2.State.checkpointId -and [IO.File]::Exists((Join-Path $v2.Directory 'manifest.json'))) 'v2 migration lost identity, original requirements or historical evidence.'
 
     $related = Join-Path $fixture 'related'
     [void][IO.Directory]::CreateDirectory($related)
@@ -178,6 +258,17 @@ Review the process evidence after any change.
     $claude.RelatedRoot = @{ related = $related }
     $null = & $manager save @claude @relatedSeed
     Assert-True ((& $manager resume @claude -ConfirmScope).Ready) 'Claude Code checkpoint did not resume.'
+    Set-FixtureUnmerged $related 'spec.md'
+    $conflictIndex = (Get-FileHash -LiteralPath (Join-Path $related '.git/index')).Hash
+    $conflict = & $manager resume @claude -ConfirmScope -ConfirmContinuation
+    Assert-True (-not $conflict.CanCorrect -and -not $conflict.CanContinue -and
+        $conflict.ReferenceProblems -like '*unmerged*') 'Unmerged related Spec was treated as an agreed reference.'
+    Assert-True ((Get-FileHash -LiteralPath (Join-Path $related '.git/index')).Hash -ceq $conflictIndex) 'Checking a related conflict changed its index.'
+    Invoke-FixtureGit @('add', '--', 'spec.md') $related
+    $claudeExport = Join-Path $fixture 'claude-handoff.json'
+    $bundle = & $manager export @claude -ConfirmScope -ConfirmExport -OutputFile $claudeExport
+    Assert-True ((& $manager resume -HandoffFile $claudeExport -ExpectedSha256 $bundle.Sha256 -AgentFamily claude-code -ConfirmScope).ContextRecovered) 'Same-family Claude Code handoff failed.'
+    Assert-Rejected { & $manager resume -HandoffFile $claudeExport -ExpectedSha256 $bundle.Sha256 -AgentFamily codex -ConfirmScope } 'incompatible agent family'
     $claudeWithoutRelated = $claude.Clone()
     $claudeWithoutRelated.Remove('RelatedRoot')
     $missingAccess = & $manager resume @claudeWithoutRelated -ConfirmScope
@@ -210,6 +301,65 @@ Review the process evidence after any change.
     Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'fixture-exits=NOT_RUN'
     $powershell = (Get-Process -Id $PID).Path
     [void][IO.Directory]::CreateDirectory((Join-Path $worktree '.local'))
+    $crashTask = $codex.Clone()
+    $crashTask.TaskId = 'interrupted-task'
+    $null = & $manager save @crashTask @seed
+    Write-Fixture 'run-handoff.ps1' @'
+param($Manager, $Worktree, $Shell)
+$childCommand = '[IO.File]::WriteAllText(".local/handoff-started", [string]$PID); Start-Sleep -Seconds 120'
+& $Manager run -Repository $Worktree -TaskId interrupted-task -AgentFamily codex -ConfirmScope -Kind handoff -EvidenceId handoff -Executable $Shell -Arguments @('-NoProfile','-Command',$childCommand)
+'@
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $powershell
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    foreach ($arg in @('-NoProfile','-File',(Join-Path $fixture 'run-handoff.ps1'),$manager,$worktree,$powershell)) { $start.ArgumentList.Add($arg) }
+    $controller = [Diagnostics.Process]::Start($start)
+    $child = $null
+    try {
+        $deadline = [DateTime]::UtcNow.AddSeconds(45)
+        $marker = Join-Path $worktree '.local/handoff-started'
+        while (-not [IO.File]::Exists($marker) -and -not $controller.HasExited -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+        Assert-True ([IO.File]::Exists($marker)) 'The controlled child did not start.'
+        $running = & $manager resume @crashTask -ConfirmScope -ConfirmContinuation
+        Assert-True ($running.Checks[0].Phase -ceq 'running' -and -not $running.CanCorrect) 'The pre-handoff checkpoint was not published before starting the child.'
+        $child = [Diagnostics.Process]::GetProcessById([int][IO.File]::ReadAllText($marker))
+    }
+    finally {
+        try { if (-not $controller.HasExited) { $controller.Kill($true); $controller.WaitForExit() } }
+        finally {
+            $controller.Dispose()
+            if ($null -ne $child) {
+                try { Assert-True ($child.WaitForExit(10000)) 'The fixture child was still running after interruption.' }
+                finally { $child.Dispose() }
+            }
+        }
+    }
+    $afterKill = & $manager resume @crashTask -ConfirmScope -ConfirmContinuation
+    Assert-True ($afterKill.CheckpointId -ceq $running.CheckpointId -and $afterKill.Checks[0].Status -ceq 'NOT_RUN' -and -not $afterKill.CanContinue) 'Killing the manager manufactured completed evidence.'
+    $null = & $manager save @crashTask -ConfirmScope -ConfirmStopped
+    $stopped = & $manager resume @crashTask -ConfirmScope -ConfirmContinuation
+    Assert-True ($stopped.CanCorrect -and $stopped.Checks[0].Phase -ceq 'interrupted' -and $null -eq $stopped.Checks[0].ExitCode) 'Stopped acknowledgement did not preserve the interrupted result.'
+    $sent = & $manager run @crashTask -ConfirmScope -Kind handoff -EvidenceId handoff -Executable $powershell -Arguments @('-NoProfile','-Command','exit 0')
+    Assert-True ($sent.Status -ceq 'PASS' -and $sent.CheckpointId -cne $stopped.CheckpointId -and
+        (& $manager status @crashTask).Checks[0].Phase -ceq 'finished') 'Controlled handoff did not publish completion.'
+    $edit = & $manager run @crashTask -ConfirmScope -Kind edit -EvidenceId controlled-edit -Executable $powershell -Arguments @('-NoProfile','-Command','[IO.File]::WriteAllText("step.txt","controlled edit")')
+    $afterEdit = & $manager status @crashTask
+    $beforeEdit = Read-ContinuityCheckpoint (Split-Path -Parent (Split-Path -Parent $afterEdit.CheckpointDirectory)) $crashTask.TaskId -Previous
+    Assert-True ($edit.Status -ceq 'PASS' -and $beforeEdit.State.checks['controlled-edit'].phase -ceq 'running' -and
+        -not $beforeEdit.State.git.files.Contains('step.txt') -and $afterEdit.Git.Matches -and
+        $afterEdit.Git.Recorded.untracked -ccontains 'step.txt') 'Controlled editing did not preserve both Git states.'
+    [IO.File]::Delete((Join-Path $worktree 'step.txt'))
+    $null = & $manager save @crashTask -ConfirmScope -AcceptGitDrift
+    $tool = if ($IsWindows) { (Get-Command cmd.exe -CommandType Application | Select-Object -First 1).Path } else { '/bin/true' }
+    $toolCopy = Join-Path $worktree ('.local/probe' + [IO.Path]::GetExtension($tool))
+    Copy-Item -LiteralPath $tool -Destination $toolCopy
+    $toolArgs = if ($IsWindows) { @('/d','/c','exit 0') } else { @('--version') }
+    $probe = & $manager run @crashTask -ConfirmScope -Kind test -EvidenceId tool-check -Executable $toolCopy -Arguments @($toolArgs)
+    Assert-True ($probe.Status -ceq 'PASS') 'The fixture tool did not return a successful exit.'
+    [IO.File]::AppendAllText($toolCopy, 'changed fixture tool')
+    $changedTool = (& $manager status @crashTask).Checks | Where-Object Id -CEQ 'tool-check'
+    Assert-True ($changedTool.Status -ceq 'NOT_RUN') 'Different executable bytes retained PASS.'
     Write-Fixture 'primary/.local/input.txt' "expected`n"
     $check = @{ EvidenceId = 'fixture-test'; Kind = 'test'; Executable = $powershell; InputPath = @('.local/input.txt'); ConfirmScope = $true }
     $failed = & $manager run @codex @check -Arguments @('-NoProfile', '-Command', 'exit 17')
@@ -224,6 +374,16 @@ Review the process evidence after any change.
         $interruptedRecovery.Checks[0].Status -ceq 'NOT_RUN') 'Interrupted process did not remain read-only and unverified.'
     $passed = & $manager run @codex @check -Arguments @('-NoProfile', '-Command', 'exit 0')
     Assert-True ($passed.Status -ceq 'PASS' -and $passed.ExitCode -eq 0) 'Completed process did not provide PASS evidence.'
+    $envName = 'CIRNET_FIXTURE_' + [guid]::NewGuid().ToString('N').ToUpperInvariant()
+    [Environment]::SetEnvironmentVariable($envName, 'fixture-development-setting')
+    try {
+        $built = & $manager run @codex -ConfirmScope -Kind build -EvidenceId fixture-build -Executable $powershell -Arguments @('-NoProfile','-Command','exit 0') -EnvironmentName $envName -InputPath '.local/input.txt'
+        Assert-True ($built.Status -ceq 'PASS' -and -not ($built.Evidence | ConvertTo-Json -Depth 8).Contains('fixture-development-setting')) 'Declared environment was not hashed for the build.'
+        [Environment]::SetEnvironmentVariable($envName, 'fixture-release-setting')
+        $buildStatus = (& $manager status @codex).Checks | Where-Object Id -CEQ 'fixture-build'
+        Assert-True ($buildStatus.Status -ceq 'NOT_RUN' -and $buildStatus.Reason -ceq 're-verification-required') 'An environment change retained build evidence.'
+    }
+    finally { [Environment]::SetEnvironmentVariable($envName, $null) }
     Write-Fixture 'primary/.local/input.txt' "changed`n"
     $stale = & $manager verify @codex
     Assert-True (-not $stale.Ready -and $stale.Checks[0].Status -ceq 'NOT_RUN') 'Changed ignored input retained PASS.'
@@ -236,6 +396,16 @@ Review the process evidence after any change.
     Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'ownership-preserved=NOT_RUN'
 
     $destination = Join-Path $fixture 'handoff.json'
+    $siblingDestination = Join-Path (Split-Path -Parent $store) 'legacy-task/foreign.json'
+    Assert-Rejected { & $manager export @codex -ConfirmScope -ConfirmExport -OutputFile $siblingDestination } 'outside the checkpoint store'
+    Assert-True (-not [IO.File]::Exists($siblingDestination)) 'Export wrote into another task directory.'
+    $privateNotes = $seed.Clone()
+    Write-Fixture 'private-progress.md' ((Get-Content -Raw -LiteralPath $seed.ProgressFile) + "`nSee /srv/private/customer for the fixture.")
+    $privateNotes.ProgressFile = Join-Path $fixture 'private-progress.md'
+    $null = & $manager save @secretTask @privateNotes
+    $privateExport = Join-Path $fixture 'private-export.json'
+    Assert-Rejected { & $manager export @secretTask -ConfirmScope -ConfirmExport -OutputFile $privateExport } 'private path'
+    Assert-True (-not [IO.File]::Exists($privateExport)) 'Rejected portable context was written.'
     Assert-Rejected { & $manager export @codex -ConfirmScope -OutputFile $destination } 'ConfirmExport'
     $handoff = & $manager export @codex -ConfirmScope -ConfirmExport -OutputFile $destination
     $package = & $manager resume -HandoffFile $destination -ExpectedSha256 $handoff.Sha256 -AgentFamily codex -ConfirmScope
@@ -275,6 +445,10 @@ Review the process evidence after any change.
     $reviewDrift = & $manager verify @codex
     Assert-True ($LASTEXITCODE -eq 1 -and $reviewDrift.Status -ceq 'NOT_RUN' -and $reviewDrift.CompletedWork.Reason -ceq 'review-artifact-changed') 'Changed review evidence retained PASS.'
     Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'completed-work=NOT_RUN'
+    $missingArtifact = Join-Path $worktree $artifact
+    [IO.File]::Delete($missingArtifact)
+    $missingReview = & $manager verify @codex
+    Assert-True ($missingReview.CompletedWork.Status -ceq 'BLOCKED' -and $missingReview.Status -ceq 'BLOCKED') 'Unavailable review evidence was counted.'
     Write-Fixture "primary/$artifact" $artifactText
     $closed = & $manager close @codex -ConfirmScope -ConfirmAcceptance
     Assert-True ($closed.Lifecycle -ceq 'closed') 'Fresh evidence and per-criterion reviews did not allow closure.'
@@ -294,6 +468,13 @@ Review the process evidence after any change.
     $headDrift = & $manager verify @codex
     Assert-True ($LASTEXITCODE -eq 1 -and -not $headDrift.Ready -and
         $headDrift.Git.Changes.Fields -ccontains 'head') 'Verify did not reject the changed Git HEAD with exit code 1.'
+    Set-FixtureUnmerged $worktree 'source.txt'
+    $null = & $manager save @crashTask -ConfirmScope -AcceptGitDrift
+    $unmergedIndex = (Get-FileHash -LiteralPath $index).Hash
+    $conflicted = & $manager resume @crashTask -ConfirmScope -ConfirmContinuation
+    Assert-True ($conflicted.GitConflicted -and -not $conflicted.CanCorrect -and $conflicted.Git.Current.unmerged -ccontains 'source.txt') 'An acknowledged Git conflict allowed editing.'
+    Assert-Rejected { & $manager run @crashTask -ConfirmScope -Corrective -Kind edit -EvidenceId denied-edit -Executable $powershell } 'unmerged'
+    Assert-True ((Get-FileHash -LiteralPath $index).Hash -ceq $unmergedIndex -and [IO.File]::ReadAllText((Join-Path $worktree 'untracked note.txt')) -ceq "untracked`n") 'Conflict handling changed the index or user data.'
     Write-Host 'PASS: Task Continuity lifecycle, checkpoint integrity, family compatibility, interrupted checks, verification freshness and portable handoff'
 }
 finally {

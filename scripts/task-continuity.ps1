@@ -20,6 +20,7 @@ param(
     [switch]$ConfirmHumanReview,
     [switch]$ConfirmProgressChange,
     [switch]$ConfirmContinuation,
+    [switch]$RecoverPrevious,
     [switch]$AcceptGitDrift,
     [switch]$ConfirmStopped,
     [switch]$Corrective,
@@ -47,6 +48,9 @@ Import-Module (Join-Path $PSScriptRoot 'continuity/Handoff.psm1')
 $Action = $Action.ToLowerInvariant()
 if ($AgentFamily) { $AgentFamily = $AgentFamily.ToLowerInvariant() }
 if ($Kind) { $Kind = $Kind.ToLowerInvariant() }
+if ($RecoverPrevious -and ($Action -cne 'resume' -or $HandoffFile -or $ConfirmContinuation)) {
+    throw 'Use -RecoverPrevious only for a read-only local resume.'
+}
 if ($ConfirmContinuation -and ($Action -cne 'resume' -or $HandoffFile)) {
     throw 'Confirm continuation only when resuming from the original local checkpoint and worktree.'
 }
@@ -167,7 +171,13 @@ function Assert-Ready($Report) {
 }
 
 if ($Action -cin @('status', 'verify', 'resume')) {
-    $checkpoint = Read-ContinuityCheckpoint $store $TaskId
+    $usingPrevious = $false
+    try { $checkpoint = Read-ContinuityCheckpoint $store $TaskId }
+    catch {
+        if (-not $RecoverPrevious) { throw }
+        $checkpoint = Read-ContinuityCheckpoint $store $TaskId -Previous
+        $usingPrevious = $true
+    }
     Assert-AgentFamily $checkpoint
     if ($Action -ceq 'resume') { Assert-OriginalWorktree $checkpoint }
     # A failed live capture is a recovery blocker, not a failure of the sealed notes.
@@ -183,9 +193,16 @@ if ($Action -cin @('status', 'verify', 'resume')) {
             Task = $checkpoint.Task
             Progress = $checkpoint.Progress
             ContextRecovered = $true
+            RecoveredPrevious = $usingPrevious
             CanContinue = $canContinue
             CanCorrect = $ConfirmContinuation -and $report.CorrectiveReady -and $report.Lifecycle -ceq 'open'
             RecoveryOnly = -not $canContinue
+        }
+        if ($usingPrevious) {
+            $report.Status = 'BLOCKED'
+            $report.CompletionStatus = 'NOT_RUN'
+            $report.Ready = $report.CorrectiveReady = $report.AcceptanceReady = $false
+            $report.Blockers += 'Read-only recovery. Reconcile the confirmed pointer and any intervening work before continuing.'
         }
     }
     $report
@@ -196,6 +213,10 @@ if ($Action -cin @('status', 'verify', 'resume')) {
 $lock = Enter-ContinuityLock $store -Create:($Action -ceq 'save')
 try {
     $checkpoint = $null
+    if ($Action -ceq 'save' -and -not [IO.File]::Exists((Join-Path $store 'current.json')) -and
+        ([IO.Directory]::Exists((Join-Path $store 'snapshots')) -or [IO.File]::Exists((Join-Path $store 'previous.json')))) {
+        throw 'No current confirmed checkpoint. Preserve the existing task history and recover the previously published context.'
+    }
     if ($Action -cne 'save' -or [IO.File]::Exists((Join-Path $store 'current.json'))) {
         $checkpoint = Read-ContinuityCheckpoint $store $TaskId
         Assert-AgentFamily $checkpoint
