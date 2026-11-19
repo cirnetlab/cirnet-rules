@@ -200,9 +200,20 @@ function Assert-ContinuityReferences($References, [switch]$Pinned) {
 }
 
 function Assert-Measurement($Check) {
-    Assert-Record $Check @('kind', 'phase', 'executable', 'toolPath', 'toolSha256', 'arguments', 'inputs',
+    $fields = @('kind', 'phase', 'executable', 'toolPath', 'toolSha256', 'arguments', 'inputs',
         'gitFingerprint', 'afterGitFingerprint', 'referenceFingerprint', 'startedAtUnixMs', 'finishedAtUnixMs',
         'exitCode', 'result', 'cause')
+    if ($Check -is [Collections.IDictionary] -and $Check.Contains('environment')) {
+        $fields += 'environment'
+        if ($Check.environment -isnot [Collections.IDictionary]) { throw 'Invalid environment fingerprints.' }
+        foreach ($name in $Check.environment.psbase.Keys) {
+            Assert-ContinuityEnvironmentName $name
+            if ($Check.environment[$name] -isnot [string] -or $Check.environment[$name] -cnotmatch $shaPattern) {
+                throw 'Invalid environment fingerprint.'
+            }
+        }
+    }
+    Assert-Record $Check $fields
     if ($Check.kind -cnotin @('edit', 'build', 'test', 'handoff') -or
         $Check.phase -cnotin @('running', 'finished', 'blocked', 'interrupted') -or
         $Check.executable -isnot [string] -or -not $Check.executable -or $Check.toolPath -isnot [string] -or
@@ -238,13 +249,48 @@ function Assert-Measurement($Check) {
     }
 }
 
-function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId, [string]$Task) {
+function Assert-ContinuityEnvironmentName([string]$Name) {
+    if ($Name -cnotmatch '^[A-Z_][A-Z0-9_]{0,127}\z' -or $Name -match 'TOKEN|SECRET|KEY|PASS|COOKIE|CREDENTIAL|AUTH|SESSION') {
+        throw 'Declare only uppercase environment input names that do not identify a secret.'
+    }
+}
+
+function Assert-ContinuityReview($Review, [switch]$LegacyAllowed) {
+    if ($Review -isnot [Collections.IDictionary]) { throw 'Invalid review record.' }
+    $fields = @('status', 'evidence', 'basis', 'reviewedAtUnixMs')
+    $legacy = -not $Review.Contains('origin')
+    if ($legacy -and -not $LegacyAllowed) { throw 'A traceable human review is required.' }
+    if (-not $legacy) { $fields += 'origin' }
+    Assert-Record $Review $fields
+    if ($Review.status -cnotin @('PASS', 'FAIL', 'NOT_RUN', 'BLOCKED') -or
+        $Review.basis -cnotmatch $shaPattern -or -not (Test-Integer $Review.reviewedAtUnixMs) -or
+        $Review.reviewedAtUnixMs -le 0) { throw 'Invalid review status or scope.' }
+    if ($legacy) {
+        if ($Review.evidence -isnot [string] -or -not $Review.evidence.Trim()) { throw 'Invalid legacy review.' }
+        Assert-NoCredential $Review.evidence
+        return
+    }
+    if ($Review.origin -cne 'declared-human-review' -or $Review.evidence -isnot [Collections.IDictionary] -or
+        ($Review.status -cin @('PASS', 'FAIL') -and $Review.evidence.psbase.Count -eq 0)) {
+        throw 'A traceable human review must identify its evidence.'
+    }
+    foreach ($path in $Review.evidence.psbase.Keys) {
+        if ($path -isnot [string] -or -not $path.Trim() -or
+            $Review.evidence[$path] -isnot [string] -or $Review.evidence[$path] -cnotmatch $shaPattern) {
+            throw 'Invalid review artifact fingerprint.'
+        }
+        Assert-NoCredential $path
+    }
+}
+
+function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId, [string]$Task, [string]$Progress) {
     $fields = @('schemaVersion', 'taskId', 'taskKey', 'checkpointId', 'agentFamily', 'savedAtUnixMs',
         'lifecycle', 'git', 'gitFingerprint', 'references', 'requiredChecks', 'checks')
     if ($State -isnot [Collections.IDictionary]) { throw 'Invalid checkpoint state.' }
-    if ($State.schemaVersion -eq 2) { $fields += @('criteria', 'reviews') }
+    if ($State.schemaVersion -in @(2, 3)) { $fields += @('criteria', 'reviews') }
+    if ($State.schemaVersion -eq 3) { $fields += @('completedReview', 'progressReconciliation') }
     Assert-Record $State $fields
-    if (-not (Test-Integer $State.schemaVersion) -or $State.schemaVersion -notin @(1, 2) -or
+    if (-not (Test-Integer $State.schemaVersion) -or $State.schemaVersion -notin @(1, 2, 3) -or
         $State.taskId -cne $TaskId -or $State.taskKey -cnotmatch $guidPattern -or
         $State.checkpointId -cne $CheckpointId -or $State.agentFamily -cnotin @('codex', 'claude-code') -or
         -not (Test-Integer $State.savedAtUnixMs) -or $State.savedAtUnixMs -le 0 -or
@@ -252,9 +298,11 @@ function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId, 
         $State.checks -isnot [Collections.IDictionary]) {
         throw 'Invalid task state or unsupported checkpoint schema.'
     }
-    Assert-Record $State.git @('worktree', 'gitDirectory', 'repository', 'branch', 'head', 'indexSha256',
+    $gitFields = @('worktree', 'gitDirectory', 'repository', 'branch', 'head', 'indexSha256',
         'entriesSha256', 'staged', 'unstaged', 'untracked', 'files')
     $git = $State.git
+    if ($git -is [Collections.IDictionary] -and $git.Contains('unmerged')) { $gitFields += 'unmerged' }
+    Assert-Record $git $gitFields
     if ($git.files -isnot [Collections.IDictionary] -or $git.entriesSha256 -cnotmatch $shaPattern -or
         $git.indexSha256 -cnotmatch '^(?:[a-f0-9]{64})?\z' -or $git.head -cnotmatch '^(?:[a-f0-9]{40}|[a-f0-9]{64})?\z' -or
         $State.gitFingerprint -cne (Get-ContinuityGitFingerprint $git)) {
@@ -266,7 +314,8 @@ function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId, 
     foreach ($path in $git.files.psbase.Keys) {
         if ($git.files[$path] -cnotmatch '^(?:absent|directory|(?:file|link):[a-f0-9]{64})\z') { throw 'Invalid worktree file fingerprint.' }
     }
-    foreach ($key in @('staged', 'unstaged', 'untracked')) {
+    foreach ($key in @('staged', 'unstaged', 'untracked', 'unmerged')) {
+        if (-not $git.Contains($key)) { continue }
         if ($git[$key] -isnot [array]) { throw 'Invalid recorded Git path list.' }
         foreach ($path in $git[$key]) {
             if ($path -isnot [string] -or -not $git.files.Contains($path)) { throw 'Invalid recorded Git path.' }
@@ -275,37 +324,44 @@ function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId, 
     Assert-ContinuityReferences $State.references -Pinned
     foreach ($id in $State.requiredChecks + @($State.checks.psbase.Keys)) { Assert-ContinuityId $id }
     foreach ($measurement in $State.checks.psbase.Values) { Assert-Measurement $measurement }
-    if ($State.schemaVersion -eq 2) {
+    if ($State.schemaVersion -ge 2) {
         Assert-ContinuityCriteria $State.criteria @(Get-ContinuityCriterionText $Task) $State.requiredChecks
         if ($State.reviews -isnot [Collections.IDictionary]) { throw 'Invalid acceptance reviews.' }
         foreach ($id in $State.reviews.psbase.Keys) {
             if ($id -cnotin $State.criteria.id) { throw 'Review references an unknown criterion.' }
-            $review = $State.reviews[$id]
-            Assert-Record $review @('status', 'evidence', 'basis', 'reviewedAtUnixMs')
-            if ($review.status -cnotin @('PASS', 'FAIL', 'NOT_RUN', 'BLOCKED') -or
-                $review.evidence -isnot [string] -or -not $review.evidence.Trim() -or
-                $review.basis -cnotmatch $shaPattern -or -not (Test-Integer $review.reviewedAtUnixMs) -or
-                $review.reviewedAtUnixMs -le 0) {
-                throw 'Invalid acceptance review or evidence.'
-            }
-            Assert-NoCredential $review.evidence
+            Assert-ContinuityReview $State.reviews[$id] -LegacyAllowed
         }
+    }
+    if ($State.schemaVersion -eq 3 -and $null -ne $State.completedReview) { Assert-ContinuityReview $State.completedReview }
+    if ($State.schemaVersion -eq 3 -and $null -ne $State.progressReconciliation) {
+        $audit = $State.progressReconciliation
+        Assert-Record $audit @('priorCheckpointId', 'sections', 'reason')
+        if ($audit.priorCheckpointId -cnotmatch $guidPattern -or $audit.sections -isnot [array] -or
+            $audit.sections.Count -eq 0 -or @($audit.sections | Where-Object { $_ -cnotin $progressHeadings }).Count -or
+            $audit.reason -isnot [string] -or -not $audit.reason.Trim()) { throw 'Invalid progress reconciliation.' }
+        Assert-NoCredential $audit.reason
     }
     if ($State.lifecycle -ceq 'closed') {
         if ($State.schemaVersion -eq 1 -and $State.requiredChecks.Count -eq 0) { throw 'Closed task has no acceptance evidence.' }
         foreach ($id in $State.requiredChecks) {
             if (-not $State.checks.Contains($id) -or $State.checks[$id].result -cne 'PASS' -or
-                ($State.schemaVersion -eq 2 -and $State.checks[$id].kind -cnotin @('build', 'test'))) {
+                ($State.schemaVersion -ge 2 -and $State.checks[$id].kind -cnotin @('build', 'test'))) {
                 throw 'Closed task has invalid acceptance evidence.'
             }
         }
-        if ($State.schemaVersion -eq 2) {
+        if ($State.schemaVersion -ge 2) {
             foreach ($item in $State.criteria) {
                 if (-not $State.reviews.Contains($item.id) -or $State.reviews[$item.id].status -cne 'PASS' -or
+                    ($State.schemaVersion -eq 3 -and -not $State.reviews[$item.id].Contains('origin')) -or
                     $State.reviews[$item.id].basis -cne (Get-ContinuityReviewBasis $State $item)) {
                     throw 'Closed task has an invalid criterion review.'
                 }
             }
+        }
+        if ($State.schemaVersion -eq 3 -and ($null -eq $State.completedReview -or
+            $State.completedReview.status -cne 'PASS' -or
+            $State.completedReview.basis -cne (Get-ContinuityCompletedBasis $State $Progress))) {
+            throw 'Closed task has an invalid completed work review.'
         }
     }
 }
@@ -320,6 +376,14 @@ function Get-ContinuityReviewBasis($State, $Criterion) {
         references = $State.references
         criterion = $Criterion
         observations = $observations
+    })
+}
+
+function Get-ContinuityCompletedBasis($State, [string]$Progress) {
+    Get-ContinuityValueHash ([ordered]@{
+        git = $State.gitFingerprint
+        references = $State.references
+        completed = (Get-ContinuityNoteSections $Progress progress)['Completed Work']
     })
 }
 
@@ -352,6 +416,10 @@ function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId) {
     }
     Assert-Record $Pointer.files $payloadNames
     $directory = Resolve-CirnetPath -Root $Store -Relative ('snapshots/' + $Pointer.checkpointId)
+    $manifestPath = Resolve-CirnetPath -Root $directory -Relative 'manifest.json'
+    $manifest = ConvertFrom-ContinuityJson (Read-ContinuityBytes $manifestPath 4096)
+    $seal = Get-ContinuityValueHash $Pointer
+    if ($seal -cne (Get-ContinuityValueHash $manifest)) { throw 'Checkpoint pointer and manifest disagree.' }
     $contents = @{}
     foreach ($name in $payloadNames) {
         $path = Resolve-CirnetPath -Root $directory -Relative $name
@@ -363,10 +431,10 @@ function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId) {
     $state = ConvertFrom-ContinuityJson $contents['state.json']
     $task = $utf8.GetString($contents['task.md'])
     $progress = $utf8.GetString($contents['progress.md'])
-    Assert-ContinuityState $state $TaskId $Pointer.checkpointId $task
+    Assert-ContinuityState $state $TaskId $Pointer.checkpointId $task $progress
     $null = Get-ContinuityNoteSections $task task
     $null = Get-ContinuityNoteSections $progress progress
-    @{ State = $state; Task = $task; Progress = $progress; Directory = $directory; Seal = Get-ContinuityValueHash $Pointer }
+    @{ State = $state; Task = $task; Progress = $progress; Directory = $directory; Seal = $seal }
 }
 
 function Read-ContinuityCheckpoint([string]$Store, [string]$TaskId) {
@@ -380,7 +448,7 @@ function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [strin
     $null = Get-ContinuityNoteSections $Progress progress
     $State.checkpointId = [guid]::NewGuid().ToString('N')
     $State.savedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    Assert-ContinuityState $State $State.taskId $State.checkpointId $Task
+    Assert-ContinuityState $State $State.taskId $State.checkpointId $Task $Progress
     $current = Resolve-CirnetPath -Root $Store -Relative 'current.json'
     $candidate = Resolve-CirnetPath -Root $Store -Relative ('.pending-' + $State.checkpointId + '.json')
     $directory = Resolve-CirnetPath -Root $Store -Relative ('snapshots/' + $State.checkpointId)
@@ -408,7 +476,7 @@ function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [strin
 
 Export-ModuleMember -Function Assert-ContinuityId, Assert-ContinuityReferences, Assert-NoCredential,
     Assert-Record, Test-Integer, Get-ContinuityNoteSections, Get-ContinuityCriterionText,
-    Assert-ContinuityCriteria, Get-ContinuityReviewBasis,
+    Assert-ContinuityCriteria, Assert-ContinuityEnvironmentName, Get-ContinuityReviewBasis, Get-ContinuityCompletedBasis,
     Read-ContinuityBytes, Read-ContinuityInput, ConvertFrom-ContinuityJson, ConvertTo-ContinuityBytes,
     Get-ContinuityInputPath, Write-ContinuityNewFile, Get-ContinuityStore, Enter-ContinuityLock,
     Read-ContinuityCheckpoint, Save-ContinuityCheckpoint

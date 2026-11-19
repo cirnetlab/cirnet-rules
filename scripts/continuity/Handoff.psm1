@@ -10,7 +10,7 @@ $commitPattern = '^(?:[a-f0-9]{40}|[a-f0-9]{64})?\z'
 $statuses = @('PASS', 'FAIL', 'NOT_RUN', 'BLOCKED')
 $kinds = @('edit', 'build', 'test', 'handoff')
 $phases = @('running', 'finished', 'blocked', 'interrupted')
-$blockerCodes = @('git-unavailable', 'git-drift', 'references-unavailable', 'evidence-requires-observation', 'closure-requires-review')
+$blockerCodes = @('git-unavailable', 'git-drift', 'git-conflicts', 'references-unavailable', 'evidence-requires-observation', 'closure-requires-review')
 $maxBytes = 4194304
 
 function Assert-PortableStrings($Record, [string[]]$Fields) {
@@ -183,9 +183,9 @@ function Export-ContinuityHandoff($Repository, [string]$Store, $Checkpoint, $Rep
         blockersAtExport = @(
             if ($null -eq $Report.Git.Current) { 'git-unavailable' }
             elseif (-not $Report.Git.Matches) { 'git-drift' }
+            if ($Report.GitConflicted) { 'git-conflicts' }
             if ($Report.ReferenceProblems.Count) { 'references-unavailable' }
             if (@($Report.Checks | Where-Object { $_.Status -cin @('NOT_RUN', 'BLOCKED') }).Count) { 'evidence-requires-observation' }
-            if ($state.lifecycle -ceq 'closed' -and -not $Report.AcceptanceReady) { 'closure-requires-review' }
         )
         task = Get-ContinuityNoteSections $Checkpoint.Task task
         progress = Get-ContinuityNoteSections $Checkpoint.Progress progress
@@ -211,7 +211,9 @@ function Export-ContinuityHandoff($Repository, [string]$Store, $Checkpoint, $Rep
                 gitFingerprint = $evidence.gitFingerprint; afterGitFingerprint = $evidence.afterGitFingerprint
                 referenceFingerprint = $evidence.referenceFingerprint
                 commandSha256 = Get-ContinuityValueHash @($evidence.executable, $evidence.toolPath, $evidence.toolSha256, $evidence.arguments)
-                inputsSha256 = Get-ContinuityValueHash $evidence.inputs
+                inputsSha256 = if ($evidence.Contains('environment')) {
+                    Get-ContinuityValueHash ([ordered]@{ files = $evidence.inputs; environment = $evidence.environment })
+                } else { Get-ContinuityValueHash $evidence.inputs }
                 measurementSha256 = Get-ContinuityValueHash $evidence
             }
         })
@@ -233,7 +235,10 @@ function Export-ContinuityHandoff($Repository, [string]$Store, $Checkpoint, $Rep
         [IO.File]::Move($candidate, $output)
     }
     finally { [IO.File]::Delete($candidate) }
-    [pscustomobject]@{ Status = 'PASS'; OutputFile = $output; Sha256 = $sha; CheckpointId = $state.checkpointId }
+    [pscustomobject]@{
+        Status = $Report.Status; IntegrityStatus = 'PASS'; Exported = $true
+        OutputFile = $output; Sha256 = $sha; CheckpointId = $state.checkpointId
+    }
 }
 
 function Read-ContinuityHandoff([string]$Path, [string]$ExpectedSha256, [string]$AgentFamily) {
@@ -243,7 +248,10 @@ function Read-ContinuityHandoff([string]$Path, [string]$ExpectedSha256, [string]
     $data = ConvertFrom-ContinuityJson $bytes
     Assert-PortableHandoff $data $AgentFamily
     [pscustomobject]@{
-        Status = 'PASS'; IntegrityVerified = $true; Sha256 = $ExpectedSha256; Handoff = $data
+        Status = 'NOT_RUN'; IntegrityStatus = 'PASS'; IntegrityVerified = $true; Sha256 = $ExpectedSha256; Handoff = $data
+        AgentFamily = $data.agentFamily; AgentFamilyMatched = $true
+        AgentIdentityVerified = $false; AgentIdentitySource = 'caller-declaration'
+        CompletionStatus = 'NOT_RUN'
         ContextRecovered = $data.schemaVersion -eq 2
         CanContinue = $false; RequiresOriginalWorktree = $true; RequiresLocalCheckpoint = $true
         Blockers = @('Recheck current authorization, the local checkpoint, the worktree, pinned documents and evidence before continuing.')

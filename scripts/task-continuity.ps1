@@ -10,14 +10,19 @@ param(
     [hashtable]$RelatedRoot = @{},
     [string]$TaskFile,
     [string]$ProgressFile,
+    [string]$ExpectedCheckpointId,
+    [string]$ProgressReason,
     [string]$ReferencesFile,
     [string[]]$RequiredCheck = @(),
     [string]$AcceptanceFile,
     [string]$ReviewFile,
     [switch]$ConfirmScope,
+    [switch]$ConfirmHumanReview,
+    [switch]$ConfirmProgressChange,
     [switch]$ConfirmContinuation,
     [switch]$AcceptGitDrift,
     [switch]$ConfirmStopped,
+    [switch]$Corrective,
     [switch]$ConfirmAcceptance,
     [switch]$ConfirmExport,
     [string]$EvidenceId,
@@ -25,6 +30,7 @@ param(
     [string]$Executable,
     [string[]]$Arguments = @(),
     [string[]]$InputPath = @(),
+    [string[]]$EnvironmentName = @(),
     [ValidateRange(1, 86400)][int]$TimeoutSeconds = 600,
     [string]$OutputFile,
     [string]$HandoffFile,
@@ -52,7 +58,7 @@ if ($HandoffFile) {
     return Read-ContinuityHandoff $HandoffFile $ExpectedSha256 $AgentFamily
 }
 if ($Action -cnotin @('status', 'verify') -and -not $AgentFamily) { throw 'Supply -AgentFamily.' }
-if (($Action -cin @('resume', 'review', 'close', 'export', 'run') -or $AcceptGitDrift -or $AcceptanceFile) -and -not $ConfirmScope) {
+if (($Action -cin @('resume', 'review', 'close', 'export', 'run') -or $AcceptGitDrift -or $AcceptanceFile -or $ConfirmStopped) -and -not $ConfirmScope) {
     throw 'Use -ConfirmScope after reviewing current authorization for this operation.'
 }
 if ($Action -ceq 'export' -and (-not $ConfirmExport -or -not $OutputFile)) {
@@ -60,6 +66,9 @@ if ($Action -ceq 'export' -and (-not $ConfirmExport -or -not $OutputFile)) {
 }
 if (($AcceptanceFile -and $Action -cne 'save') -or ($ReviewFile -and $Action -cne 'review')) {
     throw 'Use -AcceptanceFile with save and -ReviewFile with review.'
+}
+if ($Corrective -and ($Action -cne 'run' -or $Kind -cne 'edit')) {
+    throw 'Use -Corrective only for an authorized controlled edit.'
 }
 
 $checkout = Get-ContinuityRepository (Get-ContinuityInputPath $Repository)
@@ -92,6 +101,58 @@ function Set-AcceptanceDeclaration($State, [string]$Task) {
     $State.reviews = [ordered]@{}
 }
 
+function Enable-TraceableReviews($State) {
+    if ($State.schemaVersion -eq 2) {
+        $State.schemaVersion = 3
+        $State.completedReview = $null
+        $State.progressReconciliation = $null
+    }
+}
+
+function Get-UpdatedProgress($Checkpoint, $State) {
+    if (-not $ProgressFile) { return $Checkpoint.Progress }
+    $newProgress = Read-ContinuityInput $ProgressFile
+    if ($newProgress -ceq $Checkpoint.Progress) { return $newProgress }
+    if (-not $ConfirmScope -or $ExpectedCheckpointId -cne $Checkpoint.State.checkpointId) {
+        throw 'For a progress update, supply -ConfirmScope and the reviewed -ExpectedCheckpointId.'
+    }
+    $before = Get-ContinuityNoteSections $Checkpoint.Progress progress
+    $after = Get-ContinuityNoteSections $newProgress progress
+    $changed = @(foreach ($name in @('Completed Work', 'Pending Work', 'Decisions & Blockers', 'Re-verification')) {
+        $oldText = $before[$name] -replace '\r\n', "`n"
+        $newText = $after[$name] -replace '\r\n', "`n"
+        if ($newText -cne $oldText -and -not $newText.StartsWith($oldText + "`n", [StringComparison]::Ordinal)) { $name }
+    })
+    if ($changed.Count) {
+        if (-not $ConfirmProgressChange -or [string]::IsNullOrWhiteSpace($ProgressReason)) {
+            throw 'To revise previously recorded work, decisions or blockers, supply -ConfirmProgressChange and -ProgressReason.'
+        }
+        Assert-NoCredential $ProgressReason
+        if ($State.schemaVersion -eq 3) {
+            $State.progressReconciliation = [ordered]@{
+                priorCheckpointId = $Checkpoint.State.checkpointId
+                sections = $changed
+                reason = $ProgressReason
+            }
+        }
+        elseif (-not $after['Decisions & Blockers'].Contains($ProgressReason)) {
+            throw 'For a legacy checkpoint, also record the reconciliation reason in Decisions & Blockers.'
+        }
+    }
+    $newProgress
+}
+
+function Resolve-InterruptedMeasurements($State) {
+    if (-not $ConfirmStopped) { return }
+    foreach ($check in $State.checks.psbase.Values) {
+        if ($check.phase -ceq 'running') {
+            $check.phase = 'interrupted'
+            $check.cause = 'operator-confirmed-stopped'
+            $check.finishedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        }
+    }
+}
+
 function Get-SavedResult($Saved) {
     [pscustomobject]@{
         TaskId = $Saved.State.taskId
@@ -113,6 +174,7 @@ if ($Action -cin @('status', 'verify', 'resume')) {
     try { $git = Get-ContinuityGitSnapshot $checkout }
     catch { $git = $null }
     $report = Get-ContinuityStatus $checkout $store $checkpoint $git $RelatedRoot
+    Add-Member -InputObject $report -NotePropertyName AgentFamilyMatched -NotePropertyValue $(if ($AgentFamily) { $true } else { $null })
     if ($Action -ceq 'resume') {
         $canContinue = $ConfirmContinuation -and $report.Ready -and $report.Lifecycle -ceq 'open'
         if ($report.Lifecycle -ceq 'closed') { $report.Blockers += 'The task was recorded as closed.' }
@@ -122,11 +184,12 @@ if ($Action -cin @('status', 'verify', 'resume')) {
             Progress = $checkpoint.Progress
             ContextRecovered = $true
             CanContinue = $canContinue
+            CanCorrect = $ConfirmContinuation -and $report.CorrectiveReady -and $report.Lifecycle -ceq 'open'
             RecoveryOnly = -not $canContinue
         }
     }
     $report
-    if ($Action -ceq 'verify' -and -not $report.Ready) { exit 1 }
+    if ($Action -ceq 'verify' -and $report.Status -cne 'PASS') { exit 1 }
     exit 0
 }
 
@@ -137,6 +200,9 @@ try {
         $checkpoint = Read-ContinuityCheckpoint $store $TaskId
         Assert-AgentFamily $checkpoint
         Assert-OriginalWorktree $checkpoint
+        if ($ExpectedCheckpointId -and $ExpectedCheckpointId -cne $checkpoint.State.checkpointId) {
+            throw 'The checkpoint changed since review. Refresh status before writing.'
+        }
     }
     if ($null -ne $checkpoint -and $checkpoint.State.lifecycle -ceq 'closed' -and $Action -cne 'export') {
         throw 'The task is already closed. Use status or verify to inspect its evidence.'
@@ -173,7 +239,7 @@ try {
                 throw 'The original task and required checks are fixed by the first save.'
             }
             $state = $checkpoint.State
-            if ($AcceptanceFile -and $state.schemaVersion -eq 2) { throw 'The acceptance declaration is already fixed.' }
+            if ($AcceptanceFile -and $state.schemaVersion -ge 2) { throw 'The acceptance declaration is already fixed.' }
             $comparison = Compare-ContinuityGit $state.git $git
             if (-not $comparison.Matches -and -not $AcceptGitDrift) {
                 throw 'Git changed. Run verify, review the differences and save with -AcceptGitDrift -ConfirmScope.'
@@ -191,11 +257,13 @@ try {
                 if ($problems.Count) { throw ('Verify the original references before saving. ' + ($problems -join ' ')) }
             }
             $task = $checkpoint.Task
-            $progress = if ($ProgressFile) { Read-ContinuityInput $ProgressFile } else { $checkpoint.Progress }
             $state.git = $git
             $state.gitFingerprint = Get-ContinuityGitFingerprint $git
         }
         if ($AcceptanceFile) { Set-AcceptanceDeclaration $state $task }
+        Enable-TraceableReviews $state
+        if ($null -ne $checkpoint) { $progress = Get-UpdatedProgress $checkpoint $state }
+        Resolve-InterruptedMeasurements $state
         return Get-SavedResult (Save-ContinuityCheckpoint $store $state $task $progress)
     }
 
@@ -205,16 +273,16 @@ try {
         if (-not ($Kind -and $Executable)) { throw 'Run requires -EvidenceId, -Kind and -Executable.' }
         $beforeRun = Get-ContinuityStatus $checkout $store $checkpoint $git $RelatedRoot
         $referenceProblems = $beforeRun.ReferenceProblems
-        if (-not $beforeRun.Git.Matches -or $referenceProblems.Count) {
-            throw 'Verify the saved Git state and references before running a controlled milestone.'
+        if (-not $beforeRun.Git.Matches -or $beforeRun.GitConflicted -or $referenceProblems.Count) {
+            throw 'Reconcile Git drift, unmerged paths and pinned references before a controlled milestone.'
         }
         if (-not $ConfirmStopped -and @($beforeRun.Checks | Where-Object Phase -CEQ 'running').Count) {
             throw 'Confirm that interrupted processes stopped with -ConfirmStopped before running another milestone.'
         }
-        if ($Kind -ceq 'edit' -and @($beforeRun.Checks | Where-Object {
-            $_.Id -cne $EvidenceId -and $_.Status -cin @('NOT_RUN', 'BLOCKED')
+        if ($Kind -ceq 'edit' -and -not $Corrective -and @($beforeRun.Checks | Where-Object {
+            $_.Status -cin @('NOT_RUN', 'BLOCKED')
         }).Count) {
-            throw 'Resolve outstanding verification and milestone blockers before making a controlled edit.'
+            throw 'Resolve outstanding observations or use -Corrective for an authorized repair.'
         }
         if ($EvidenceId -cin $state.requiredChecks -and $Kind -cnotin @('build', 'test')) {
             throw 'A required acceptance check must be a build or test.'
@@ -222,8 +290,10 @@ try {
         if ($state.checks.Contains($EvidenceId) -and $state.checks[$EvidenceId].kind -cne $Kind) {
             throw 'Use a distinct evidence ID for each kind of milestone.'
         }
-        $progress = if ($ProgressFile) { Read-ContinuityInput $ProgressFile } else { $checkpoint.Progress }
-        $measurement = New-ContinuityMeasurement $checkout $store $state $Kind $Executable $Arguments $InputPath
+        Enable-TraceableReviews $state
+        $progress = Get-UpdatedProgress $checkpoint $state
+        Resolve-InterruptedMeasurements $state
+        $measurement = New-ContinuityMeasurement $checkout $store $state $Kind $Executable $Arguments $InputPath $EnvironmentName
         $state.checks[$EvidenceId] = $measurement
         $confirmed = Save-ContinuityCheckpoint $store $state $checkpoint.Task $progress
         if ($measurement.phase -ceq 'running') {
@@ -258,21 +328,25 @@ try {
     $report = Get-ContinuityStatus $checkout $store $checkpoint $git $RelatedRoot
     switch ($Action) {
         'review' {
-            if (-not $ReviewFile) { throw 'Supply -ReviewFile with the authorized criterion reviews and evidence.' }
-            if (-not $report.Git.Matches -or $report.ReferenceProblems.Count) {
-                throw 'Reconcile Git and pinned references before recording an acceptance review.'
+            if (-not $ReviewFile -or -not $ConfirmHumanReview -or -not $ExpectedCheckpointId) {
+                throw 'Supply -ReviewFile, -ExpectedCheckpointId and -ConfirmHumanReview for an authorized human review.'
             }
-            Set-ContinuityReviews $state $ReviewFile
-            $progress = if ($ProgressFile) { Read-ContinuityInput $ProgressFile } else { $checkpoint.Progress }
+            if (-not $report.Git.Matches -or $report.GitConflicted -or $report.ReferenceProblems.Count) {
+                throw 'Reconcile Git drift, unmerged paths and pinned references before recording an acceptance review.'
+            }
+            Enable-TraceableReviews $state
+            $progress = Get-UpdatedProgress $checkpoint $state
+            Set-ContinuityReviews $checkout $store $state $progress $ReviewFile
             return Get-SavedResult (Save-ContinuityCheckpoint $store $state $checkpoint.Task $progress)
         }
         'close' {
-            Assert-Ready $report
+            if (-not $report.CorrectiveReady) { Assert-Ready $report }
             if (-not $ConfirmAcceptance) { throw 'Review the acceptance criteria and supply -ConfirmAcceptance.' }
             if ($state.schemaVersion -eq 1) { throw 'Declare the original criteria with save -AcceptanceFile before closure.' }
             if (-not $report.AcceptanceReady) {
                 $pending = @($report.Acceptance | Where-Object Status -CNE 'PASS' | ForEach-Object { "$($_.Id)=$($_.Status)" })
-                throw ('Each criterion needs a current PASS review and any declared checks before closure. ' + ($pending -join ', '))
+                throw ('Closure requires current evidence for completed work and each criterion. ' +
+                    ((@("completed-work=$($report.CompletedWork.Status)") + $pending) -join ', '))
             }
             $state.lifecycle = 'closed'
             return Get-SavedResult (Save-ContinuityCheckpoint $store $state $checkpoint.Task $checkpoint.Progress)

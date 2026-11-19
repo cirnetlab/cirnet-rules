@@ -108,36 +108,66 @@ $recovery = & $manager resume @task -ConfirmScope
 
 `run` saves state before and after a controlled edit, build, test or handoff
 command. Declare relevant ignored files and dependency inputs in the worktree
-with `-InputPath`. For agent edits outside the wrapper, review the changes
-and save with `-AcceptGitDrift -ConfirmScope`. Use `save -ProgressFile` after
-progress or decisions change and before handing off. These integrations cover
-explicit tool calls. Review external inputs and environment changes separately.
+with `-InputPath` and nonsecret environment inputs with `-EnvironmentName`.
+The manager records hashes for declared environment values. Review undeclared
+or external dependencies separately. For edits outside the wrapper, review the
+changes and save with `-AcceptGitDrift -ConfirmScope`. These integrations cover
+explicit tool calls.
+
+Update progress and decisions with `save -ProgressFile -ConfirmScope` and the
+reviewed `-ExpectedCheckpointId`, including before handoff. Append to the
+existing completed work, pending work, decisions, blockers and re-verification
+sections. For intentional replacements, add `-ConfirmProgressChange` with
+`-ProgressReason`. The confirmed snapshot history retains the previous notes.
+For v1, also record that reason in the new Decisions & Blockers section.
 
 `resume -ConfirmScope` returns the sealed notes for read-only recovery even
 when verification is stale, a command was interrupted or Git has drifted.
 Read `Blockers`, `Git.Changes`, `Checks` and `Acceptance` before taking action.
 Reopen the pinned references and verify present implementation authorization.
 Then repeat local `resume` with `-ConfirmContinuation` and require
-`CanContinue` before editing. Reconcile Git or
-document drift with owner approval and rerun stale checks. If `run` was left
-in its running phase, confirm its process and children stopped before passing
-`-ConfirmStopped` to retry the milestone or accept Git drift.
+`CanContinue` before ordinary edits. A stale observation can leave
+`CanContinue` false while `CanCorrect` permits an authorized repair using
+`run -Kind edit -Corrective -ConfirmScope`. Both paths require the original
+worktree, reconciled Git state without unmerged paths, and current pinned
+references. If a milestone was left running, confirm its process and children
+stopped before using `-ConfirmStopped` with `save` or `run`. Its observation
+remains `NOT_RUN`.
 
-After checking evidence for each criterion, prepare `$reviewFile` as a JSON
-array of records with `id`, `status` and a redacted `evidence` reference.
-Review statuses are `PASS`, `FAIL`, `NOT_RUN` and `BLOCKED`. The manager
-invalidates reviews when the recorded source, references or linked results
-change. Close only after checking the current evidence and authorization:
+`IntegrityStatus` describes the sealed checkpoint, `Ready` describes technical
+readiness, and `Status` describes overall verification. `verify` exits nonzero
+for `FAIL`, `NOT_RUN` or `BLOCKED` even when `Ready` is true.
+`CompletionStatus` requires a recorded closure and current evidence.
+`AgentFamilyMatched` compares the caller's declaration to the saved family.
+The tool does not independently verify client runtime identity or account
+authorization. Confirm both through the authorized session.
+
+For an authorized human review, prepare `$reviewFile` as a JSON object with
+`criteria` and `completedWork`. Each criterion entry has `id`, `status` and
+`evidence`. The completed work entry has `status` and `evidence`, or use
+`null` when that review is unchanged. For `PASS` or `FAIL`, include at least
+one approved evidence record of the form `{"path":"relative/artifact.txt",
+"sha256":"<reviewed SHA-256>"}`. Use a regular worktree file outside the
+checkpoint store. An evidence file is separate from the review request.
+The manager checks its bytes and records review provenance separately from
+agent notes and observed process exits. Hashes establish the identity and
+freshness of the evidence file. An authorized reviewer assesses what it proves.
+
+Changes to source, references or linked results invalidate the corresponding
+review. Changes to the completed work section invalidate its review. Close
+only after completed work and every criterion have current evidence:
 
 ```powershell
-& $manager review @task -ConfirmScope -ReviewFile $reviewFile
+& $manager review @task -ConfirmScope -ConfirmHumanReview -ExpectedCheckpointId $checkpointId -ReviewFile $reviewFile
 & $manager close @task -ConfirmScope -ConfirmAcceptance
 ```
 
-Version 1 checkpoints remain readable. Before closing an open version 1 task,
+Version 1 and 2 checkpoints remain readable. Before closing an open version 1 task,
 use `save -ConfirmScope -AcceptanceFile` to map its original criteria and
 retain its required checks. This writes a new snapshot, keeping the original
-task and snapshots. Version 1 closure is historical.
+task and snapshots. Writes to open v2 checkpoints adopt v3. Legacy review
+statements and v1/v2 closures remain historical evidence and require separate
+re-verification before any completion claim.
 An ambiguous legacy acceptance section remains readable. Get an owner approved
 criterion breakdown before attempting to upgrade or claim acceptance.
 
@@ -153,9 +183,11 @@ must review free text because filtering cannot identify every sensitive value.
 The same agent family can use `verify -HandoffFile` with the expected
 `-AgentFamily` and `-ExpectedSha256` obtained from export through a trusted
 channel. For reading context explicitly, use `resume -HandoffFile` with those
-options and `-ConfirmScope`. Portable verification covers integrity. It does
-not install a checkpoint or restore files. Live Git, authorization, references,
+options and `-ConfirmScope`. A portable read can report `IntegrityStatus: PASS`
+while live verification stays `NOT_RUN`. Live Git, authorization, references
 and evidence freshness require the original worktree and its local checkpoint.
+Native acceptance separately requires demonstrated interruption recovery and
+handoffs between actual authorized accounts in both supported agent families.
 See the [Task Continuity specification](../specs/cirnet-rules/task-continuity/spec.md).
 
 ## Update and restore

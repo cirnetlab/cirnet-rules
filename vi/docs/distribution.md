@@ -105,37 +105,69 @@ $recovery = & $manager resume @task -ConfirmScope
 
 `run` lưu trạng thái trước và sau lệnh sửa, build, kiểm thử hoặc bàn giao được
 kiểm soát. Khai báo tệp bị Git bỏ qua và đầu vào phụ thuộc liên quan trong
-worktree bằng `-InputPath`. Với chỉnh sửa của agent ngoài trình bọc, xem lại
-thay đổi và lưu bằng `-AcceptGitDrift -ConfirmScope`. Dùng `save -ProgressFile`
-khi tiến độ hoặc quyết định thay đổi và trước khi bàn giao. Các điểm tích hợp
-áp dụng cho lệnh gọi công cụ rõ ràng. Xem riêng thay đổi đầu vào bên ngoài và
-môi trường.
+worktree bằng `-InputPath`, và biến môi trường không nhạy cảm bằng
+`-EnvironmentName`. Công cụ ghi hash của giá trị môi trường đã khai báo.
+Kiểm tra riêng phụ thuộc bên ngoài hoặc chưa khai báo. Với chỉnh sửa ngoài
+trình bọc, xem lại thay đổi và lưu bằng `-AcceptGitDrift -ConfirmScope`.
+Các điểm tích hợp áp dụng cho lệnh gọi công cụ rõ ràng.
+
+Khi cập nhật tiến độ, quyết định hoặc trước khi bàn giao, dùng
+`save -ProgressFile -ConfirmScope` kèm `-ExpectedCheckpointId` đã xem.
+Thêm nội dung vào các phần việc đã làm, việc còn lại, quyết định, vướng mắc
+và kiểm chứng lại. Để chủ động thay thế nội dung, thêm
+`-ConfirmProgressChange` và `-ProgressReason`. Lịch sử snapshot đã xác
+nhận giữ các ghi chú trước đó. Với v1, ghi thêm lý do vào phần
+Decisions & Blockers mới.
 
 `resume -ConfirmScope` trả ghi chú đã niêm phong để khôi phục chỉ đọc, kể cả
 khi kết quả hết hiệu lực, lệnh bị gián đoạn hoặc Git đã thay đổi. Đọc
 `Blockers`, `Git.Changes`, `Checks` và `Acceptance` trước khi hành động.
 Mở lại tham chiếu đã ghim và xác minh quyền triển khai hiện tại. Sau đó gọi lại
-`resume` cục bộ với `-ConfirmContinuation` và chỉ sửa khi `CanContinue` cho phép.
-Đối chiếu sai khác Git hoặc
-tài liệu với sự chấp thuận của bên sở hữu và chạy lại các kiểm tra hết hiệu lực.
-Nếu `run` còn ở pha đang chạy, xác nhận tiến trình và tiến trình con đã dừng
-trước khi dùng `-ConfirmStopped` để chạy lại mốc hoặc chấp nhận thay đổi Git.
+`resume` cục bộ với `-ConfirmContinuation` và chỉ sửa thông thường khi
+`CanContinue` cho phép. Nếu kết quả đã cũ, `CanContinue` có thể là false
+trong khi `CanCorrect` cho phép sửa lỗi đã được cấp quyền bằng
+`run -Kind edit -Corrective -ConfirmScope`. Cả hai luồng đều cần worktree
+gốc, trạng thái Git đã đối chiếu và không còn đường dẫn chưa hợp nhất,
+cùng các tham chiếu đã ghim còn hiệu lực. Nếu một mốc còn ở pha đang chạy,
+xác nhận tiến trình và các tiến trình con đã dừng rồi dùng
+`-ConfirmStopped` với `save` hoặc `run`. Kết quả mốc vẫn là `NOT_RUN`.
 
-Sau khi xem bằng chứng của từng tiêu chí, chuẩn bị `$reviewFile` là mảng JSON
-gồm các mục có `id`, `status` và tham chiếu `evidence` đã loại dữ liệu nhạy cảm.
-Trạng thái rà soát là `PASS`, `FAIL`, `NOT_RUN` hoặc `BLOCKED`. Công cụ
-đánh dấu lượt rà soát hết hiệu lực khi mã nguồn đã ghi, tham chiếu hoặc kết quả
-liên kết thay đổi. Chỉ đóng sau khi kiểm tra quyền và bằng chứng hiện tại:
+`IntegrityStatus` mô tả tính toàn vẹn của checkpoint, `Ready` mô tả độ
+sẵn sàng kỹ thuật và `Status` là kết quả kiểm chứng tổng thể. `verify`
+thoát khác 0 khi `FAIL`, `NOT_RUN` hoặc `BLOCKED` ngay cả khi `Ready`
+là true. `CompletionStatus` cần hồ sơ đã đóng và bằng chứng còn hiệu lực.
+`AgentFamilyMatched` so sánh loại agent người gọi khai báo với loại đã lưu.
+Công cụ không xác minh độc lập danh tính client đang chạy hay quyền của tài
+khoản. Xác nhận cả hai trong phiên được cấp quyền.
+
+Để ghi lượt rà soát của người có thẩm quyền, chuẩn bị `$reviewFile` là
+đối tượng JSON với `criteria` và `completedWork`. Mỗi mục tiêu chí có
+`id`, `status` và `evidence`. Mục việc đã làm có `status` và `evidence`,
+hoặc dùng `null` nếu lượt rà soát đó giữ nguyên. Với `PASS` hoặc `FAIL`,
+khai báo ít nhất một bằng chứng được phép theo dạng
+`{"path":"relative/artifact.txt","sha256":"<reviewed SHA-256>"}`. Dùng
+tệp thường trong worktree nằm ngoài kho checkpoint. Tệp bằng chứng tách
+riêng khỏi yêu cầu rà soát. Công cụ kiểm tra nội dung theo byte và ghi
+nguồn rà soát riêng với ghi chú của agent và mã thoát tiến trình đã quan sát.
+Hash xác định đúng tệp và độ mới của bằng chứng. Người có thẩm quyền
+đánh giá bằng chứng chứng minh được điều gì.
+
+Thay đổi mã nguồn, tham chiếu hoặc kết quả liên kết làm lượt rà soát tương
+ứng hết hiệu lực. Thay đổi phần việc đã làm cũng làm lượt rà soát phần đó
+hết hiệu lực. Chỉ đóng khi phần việc đã làm và từng tiêu chí có bằng chứng
+còn hiệu lực:
 
 ```powershell
-& $manager review @task -ConfirmScope -ReviewFile $reviewFile
+& $manager review @task -ConfirmScope -ConfirmHumanReview -ExpectedCheckpointId $checkpointId -ReviewFile $reviewFile
 & $manager close @task -ConfirmScope -ConfirmAcceptance
 ```
 
-Checkpoint phiên bản 1 vẫn đọc được. Trước khi đóng công việc phiên bản 1 còn
+Checkpoint phiên bản 1 và 2 vẫn đọc được. Trước khi đóng task phiên bản 1 còn
 mở, dùng `save -ConfirmScope -AcceptanceFile` để ánh xạ tiêu chí gốc và giữ
 các kiểm tra bắt buộc. Thao tác ghi snapshot mới và giữ nguyên yêu cầu gốc cùng
-các snapshot cũ. Trạng thái đóng của phiên bản 1 là thông tin lịch sử.
+các snapshot cũ. Các lần ghi vào checkpoint v2 còn mở áp dụng v3. Lời xác
+nhận cũ và việc đóng task v1/v2 là hồ sơ lịch sử, cần kiểm chứng riêng trước
+khi tuyên bố đã hoàn thành.
 Mục tiêu chí cũ có cách diễn đạt chưa rõ vẫn đọc được. Cần bên sở hữu làm rõ
 từng tiêu chí trước khi nâng cấp hoặc xác nhận nghiệm thu.
 
@@ -150,10 +182,12 @@ trị nhạy cảm.
 
 Cùng loại agent có thể dùng `verify -HandoffFile` với `-AgentFamily` dự kiến và
 `-ExpectedSha256` nhận từ lệnh export qua kênh đáng tin cậy. Để đọc ngữ cảnh rõ
-ràng, dùng `resume -HandoffFile` với các tùy chọn đó và `-ConfirmScope`. Xác
-minh gói chỉ kiểm tra tính toàn vẹn, không cài checkpoint hoặc khôi phục tệp.
-Việc kiểm tra Git hiện tại, quyền, tham chiếu và hiệu lực bằng chứng cần worktree
-gốc và checkpoint cục bộ. Xem
+ràng, dùng `resume -HandoffFile` với các tùy chọn đó và `-ConfirmScope`. Gói
+có thể báo `IntegrityStatus: PASS` trong khi kiểm chứng trên trạng thái thực tế
+vẫn là `NOT_RUN`. Việc kiểm tra Git hiện tại, quyền, tham chiếu và hiệu lực
+bằng chứng cần worktree gốc và checkpoint cục bộ. Nghiệm thu Native cần chứng
+minh riêng việc khôi phục sau gián đoạn và bàn giao giữa các tài khoản thật
+được cấp quyền của cả hai loại agent được hỗ trợ. Xem
 [đặc tả Task Continuity](../specs/cirnet-rules/task-continuity/spec.md).
 
 ## Cập nhật và restore
@@ -186,4 +220,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 2f8d3c5de501a34db318fd4c4bcbc7f4bb26eac3f47b83c25b251706c5476cf5 -->
+<!-- source-sha256: 24376feb7634ff42b74c8d0aded5ee8590c750622d079aa3d5ec899ef6efc7e6 -->

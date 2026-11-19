@@ -67,7 +67,6 @@ The fixture operator may read and edit the primary checkout.
 Consult the pinned plan and spec.
 '@
     Write-Fixture 'acceptance.json' '[{"id":"fixture-exits","checks":["fixture-test"]},{"id":"ownership-preserved","checks":[]}]'
-    Write-Fixture 'reviews.json' '[{"id":"fixture-exits","status":"PASS","evidence":"Observed fixture-test exit 0."},{"id":"ownership-preserved","status":"PASS","evidence":"Compared the index and document hashes."}]'
     Write-Fixture 'progress.md' @'
 ## Completed Work
 Prepared the fixture.
@@ -134,6 +133,19 @@ Review the process evidence after any change.
     Assert-True ($resumed.Git.Recorded.unstaged -ccontains 'source.txt') 'Unstaged file was omitted.'
     Assert-True ($resumed.Git.Recorded.untracked -ccontains 'untracked note.txt') 'Untracked file was omitted.'
     Assert-True ($resumed.References.documents.Count -eq 4) 'Pinned references were omitted.'
+    Assert-True ($resumed.IntegrityStatus -ceq 'PASS' -and $resumed.Status -ceq 'NOT_RUN' -and
+        $resumed.AgentFamilyMatched -and -not $resumed.AgentIdentityVerified) 'Integrity or a declared family was confused with verification.'
+    $incomplete = & $manager verify @codex
+    Assert-True ($LASTEXITCODE -eq 1 -and $incomplete.Ready -and $incomplete.Status -ceq 'NOT_RUN') 'Missing evidence did not fail overall verification.'
+    $editedProgress = $resumed.Progress.Replace('Use the primary checkout. No blocker recorded.', 'Use the primary checkout. Fixture decision reviewed.')
+    Write-Fixture 'updated-progress.md' $editedProgress
+    $progressArgs = @{ ProgressFile = Join-Path $fixture 'updated-progress.md'; ConfirmScope = $true }
+    Assert-Rejected { & $manager save @codex @progressArgs } 'ExpectedCheckpointId'
+    Assert-Rejected { & $manager save @codex @progressArgs -ExpectedCheckpointId $firstId } 'ConfirmProgressChange'
+    $updated = & $manager save @codex @progressArgs -ExpectedCheckpointId $firstId -ConfirmProgressChange -ProgressReason 'Owner reviewed the fixture decision.'
+    $audit = (& $manager status @codex).ProgressReconciliation
+    Assert-True ($audit.priorCheckpointId -ceq $firstId -and $audit.sections -ccontains 'Decisions & Blockers' -and
+        [IO.File]::ReadAllText($savedProgress) -ceq $resumed.Progress -and $updated.CheckpointId -cne $firstId) 'Progress reconciliation lost its prior decision.'
     Assert-Rejected { & $manager resume @codex } 'ConfirmScope'
     Assert-Rejected { & $manager resume -Repository $worktree -TaskId 'first-task' -AgentFamily 'claude-code' -ConfirmScope } 'Agent family'
     $legacy = @{ Repository = $worktree; TaskId = 'legacy-task'; AgentFamily = 'codex' }
@@ -202,6 +214,8 @@ Review the process evidence after any change.
     $check = @{ EvidenceId = 'fixture-test'; Kind = 'test'; Executable = $powershell; InputPath = @('.local/input.txt'); ConfirmScope = $true }
     $failed = & $manager run @codex @check -Arguments @('-NoProfile', '-Command', 'exit 17')
     Assert-True ($failed.Status -ceq 'FAIL' -and $failed.ExitCode -eq 17 -and $LASTEXITCODE -eq 17) 'Run lost the observed failure exit code.'
+    $failedVerification = & $manager verify @codex
+    Assert-True ($LASTEXITCODE -eq 1 -and $failedVerification.Status -ceq 'FAIL' -and $failedVerification.Ready) 'A required failure was hidden or blocked corrective work.'
     $interrupted = & $manager run @codex @check -TimeoutSeconds 1 -Arguments @('-NoProfile', '-Command', 'Start-Sleep -Seconds 30')
     Assert-True ($interrupted.Status -ceq 'NOT_RUN' -and $interrupted.Phase -ceq 'interrupted' -and
         $interrupted.Reason -ceq 'timeout' -and $null -eq $interrupted.ExitCode) 'A timed-out process supplied completed evidence.'
@@ -213,7 +227,11 @@ Review the process evidence after any change.
     Write-Fixture 'primary/.local/input.txt' "changed`n"
     $stale = & $manager verify @codex
     Assert-True (-not $stale.Ready -and $stale.Checks[0].Status -ceq 'NOT_RUN') 'Changed ignored input retained PASS.'
-    Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'checkpoint is not ready'
+    Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'fixture-exits=NOT_RUN'
+    $corrective = & $manager resume @codex -ConfirmScope -ConfirmContinuation
+    Assert-True (-not $corrective.CanContinue -and $corrective.CanCorrect) 'A stale result blocked an authorized correction.'
+    $repair = & $manager run @codex -ConfirmScope -Corrective -Kind edit -EvidenceId 'fixture-repair' -Executable $powershell -Arguments @('-NoProfile', '-Command', 'exit 0')
+    Assert-True ($repair.Status -ceq 'PASS') 'The corrective command could not run with stale observations.'
     $null = & $manager run @codex @check -Arguments @('-NoProfile', '-Command', 'exit 0')
     Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'ownership-preserved=NOT_RUN'
 
@@ -221,7 +239,7 @@ Review the process evidence after any change.
     Assert-Rejected { & $manager export @codex -ConfirmScope -OutputFile $destination } 'ConfirmExport'
     $handoff = & $manager export @codex -ConfirmScope -ConfirmExport -OutputFile $destination
     $package = & $manager resume -HandoffFile $destination -ExpectedSha256 $handoff.Sha256 -AgentFamily codex -ConfirmScope
-    Assert-True ($package.IntegrityVerified -and $package.ContextRecovered -and -not $package.CanContinue -and
+    Assert-True ($package.IntegrityVerified -and $package.Status -ceq 'NOT_RUN' -and $package.ContextRecovered -and -not $package.CanContinue -and
         $package.Handoff.taskId -ceq 'first-task' -and
         $package.Handoff.task['Original Task'] -like '*retain its state*') 'Portable task context or read-only restrictions were lost.'
     Assert-Rejected { & $manager verify -HandoffFile $destination -ExpectedSha256 $handoff.Sha256 -AgentFamily claude-code } 'incompatible agent family'
@@ -234,9 +252,34 @@ Review the process evidence after any change.
     Assert-True ((Get-FileHash -LiteralPath $index).Hash -ceq $indexHash) 'Manager changed the Git index.'
     Assert-True ((Get-FileHash -LiteralPath (Join-Path $worktree 'plan.md')).Hash -ceq $planHash) 'Manager changed the plan.'
     Assert-True ((Get-FileHash -LiteralPath (Join-Path $worktree 'spec.md')).Hash -ceq $specHash) 'Manager changed the spec.'
-    $null = & $manager review @codex -ConfirmScope -ReviewFile (Join-Path $fixture 'reviews.json')
+    $artifact = '.local/review-evidence.txt'
+    $artifactText = "Fixture check and repository preservation observations.`n"
+    Write-Fixture "primary/$artifact" $artifactText
+    $evidence = @(@{ path = $artifact; sha256 = (Get-FileHash -LiteralPath (Join-Path $worktree $artifact)).Hash.ToLowerInvariant() })
+    $review = @{
+        criteria = @(
+            @{ id = 'fixture-exits'; status = 'PASS'; evidence = $evidence }
+            @{ id = 'ownership-preserved'; status = 'PASS'; evidence = $evidence }
+        )
+        completedWork = @{ status = 'PASS'; evidence = $evidence }
+    }
+    Write-Fixture 'reviews.json' (ConvertTo-Json -InputObject $review -Depth 7)
+    $reviewArgs = @{
+        ConfirmScope = $true
+        ReviewFile = Join-Path $fixture 'reviews.json'
+        ExpectedCheckpointId = (& $manager status @codex).CheckpointId
+    }
+    Assert-Rejected { & $manager review @codex @reviewArgs } 'ConfirmHumanReview'
+    $null = & $manager review @codex @reviewArgs -ConfirmHumanReview
+    Write-Fixture "primary/$artifact" "Different evidence.`n"
+    $reviewDrift = & $manager verify @codex
+    Assert-True ($LASTEXITCODE -eq 1 -and $reviewDrift.Status -ceq 'NOT_RUN' -and $reviewDrift.CompletedWork.Reason -ceq 'review-artifact-changed') 'Changed review evidence retained PASS.'
+    Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'completed-work=NOT_RUN'
+    Write-Fixture "primary/$artifact" $artifactText
     $closed = & $manager close @codex -ConfirmScope -ConfirmAcceptance
     Assert-True ($closed.Lifecycle -ceq 'closed') 'Fresh evidence and per-criterion reviews did not allow closure.'
+    $closedStatus = & $manager verify @codex
+    Assert-True ($LASTEXITCODE -eq 0 -and $closedStatus.CompletionStatus -ceq 'PASS') 'Current closure evidence was not reported.'
     $head = Invoke-FixtureGit @('rev-parse', 'HEAD')
     Invoke-FixtureGit @('update-ref', 'refs/heads/another', $head)
     Invoke-FixtureGit @('symbolic-ref', 'HEAD', 'refs/heads/another')

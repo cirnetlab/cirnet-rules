@@ -38,3 +38,17 @@ assertions and cleanup.
 The GitHub Actions PowerShell wrapper reproduced exit 1 on Windows before
 the fix and returned 0 afterward. An injected fixture setup failure still
 returned 1. A hosted CI run for the fix is pending.
+
+## Checkpoint hardening source changes
+
+- Separate integrity, readiness, verification and completion. Recognize
+  unmerged index entries and allow explicitly authorized corrective edits
+  after worktree and reference reconciliation. Keep declared agent-family
+  matching separate from runtime identity.
+- Add v3 reviews tied to evidence artifacts by SHA-256, completed-work review,
+  declared environment fingerprints, and explicit progress reconciliation
+  against a reviewed checkpoint ID. Retain v1/v2 history and verify the
+  portable package separately from live evidence.
+- NOT_RUN for this change: local build and test suites, CI, benchmarks and
+  Native interruption recovery and handoff. Earlier results above describe
+  earlier revisions. Acceptance remains open.

@@ -44,5 +44,19 @@ Cách gọi PowerShell của GitHub Actions tái hiện mã thoát 1 trên Windo
 khi sửa và trả 0 sau khi sửa. Khi chủ động tạo lỗi lúc chuẩn bị fixture, mã
 thoát vẫn là 1. Lượt CI trên GitHub cho bản sửa vẫn đang chờ.
 
+## Thay đổi mã nguồn để củng cố checkpoint
+
+- Tách tính toàn vẹn, độ sẵn sàng, kiểm chứng và hoàn thành. Nhận diện mục
+  chưa hợp nhất trong index và cho phép sửa lỗi đã được cấp quyền rõ ràng
+  sau khi đối chiếu worktree và tham chiếu. Tách đối chiếu loại agent đã
+  khai báo khỏi xác minh danh tính runtime.
+- Thêm rà soát v3 gắn bằng chứng bằng SHA-256, rà soát việc đã làm, hash
+  biến môi trường khai báo và đối chiếu cập nhật tiến độ với ID checkpoint
+  đã xem. Giữ lịch sử v1/v2 và xác minh gói bàn giao tách khỏi bằng chứng
+  trên trạng thái thực tế.
+- NOT_RUN cho thay đổi này gồm build, bộ kiểm thử cục bộ, CI, benchmark
+  và khôi phục sau gián đoạn cùng bàn giao Native. Các kết quả ở trên
+  thuộc những revision trước. Nghiệm thu vẫn đang mở.
+
 <!-- source: en/plans/cirnet-rules/task-continuity/plan.md -->
-<!-- source-sha256: 1ca50f15e332322f4c3b26cfb2b737627bcff35d51465d5c9c975e1821c997f2 -->
+<!-- source-sha256: fa6c153cfc26c0b29d5241fbff2e57373ad1ca4a43b90a5b570b5bcbf1804457 -->

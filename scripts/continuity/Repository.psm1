@@ -202,12 +202,15 @@ function Read-GitSnapshot($Repository) {
     $branch = Get-GitLine (Invoke-ContinuityGit $root @('symbolic-ref', '--quiet', 'HEAD') @(0, 1))
     $indexHash = if ([IO.File]::Exists($Repository.index)) { Get-ContinuityFileDigest $Repository.index } else { '' }
     $entries = Invoke-ContinuityGit $root @('ls-files', '--stage', '-z', '--')
+    $unmerged = [Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
     $tracked = @(
         foreach ($entry in (Get-GitRecords $entries)) {
             $tab = $entry.IndexOf([char]9)
             if ($tab -lt 0) { throw 'Git returned an invalid index entry.' }
             if ($entry.StartsWith('160000 ')) { throw 'Gitlink state needs a separate submodule-aware check.' }
-            $entry.Substring($tab + 1)
+            $relative = $entry.Substring($tab + 1)
+            if ($entry.Substring(0, $tab) -match ' [123]$') { [void]$unmerged.Add($relative) }
+            $relative
         }
     )
     $untracked = @(Get-GitRecords (Invoke-ContinuityGit $root @('ls-files', '--others', '--exclude-standard', '-z', '--')))
@@ -243,6 +246,8 @@ function Read-GitSnapshot($Repository) {
         untracked = $untracked
         files = $files
     }
+    # Keep conflict-free fingerprints compatible with existing checkpoints.
+    if ($unmerged.Count) { $snapshot.unmerged = @($unmerged) }
     $snapshot
 }
 
