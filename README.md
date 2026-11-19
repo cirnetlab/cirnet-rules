@@ -27,9 +27,11 @@ cargo test --offline --locked
 
 ## Historical evidence / Bằng chứng lịch sử
 
-The frozen checkpoint and large A/B tools remain available for reproduction.
-Native runs require separate authorization. / Công cụ checkpoint và A/B quy mô
-lớn đã đóng băng vẫn dùng được để tái lập kết quả. Chạy Native cần quyền riêng.
+The [Candidate benchmark](en/docs/behavioral-evaluation.md) verifies selected
+scenarios in one session. Historical comparisons can be reproduced from their
+pinned revisions. / [Benchmark Candidate](vi/docs/behavioral-evaluation.md)
+kiểm chứng các ca đã chọn trong một phiên. Các phép so sánh lịch sử có thể
+được tái lập từ revision đã pin.
 
 [Benchmark history / Lịch sử benchmark](reports/work-prompt-benchmark-history.md) ·
 [Historical Governance branch](https://github.com/cirnetlab/cirnet-rules/tree/governance-cli-only)

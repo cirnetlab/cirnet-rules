@@ -2,6 +2,10 @@
 
 ## 0.2.0 (candidate)
 
+- Dùng một phiên Candidate hiện tại và một danh mục cho JavaScript, TypeScript,
+  Python, Rust và SystemVerilog. Niêm phong bằng chứng vai trò để rà chất lượng
+  độc lập và giữ công cụ A/B cũ tại các revision đã ghi.
+
 - Tập trung bộ công cụ vào Work Prompt có phạm vi, quyền sở hữu theo Lab-First
   và thay đổi mã đã kiểm chứng. Đóng băng checkpoint và A/B quy mô lớn cho
   việc chạy thủ công. Giữ số liệu chẩn đoán vai trò và bỏ chấm điểm hiệu năng.
@@ -49,4 +53,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 36bca079b88d6c4ebaa4d3365bb0e6803a2e0d71f9e80c59ce37becee9863f80 -->
+<!-- source-sha256: 33bfa1c3d8caf6e5faedaf7d57a984e3bab78b4c2c7b93b38add440d41454b31 -->

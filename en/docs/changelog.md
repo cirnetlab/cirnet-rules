@@ -2,6 +2,10 @@
 
 ## 0.2.0 (candidate)
 
+- Use one current Candidate session and one catalog for JavaScript, TypeScript,
+  Python, Rust and SystemVerilog. Seal role evidence for independent quality
+  review and keep previous A/B tooling at its recorded revisions.
+
 - Center the toolkit on scoped Work Prompts, Lab-First ownership and verified
   code changes. Freeze checkpoint and large A/B tooling for manual use.
   Keep role diagnostics and retire benchmark performance scoring.

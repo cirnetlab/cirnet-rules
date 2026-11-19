@@ -19,7 +19,10 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - run: cargo fmt --all -- --check
-      - run: node --test ./tests/model-compatibility-source.test.mjs
+      - run: node --test ./tests/benchmark/source.test.mjs ./tests/benchmark/rtl.test.mjs
+      - name: Test RTL trace evidence collection
+        shell: pwsh
+        run: ./tests/benchmark/rtl.tests.ps1
       - run: cargo test --offline --locked
       - name: Check documentation and added Markdown files
         shell: pwsh
@@ -28,14 +31,21 @@ jobs:
         run: ./scripts/check-changed-docs.ps1 -Base $env:CIRNET_DOC_BASE
       - name: Test changed Markdown selection
         shell: pwsh
-        run: ./tests/check-changed-docs.tests.ps1
+        run: ./tests/validation/check-changed-docs.tests.ps1
       - run: cargo clippy --offline --locked --all-targets -- -D warnings
       - if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          ./tests/package.Tests.ps1
-          ./tests/install.tests.ps1
-          ./tests/behavioral.tests.ps1
-      - name: Test Candidate-only model smoke with a local shim
+          ./tests/distribution/package.Tests.ps1
+          ./tests/distribution/install.tests.ps1
+          ./tests/benchmark/role.tests.ps1
+          ./tests/benchmark/followup.tests.ps1
+      - name: Test unified fixture checks on Ubuntu
+        if: runner.os == 'Linux'
         shell: pwsh
-        run: ./tests/model-compatibility.tests.ps1
+        run: |
+          $env:CIRNET_TEST_OUTPUT = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'cirnet-fixture-tests')).FullName
+          node --test ./tests/benchmark/checks.test.mjs ./tests/benchmark/privacy.test.mjs
+      - name: Test single Candidate session with a local shim
+        shell: pwsh
+        run: ./tests/benchmark/session.tests.ps1

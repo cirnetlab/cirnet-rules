@@ -2,26 +2,16 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$repo = Split-Path -Parent $PSScriptRoot
-& (Join-Path $PSScriptRoot 'eval-codex-privacy.tests.ps1')
-& node --test (Join-Path $PSScriptRoot 'eval-codex-privacy.test.mjs')
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+& (Join-Path $PSScriptRoot 'privacy.tests.ps1')
+& node --test (Join-Path $PSScriptRoot 'privacy.test.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Focused privacy boundary tests failed.' }
 $runner = Join-Path $repo 'scripts/eval-codex.ps1'
-$data = Join-Path $PSScriptRoot 'behavioral'
+$data = $PSScriptRoot
 $checks = Join-Path $data 'checks.mjs'
 $tempRoot = [IO.Path]::GetTempPath()
 $output = Join-Path $tempRoot ('cirnet-harness-' + [guid]::NewGuid().ToString('N'))
 if (Test-Path -LiteralPath $output) { throw 'Fixture session already exists.' }
-$cases = @(Get-Content -Raw -LiteralPath (Join-Path $data 'cases.json') | ConvertFrom-Json)
-$wanted = @(1..8 | ForEach-Object { 'E{0:D2}' -f $_ })
-if (($cases.id -join ',') -cne ($wanted -join ',')) { throw 'Expected E01–E08 exactly once in order.' }
-foreach ($case in $cases) {
-    if (-not (Test-Path -LiteralPath (Join-Path $data "fixtures/$($case.id)") -PathType Container) -or
-        -not $case.prompt -or -not @($case.rubric).Count -or -not @($case.fail).Count -or
-        $null -eq $case.prerequisites -or -not @($case.skills).Count) {
-        throw "Incomplete case $($case.id)."
-    }
-}
 
 function Read-Evidence([string]$Session, [string]$Case) {
     Get-Content -LiteralPath (Join-Path $output "$Session/$Case/run.json") -Raw | ConvertFrom-Json
@@ -73,7 +63,18 @@ if ($scenario -match '/denied/') {
 
     $sourceRevision = (& git --no-optional-locks -C $repo rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect toolkit revision.' }
-    $common = @{ Cohort='Baseline'; RulesRoot=$repo; OutputRoot=$output; SourceRevision=$sourceRevision; CodexPath=$fake; CaseId='E01' }
+    $common = @{ Cohort='Candidate'; RulesRoot=$repo; OutputRoot=$output; SourceRevision=$sourceRevision; CodexPath=$fake; CaseId='E01' }
+    $baselineArgs = $common.Clone()
+    $baselineArgs.Cohort = 'Baseline'
+    $rejectedBaseline = $false
+    try { & $runner @baselineArgs -Session retired-baseline -Execute }
+    catch {
+        if ($_.Exception.Message -notmatch 'ValidateSet') { throw }
+        $rejectedBaseline = $true
+    }
+    if (-not $rejectedBaseline -or (Test-Path -LiteralPath (Join-Path $output 'retired-baseline'))) {
+        throw 'The legacy role entry point must never dispatch Baseline A.'
+    }
     function Assert-Rejected([string]$Name, [string]$AuthPath, [string]$ExpectedError) {
         try { & $runner @common -Session $Name -AuthHome $AuthPath -Execute }
         catch {

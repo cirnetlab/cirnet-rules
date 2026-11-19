@@ -3,8 +3,8 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$repo = Split-Path -Parent $PSScriptRoot
-$runner = Join-Path $repo 'scripts/eval-codex.ps1'
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$runner = Join-Path $repo 'scripts/benchmark/role.ps1'
 $output = Join-Path ([IO.Path]::GetTempPath()) ('cirnet-followup-tests-' + [guid]::NewGuid().ToString('N'))
 $null = New-Item -ItemType Directory -Path $output
 $utf8 = [Text.UTF8Encoding]::new($false)
@@ -189,7 +189,7 @@ console.log(JSON.stringify({ evidence: 'OFFLINE MOCK ONLY; no compiler, simulato
 '@
 $wrapperTestPath = Join-Path $output 'wrapper-test.mjs'
 [IO.File]::WriteAllText($wrapperTestPath, $wrapperTest, $utf8)
-$wrapperResult = & node $wrapperTestPath (Join-Path $repo 'tests/behavioral/fixtures/E08/simulate.mjs') $output
+$wrapperResult = & node $wrapperTestPath (Join-Path $repo 'tests/benchmark/fixtures/E08/simulate.mjs') $output
 if ($LASTEXITCODE -ne 0) { throw 'E08 wrapper exit gating failed.' }
 [IO.File]::WriteAllText((Join-Path $output 'wrapper-results.json'), ($wrapperResult -join "`n") + "`n", $utf8)
 Write-Host 'PASS: E01/E08 selection, isolated profile, manual review gate, and strict compiler/runtime exit gating.'

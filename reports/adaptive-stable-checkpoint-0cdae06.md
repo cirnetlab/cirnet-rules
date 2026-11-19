@@ -18,9 +18,9 @@ tại, còn Work vẫn dùng Refactoring Skill đóng băng.
 
 | File | Bản sửa |
 | --- | --- |
-| [A/B runner](../scripts/eval-codex-ab.ps1) | Thêm profile `-CurrentWorkRules`. Candidate Author và cả hai Work dùng snapshot hiện tại gồm 54 file Rules và tài liệu. Baseline Author vẫn dùng A gốc. Continuation từ chối đổi profile và dùng lại bytes đã đóng băng. |
-| [Reporter](../scripts/eval-codex-report.mjs) | Đối chiếu revision, baseline và hash các tham chiếu cùng Skills đã stage. Nếu Work Skill bị thay thế, reporter từ chối nhận kết quả dưới profile Current. |
-| [Regression](../tests/behavioral-ab.tests.ps1) | Kiểm tra staging thực tế ở hai Work, template Candidate Author, continuation, và từ chối hash bị thay thế trên bản sao fixture test. |
+| [A/B runner](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/scripts/eval-codex-ab.ps1) | Thêm profile `-CurrentWorkRules`. Candidate Author và cả hai Work dùng snapshot hiện tại gồm 54 file Rules và tài liệu. Baseline Author vẫn dùng A gốc. Continuation từ chối đổi profile và dùng lại bytes đã đóng băng. |
+| [Reporter](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/scripts/eval-codex-report.mjs) | Đối chiếu revision, baseline và hash các tham chiếu cùng Skills đã stage. Nếu Work Skill bị thay thế, reporter từ chối nhận kết quả dưới profile Current. |
+| [Regression](https://github.com/cirnetlab/cirnet-rules/blob/1266f8c635b5d4f5d13413921b8ce8efe0736119/tests/behavioral-ab.tests.ps1) | Kiểm tra staging thực tế ở hai Work, template Candidate Author, continuation, và từ chối hash bị thay thế trên bản sao fixture test. |
 | [Hướng dẫn EN](../en/docs/behavioral-evaluation.md) và [VI](../vi/docs/behavioral-evaluation.md) | Mô tả profile, phạm vi suy luận và lệnh preview/pilot. Bản VI đã đồng bộ source SHA. |
 
 Phép kiểm tập trung trả `1` trước sửa vì runner chưa nhận profile mới

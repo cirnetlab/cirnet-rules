@@ -50,8 +50,13 @@ toolkit checks cover the handoff and essential regressions offline.
 Existing client setup and isolated fixture execution remain maintenance work.
 The Governance branch serves as historical reference.
 
-The checkpoint coordinator and large A/B comparisons are maintained as manual
-tools. Native execution requires separate authorization. New reviews cover task success,
-architecture compliance, verification coverage and privacy. Measured role
-usage and timing serve diagnosis. Historical comparisons keep their original
-inputs, reports, scoring and source revision.
+A Candidate session freezes the current Rules, Skills, evaluator and selected
+fixtures, then runs each selected scenario once through Author and Work.
+The language-independent catalog owns scenario IDs, tool prerequisites, write
+scope and review criteria. The Python refactor accepts the historical `P01`
+alias. Native execution requires separate authorization and an exact role cap.
+
+The independent quality report uses sealed evidence for task success,
+architecture compliance, verification coverage and privacy in the chosen
+scope. Role usage and timing serve diagnosis. Historical comparisons and
+checkpoint procedures keep their original inputs, reports and source revisions.

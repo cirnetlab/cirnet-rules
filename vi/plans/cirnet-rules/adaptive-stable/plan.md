@@ -168,5 +168,23 @@ tài liệu kiến trúc, Skills, template, fixture và rubric khớp hash ban �
 Kho lưu trữ giữ hồ sơ benchmark từ README và điều chỉnh liên kết local theo
 vị trí mới.
 
+## Kiểm chứng một phiên Candidate
+
+| Thay đổi | Phép kiểm |
+| --- | --- |
+| Thay lịch so sánh bằng một phiên Candidate | Preview tập ca hỗn hợp và đối chiếu hash fixture, Rules, Skills và runner đã đóng băng. Kiểm tra yêu cầu cấp quyền rõ ràng cho các vai trò được chọn. |
+| Hợp nhất danh mục tình huống và báo cáo | Chạy các ca quyền riêng tư E01, bảo toàn dữ liệu E06, alias Python và fixture Rust. Từ chối handoff sai hoặc bằng chứng bị sửa trước khi chấp nhận rà soát. |
+| Dừng mã A/B đang hoạt động và nhóm script cùng test | Kiểm tra lệnh phân phối, đường dẫn CI và tài liệu EN/VI. Đối chiếu byte fixture đã di chuyển, rubric gốc và bằng chứng lịch sử với checkout tại `d59ac89`. |
+
+Windows không khởi chạy được Git cho fixture Python khi ID mô tả xuất hiện
+hai lần trong đường dẫn làm việc. Sau khi chỉ dùng một thư mục ca dưới
+`trials/`, preview Author cho Python và Rust chuẩn bị được đầu vào đã đóng
+băng. Các phép kiểm fixture chạy trên Windows và Ubuntu 24.04. Mô phỏng E08
+chạy trên Windows. Ubuntu thiếu công cụ Icarus Verilog nên mô phỏng ở đó là
+`NOT_RUN`.
+
+Báo cáo độc lập bao quát các ca được chọn trong một phiên. Chạy native và
+nghiệm thu phát hành cho revision này ở trạng thái `NOT_RUN`.
+
 <!-- source: en/plans/cirnet-rules/adaptive-stable/plan.md -->
-<!-- source-sha256: fe7faca98e3fa7b15e3cdd0579176e25e97e808a76929064300c3c0f7320a13c -->
+<!-- source-sha256: b225db3f67735180c835ededc77c990ddeda6c521af5c4a2a41cca96f5fdf2c0 -->

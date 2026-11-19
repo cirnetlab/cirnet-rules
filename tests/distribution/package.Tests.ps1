@@ -1,10 +1,10 @@
 #requires -Version 7.0
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path -Parent $PSScriptRoot
-$module = Join-Path $repo 'scripts/Bundle.psm1'
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$module = Join-Path $repo 'scripts/shared/Bundle.psm1'
 $package = Join-Path $repo 'scripts/package.ps1'
 if (-not (Test-Path -LiteralPath $module -PathType Leaf)) {
-    throw 'Cannot verify a standalone bundle because scripts/Bundle.psm1 is missing.'
+    throw 'Cannot verify a standalone bundle because scripts/shared/Bundle.psm1 is missing.'
 }
 Import-Module $module -Force
 

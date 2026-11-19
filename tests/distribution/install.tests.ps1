@@ -2,11 +2,11 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$repo = Split-Path $PSScriptRoot
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $install = Join-Path $repo 'scripts/install.ps1'
 $restore = Join-Path $repo 'scripts/restore.ps1'
 $verify = Join-Path $repo 'scripts/verify-install.ps1'
-Import-Module (Join-Path $repo 'scripts/Bundle.psm1')
+Import-Module (Join-Path $repo 'scripts/shared/Bundle.psm1')
 $testRoot = Resolve-CirnetPath -Root $repo -Relative 'target/toolkit-tests'
 $session = Resolve-CirnetPath -Root $testRoot -Relative ('installer-' + [guid]::NewGuid().ToString('N'))
 $defaults = 'cirnet-implementation', 'cirnet-debugging', 'cirnet-verification'

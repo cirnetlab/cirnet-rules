@@ -1,10 +1,10 @@
 #requires -Version 7.0
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$repo = Split-Path -Parent $PSScriptRoot
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $tokens = $null
 $errors = $null
-$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/eval-codex.ps1'), [ref]$tokens, [ref]$errors)
+$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/benchmark/role.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Runner parsing failed.' }
 $traceFunction = $ast.Find({ param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Get-Trace'

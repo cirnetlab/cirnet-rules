@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
 
-const source = path => new URL(`../${path}`, import.meta.url);
+const source = path => new URL(`../../${path}`, import.meta.url);
 const read = path => readFileSync(source(path), 'utf8');
 const authoring = 'skills/cirnet-work-prompt-authoring/SKILL.md';
 const refactoring = 'skills/cirnet-refactoring/SKILL.md';

@@ -4,7 +4,7 @@ import { Script } from 'node:vm';
 import test from 'node:test';
 
 // Exercise the report script's pure predicate without executing its CLI entry.
-const source = readFileSync(new URL('../scripts/eval-codex-report.mjs', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../../scripts/benchmark/report.mjs', import.meta.url), 'utf8');
 const definition = source.match(/^function hasSuccessfulRtlStage\(stages, stage, evidence\) \{[\s\S]*?^\}/m);
 assert.ok(definition, 'Reporter must expose its internal RTL evidence predicate for isolated regression checks');
 const supports = new Script(`(${definition[0]})`).runInNewContext();

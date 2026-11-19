@@ -21,11 +21,12 @@ Thay đổi candidate nằm trong [changelog](docs/changelog.md).
 Bằng chứng sản phẩm có ngày trong [reference](references/README.md).
 Xem [kiểm chứng toolkit](docs/toolkit-verification.md) để biết kết quả chạy
 và [kiểm chứng song ngữ trước đây](docs/bilingual-verification.md) về lịch sử.
-Dùng [kiểm tra tương thích tập trung](docs/model-compatibility.md) khi thay đổi
-model hoặc ranh giới công cụ. [Kho lưu trữ benchmark](../reports/work-prompt-benchmark-history.md)
+Dùng [kiểm tra tương thích tập trung](docs/model-compatibility.md) và
+[benchmark Candidate một phiên](docs/behavioral-evaluation.md) khi thay đổi model
+hoặc ranh giới công cụ. [Kho lưu trữ benchmark](../reports/work-prompt-benchmark-history.md)
 ghi lại các lượt chạy lịch sử.
 
 [Giấy phép](../LICENSE) · [Thông báo bên thứ ba](../THIRD_PARTY_NOTICES.md)
 
 <!-- source: en/README.md -->
-<!-- source-sha256: 93cdf4fda0b0913df2b54ffe0c89615a9391c56b3a28385b2374ab155083899f -->
+<!-- source-sha256: 0b019a17645f289bb148c7b241c177c1fa3425e3534015e7db37ffcf0da48a22 -->

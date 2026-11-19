@@ -48,11 +48,17 @@ bộ công cụ bao phủ handoff và các hồi quy thiết yếu ở chế đ�
 Thiết lập client hiện có và thực thi fixture cô lập thuộc phạm vi bảo trì.
 Nhánh Governance phục vụ tra cứu lịch sử.
 
-Bộ điều phối checkpoint và so sánh A/B quy mô lớn được giữ làm công cụ chạy
-thủ công. Chạy Native cần quyền riêng. Các đợt rà nghiệm thu mới đánh giá mức độ hoàn
-thành tác vụ, tuân thủ kiến trúc, độ bao phủ kiểm chứng và quyền riêng tư.
-Số liệu sử dụng và thời gian đo được của từng vai trò phục vụ chẩn đoán.
-Các phép so sánh lịch sử giữ nguyên đầu vào, báo cáo, cách chấm và revision nguồn.
+Một phiên Candidate đóng băng Rules, Skills, bộ chấm hiện tại và fixture đã
+chọn, rồi chạy mỗi ca một lần qua Author và Work. Danh mục độc lập ngôn ngữ
+quản lý ID ca, điều kiện công cụ, phạm vi ghi và tiêu chí rà. Ca refactor
+Python nhận bí danh lịch sử `P01`. Chạy Native cần quyền riêng và giới hạn
+lượt vai trò chính xác.
+
+Báo cáo chất lượng độc lập dựa trên bằng chứng đã niêm phong để đánh giá mức
+hoàn thành tác vụ, tuân thủ kiến trúc, độ bao phủ kiểm chứng và quyền riêng
+tư trong phạm vi đã chọn. Số liệu sử dụng và thời gian của vai trò phục vụ
+chẩn đoán. Phép so sánh và quy trình checkpoint lịch sử giữ đầu vào, báo cáo
+và revision nguồn gốc.
 
 <!-- source: en/specs/cirnet-rules/adaptive-stable/spec.md -->
-<!-- source-sha256: 03fc8874ba1542c2518286c1c34c6110652aca60f25cc9719e309c2365067743 -->
+<!-- source-sha256: f21f45198a4d9a82b817f31bef0a639c8548cf318bbb8141a219f28bd1030159 -->

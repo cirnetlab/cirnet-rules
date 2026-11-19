@@ -1,16 +1,16 @@
 #requires -Version 7.0
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$repo = Split-Path -Parent $PSScriptRoot
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $tokens = $null
 $errors = $null
-$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/eval-codex.ps1'), [ref]$tokens, [ref]$errors)
+$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/benchmark/role.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Runner parsing failed.' }
 $function = $ast.Find({ param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Test-EvidenceValue'
 }, $false)
 . ([scriptblock]::Create($function.Extent.Text))
-$source = [IO.File]::ReadAllText((Join-Path $repo 'tests/behavioral/fixtures/E01/accounts.mjs'))
+$source = [IO.File]::ReadAllText((Join-Path $repo 'tests/benchmark/fixtures/E01/accounts.mjs'))
 $values = @([regex]::Matches($source, "recoveryCode:\s*'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
 if (-not $values.Count) { throw 'Protected synthetic fixture unavailable.' }
 $issues = [Collections.Generic.List[string]]::new()

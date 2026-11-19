@@ -11,7 +11,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'Bundle.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'shared/Bundle.psm1') -Force
 
 if ($Verify) { return Read-CirnetBundle -Source $Source }
 

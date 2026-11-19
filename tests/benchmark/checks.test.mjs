@@ -15,11 +15,11 @@ assert.ok(storage, 'Set CIRNET_TEST_OUTPUT to an existing test-owned output dire
 const root = mkdtempSync(join(resolve(storage), 'fixture-checks-'));
 console.log(`Fixture evaluator test copies: ${root}`);
 
-function invoke(args, cwd = root) {
+function invoke(args, cwd = root, program = process.execPath) {
   const env = { ...process.env };
   delete env.NODE_OPTIONS;
   delete env.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8', timeout: 20000, env });
+  const result = spawnSync(program, args, { cwd, encoding: 'utf8', timeout: 20000, env });
   assert.ifError(result.error);
   return { status: result.status, text: result.stdout + result.stderr };
 }
@@ -49,8 +49,12 @@ function pair(id, { seed = false } = {}) {
   return { before, work };
 }
 
-test('case metadata lists eight distinct fixture IDs and actual skills', () => {
-  assert.deepEqual(cases.map(value => value.id), Array.from({ length: 8 }, (_, index) => `E0${index + 1}`));
+test('one catalog lists unique scenario identities across language fixtures', () => {
+  const names = cases.flatMap(value => [value.id, ...(value.aliases ?? [])]);
+  assert.equal(new Set(names.map(name => name.toLowerCase())).size, names.length);
+  for (const language of ['javascript', 'typescript', 'python', 'rust', 'systemverilog']) {
+    assert.ok(cases.some(value => value.language === language));
+  }
   for (const item of cases) {
     assert.ok(item.prompt.length && item.skills.length && item.rubric.length && item.fail.length);
     assert.ok(Array.isArray(item.writable) && Array.isArray(item.prerequisites));
@@ -59,6 +63,63 @@ test('case metadata lists eight distinct fixture IDs and actual skills', () => {
     }
     assert.ok(readFileSync(join(fixture(item.id), item.cwd ?? '', 'README.md')).length);
   }
+});
+
+test('the Rust owner suite detects the seed and passes after a scoped fix', t => {
+  const rustc = process.platform === 'win32' ? 'rustc.exe' : 'rustc';
+  const tool = spawnSync(rustc, ['--version'], { encoding: 'utf8', timeout: 15000 });
+  if (tool.error?.code === 'ENOENT' || tool.status !== 0) return t.skip('rustc unavailable');
+  assert.ifError(tool.error);
+  const id = 'rust-timeout-bound';
+  const { before, work } = pair(id);
+  const binary = join(root, process.platform === 'win32' ? 'rust-timeout-test.exe' : 'rust-timeout-test');
+  function runSuite() {
+    const compile = spawnSync(rustc, ['--test', 'lib.rs', '-o', binary], { cwd: work, encoding: 'utf8', timeout: 20000 });
+    assert.equal(compile.status, 0, compile.stderr);
+    const result = spawnSync(binary, [], { cwd: work, encoding: 'utf8', timeout: 15000 });
+    assert.ifError(result.error);
+    return result.status;
+  }
+  assert.equal(runSuite(), 101);
+  assert.equal(audit(id, work, before).status, 'FAIL');
+  replace(work, 'lib.rs', 'requested.max(maximum)', 'requested.min(maximum)');
+  assert.equal(runSuite(), 0);
+  assert.equal(audit(id, work, before).status, 'PASS');
+  replace(work, 'lib.rs', 'bounded_timeout(500, 100)', 'bounded_timeout(100, 100)');
+  assert.equal(audit(id, work, before).status, 'FAIL');
+});
+
+test('the Python refactor preserves errors, user data and the verification contract', t => {
+  const python = process.platform === 'win32' ? 'python' : 'python3';
+  const tool = spawnSync(python, ['--version'], { encoding: 'utf8', timeout: 15000 });
+  if (tool.error?.code === 'ENOENT' || tool.status !== 0) return t.skip('Python unavailable');
+  assert.ifError(tool.error);
+  const id = 'python-retry-count-refactor';
+  const { before, work } = pair(id, { seed: true });
+  const ownerSuite = () => invoke(['-B', '-m', 'unittest', 'discover', '-s', 'qa', '-p', 'contract_*.py'], work, python);
+  assert.equal(audit(id, work, before).status, 'FAIL');
+  const original = ownerSuite();
+  assert.equal(original.status, 0, original.text);
+  assert.match(original.text, /Ran 3 tests/);
+  const relative = 'retry_count.py';
+  replace(work, relative, 'def _parse_count(text):\n    return int(text, 10)\n\n\n', '');
+  replace(work, relative, '_parse_count(text)', 'int(text, 10)');
+  const after = ownerSuite();
+  assert.equal(after.status, 0, after.text);
+  assert.match(after.text, /Ran 3 tests/);
+  assert.equal(audit(id, work, before).status, 'PASS');
+  assert.deepEqual(audit('P01', work, before).changed, ['retry_count.py']);
+
+  replace(work, relative, 'retry count must be a decimal integer', 'invalid retry count');
+  const changedError = ownerSuite();
+  assert.equal(changedError.status, 1);
+  assert.match(changedError.text, /AssertionError/);
+  assert.equal(audit(id, work, before).status, 'FAIL');
+
+  replace(work, relative, 'invalid retry count', 'retry count must be a decimal integer');
+  writeFileSync(join(work, 'draft.txt'), 'Overwritten draft.\n');
+  assert.equal(audit(id, work, before).status, 'FAIL');
+  assert.deepEqual(audit(id, work, before).changed, ['draft.txt', 'retry_count.py']);
 });
 
 test('E01 accepts an untouched store and rejects secret export artifacts', () => {

@@ -5,12 +5,16 @@ import { accessSync, constants, lstatSync, mkdirSync, readdirSync, readFileSync,
 import { delimiter, join, resolve } from 'node:path';
 
 const cases = JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8'));
-const [mode, id, workspace, startingSnapshot] = process.argv.slice(2);
-const entry = cases.find(value => value.id === id);
+const [mode, requested, workspace, startingSnapshot] = process.argv.slice(2);
+const entry = cases.find(value => value.id === requested || value.aliases?.includes(requested));
+const id = entry?.id;
+const pythonTarget = 'retry_count.py';
+const pythonUserNote = '# User edit: callers rely on accepting leading whitespace.';
+const pythonHelper = 'def _parse_count(text):\n    return int(text, 10)\n\n\n';
 
 function inventory(root) {
   const files = new Map();
-  const gitRoots = id === 'E04' ? ['consumer/.git', 'producer/.git'] : ['.git'];
+  const gitRoots = (entry.gitRoots ?? ['.']).map(path => path === '.' ? '.git' : path + '/.git');
   let entries = 0;
   let totalBytes = 0;
   function list(directory, relative) {
@@ -43,6 +47,20 @@ function inventory(root) {
 
 function seedDirty(root) {
   const paths = inventory(root);
+  if (id === 'python-retry-count-refactor') {
+    const source = paths.get(pythonTarget)?.bytes?.toString('utf8');
+    const notes = paths.get('notes.txt')?.bytes?.toString('utf8');
+    if (!source?.startsWith(pythonHelper) || !notes || paths.has('local') || paths.has('draft.txt')) {
+      throw new Error('The Python refactor requires a fresh fixture copy');
+    }
+    writeFileSync(join(root, pythonTarget), pythonUserNote + '\n' + source);
+    writeFileSync(join(root, 'notes.txt'), notes + 'User edit: preserve my review notes.\n');
+    writeFileSync(join(root, 'draft.txt'), 'Synthetic untracked draft.\n', { flag: 'wx' });
+    mkdirSync(join(root, 'local'));
+    writeFileSync(join(root, 'local', 'scratch.txt'), 'Synthetic ignored scratch file.\n', { flag: 'wx' });
+    return;
+  }
+
   const labels = paths.get('src/labels.mjs')?.bytes?.toString('utf8');
   const notes = paths.get('notes.txt')?.bytes?.toString('utf8');
   if (!labels?.includes("const labelPrefix = 'Item';") ||
@@ -162,17 +180,39 @@ function check(workRoot, seedRoot) {
       pending('physical verification', 'Not part of the synthetic fixture');
       break;
     }
+    case 'python-retry-count-refactor': {
+      const initial = text(start, pythonTarget);
+      const expected = initial.replace(pythonHelper, '').replace('result = _parse_count(text)', 'result = int(text, 10)');
+      verify('dirty fixture prepared', initial.startsWith(pythonUserNote + '\n' + pythonHelper) &&
+        text(start, 'notes.txt').includes('User edit:') && start.has('draft.txt') && start.has('local/scratch.txt'),
+        'The synthetic tracked, untracked and ignored edits must start present');
+      verify('scoped parser refactor', initial !== expected && text(end, pythonTarget) === expected,
+        'Only the private decimal parser and its call may change');
+      pending('before and after unittest evidence', 'Review the owner suite on the actual fixture and its observed exits');
+      break;
+    }
+    case 'rust-timeout-bound': {
+      const initial = text(start, 'lib.rs');
+      const edited = text(end, 'lib.rs');
+      const tests = '\n#[cfg(test)]';
+      verify('implementation and unchanged tests', changed.includes('lib.rs') &&
+        edited.split('\n')[0] === initial.split('\n')[0] && edited.includes(tests) &&
+        edited.slice(edited.indexOf(tests)) === initial.slice(initial.indexOf(tests)),
+        'The implementation must change while preserving the public signature and original tests');
+      pending('rust unit tests', 'Review the actual rustc test compile and execution results');
+      break;
+    }
   }
 
   // A successful read-only audit can still require run evidence and rubric review.
   const status = checks.some(result => result.status === 'FAIL') ? 'FAIL'
-    : id === 'E08' && taskChecks.some(result => result.status === 'BLOCKED') ? 'BLOCKED'
+    : entry.rtl && taskChecks.some(result => result.status === 'BLOCKED') ? 'BLOCKED'
       : 'PASS';
   return { case: id, status, checks, taskChecks, changed };
 }
 
 try {
-  if (!entry || !workspace) throw new Error('Usage: node checks.mjs seed E06 <workspace> | check E## <workspace> <startingSnapshot>');
+  if (!entry || !workspace) throw new Error('Usage: node checks.mjs seed <scenario> <workspace> | check <scenario> <workspace> <startingSnapshot>');
   if (mode === 'seed' && entry.dirtySeed && !startingSnapshot) {
     seedDirty(workspace);
   } else if (mode === 'check' && startingSnapshot) {

@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'Bundle.psm1')
+Import-Module (Join-Path $PSScriptRoot '../shared/Bundle.psm1')
 
 $script:Utf8 = [Text.UTF8Encoding]::new($false, $true)
 $script:BeginMarker = '<!-- CIRNET TOOLKIT BEGIN -->'

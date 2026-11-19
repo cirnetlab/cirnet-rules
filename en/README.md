@@ -21,8 +21,9 @@ Current candidate changes are in the [changelog](docs/changelog.md).
 Product evidence is dated in [references](references/README.md).
 See [toolkit verification](docs/toolkit-verification.md) for execution results
 and [earlier bilingual verification](docs/bilingual-verification.md) for history.
-Use [focused compatibility checks](docs/model-compatibility.md) when a model or
-tool boundary changes. The [benchmark archive](../reports/work-prompt-benchmark-history.md)
+Use [focused compatibility checks](docs/model-compatibility.md) and the
+[single-session Candidate benchmark](docs/behavioral-evaluation.md) when a model
+or tool boundary changes. The [benchmark archive](../reports/work-prompt-benchmark-history.md)
 records historical runs.
 
 [License](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md)

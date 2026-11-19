@@ -176,3 +176,20 @@ simulator executables for that fixture. The 5,525 historical evidence files,
 existing reports, architecture documents, Skills, templates, fixtures and
 rubrics matched their starting hashes. The archive preserves the README's
 benchmark record with its local links adjusted for the new location.
+
+## Single Candidate verification
+
+| Change | Check |
+| --- | --- |
+| Replace the comparison schedule with one Candidate session | Preview a mixed selection and verify the frozen fixture, Rules, Skills and runner hashes. Check that execution requires explicit authorization for the selected roles. |
+| Unify the scenario inventory and report | Exercise the E01 privacy and E06 data preservation cases, the Python alias and the Rust fixture. Reject invalid handoffs and altered evidence before accepting a review. |
+| Retire the active A/B code and group scripts and tests | Verify distribution commands, CI paths and EN/VI documentation. Compare moved fixture bytes, original rubrics and historical evidence with the checkout at `d59ac89`. |
+
+Windows failed to start Git for the Python fixture with its descriptive ID
+repeated in the working directory. With one case directory under `trials/`,
+the Python and Rust Author previews prepared their frozen inputs. The fixture
+checks ran on Windows and Ubuntu 24.04. E08 simulation ran on Windows. Ubuntu
+had no Icarus Verilog tools, so that simulation was `NOT_RUN` there.
+
+The independent report covers the selected scenarios in one session. Native
+execution and release acceptance for this revision are `NOT_RUN`.

@@ -11,6 +11,11 @@ Các kết quả Gemini và Codex dưới đây giữ nguyên kết luận, cấ
 danh đầu vào và giới hạn kiểm chứng gốc. Các hướng dẫn benchmark, checkpoint
 và mẫu RTL độc lập ở trên thuộc về revision lịch sử đó.
 
+The [last A/B checkout](https://github.com/cirnetlab/cirnet-rules/tree/d59ac89fddde41d96c21718d7c75c48a6323c380)
+preserves the comparison runner, reporter and checkpoint workflow as they stood
+before the single-Candidate refactor. / Checkout này giữ runner, reporter và
+quy trình checkpoint A/B trước khi chuyển sang một phiên Candidate.
+
 ## Adaptive Work Prompt — Gemini 3.8 Flash (High) evaluation / Đánh giá
 
 - **Date / Ngày**: 2026-11-17 · **Run ID**: `cirnet-bench-gemini38flash-20261116` · **Scope**: `FULL` (8/8 cases `E01`–`E08`, 16 native agent runs).

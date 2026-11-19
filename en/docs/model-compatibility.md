@@ -20,60 +20,24 @@ E07 for integration limits and E08 for RTL safety. Physical verification
 requires owner authorization and observed evidence. Keep the last verified
 runtime configuration as the fallback.
 
-## Run the Candidate-only smoke
+## Select a Candidate session
 
-The smoke uses `scripts/eval-codex.ps1` with the original synthetic E01 and E06
-cases. Preview allocates a fresh session under OS temp and records SHA-256
-hashes of the working bytes of the tracked toolkit and evaluator inputs, this
-guide and the runner files. Use a fresh session name each time.
+Use the [single-session benchmark](behavioral-evaluation.md) with the original
+E01 and E06 fixtures for a focused runtime change. E01 exercises read-only
+export clarification and E06 checks the scoped label refactor. Preview freezes
+the current source and plans up to four role calls. Native execution needs
+separate authorization and the exact call cap.
 
-```powershell
-$root = [IO.Path]::GetTempPath()
-$authHome = '<approved dedicated authentication directory under OS temp>'
-./scripts/eval-codex-model-smoke.ps1 -Session smoke-preview -Model '<supported-model-id>' -Effort high -OutputRoot $root
-# Run only with separate authorization and the approved authentication method.
-./scripts/eval-codex-model-smoke.ps1 -Session smoke-native -Model '<supported-model-id>' -Effort high -OutputRoot $root -AuthHome $authHome -Execute -MaxNativeCalls 4
-```
+Select E05 for regression ordering, `python-retry-count-refactor` for error
+semantics and user-data preservation, or `rust-timeout-bound` for Rust unit
+verification. The catalog also accepts `P01` as a historical alias for the
+Python scenario. Mix selected cases in one session when they share the same
+runtime configuration.
 
-A native session may attempt up to four role calls, one Author and one Work per
-case. A failed Author or invalid handoff stops that case before Work. The
-Candidate-only gate checks the handoff's readiness, verbatim original task,
-fixture write scope and nonempty review sections. E01 uses `PROMPT_BLOCKED`
-and permits Work only in a read-only sandbox to clarify export authority.
-E06 uses `PROMPT_READY` and its original write scope. Work verifies the
-Author SHA-256 and the gate fields on its exact input bytes. The runner
-writes `compatibility-summary.json` after
-execution. Exit 1 means a case failed or session setup or integrity failed.
-Exit 2 means evidence was blocked with no case failure. Exit 0 covers preview,
-successful mock objectives, or `OBJECTIVE_PASS_REVIEW_REQUIRED` on both native
-cases. Preview makes zero role calls. Offline `.ps1` test shims require no
-credentials and are marked `TEST_SHIM`.
-
-Review the actual trace, authorized scope, source diff and objective checks
-independently before claiming compatibility. Review the substance of the
-requirements and verification sections against the original task and rubric,
-including negative cases and privacy. The E06 write sandbox covers the fixture,
-and its objective checks detect changes outside the authorized file.
-Keep raw traces in the owned temp
-session and share only sanitized evidence. A detected E01 synthetic canary is a
-failure. The existing privacy audit detects exposure and the filesystem read
-isolation limit still applies.
-
-## Check generalization separately
-
-Select `-CaseId E05` for an existing debugging and regression case or
-`-CaseId P01` for the independent Python refactor. Each preview freezes the
-selected suite, the current Author and Work Skills, and the runner. Each
-authorized execution uses `-Execute -MaxNativeCalls 2` and the same handoff
-validation as the default smoke. P01 requires an approved Python executable
-available to the evaluation sandbox. Use `-ToolPath` for a verified portable
-interpreter under the OS temporary directory when needed.
-
-Review the chosen prompt level and the actual checks. Require E05's new
-regression to fail for the ordering defect before the source edit and pass
-afterward. Require P01's owner-provided unittest command to pass on the actual
-fixture before and after the edit, with the error contract and user data
-preserved. The Candidate-only runs use the current execution Skills.
+Require observed red-before-green evidence for E05 and the owner suite
+before and after the Python edit. Verify that E06 preserves the existing user
+edits, untracked and ignored files and shared helper. Review byte-exact
+handoff, objective changes and tests before accepting the applicable behavior.
 
 ## Record compatibility
 

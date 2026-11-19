@@ -1,7 +1,7 @@
 #requires -Version 7.0
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path -Parent $PSScriptRoot
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $smoke = Join-Path $repo 'scripts/eval-codex-model-smoke.ps1'
 $output = Join-Path ([IO.Path]::GetTempPath()) ('cirnet-model-smoke-test-' + [guid]::NewGuid().ToString('N'))
 $null = New-Item -ItemType Directory -Path $output
@@ -21,9 +21,17 @@ $e01 = Test-Path -LiteralPath accounts.mjs
 $author = $task -match '(?m)^(?:Original user task:|Start the handoff with these exact three lines:)\r?$'
 $recovery = -not $e01 -and $mode -eq 'mock-success'
 if ($mode -eq 'mock-blocked') { exit 7 }
+if ($mode -eq 'mock-quota') { [Console]::Error.WriteLine('HTTP 429 too many requests'); exit 7 }
 $localRules = Get-Content -Raw -LiteralPath AGENTS.md
 if ($mode -eq 'mock-success' -and $e01 -and $localRules.Contains('PowerShell test summary command:')) { exit 16 }
-if ($author) {
+if ($mode -eq 'mock-read-only') {
+    if ($args -notcontains 'read-only') { exit 18 }
+    if ($author) {
+        $header = [regex]::Match($task, '(?m)^PROMPT_(?:READY|BLOCKED)\r?\nOriginal task: [^\r\n]+\r?\nWrite scope: \[\]\r?$').Value
+        if (-not $header) { exit 19 }
+        $answer = "$header`n## Requirements and constraints`nInspect the scoped fixture and preserve the owner boundary.`n## Acceptance and verification`nRecord the missing dependency or authority.`n"
+    } else { $answer = 'Synthetic read-only Work evidence.' }
+} elseif ($author) {
     $goal = [regex]::Match($task, '(?m)^Original (?:user task:\r?\n|task: )([^\r\n]+)').Groups[1].Value
     if ($goal -notmatch 'replace the trimAlias call|data export feature') { exit 8 }
     $status = if ($e01) { 'PROMPT_BLOCKED' } else { 'PROMPT_READY' }
@@ -70,6 +78,12 @@ if ($author) {
 }
 '{"type":"thread.started","thread_id":"model-smoke-shim"}'
 '{"type":"turn.started"}'
+if (-not $author -and $recovery) {
+    foreach ($item in 'shim-before','shim-after') {
+        @{type='item.completed'; item=@{type='command_execution'; id=$item; command='node --test'; aggregated_output='# pass 1'; exit_code=0}} |
+            ConvertTo-Json -Depth 4 -Compress
+    }
+}
 if ($mode -eq 'mock-guards' -and $author -and $e01) {
     $value = [regex]::Match([IO.File]::ReadAllText((Join-Path $PWD 'accounts.mjs')), "recoveryCode:\s*'([^']+)'").Groups[1].Value
     @{type='item.completed'; item=@{type='command_execution'; id='synthetic-exposure'; aggregated_output=$value; exit_code=0}} |
@@ -102,7 +116,7 @@ if ($previewCode -ne 0 -or $preview.mode -ne 'PREVIEW' -or $preview.cohort -ne '
 }
 $guide = 'en/docs/model-compatibility.md'
 $guideHash = (Get-FileHash -LiteralPath (Join-Path $repo $guide)).Hash.ToLowerInvariant()
-$casesHash = (Get-FileHash -LiteralPath (Join-Path $repo 'tests/behavioral/cases.json')).Hash.ToLowerInvariant()
+$casesHash = (Get-FileHash -LiteralPath (Join-Path $repo 'tests/benchmark/cases.json')).Hash.ToLowerInvariant()
 if ($preview.rules[$guide] -cne $guideHash -or $preview.evaluator['cases.json'] -cne $casesHash) {
     throw 'Snapshot did not capture the actual guide and fixture suite hashes.'
 }
@@ -111,26 +125,48 @@ foreach ($id in @('P01', 'E05')) {
     & $smoke -Session "preview-$id" -Model mock -OutputRoot $output -CaseId $id
     if ($LASTEXITCODE -ne 0) { throw "Could not preview $id." }
     $lane = Read-Evidence "preview-$id/manifest.json"
-    if ($lane.mode -cne 'PREVIEW' -or @($lane.cases).Count -ne 1 -or $lane.cases[0] -cne $id -or $lane.maximumRoleCalls -ne 2 -or
+    $canonical = if ($id -eq 'P01') { 'python-retry-count-refactor' } else { $id }
+    if ($lane.mode -cne 'PREVIEW' -or @($lane.cases).Count -ne 1 -or $lane.cases[0] -cne $canonical -or $lane.maximumRoleCalls -ne 2 -or
         @(Get-ChildItem -LiteralPath (Join-Path $output "preview-$id/trials")).Count) {
         throw "Expected a two-role preview for only $id."
     }
     if ($lane.evaluator['fixtures/E01/accounts.mjs'] -cne $preview.evaluator['fixtures/E01/accounts.mjs'] -or
-        $lane.rules['en/skills/cirnet-refactoring/SKILL.md'] -cne $preview.rules['en/skills/cirnet-refactoring/SKILL.md']) {
-        throw 'The independent lane must preserve the privacy auditor and use the current execution Skill.'
+        $lane.evaluator['cases.json'] -cne $casesHash) {
+        throw 'Both scenarios must freeze the canonical catalog and share the privacy auditor.'
     }
     if ($id -ceq 'P01') {
-        $pythonSuite = Join-Path $repo 'tests/behavioral-python'
-        foreach ($file in @('cases.json', 'checks.mjs', 'fixtures/P01/retry_count.py', 'fixtures/P01/qa/contract_retries.py')) {
-            $hash = (Get-FileHash -LiteralPath (Join-Path $pythonSuite $file)).Hash.ToLowerInvariant()
+        foreach ($file in @('checks.mjs', "fixtures/$canonical/retry_count.py", "fixtures/$canonical/qa/contract_retries.py")) {
+            $hash = (Get-FileHash -LiteralPath (Join-Path $repo "tests/benchmark/$file")).Hash.ToLowerInvariant()
             if ($lane.evaluator[$file] -cne $hash) { throw "P01 did not freeze $file." }
         }
-        if ($lane.evaluator.Contains('fixtures/E05/rank.mjs')) { throw 'The Python suite must stay separate.' }
-    } elseif ($lane.evaluator['cases.json'] -cne $casesHash) {
-        throw 'E05 must use the original engineering suite.'
+        if ($lane.evaluator.Contains('fixtures/E05/rank.mjs')) { throw 'Snapshots must stage only selected fixtures and the shared audit input.' }
     }
     Assert-Rejected "wrong-budget-$id" @{ CaseId=$id; Execute=$true; MaxNativeCalls=4; CodexPath=$shim } 'Authorize up to 2'
 }
+& $smoke -Session mixed-preview -Model mock -OutputRoot $output -CaseId 'E02,P01,rust-timeout-bound'
+$mixed = Read-Evidence 'mixed-preview/manifest.json'
+if ($LASTEXITCODE -ne 0 -or ($mixed.cases -join ',') -cne 'E02,python-retry-count-refactor,rust-timeout-bound' -or
+    $mixed.maximumRoleCalls -ne 6 -or $mixed.Contains('schedule') -or $mixed.Contains('snapshots') -or $mixed.Contains('baseline') -or
+    -not $mixed.evaluator.Contains('fixtures/rust-timeout-bound/lib.rs')) {
+    throw 'Mixed scenarios must freeze once in a single Candidate session.'
+}
+$mixedRoot = Join-Path $output 'mixed-preview'
+foreach ($id in @('python-retry-count-refactor', 'rust-timeout-bound')) {
+    $trial = (New-Item -ItemType Directory -Path (Join-Path $mixedRoot "trials/$id")).FullName
+    $rolePreview = @{
+        RulesRoot=(Join-Path $mixedRoot 'rules'); SuiteRoot=(Join-Path $mixedRoot 'evaluator')
+        BenchmarkRoot=$mixedRoot; OutputRoot=$trial; Session='Author'; CaseId=$id; Role='Author'
+        SourceRevision=$mixed.sourceRevision; Model=$mixed.modelRequested; Effort=$mixed.effortRequested
+    }
+    & (Join-Path $repo 'scripts/benchmark/role.ps1') @rolePreview
+    $roleRecord = Read-Evidence "mixed-preview/trials/$id/Author/run.json"
+    $roleManifest = Read-Evidence "mixed-preview/trials/$id/Author/session.json"
+    if ($roleRecord.id -cne $id -or $roleRecord.execution -cne 'NOT_RUN' -or $roleRecord.startUtc -or
+        $roleManifest.cases[0].evidence -cne 'run.json') {
+        throw 'Long descriptive IDs must stage a bounded role preview without duplicate case directories or client calls.'
+    }
+}
+Assert-Rejected duplicate-alias @{ CaseId='P01,python-retry-count-refactor' } 'known, unique'
 Assert-Rejected preview @{} 'exist'
 Assert-Rejected wrong-cap @{ Execute=$true; CodexPath=$shim; MaxNativeCalls=3 } 'MaxNativeCalls 4'
 Assert-Rejected no-authorization @{ Execute=$true; MaxNativeCalls=4 } 'explicit authentication'
@@ -143,7 +179,7 @@ $invalidCode = $LASTEXITCODE
 $invalid = Read-Evidence 'invalid-handoff/compatibility-summary.json'
 foreach ($trial in $invalid.cases) {
     $author = Read-Evidence "invalid-handoff/$($trial.author.record)"
-    $handoffPath = Join-Path $output "invalid-handoff/trials/$($trial.id)/Author/$($trial.id)/final.md"
+    $handoffPath = Join-Path $output "invalid-handoff/trials/$($trial.id)/Author/final.md"
     $handoffHash = (Get-FileHash -LiteralPath $handoffPath).Hash.ToLowerInvariant()
     if ($invalidCode -ne 1 -or $author.finalSha256 -cne $handoffHash -or $trial.status -ne 'FAIL' -or
         $trial.work.execution -ne 'NOT_RUN' -or (Test-Path -LiteralPath (Join-Path $output "invalid-handoff/trials/$($trial.id)/Work"))) {
@@ -155,7 +191,7 @@ foreach ($trial in $invalid.cases) {
 $successCode = $LASTEXITCODE
 $passed = Read-Evidence 'success/compatibility-summary.json'
 if ($successCode -ne 0 -or $passed.mode -ne 'TEST_SHIM' -or $passed.independentReview -ne 'NOT_RUN' -or
-    ($passed.cases.id -join ',') -cne 'E01,E06' -or $passed.fullBenchmark -ne 'NOT_RUN') {
+    ($passed.cases.id -join ',') -cne 'E01,E06' -or $passed.Contains('fullBenchmark')) {
     throw 'Mock objectives must be distinguished from native evidence.'
 }
 foreach ($trial in $passed.cases) {
@@ -170,20 +206,20 @@ foreach ($trial in $passed.cases) {
     }
 }
 
-$e06 = Get-Content -Raw -LiteralPath (Join-Path $repo 'tests/behavioral/cases.json') |
+$e06 = Get-Content -Raw -LiteralPath (Join-Path $repo 'tests/benchmark/cases.json') |
     ConvertFrom-Json | Where-Object id -ceq 'E06'
-$e06Input = [IO.File]::ReadAllText((Join-Path $output 'success/trials/E06/Work/E06/prompt.txt'))
+$e06Input = [IO.File]::ReadAllText((Join-Path $output 'success/trials/E06/Work/prompt.txt'))
 if (-not ($e06Input -split '\r?\n' -ccontains "Original task: $($e06.prompt)") -or $e06Input -notmatch 'NOT_INSPECTED') {
     throw 'The E06 recovery handoff must preserve the original task and delegate the unread source to Work.'
 }
-$e01Work = Read-Evidence 'success/trials/E01/Work/E01/run.json'
-$e06Work = Read-Evidence 'success/trials/E06/Work/E06/run.json'
+$e01Work = Read-Evidence 'success/trials/E01/Work/run.json'
+$e06Work = Read-Evidence 'success/trials/E06/Work/run.json'
 if ($e01Work.command[[array]::IndexOf($e01Work.command, '--sandbox') + 1] -cne 'read-only' -or
     $e06Work.command[[array]::IndexOf($e06Work.command, '--sandbox') + 1] -cne 'workspace-write') {
     throw 'Blocked E01 Work must be read-only while ready E06 uses the existing write sandbox.'
 }
 
-$e06Rules = Get-Content -Raw -LiteralPath (Join-Path $output 'success/trials/E06/Work/E06/fixture/AGENTS.md')
+$e06Rules = Get-Content -Raw -LiteralPath (Join-Path $output 'success/trials/E06/Work/fixture/AGENTS.md')
 $testSummaryCommand = [regex]::Match($e06Rules, '(?m)^PowerShell test summary command: (.+)$').Groups[1].Value.TrimEnd("`r")
 if (-not $testSummaryCommand) { throw 'Missing E06 test summary command.' }
 $failedTestFolder = Join-Path $output 'summary-failure'
@@ -201,6 +237,61 @@ try {
 } finally { Pop-Location }
 
 $successRoot = Join-Path $output 'success'
+$review = Read-Evidence 'success/review-template.json'
+$review.reviewer = 'Offline review fixture'
+foreach ($id in $review.cases.Keys) {
+    foreach ($key in $review.cases[$id].Keys) {
+        foreach ($check in $review.cases[$id][$key]) {
+            $check.status = 'PASS'
+            $check.reason = 'Exercise the independent review and evidence gate.'
+            $check.evidence = @('Work/run.json')
+        }
+    }
+}
+$reviewPath = Join-Path $successRoot 'review.json'
+$review | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $reviewPath -Encoding utf8NoBOM
+& $smoke -Session success -OutputRoot $output -ReviewFile $reviewPath 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 1 -or (Test-Path -LiteralPath (Join-Path $successRoot 'quality-report.json'))) {
+    throw 'Verification PASS must cite an observed Work command.'
+}
+$review.cases.E06.verificationCoverage[0].evidence = @('Work/shim-before')
+$review.cases.E06.verificationCoverage[1].evidence = @('Work/shim-after')
+$review | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $reviewPath -Encoding utf8NoBOM
+$recordPath = Join-Path $successRoot 'trials/E06/Work/run.json'
+$recordBytes = [IO.File]::ReadAllBytes($recordPath)
+try {
+    $workRecord = Read-Evidence 'success/trials/E06/Work/run.json'
+    $workRecord.manifest.rules['.agents/skills/cirnet-refactoring/SKILL.md'] = '0' * 64
+    $workRecord | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $recordPath -Encoding utf8NoBOM
+    $rejection = & $smoke -Session success -OutputRoot $output -ReviewFile $reviewPath 2>&1
+    if ($LASTEXITCODE -ne 1 -or ($rejection -join "`n") -notmatch 'Staged Skill hash mismatch' -or
+        (Test-Path -LiteralPath (Join-Path $successRoot 'quality-report.json'))) {
+        throw 'Evidence must retain the selected Skill hash from the frozen session.'
+    }
+} finally { [IO.File]::WriteAllBytes($recordPath, $recordBytes) }
+$tracePath = Join-Path $successRoot 'trials/E06/Work/events.jsonl'
+$traceBytes = [IO.File]::ReadAllBytes($tracePath)
+try {
+    [IO.File]::AppendAllText($tracePath, "`n")
+    & $smoke -Session success -OutputRoot $output -ReviewFile $reviewPath 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 1 -or (Test-Path -LiteralPath (Join-Path $successRoot 'quality-report.json'))) {
+        throw 'A tampered trace must invalidate the sealed evidence index.'
+    }
+} finally { [IO.File]::WriteAllBytes($tracePath, $traceBytes) }
+& $smoke -Session success -OutputRoot $output -ReviewFile $reviewPath
+$qualityCode = $LASTEXITCODE
+$quality = Read-Evidence 'success/quality-report.json'
+if ($qualityCode -ne 2 -or $quality.status -ne 'NOT_RUN' -or $quality.source -ne 'TEST_SHIM' -or
+    $quality.cases[1].quality.verificationCoverage.status -ne 'PASS' -or $quality.Contains('paired')) {
+    throw 'A sealed, independently graded shim must not establish native quality PASS.'
+}
+$reportPath = Join-Path $successRoot 'quality-report.json'
+$reportHash = (Get-FileHash -LiteralPath $reportPath).Hash
+& $smoke -Session success -OutputRoot $output -ReviewFile $reviewPath 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 1 -or (Get-FileHash -LiteralPath $reportPath).Hash -cne $reportHash) {
+    throw 'A session must not overwrite its quality report.'
+}
+
 $workArguments = @{
     Cohort='Candidate'; Attempt=2; Role='Work'; CaseId='E06'; Model='mock-success'; Effort='high'
     ValidateCandidateHandoff=$true; ComparisonRoot=$successRoot
@@ -211,7 +302,7 @@ $invalidFile = Join-Path $successRoot 'invalid-handoff.md'
 [IO.File]::WriteAllText($invalidFile, ($e06Input -replace '(?s)## Acceptance and verification.*\z', '## Acceptance and verification'))
 $invalidHash = (Get-FileHash -LiteralPath $invalidFile).Hash.ToLowerInvariant()
 foreach ($entry in @(
-    @{ Session='wrong-digest'; HandoffPath=(Join-Path $successRoot 'trials/E06/Author/E06/final.md'); ExpectedHandoffSha256=('0' * 64) }
+    @{ Session='wrong-digest'; HandoffPath=(Join-Path $successRoot 'trials/E06/Author/final.md'); ExpectedHandoffSha256=('0' * 64) }
     @{ Session='empty-verification'; HandoffPath=$invalidFile; ExpectedHandoffSha256=$invalidHash }
 )) {
     $rejected = $false
@@ -227,9 +318,9 @@ if ($guardsCode -ne 1 -or $guarded.cases[0].author.privacyHits -lt 1 -or
     @($guarded.cases | Where-Object { $_.status -ne 'FAIL' -or $_.work.execution -ne 'NOT_RUN' }).Count) {
     throw 'Privacy exposure and a false E06 block must fail without dispatching Work.'
 }
-$fixture = [IO.File]::ReadAllText((Join-Path $repo 'tests/behavioral/fixtures/E01/accounts.mjs'))
+$fixture = [IO.File]::ReadAllText((Join-Path $repo 'tests/benchmark/fixtures/E01/accounts.mjs'))
 $canary = [regex]::Match($fixture, "recoveryCode:\s*'([^']+)'").Groups[1].Value
-foreach ($relative in @('guards/compatibility-summary.json', 'guards/trials/E01/Author/E01/events.jsonl')) {
+foreach ($relative in @('guards/compatibility-summary.json', 'guards/trials/E01/Author/events.jsonl')) {
     if (-not $canary -or [IO.File]::ReadAllText((Join-Path $output $relative)).Contains($canary)) {
         throw 'Synthetic canary was not withheld from role evidence.'
     }
@@ -252,6 +343,30 @@ if ($blockedCode -ne 2 -or @($blocked.cases | Where-Object {
     throw 'Incomplete turns must stay blocked with missing usage marked unavailable.'
 }
 
+& $smoke @execute -Session shared-blocker -Model mock-quota
+$quotaCode = $LASTEXITCODE
+$quota = Read-Evidence 'shared-blocker/compatibility-summary.json'
+if ($quotaCode -ne 2 -or $quota.cases[0].reason -notmatch 'quota' -or $quota.cases[1].status -ne 'NOT_RUN' -or
+    (Test-Path -LiteralPath (Join-Path $output 'shared-blocker/trials/E06'))) {
+    throw 'A shared runtime blocker must stop dispatch for remaining scenarios.'
+}
+
+& $smoke @execute -CaseId 'E04,E07' -Session read-only -Model mock-read-only
+$readOnlyCode = $LASTEXITCODE
+$readOnly = Read-Evidence 'read-only/compatibility-summary.json'
+if ($readOnlyCode -ne 0 -or @($readOnly.cases | Where-Object { $_.status -ne 'TEST_SHIM_OBJECTIVE_PASS' }).Count) {
+    throw 'A blocked dependency and a runnable read-only verification must both preserve the handoff.'
+}
+foreach ($id in 'E04','E07') {
+    $work = Read-Evidence "read-only/trials/$id/Work/run.json"
+    $inputPath = Join-Path $output "read-only/trials/$id/Work/prompt.txt"
+    $expected = if ($id -eq 'E04') { 'PROMPT_BLOCKED' } else { 'PROMPT_READY' }
+    if ($work.command[[array]::IndexOf($work.command,'--sandbox') + 1] -cne 'read-only' -or
+        (Get-Content -LiteralPath $inputPath -TotalCount 1) -cne $expected) {
+        throw "Unexpected read-only readiness for $id."
+    }
+}
+
 $singleArgs = $execute.Clone()
 $singleArgs.MaxNativeCalls = 2
 & $smoke @singleArgs -CaseId E05 -Session blocked-single -Model mock-blocked
@@ -261,7 +376,7 @@ if ($singleCode -ne 2 -or $single.cases -isnot [array] -or $single.cases.Count -
     $single.cases[0].id -cne 'E05' -or $single.cases[0].status -cne 'BLOCKED') {
     throw 'Single-case summaries must retain the cases array.'
 }
-$authorPrompt = [IO.File]::ReadAllText((Join-Path $output 'blocked-single/trials/E05/Author/E05/prompt.txt'))
+$authorPrompt = [IO.File]::ReadAllText((Join-Path $output 'blocked-single/trials/E05/Author/prompt.txt'))
 if (-not $authorPrompt.Contains('Cite only sources available to Work')) {
     throw 'Single-case Author must be told to avoid prerequisites that are available only to Author.'
 }

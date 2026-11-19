@@ -9,7 +9,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'InstallSupport.psm1')
+Import-Module (Join-Path $PSScriptRoot 'distribution/InstallSupport.psm1')
 $layout = Get-CirnetInstallLayout -Agent $Agent -HomeRoot $HomeRoot -CodexHome $CodexHome
 $plan = Get-CirnetRestorePlan -Layout $layout -Backup $Backup
 Show-CirnetInstallPlan -Plan $plan -Action 'restore'

@@ -1,8 +1,8 @@
 #requires -Version 7.0
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path -Parent $PSScriptRoot
-Import-Module (Join-Path $repo 'scripts/Bundle.psm1') -Force
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module (Join-Path $repo 'scripts/shared/Bundle.psm1') -Force
 
 $target = Resolve-CirnetPath -Root $repo -Relative 'target'
 $fixture = Resolve-CirnetPath -Root $target -Relative ('changed-docs-test-' + [guid]::NewGuid().ToString('N'))

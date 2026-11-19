@@ -6,9 +6,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { containsProtectedValue, inspectSource } from '../scripts/eval-codex-privacy.mjs';
-const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const source = readFileSync(join(repo, 'tests/behavioral/fixtures/E01/accounts.mjs'), 'utf8');
+import { containsProtectedValue, inspectSource } from '../../scripts/benchmark/inspect-source.mjs';
+const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const source = readFileSync(join(repo, 'tests/benchmark/fixtures/E01/accounts.mjs'), 'utf8');
 const values = [...source.matchAll(/recoveryCode:\s*'([^']+)'/g)].map(item => item[1]);
 assert.ok(values.length, 'Synthetic evaluator values are required.');
 const output = mkdtempSync(join(tmpdir(), 'cirnet-privacy-tests-'));
@@ -36,7 +36,7 @@ test('bounded inspector returns public projection identifiers without source val
   assert.equal(filtered.functions.length, 1);
   assert.equal(filtered.functions[0].exported, true);
   assert.deepEqual(filtered.functions[0].objectKeys, ['displayName','theme']);
-  const run = spawnSync(process.execPath, [join(repo, 'scripts/eval-codex-privacy.mjs'), 'records.mjs', '--symbol', 'readPreferences'], { cwd:output, encoding:'utf8' });
+  const run = spawnSync(process.execPath, [join(repo, 'scripts/benchmark/inspect-source.mjs'), 'records.mjs', '--symbol', 'readPreferences'], { cwd:output, encoding:'utf8' });
   assert.equal(run.status, 0);
   assert.ok(!containsProtectedValue(run.stdout + run.stderr, values));
   assert.equal(JSON.parse(run.stdout).sha256, result.sha256);
@@ -83,7 +83,7 @@ test('unsafe paths, oversized input and unsupported symbols fail closed without 
     if (!['EPERM', 'EACCES'].includes(error.code)) throw error;
     t.diagnostic('NOT_RUN: Windows denied the symlink fixture; other boundary assertions ran.');
   }
-  const run = spawnSync(process.execPath, [join(repo, 'scripts/eval-codex-privacy.mjs'), 'missing.mjs'], { cwd: output, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, [join(repo, 'scripts/benchmark/inspect-source.mjs'), 'missing.mjs'], { cwd: output, encoding: 'utf8' });
   assert.equal(run.status, 2);
   assert.equal(run.stdout, '');
   assert.ok(!containsProtectedValue(run.stderr, values));
