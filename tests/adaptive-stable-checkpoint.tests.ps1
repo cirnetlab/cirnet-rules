@@ -71,8 +71,24 @@ Assert-Equal (Get-StableAbReview $report 'full') 'PASS' 'Assessment can conclude
 $report.qualityGates.G5 = 'FAIL'
 Assert-Equal (Get-StableAbReview $report 'full') 'REPAIR_REQUIRED' 'Verification regression'
 
-& (Join-Path $PSHOME 'pwsh') -NoProfile -NonInteractive -File (Join-Path $repo 'scripts/eval-adaptive-stable.ps1') -Session missing-owner-cap -Execute 2>$null
-Assert-Equal $LASTEXITCODE 1 'Dispatch requires explicit owner authorization'
+# Keep the expected child failure out of the workflow step's $LASTEXITCODE.
+$powerShell = Join-Path $PSHOME ($IsWindows ? 'pwsh.exe' : 'pwsh')
+$startInfo = [Diagnostics.ProcessStartInfo]::new($powerShell)
+$startInfo.UseShellExecute = $false
+$startInfo.RedirectStandardError = $true
+$runner = Join-Path $repo 'scripts/eval-adaptive-stable.ps1'
+foreach ($argument in @('-NoProfile', '-NonInteractive', '-File', $runner, '-Session', 'missing-owner-cap', '-Execute')) {
+    $startInfo.ArgumentList.Add($argument)
+}
+$child = [Diagnostics.Process]::Start($startInfo)
+try {
+    $errorText = $child.StandardError.ReadToEnd()
+    $child.WaitForExit()
+    Assert-Equal $child.ExitCode 1 'Dispatch requires explicit owner authorization'
+    if ($errorText -cnotmatch 'Native execution requires an explicit owner-approved') {
+        throw 'The runner must reject unapproved dispatch with its authorization error.'
+    }
+} finally { $child.Dispose() }
 foreach ($status in @('REVIEW_REQUIRED', 'AUTHORIZATION_REQUIRED')) {
     Assert-Equal (Get-StableExitCode $status) 2 'Existing automation exit code'
     Assert-Equal (Get-StableExitCode $status -Interactive) 0 'Interactive pause exits normally'
