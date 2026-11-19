@@ -75,6 +75,51 @@ unittest do owner công bố phải đạt trên fixture thực tế trước v�
 đồng thời giữ hợp đồng lỗi và dữ liệu người dùng. Các lượt Candidate-only
 dùng Skill thực thi hiện tại. Lane A/B legacy dùng bộ Skill thực thi chung
 đã đóng băng cho cả hai cohort.
+Khi dùng Work rules hiện tại, E06 Work ở cả hai cohort A/B áp dụng cách đọc
+thay thế có giới hạn và hướng dẫn lọc tóm tắt test như Candidate-only.
+
+## Tiếp tục kiểm chứng Adaptive Stable
+
+Chạy bộ điều phối từ checkout của rules. Giữ cùng ID phiên và thư mục đầu ra
+để tiếp tục với ngân sách tích lũy. Mặc định đầu ra nằm trong thư mục tạm của
+hệ điều hành.
+
+```powershell
+./scripts/eval-adaptive-stable.ps1 -Session adaptive-stable-acceptance
+# Chỉ dùng lệnh này khi owner đã duyệt giới hạn ban đầu 124 lượt vai trò.
+./scripts/eval-adaptive-stable.ps1 -Session adaptive-stable-acceptance -Execute `
+  -ApprovedRoleCalls 124 -AuthHome $authHome -PythonToolPath $pythonTool -RtlToolPath $rtlTool
+```
+
+Lệnh đầu chạy các phép kiểm offline và chuẩn bị preview cho bước tiếp theo.
+Các bước native dùng `gpt-6.2-sol`, `xhigh` và 300 giây mỗi vai trò. Lịch ban
+đầu gồm E01/E06, lần lặp E01/E06 độc lập, E05, P01, A/B pilot bốn ca và A/B
+đầy đủ với ba lần lặp. Các bước lần lượt dành trước 4, 4, 2, 2, 16 và 96 lượt
+vai trò. Dùng hồ sơ đăng nhập dành riêng cho đánh giá. Có thể bỏ đường dẫn
+công cụ nếu Python và cả hai chương trình Icarus đã có trên `PATH`.
+
+Xem `checkpoint.json` trong thư mục phiên để biết hash nguồn, hash preview,
+bước kế tiếp và số lượt đã tính. Khi gặp `REVIEW_REQUIRED`, rà byte handoff,
+trace các vai trò, thay đổi nguồn và kết quả kiểm chứng thực tế. Lưu review
+Candidate thành `candidate-review.json` theo `candidate-review-template.json`
+của bước đó. Ghi lý do cho từng tiêu chí và trích dẫn đường dẫn tương đối tới
+bằng chứng đã niêm phong trong phiên. Với A/B, điền `review-template.json`
+của runner và lưu thành `ab-review.json` trong phiên tương ứng. Bộ điều phối
+chạy lại reporter hiện có và đối chiếu bằng chứng đã lập chỉ mục.
+
+Khi tác vụ lỗi, chẩn đoán ca chạy và kiểm chứng hồi quy tập trung trước khi
+tiếp tục. Thay đổi đầu vào nguồn sẽ bắt đầu kiểm chứng trên snapshot mới.
+Mỗi bước chỉ dùng lại bằng chứng khi đầu vào đóng băng và dấu vân tay runtime
+vẫn khớp.
+Dùng `-ResumeBlocked` sau khi đã khắc phục điều kiện môi trường tạm thời
+hoặc xác nhận lượt bị gián đoạn đã dừng. A/B continuation giữ lại các ca đã
+hoàn tất và lập chỉ mục.
+Các lượt chưa xác định vẫn giữ mức dành trước, và các lượt trên snapshot cũ
+vẫn được tính. Xin thêm quyền từ owner nếu bước kế vượt giới hạn đã duyệt.
+
+Pilot kiểm bốn cặp có thể đối chiếu và đã được rà độc lập. Báo cáo đầy đủ
+phải đạt G0–G6 và có kết quả đánh giá hiệu quả G7. Bộ điều phối chỉ xuất báo
+cáo cuối khi tất cả bước bắt buộc đạt. Owner phê duyệt phát hành riêng.
 
 ## Đánh giá điều kiện phát hành
 
@@ -92,4 +137,4 @@ lập hiệu lực. Runner đánh dấu usage native là `ACTUAL` và usage mock
 Kết luận về chi phí và chất lượng cần bằng chứng riêng.
 
 <!-- source: en/docs/model-compatibility.md -->
-<!-- source-sha256: 59b3965bf78ef9318a9fdb23e51b744e623088864e34bfa72ead95eb522edf10 -->
+<!-- source-sha256: 60cd5d88183dfd8fffc86e42f0891525309db21057ba6a6aaac907593e219b0b -->

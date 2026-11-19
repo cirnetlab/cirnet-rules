@@ -77,6 +77,51 @@ afterward. Require P01's owner-provided unittest command to pass on the actual
 fixture before and after the edit, with the error contract and user data
 preserved. The Candidate-only runs use the current execution Skills.
 Legacy A/B stages the frozen common execution Skills for both cohorts.
+With current Work rules, E06 Work in both A/B cohorts uses the same bounded
+inspection fallback and filtered test-summary guidance as Candidate-only.
+
+## Resume Adaptive Stable verification
+
+Run the coordinator from the rules checkout. Keep the same session ID and
+output root to resume against the cumulative budget. The default output root
+is the OS temporary directory.
+
+```powershell
+./scripts/eval-adaptive-stable.ps1 -Session adaptive-stable-acceptance
+# Use this command only if the owner has approved the initial 124-role cap.
+./scripts/eval-adaptive-stable.ps1 -Session adaptive-stable-acceptance -Execute `
+  -ApprovedRoleCalls 124 -AuthHome $authHome -PythonToolPath $pythonTool -RtlToolPath $rtlTool
+```
+
+The first command runs offline checks and prepares the next preview. Native
+stages use `gpt-6.2-sol`, `xhigh` and 300 seconds per role. The initial schedule
+is E01/E06, an independent E01/E06 repeat, E05, P01, a four-case A/B pilot and
+the full A/B comparison with three repetitions. The stages reserve 4, 4, 2, 2,
+16 and 96 roles respectively. Use a dedicated evaluation login. The tool paths
+are optional when Python and both Icarus executables are already on `PATH`.
+
+Read `checkpoint.json` in the session directory for the source hash, preview
+hashes, next stage and charged calls. After `REVIEW_REQUIRED`, review actual
+handoff bytes, role traces, source changes and verification. Save a reviewed
+Candidate record as `candidate-review.json` using the stage's
+`candidate-review-template.json`. Give a reason for each criterion and cite
+sealed evidence paths relative to that stage's session. For A/B, complete the
+runner's `review-template.json` and save it as `ab-review.json` in that session.
+The coordinator reruns the existing reporter and checks the indexed evidence.
+
+After a functional failure, diagnose the run and verify a focused regression
+before resuming. A change to source inputs starts verification on a new
+snapshot. Stages reuse prior evidence only if their frozen inputs and runtime
+fingerprints still match. Use `-ResumeBlocked` after fixing a transient
+prerequisite or confirming an interrupted run has stopped. A/B continuation preserves completed,
+indexed trials. Uncertain calls retain their reservations, and calls from
+superseded snapshots still count. Get additional owner authorization if the
+next stage would exceed the approved cap.
+
+The pilot checks the four independently reviewed, comparable pairs. The full
+report must pass G0–G6 and support an assessed G7 efficiency result. The
+coordinator emits a final report only after all required stages pass. The owner
+approves release separately.
 
 ## Assess release readiness
 

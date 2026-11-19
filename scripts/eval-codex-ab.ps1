@@ -169,7 +169,8 @@ if ($RunPurpose -eq 'Continuation') {
         $recordPath = "trials/$($slot.trialId)/pair-trial.json"
         if (-not $priorIndex.files.Contains($recordPath)) { throw 'Prior trial record is not indexed.' }
         $trial = Read-Record (Resolve-CirnetPath -Root $priorRoot -Relative $recordPath)
-        if ($trial -and $trial.validity -eq 'VALID' -and $trial.author -and $trial.author.execution -eq 'COMPLETED' -and
+        if ($trial -and $trial.validity -eq 'VALID' -and $trial.verdict -ne 'BLOCKED' -and
+            $trial.author -and $trial.author.execution -eq 'COMPLETED' -and
             $trial.work -and $trial.work.execution -eq 'COMPLETED' -and $trial.authorFinalSha256 -and
             $trial.authorFinalSha256 -ceq $trial.workInputSha256) { $carry[$slot.trialId] = $true }
     }
@@ -340,6 +341,7 @@ foreach ($slot in $schedule) {
             $trial.authorFinalSha256 = Get-CirnetHash -Path $handoff
             $prompt = [IO.File]::ReadAllText($handoff, $utf8)
             $trial.prompt = [ordered]@{ bytes = (Get-Item -LiteralPath $handoff).Length; words = [regex]::Matches($prompt, '\S+').Count; tokens = 'NOT_AVAILABLE' }
+            $roleArgs.UseCurrentWorkGuidance = $CurrentWorkRules.IsPresent
             & $runner @roleArgs -Role Work -Session Work -RulesRoot (Join-Path $snapshots 'common') -SourceRevision $workRevision -Model $WorkModel -Effort $WorkEffort -HandoffPath $handoff
             $work = Read-Record (Join-Path $trialRoot "Work/$($slot.caseId)/run.json")
             if (-not $work) { throw 'Work record is missing.' }

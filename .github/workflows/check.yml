@@ -39,3 +39,6 @@ jobs:
       - name: Test Candidate-only model smoke with a local shim
         shell: pwsh
         run: ./tests/model-compatibility.tests.ps1
+      - name: Test Adaptive Stable checkpoint policy
+        shell: pwsh
+        run: ./tests/adaptive-stable-checkpoint.tests.ps1

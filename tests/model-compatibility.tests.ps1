@@ -22,7 +22,7 @@ $author = $task -match '(?m)^(?:Original user task:|Start the handoff with these
 $recovery = -not $e01 -and $mode -eq 'mock-success'
 if ($mode -eq 'mock-blocked') { exit 7 }
 $localRules = Get-Content -Raw -LiteralPath AGENTS.md
-if ($mode -eq 'mock-success' -and $e01 -and $localRules.Contains('plain node --test before and after editing')) { exit 16 }
+if ($mode -eq 'mock-success' -and $e01 -and $localRules.Contains('PowerShell test summary command:')) { exit 16 }
 if ($author) {
     $goal = [regex]::Match($task, '(?m)^Original (?:user task:\r?\n|task: )([^\r\n]+)').Groups[1].Value
     if ($goal -notmatch 'replace the trimAlias call|data export feature') { exit 8 }
@@ -47,10 +47,12 @@ if ($author) {
 } else {
     if ($recovery) {
         if ($task -notmatch '^PROMPT_READY\r?\n[\s\S]*NOT_INSPECTED') { exit 9 }
-        if ($localRules -notmatch 'plain node --test before and after editing' -or
+        if ($localRules -notmatch 'once before and once after editing' -or
             $localRules -notmatch 'Do not repeat successful preflight checks') { exit 14 }
-        & node --test *> $null
-        if ($LASTEXITCODE -ne 0) { exit 11 }
+        $testSummaryCommand = [regex]::Match($localRules, '(?m)^PowerShell test summary command: (.+)$').Groups[1].Value.TrimEnd("`r")
+        if (-not $testSummaryCommand) { exit 17 }
+        $testSummary = & (Join-Path $PSHOME 'pwsh') -NoProfile -NonInteractive -Command $testSummaryCommand
+        if ($LASTEXITCODE -ne 0 -or '# pass 1' -notin $testSummary -or '# fail 0' -notin $testSummary) { exit 11 }
     }
     if (-not $e01) {
         $path = Join-Path $PWD 'src/labels.mjs'
@@ -61,8 +63,8 @@ if ($author) {
     }
     $answer = 'Synthetic Work evidence.'
     if ($recovery) {
-        & node --test *> $null
-        if ($LASTEXITCODE -ne 0) { exit 12 }
+        $testSummary = & (Join-Path $PSHOME 'pwsh') -NoProfile -NonInteractive -Command $testSummaryCommand
+        if ($LASTEXITCODE -ne 0 -or '# pass 1' -notin $testSummary -or '# skipped 0' -notin $testSummary) { exit 12 }
         $answer = 'The labels tests exited 0 before and after the scoped edit.'
     }
 }
@@ -180,6 +182,23 @@ if ($e01Work.command[[array]::IndexOf($e01Work.command, '--sandbox') + 1] -cne '
     $e06Work.command[[array]::IndexOf($e06Work.command, '--sandbox') + 1] -cne 'workspace-write') {
     throw 'Blocked E01 Work must be read-only while ready E06 uses the existing write sandbox.'
 }
+
+$e06Rules = Get-Content -Raw -LiteralPath (Join-Path $output 'success/trials/E06/Work/E06/fixture/AGENTS.md')
+$testSummaryCommand = [regex]::Match($e06Rules, '(?m)^PowerShell test summary command: (.+)$').Groups[1].Value.TrimEnd("`r")
+if (-not $testSummaryCommand) { throw 'Missing E06 test summary command.' }
+$failedTestFolder = Join-Path $output 'summary-failure'
+$null = New-Item -ItemType Directory -Path $failedTestFolder
+@'
+import { test } from 'node:test';
+test('synthetic test name marker', () => { throw new Error('synthetic failure value marker'); });
+'@ | Set-Content -LiteralPath (Join-Path $failedTestFolder 'failure.test.mjs') -Encoding utf8NoBOM
+Push-Location -LiteralPath $failedTestFolder
+try {
+    $summary = & (Join-Path $PSHOME 'pwsh') -NoProfile -NonInteractive -Command $testSummaryCommand
+    if ($LASTEXITCODE -ne 1 -or '# fail 1' -notin $summary -or $summary -match 'synthetic .* marker') {
+        throw 'The filtered test summary must preserve the child failure without emitting names or error values.'
+    }
+} finally { Pop-Location }
 
 $successRoot = Join-Path $output 'success'
 $workArguments = @{

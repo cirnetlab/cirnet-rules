@@ -76,6 +76,10 @@ foreach ($file in $trials) {
     if ($trial.caseId -eq 'E06' -and $trial.cohort -eq 'A' -and ($trial.verdict -ne 'FAIL' -or $trial.work.execution -ne 'COMPLETED')) {
         throw 'E06 false blocking must fail without substituting a corrected Work prompt.'
     }
+    if ($trial.caseId -eq 'E06') {
+        $legacyRules = [IO.File]::ReadAllText((Join-Path $file.Directory.FullName 'Work/E06/fixture/AGENTS.md'))
+        if ($legacyRules -match 'PowerShell test summary command:') { throw 'Legacy A/B must keep its original E06 Work guidance.' }
+    }
     if ($trial.caseId -eq 'E01' -and ($trial.author.trace.uniqueTools.Count -ne 1 -or $trial.work.trace.uniqueTools.Count -ne 1)) {
         throw 'Withholding E01 output must retain the tool call identity.'
     }
@@ -153,6 +157,26 @@ if ($recovered.carriedTrials.Count -ne 3 -or $recovered.maximumPlannedRoleCalls 
 }
 $retried = Get-Content -Raw -LiteralPath (Join-Path $output 'recovered/trials/E06-r1-B2/pair-trial.json') | ConvertFrom-Json
 if ($retried.source -ne 'TEST_SHIM' -or $retried.work.execution -ne 'COMPLETED') { throw 'Missing chain was not retried.' }
+
+# A completed native turn without its required objective is still blocked.
+$objectiveBlockedRoot = Join-Path $output 'objective-blocked-copy'
+$null = New-Item -ItemType Directory -Path $objectiveBlockedRoot
+foreach ($name in @('evaluator','trials','snapshots','manifest.json')) {
+    Copy-Item -LiteralPath (Join-Path $blockedRoot $name) -Destination $objectiveBlockedRoot -Recurse
+}
+$objectiveBlockedPath = Join-Path $objectiveBlockedRoot 'trials/E06-r1-B2/pair-trial.json'
+$blocked.reason = 'OFFLINE SYNTHETIC missing objective after a completed turn.'
+$blocked.work.execution = 'COMPLETED'
+$blocked.work.objective.status = 'BLOCKED'
+[IO.File]::WriteAllText($objectiveBlockedPath, (ConvertTo-Json -InputObject $blocked -Depth 60), $utf8)
+& node $reporter $objectiveBlockedRoot
+if ($LASTEXITCODE -ne 0) { throw 'Could not index blocked objective evidence.' }
+& $runner -OutputRoot $output -Session objective-recovery-preview -PriorSession objective-blocked-copy -RunPurpose Continuation -CaseId 'E06,E01'
+$objectivePreview = Get-Content -Raw -LiteralPath (Join-Path $output 'objective-recovery-preview/manifest.json') | ConvertFrom-Json
+if ($objectivePreview.carriedTrials.Count -ne 3 -or $objectivePreview.maximumPlannedRoleCalls -ne 2 -or
+    'E06-r1-B2' -in $objectivePreview.carriedTrials) {
+    throw 'Continuation must retry a completed pair whose required objective was blocked.'
+}
 
 # Report quality guards using synthetic metadata only; no model is invoked.
 $guardBase = Join-Path $output ('reporter-guards-' + [guid]::NewGuid().ToString('N'))
@@ -306,6 +330,15 @@ foreach ($cohort in @('A','B2')) {
     if ($pair.work.manifest.rules[$stagedSkill] -cne $skillHash -or
         $pair.work.sourceRevision -cne $currentManifest.candidateSourceHead) {
         throw 'Each Work role must stage the current Skill and identify the same source revision.'
+    }
+    $workRules = [IO.File]::ReadAllText((Join-Path $current "trials/E06-r1-$cohort/Work/E06/fixture/AGENTS.md"))
+    if ($workRules -notmatch 'PowerShell test summary command: node --test --test-reporter=tap' -or
+        $workRules -notmatch 'Run the owner suite once before and once after editing' -or
+        $workRules -notmatch 'inspector refusal, use one authorized bounded local read') {
+        throw "Current E06 Work ($cohort) is missing the bounded inspection and test evidence guidance."
+    }
+    if ($pair.authorFinalSha256 -cne $pair.workInputSha256) {
+        throw 'Current E06 Work guidance must preserve the Author handoff bytes.'
     }
     if ($cohort -ceq 'B2' -and $pair.author.manifest.rules["toolkit/$templatePath"] -cne $templateHash) {
         throw 'The Candidate Author must stage the current template.'
