@@ -65,6 +65,16 @@ $summary = Get-Content -Raw -LiteralPath (Join-Path $output 'shim/summary.json')
 if ($summary.source -ne 'TEST_SHIM' -or $summary.qualityGate -ne 'INCONCLUSIVE') {
     throw 'A test shim must never supply native acceptance.'
 }
+if ($summary.PSObject.Properties.Name -contains 'pairedDeltas' -or
+    $summary.PSObject.Properties.Name -contains 'efficiency' -or
+    $summary.qualityGates.PSObject.Properties.Name -contains 'G7') {
+    throw 'The comparison report must assess quality without performance scores.'
+}
+$diagnosticRole = ($summary.cases | Where-Object trialId -eq 'E06-r1-B2').roles.work
+if ($diagnosticRole.usage.source -cne 'TEST_SHIM' -or $diagnosticRole.usage.output -ne 3 -or
+    $diagnosticRole.milliseconds -lt 0) {
+    throw 'Measured role diagnostics and their provenance must remain available.'
+}
 $trials = Get-ChildItem -LiteralPath (Join-Path $output 'shim') -Filter pair-trial.json -Recurse
 if (@($trials).Count -ne 4) { throw 'Expected all four cohort/case trials.' }
 foreach ($file in $trials) {
@@ -222,6 +232,7 @@ foreach ($cohort in @('A','B2')) {
 if ($LASTEXITCODE -ne 0) { throw 'Could not index synthetic quota fixture.' }
 $quotaReview = Get-Content -Raw -LiteralPath (Join-Path $quotaRoot 'review-template.json') | ConvertFrom-Json -AsHashtable
 $controlReview = $quotaReview.trials['E01-r1-A']
+if ($controlReview.Contains('avoidable')) { throw 'Quality reviews must not require scoring avoidable tool calls.' }
 foreach ($slot in @($controlReview.rubric) + @($controlReview.architecture)) {
     $slot.status = 'PASS'; $slot.reason = 'OFFLINE SYNTHETIC no-op control for reporter eligibility only.'; $slot.evidence = @('Work/run.json')
 }
@@ -238,9 +249,6 @@ if ($quotaReviewed.source -ne 'TEST_SHIM' -or ($quotaReviewed.cases | Where-Obje
 }
 if (@($quotaReviewed.regressions | Where-Object caseId -eq 'E01').Count -or $quotaReviewed.qualityGate -ne 'INCONCLUSIVE') {
     $guardIssues.Add('External quota without a completed B2 must not count as a behavioral regression.')
-}
-if ($quotaReviewed.pairedDeltas -isnot [string] -or $quotaReviewed.pairedDeltas -notlike 'NOT_ASSESSED*') {
-    $guardIssues.Add('Efficiency deltas must not be assessed before the quality gate passes.')
 }
 if ($guardIssues.Count) { throw ('Reporter guard failures: ' + ($guardIssues -join ' ')) }
 

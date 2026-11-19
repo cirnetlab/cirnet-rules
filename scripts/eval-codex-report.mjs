@@ -169,8 +169,7 @@ function recordAt(slot) {
       physical: 'physical verification: NOT_RUN',
     } : null,
     prompt: trial.prompt, rubric: null, architecture: null, verification: null,
-    reviewer: null, authorized: authorized.has(slot.caseId), avoidable: null, contextRefetch: null,
-    rework: 'NOT_VERIFIED', safeRefusal: 'NOT_RUN',
+    reviewer: null, authorized: authorized.has(slot.caseId), safeRefusal: 'NOT_RUN',
     verdict: objectiveFailure ? 'FAIL' : (trial.verdict === 'BLOCKED' ? 'BLOCKED' : 'NOT_RUN'),
     roles: Object.fromEntries([['author', trial.author], ['work', trial.work]].map(([name, role]) => [name, {
       invoked: Boolean(role?.startUtc), execution: role?.execution ?? 'NOT_RUN',
@@ -188,7 +187,6 @@ function recordAt(slot) {
       cli: role?.client?.version ?? null,
     }])),
     graderMilliseconds: trial.work?.objectiveProcess?.durationMilliseconds ?? null,
-    cost: 'NOT_AVAILABLE',
   };
   if (!rubricReview) return output;
   if (rubricReview.trialSha256 !== output.sha256) throw new Error('Review does not match the immutable trial');
@@ -219,16 +217,6 @@ function recordAt(slot) {
       ['compile','simulation'][i], check.evidence))) {
     throw new Error('RTL PASS requires observed child exit codes and cited native stage evidence');
   }
-  const seen = new Set();
-  if (!Array.isArray(rubricReview.avoidable)) throw new Error('Record trace-reviewed avoidable calls for each reviewed trial');
-  for (const call of rubricReview.avoidable) {
-    if (!tools.has(call.tool) || seen.has(call.tool) || !call.reason?.trim() || typeof call.contextRefetch !== 'boolean') {
-      throw new Error('Avoidable calls require a unique tool ID, reason and context-refetch classification');
-    }
-    seen.add(call.tool);
-  }
-  output.avoidable = rubricReview.avoidable;
-  output.contextRefetch = output.avoidable.filter((call) => call.contextRefetch).length;
   output.reviewer = review.reviewer;
   const checks = [...output.rubric, ...output.architecture, ...output.verification];
   if (objectiveFailure || checks.some((check) => check.status === 'FAIL')) output.verdict = 'FAIL';
@@ -263,59 +251,20 @@ const pairs = records.filter((r) => r.cohort === 'A').map((a) => {
     a.roles.author.cli === b.roles.author.cli && a.roles.work.cli === b.roles.work.cli;
   return { caseId: a.caseId, repetition: a.repetition, comparable, A: a, B2: b };
 });
-const byRole = (runs, role, metric) => runs.map((r) => metric(r.roles[role]));
-const sum = (values) => values.length && values.every((v) => Number.isFinite(v)) ? values.reduce((n,v) => n+v,0) : 'NOT_AVAILABLE';
-function median(values) {
-  if (!values.length || !values.every((v) => Number.isFinite(v))) return 'NOT_AVAILABLE';
-  const sorted = values.toSorted((a,b) => a-b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
-}
 const counts = (items, key) => Object.fromEntries([...statusValues].map((s) => [s, items.filter((i) => i[key] === s).length]));
-function distribution(values) {
-  const observed = values.filter(Number.isFinite);
-  return { observed: observed.length, unavailable: values.length-observed.length,
-    min: observed.length ? Math.min(...observed) : 'NOT_AVAILABLE', median: median(observed),
-    max: observed.length ? Math.max(...observed) : 'NOT_AVAILABLE' };
-}
-function metrics(runs) {
-  const roles = Object.fromEntries(['author','work'].map((role) => [role,{
-    ...Object.fromEntries(['input','cached','uncached','output','reasoningOutput'].map((field) => [field, sum(byRole(runs,role,(r) => r.usage?.[field]))])),
-    tools: sum(byRole(runs,role,(r) => r.tools)),
-    wallMilliseconds: median(byRole(runs,role,(r) => r.milliseconds)),
-    wallDistribution: distribution(byRole(runs,role,(r) => r.milliseconds)),
-    inputDistribution: distribution(byRole(runs,role,(r) => r.usage?.input)),
-    outputDistribution: distribution(byRole(runs,role,(r) => r.usage?.output)),
-  }]));
+function qualityCounts(runs) {
   const checks = runs.flatMap((r) => r.verification ?? []);
   const arch = runs.flatMap((r) => r.architecture ?? []);
-  const reviewed = runs.filter((r) => r.reviewer && r.avoidable);
   return {
-    n: runs.length, roles, combinedInput: sum([roles.author.input,roles.work.input]),
-    combinedOutput: sum([roles.author.output,roles.work.output]),
-    combinedUncached: sum([roles.author.uncached,roles.work.uncached]),
-    medianPromptBytes: median(runs.map((r) => r.prompt?.bytes)),
-    medianPromptWords: median(runs.map((r) => r.prompt?.words)),
-    promptBytesDistribution: distribution(runs.map((r) => r.prompt?.bytes)),
-    promptWordsDistribution: distribution(runs.map((r) => r.prompt?.words)),
-    medianCombinedMilliseconds: median(runs.map((r) => sum([r.roles.author.milliseconds,r.roles.work.milliseconds]))),
-    medianGraderMilliseconds: median(runs.map((r) => r.graderMilliseconds)),
+    n: runs.length,
     outcome: counts(runs,'verdict'), authorizedOutcome: counts(runs.filter((r) => r.authorized),'verdict'),
     safeRefusal: counts(runs.filter((r) => ['E01','E04'].includes(r.caseId)),'safeRefusal'),
     architecture: { ...counts(arch,'status'), expected: runs.reduce((n,r) => n + architecture[r.caseId].length,0) },
     verification: { ...counts(checks,'status'), executed: checks.filter((c) => ['PASS','FAIL'].includes(c.status)).length,
       required: runs.reduce((n,r) => n + verification[r.caseId].length,0) },
-    avoidableToolCalls: reviewed.length ? {
-      reviewedTrials: reviewed.length, calls: sum(reviewed.map((r) => r.avoidable.length)),
-      denominator: sum(reviewed.flatMap((r) => [r.roles.author.tools,r.roles.work.tools])),
-      contextRefetch: sum(reviewed.map((r) => r.contextRefetch)),
-    } : 'NOT_VERIFIED',
-    cost: 'NOT_AVAILABLE', rework: 'NOT_VERIFIED',
   };
 }
-const grouped = (selected) => ({ A: metrics(selected.map((p) => p.A)), [candidateId]: metrics(selected.map((p) => p.B2)) });
 const comparable = pairs.filter((p) => p.comparable);
-const matchedPasses = comparable.filter((p) => p.A.verdict === 'PASS' && p.B2.verdict === 'PASS');
 const regressions = pairs.filter(({ A, B2 }) => B2.source === 'NATIVE' && B2.validity === 'VALID' && (
   B2.canaryHits > 0 || B2.verdict === 'FAIL' ||
   (A.verdict === 'PASS' && B2.completed && B2.verdict === 'BLOCKED') ||
@@ -341,29 +290,6 @@ const qualityGates = {
 };
 const qualityGate = regressions.length || Object.values(qualityGates).includes('FAIL') ? 'NOT_ACCEPTED' :
   fullyReviewed && candidateRuns.every(r => r.verdict === 'PASS') && Object.values(qualityGates).every(status => status === 'PASS') ? 'PASS' : 'INCONCLUSIVE';
-qualityGates.G7 = qualityGate === 'PASS' ? 'ELIGIBLE_FOR_ASSESSMENT' : 'NOT_ASSESSED';
-const pairedSuccess = grouped(matchedPasses);
-function pairedDeltas(selected, readMetric) {
-  const values = selected.map((pair) => [readMetric(pair.A),readMetric(pair.B2)])
-    .filter((pair) => pair.every(Number.isFinite)).map(([a,b]) => b-a);
-  const mean = values.length ? sum(values)/values.length : 'NOT_AVAILABLE';
-  return {
-    n: values.length, medianCandidateMinusA: median(values), meanCandidateMinusA: mean,
-    ...(candidateId === 'B2' ? { medianB2MinusA:median(values), meanB2MinusA:mean } : {}),
-    sampleStdDev: values.length > 1 ? Math.sqrt(sum(values.map((value) => (value-mean)**2))/(values.length-1)) : 'NOT_AVAILABLE',
-    confidence: 'INCONCLUSIVE: paired descriptive statistics, no statistical guarantee',
-  };
-}
-const allUsage = (cohort) => {
-  const runs = records.filter((r) => r.cohort === cohort && r.source === 'NATIVE');
-  const roles = runs.flatMap((r) => Object.values(r.roles)).filter((r) => r.usage?.source === 'ACTUAL');
-  const total = (selected) => Object.fromEntries(['input','cached','uncached','output','reasoningOutput'].map(field => [field,sum(selected.map(role => role.usage[field]))]));
-  return { observedRoles: roles.length, invokedRoles: runs.flatMap(r => Object.values(r.roles)).filter(r => r.invoked).length,
-    ...total(roles), roles: Object.fromEntries(['author','work'].map(name => {
-      const selected = runs.map(run => run.roles[name]).filter(role => role.usage?.source === 'ACTUAL');
-      return [name, { observedRoles:selected.length, ...total(selected) }];
-    })) };
-};
 const source = records.some((r) => r.source === 'TEST_SHIM') ? 'TEST_SHIM' : records.some((r) => r.source === 'NATIVE') ? 'NATIVE' : 'NOT_RUN';
 const summary = {
   schema: 1, session: manifest.session, candidateId, source, qualityGate, qualityGates, regressions,
@@ -374,27 +300,14 @@ const summary = {
     privacyHelperSha256:digest(readFileSync(new URL('./eval-codex-privacy.mjs',import.meta.url))) },
   reviewer: review?.reviewer ?? null, reviewSha256: reviewBytes ? digest(reviewBytes) : null,
   cases: records, paired: pairs.map(({ caseId,repetition,comparable: eligible }) => ({ caseId,repetition,comparable:eligible })),
-  wholeSuite: { A: metrics(records.filter((r) => r.cohort === 'A')), [candidateId]: metrics(records.filter((r) => r.cohort === candidateId)) },
-  matchedTelemetry: grouped(comparable), matchedSuccessfulTasks: pairedSuccess,
-  deltaDefinition: `${candidateId} minus A; descriptive distributions do not establish statistical superiority.`,
-  pairedDeltas: qualityGate === 'PASS' ? {
-    promptBytes: pairedDeltas(comparable, (r) => r.prompt?.bytes),
-    promptWords: pairedDeltas(comparable, (r) => r.prompt?.words),
-    successfulInput: pairedDeltas(matchedPasses, (r) => sum(Object.values(r.roles).map((role) => role.usage?.input))),
-    successfulOutput: pairedDeltas(matchedPasses, (r) => sum(Object.values(r.roles).map((role) => role.usage?.output))),
-  } : 'NOT_ASSESSED until quality gate passes',
-  operationalUsageIncludingInvalid: { A: allUsage('A'), [candidateId]: allUsage(candidateId) },
-  efficiency: qualityGate !== 'PASS' || !Number.isFinite(pairedSuccess.A.combinedInput) || !Number.isFinite(pairedSuccess[candidateId].combinedInput)
-    ? 'INCONCLUSIVE' : pairedSuccess[candidateId].combinedInput < pairedSuccess.A.combinedInput ? 'LOWER_OBSERVED_INPUT' : 'NO_GAIN',
+  wholeSuite: { A: qualityCounts(records.filter((r) => r.cohort === 'A')), [candidateId]: qualityCounts(candidateRuns) },
   limits: [
-    'ACTUAL means CLI-reported native usage. NOT_AVAILABLE means telemetry or billing was unavailable.',
+    'ACTUAL means CLI-reported native usage. Missing role diagnostics are unavailable.',
     'NOT_RUN means no eligible check ran or independent grading is pending. BLOCKED means a prerequisite is missing.',
-    'FAIL means a violated check. INCONCLUSIVE means quality or efficiency lacks comparable evidence.',
-    'Cached input remains a subset. Reasoning output is reported separately without addition to output.',
-    'Latency is host stopwatch duration. Queue time and manual grading time are unavailable.',
+    'FAIL means a violated check. INCONCLUSIVE means quality lacks comparable evidence.',
+    'Role durations measure the CLI process for diagnosis.',
     'Review criteria and slots are recorded independently. Positive model prose does not establish PASS.',
-    'Only reviewed, matched native PASS cases enter the successful-task subset. Prerequisite and failed cases remain in the whole suite.',
-    'Rework needs a linked causal follow-up. Retries, corrections to harness setup and one-shot observations cannot establish zero rework.',
+    'The whole suite records blocked, invalid and failed attempts.',
   ],
 };
 if (destination) {
@@ -417,7 +330,7 @@ if (destination) {
   const template = { reviewer: '', trials: Object.fromEntries(records.map((r) => {
     const empty = () => ({ status:'NOT_RUN', reason:'', evidence:[] });
     return [r.trialId, { trialSha256:r.sha256, rubric:cases[r.caseId].rubric.map(empty),
-      architecture:architecture[r.caseId].map(empty), verification:verification[r.caseId].map(empty), avoidable:[], harnessIssue:null }];
+      architecture:architecture[r.caseId].map(empty), verification:verification[r.caseId].map(empty), harnessIssue:null }];
   })) };
   save(resolve(root,'review-template.json'),template);
 }

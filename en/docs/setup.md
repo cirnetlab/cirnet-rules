@@ -1,7 +1,7 @@
 # Set up one client
 
 Pick a reviewed local bundle and a single client. Keep the product repository's
-applicable local instructions. The English baseline is portable and the twelve
+applicable local instructions. The English baseline is portable and the 13
 skill directories are individually installable. Vietnamese copies are for
 translation and review. See [context loading](context.md) for what to read on a task.
 

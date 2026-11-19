@@ -1,8 +1,8 @@
-# Tương thích mô hình với Adaptive Stable
+# Kiểm tra tương thích mô hình theo rủi ro
 
 Skill biên soạn và một cặp mẫu EN/VI của CIRNET định nghĩa một giao ước hành vi
-qua các lần phát hành model. Chọn model và mức reasoning tại runtime. Giữ bằng
-chứng A/B/B2 lịch sử kèm model, effort, revision và hash fixture gốc.
+qua các lần phát hành model. Chọn model và mức reasoning tại runtime. Chọn
+phép kiểm theo hành vi và ranh giới bị ảnh hưởng bởi thay đổi.
 
 ## Chọn phép kiểm theo rủi ro
 
@@ -11,15 +11,14 @@ chứng A/B/B2 lịch sử kèm model, effort, revision và hash fixture gốc.
 | Chỉ đổi model hoặc effort, giữ công cụ và quyền | E01 và E06 Candidate-only | Các ca smoke đã thực hiện |
 | API công cụ, sandbox, prompt hoặc ánh xạ công cụ | Kiểm tra adapter hoặc CLI và các ca native liên quan | Hành vi công cụ đã thay đổi |
 | Hành vi của Skill biên soạn hoặc template | Regression tập trung và kiểm tra kiến trúc, tài liệu | Hành vi bị ảnh hưởng |
-| Kiến trúc, contract, ranh giới an toàn hoặc nhiều Skill | Kiểm tra của bên sở hữu và so sánh A/B đã khóa với quy mô phù hợp, khi được cấp quyền | Điều kiện nghiệm thu đã công bố |
+| Kiến trúc, contract, ranh giới an toàn hoặc nhiều Skill | Kiểm tra của bên sở hữu, test contract và đường lỗi, cùng các ca tập trung được cấp quyền cho rủi ro còn lại | Các ranh giới đã kiểm chứng |
 | Thiếu điều kiện, fixture đối tác hoặc quota | Ghi `BLOCKED` hoặc `NOT_RUN` | Phạm vi kiểm chứng còn thiếu |
 
 Chọn thêm ca qua [quy trình đánh giá hành vi](behavioral-evaluation.md) hiện có
 khi ranh giới bị ảnh hưởng cần kiểm chứng. Ví dụ E04 cho contract, E07 cho giới
 hạn tích hợp và E08 cho an toàn RTL. Kiểm chứng vật lý cần quyền của bên sở hữu
-và bằng chứng quan sát được. Chỉ phát hành model mới thì giữ source, template
-và kết quả A/B lịch sử ở revision hiện tại. Dùng cấu hình runtime đã được kiểm
-chứng gần nhất làm phương án dự phòng.
+và bằng chứng quan sát được. Dùng cấu hình runtime đã được kiểm chứng gần nhất
+làm phương án dự phòng.
 
 ## Chạy smoke Candidate-only
 
@@ -73,68 +72,18 @@ Rà mức prompt đã chọn và phép kiểm thực tế. Với E05, regression
 thất bại vì lỗi thứ tự trước khi sửa source và đạt sau sửa. Với P01, lệnh
 unittest do owner công bố phải đạt trên fixture thực tế trước và sau sửa,
 đồng thời giữ hợp đồng lỗi và dữ liệu người dùng. Các lượt Candidate-only
-dùng Skill thực thi hiện tại. Lane A/B legacy dùng bộ Skill thực thi chung
-đã đóng băng cho cả hai cohort.
-Khi dùng Work rules hiện tại, E06 Work ở cả hai cohort A/B áp dụng cách đọc
-thay thế có giới hạn và hướng dẫn lọc tóm tắt test như Candidate-only.
+dùng Skill thực thi hiện tại.
 
-## Tiếp tục kiểm chứng Adaptive Stable
+## Ghi nhận mức tương thích
 
-Chạy bộ điều phối từ checkout của rules. Giữ cùng ID phiên và thư mục đầu ra
-để tiếp tục với ngân sách tích lũy. Mặc định đầu ra nằm trong thư mục tạm của
-hệ điều hành.
+Báo mức hoàn thành tác vụ, tuân thủ kiến trúc, độ bao phủ kiểm chứng và quyền
+riêng tư cho các ca đã chạy. Ghi snapshot, model và effort yêu cầu, cùng thiết
+lập thực tế khi runtime có báo. Kết quả shim bao phủ bộ khung chạy kiểm tra.
+Tương thích Native cần bằng chứng chạy thật và rà độc lập. Số liệu sử dụng và
+thời gian trên host của từng vai trò có thể hỗ trợ chẩn đoán lỗi.
 
-```powershell
-./scripts/eval-adaptive-stable.ps1 -Session adaptive-stable-acceptance
-# Chỉ dùng lệnh này khi owner đã duyệt giới hạn ban đầu 124 lượt vai trò.
-./scripts/eval-adaptive-stable.ps1 -Session adaptive-stable-acceptance -Execute `
-  -ApprovedRoleCalls 124 -AuthHome $authHome -PythonToolPath $pythonTool -RtlToolPath $rtlTool
-```
-
-Lệnh đầu chạy các phép kiểm offline và chuẩn bị preview cho bước tiếp theo.
-Các bước native dùng `gpt-6.2-sol`, `xhigh` và 300 giây mỗi vai trò. Lịch ban
-đầu gồm E01/E06, lần lặp E01/E06 độc lập, E05, P01, A/B pilot bốn ca và A/B
-đầy đủ với ba lần lặp. Các bước lần lượt dành trước 4, 4, 2, 2, 16 và 96 lượt
-vai trò. Dùng hồ sơ đăng nhập dành riêng cho đánh giá. Có thể bỏ đường dẫn
-công cụ nếu Python và cả hai chương trình Icarus đã có trên `PATH`.
-
-Xem `checkpoint.json` trong thư mục phiên để biết hash nguồn, hash preview,
-bước kế tiếp và số lượt đã tính. Khi gặp `REVIEW_REQUIRED`, rà byte handoff,
-trace các vai trò, thay đổi nguồn và kết quả kiểm chứng thực tế. Lưu review
-Candidate thành `candidate-review.json` theo `candidate-review-template.json`
-của bước đó. Ghi lý do cho từng tiêu chí và trích dẫn đường dẫn tương đối tới
-bằng chứng đã niêm phong trong phiên. Với A/B, điền `review-template.json`
-của runner và lưu thành `ab-review.json` trong phiên tương ứng. Bộ điều phối
-chạy lại reporter hiện có và đối chiếu bằng chứng đã lập chỉ mục.
-
-Khi tác vụ lỗi, chẩn đoán ca chạy và kiểm chứng hồi quy tập trung trước khi
-tiếp tục. Thay đổi đầu vào nguồn sẽ bắt đầu kiểm chứng trên snapshot mới.
-Mỗi bước chỉ dùng lại bằng chứng khi đầu vào đóng băng và dấu vân tay runtime
-vẫn khớp.
-Dùng `-ResumeBlocked` sau khi đã khắc phục điều kiện môi trường tạm thời
-hoặc xác nhận lượt bị gián đoạn đã dừng. A/B continuation giữ lại các ca đã
-hoàn tất và lập chỉ mục.
-Các lượt chưa xác định vẫn giữ mức dành trước, và các lượt trên snapshot cũ
-vẫn được tính. Xin thêm quyền từ owner nếu bước kế vượt giới hạn đã duyệt.
-
-Pilot kiểm bốn cặp có thể đối chiếu và đã được rà độc lập. Báo cáo đầy đủ
-phải đạt G0–G6 và có kết quả đánh giá hiệu quả G7. Bộ điều phối chỉ xuất báo
-cáo cuối khi tất cả bước bắt buộc đạt. Owner phê duyệt phát hành riêng.
-
-## Đánh giá điều kiện phát hành
-
-Dùng **Adaptive Stable** cho dòng phát hành duy nhất khi đạt các điều kiện áp
-dụng về Task Success, Architecture Compliance, Verification Coverage và Privacy.
-Revision chưa được nghiệm thu là **Adaptive Candidate**. Smoke tập trung chỉ
-bao phủ các ca đã thực hiện. Nghiệm thu A/B đầy đủ, kể cả đợt native 96 lượt
-vai trò, cần quyết định và cấp quyền riêng.
-
-Báo `modelRequested`, `effortRequested`, token input, output và cached của từng
-vai trò, số lượt gọi công cụ và thời gian trên host khi quan sát được. Ghi
-`NOT_AVAILABLE` khi thiếu usage và giữ trạng thái chưa xác minh nếu thiếu thiết
-lập hiệu lực. Runner đánh dấu usage native là `ACTUAL` và usage mock là
-`TEST_SHIM`. Usage đo được có thể hỗ trợ chẩn đoán kể cả khi một đợt chạy lỗi.
-Kết luận về chi phí và chất lượng cần bằng chứng riêng.
+Giữ bằng chứng A/B/B2 lịch sử với cách chấm, model, effort, revision và hash
+fixture gốc trong [kho lưu trữ benchmark](../../reports/work-prompt-benchmark-history.md).
 
 <!-- source: en/docs/model-compatibility.md -->
-<!-- source-sha256: 60cd5d88183dfd8fffc86e42f0891525309db21057ba6a6aaac907593e219b0b -->
+<!-- source-sha256: 4bfa578f028960a1e8aa69128a55a4d08ef2338935f13f6b0a65f72f78eb8e09 -->

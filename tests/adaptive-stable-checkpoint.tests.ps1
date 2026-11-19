@@ -44,7 +44,7 @@ $review.cases.E06.privacy.evidence = @('trials/E01/Work/E01/events.jsonl')
 Assert-Equal (Get-StableCandidateReview $review $stage 'run-seal' $evidence) 'EVIDENCE_BLOCKED' 'Cross-case evidence'
 
 $report = @{source='NATIVE';workRulesProfile='Current';reviewer='Independent reviewer';qualityGate='INCONCLUSIVE';
-    efficiency='INCONCLUSIVE';qualityGates=@{G0='PASS';G7='NOT_ASSESSED'};cases=@();paired=@()}
+    qualityGates=@{G0='PASS'};cases=@();paired=@()}
 foreach ($id in @('E01','E06','E02','E05')) {
     $report.paired += @{caseId=$id;comparable=$true}
     $report.cases += @{cohort='A';verdict='FAIL';reviewer='Independent reviewer'}
@@ -63,11 +63,10 @@ Assert-Equal (Get-StableAbReview $report 'pilot') 'REPAIR_REQUIRED' 'Pilot Candi
 $report.cases[3].verdict = 'PASS'
 
 foreach ($gate in 0..6) { $report.qualityGates["G$gate"] = 'PASS' }
-$report.qualityGates.G7 = 'ELIGIBLE_FOR_ASSESSMENT'
 $report.qualityGate = 'PASS'
-Assert-Equal (Get-StableAbReview $report 'full') 'REVIEW_REQUIRED' 'Inconclusive G7'
-$report.efficiency = 'NO_GAIN'
-Assert-Equal (Get-StableAbReview $report 'full') 'PASS' 'Assessment can conclude no efficiency gain'
+Assert-Equal (Get-StableAbReview $report 'full') 'PASS' 'Complete quality evidence without performance telemetry'
+$report.qualityGates.G5 = 'INCONCLUSIVE'
+Assert-Equal (Get-StableAbReview $report 'full') 'REVIEW_REQUIRED' 'Unassessed verification evidence'
 $report.qualityGates.G5 = 'FAIL'
 Assert-Equal (Get-StableAbReview $report 'full') 'REPAIR_REQUIRED' 'Verification regression'
 

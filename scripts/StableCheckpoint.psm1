@@ -92,12 +92,12 @@ function Get-StableCandidateReview($Review, $Stage, [string]$Seal, $Evidence) {
 function Get-StableAbReview($Summary, [string]$Stage) {
     if ($Summary['source'] -cne 'NATIVE' -or $Summary['workRulesProfile'] -cne 'Current' -or
         -not ([string]$Summary['reviewer']).Trim()) { return 'REVIEW_REQUIRED' }
-    if (@($Summary['qualityGates'].Values).Where({ $_ -ceq 'FAIL' }).Count -or
+    if (@(0..6).Where({ $Summary['qualityGates']["G$_"] -ceq 'FAIL' }).Count -or
         @($Summary['cases']).Where({ $_['cohort'] -cne 'A' -and $_['verdict'] -ceq 'FAIL' }).Count) {
         return 'REPAIR_REQUIRED'
     }
     if ($Stage -ceq 'pilot') {
-        # The reporter intentionally leaves global G1–G7 unassessed for a pilot.
+        # The reporter leaves global G1–G6 unassessed for a pilot.
         if ($Summary['qualityGates']['G0'] -ceq 'PASS' -and @($Summary['paired']).Count -eq 4 -and
             -not @($Summary['paired']).Where({ $_['comparable'] -ne $true }).Count -and
             @($Summary['cases']).Count -eq 8 -and
@@ -108,8 +108,7 @@ function Get-StableAbReview($Summary, [string]$Stage) {
         }
         return 'REVIEW_REQUIRED'
     }
-    if ($Summary['qualityGate'] -ceq 'PASS' -and $Summary['qualityGates']['G7'] -ceq 'ELIGIBLE_FOR_ASSESSMENT' -and
-        $Summary['efficiency'] -cin @('LOWER_OBSERVED_INPUT','NO_GAIN') -and
+    if ($Summary['qualityGate'] -ceq 'PASS' -and
         -not @(0..6).Where({ $Summary['qualityGates']["G$_"] -cne 'PASS' }).Count) {
         return 'PASS'
     }

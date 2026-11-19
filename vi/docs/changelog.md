@@ -2,6 +2,10 @@
 
 ## 0.2.0 (candidate)
 
+- Tập trung bộ công cụ vào Work Prompt có phạm vi, quyền sở hữu theo Lab-First
+  và thay đổi mã đã kiểm chứng. Đóng băng checkpoint và A/B quy mô lớn cho
+  việc chạy thủ công. Giữ số liệu chẩn đoán vai trò và bỏ chấm điểm hiệu năng.
+
 - Giữ giao thức stage kiểm chứng an toàn khi lọc output; nhận marker lịch sử
   với mã thoát con dạng số và chặn PASS giả khi có error/signal. Bao phủ cả
   hai kiểu xuống dòng và giữ nguyên bằng chứng chấm lịch sử.
@@ -12,7 +16,7 @@
 - Giữ thao tác bàn giao rõ ràng và dùng lại context riêng theo vai trò. Ưu tiên
   đọc cấu trúc có giới hạn và giữ giới hạn riêng tư trong bàn giao bị chặn.
 - Tách danh tính ứng viên sửa lỗi khỏi bằng chứng B2 lịch sử. Mở rộng audit
-  giá trị escape và đặt nghiệm thu native trước đánh giá hiệu quả.
+  giá trị escape và gắn nghiệm thu Native với bằng chứng đã rà soát.
 - Thêm Skill biên soạn Work Prompt có thể chọn cài và mẫu song ngữ để bàn
   giao nhiệm vụ đúng phạm vi cho Agent khác.
 - Thêm cách chọn kiến trúc Lab-First, định tuyến chủ sở hữu repository và
@@ -45,4 +49,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: c1009944ae146acd9878ce89d7b27e730a51cf09274efdf3f132f384e79b4b9f -->
+<!-- source-sha256: 36bca079b88d6c4ebaa4d3365bb0e6803a2e0d71f9e80c59ce37becee9863f80 -->

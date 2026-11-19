@@ -58,10 +58,9 @@ hoặc còn thiếu.
 
 ## Vòng đời mô hình
 
-Giao ước hành vi Adaptive Stable độc lập với các lần phát hành model.
-Chọn model và effort tại runtime. Dùng [quy trình tương thích theo rủi ro](model-compatibility.md)
-để chọn phép kiểm phù hợp với thay đổi thực tế. Tiếp tục chỉ nạp Skill cần
-thiết và giữ bằng chứng Baseline A lịch sử tại revision gốc.
+Giao ước Work Prompt độc lập với các lần phát hành model. Chọn model và effort
+tại runtime. Dùng [kiểm tra tương thích theo rủi ro](model-compatibility.md)
+khi thay đổi ảnh hưởng đến hành vi bàn giao, quyền truy cập công cụ hoặc quyền thực thi.
 
 ## Tình huống đọc thử
 
@@ -72,15 +71,12 @@ thiết và giữ bằng chứng Baseline A lịch sử tại revision gốc.
 | Đổi field response HTTP dùng chung | Quyền sở hữu theo Ecosystem, contract miền áp dụng, API compatibility và test của consumer trực tiếp | Xem SDK/default/null theo revision được chọn |
 | Debug timing testbench FPGA | Chỉ dẫn lồng nhau FPGA, skill debugging, RTL và testbench liên quan. Đọc thêm phần an toàn Lab-First và kiến trúc FPGA khi thay đổi ranh giới an toàn Lab hoặc RTL | Báo kết quả mô phỏng cùng trạng thái kiểm chứng vật lý |
 
-Đây là tình huống đọc tài liệu. Bộ [đánh giá hành vi](behavioral-evaluation.md)
-riêng dùng dự án giả lập và ghi quan sát Codex native khi đủ điều kiện.
-
 ## Ngân sách văn bản
 
 Mục tiêu 500 từ tách theo khoảng trắng và 4.000 byte UTF-8 cho baseline,
 khoảng 300 từ cho index dự phòng, tối đa 240 ký tự cho mô tả skill và 900 từ
 hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker báo số đo
-và cảnh báo tham khảo. Số token phụ thuộc phần client nạp và tokenizer.
+văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 2a1c7331a2f1c751dbe2ceed53b41790ee0cbc7fa790b04000fdf93cc65b5152 -->
+<!-- source-sha256: 69f19356ec564ee055621ec9ea7f3e739985a71c472115013b01d7f67c449427 -->

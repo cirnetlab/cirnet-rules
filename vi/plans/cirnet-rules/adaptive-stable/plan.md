@@ -151,5 +151,22 @@ Preview Candidate đã đối chiếu 96 mục SHA-256 của đầu vào với
 hash đầu vào của lượt chạy với preview và rà soát độc lập cả hai ca.
 Nghiệm thu native cho revision này là `NOT_RUN`.
 
+## Điều chỉnh trọng tâm phát triển
+
+| Bước | Phép kiểm |
+| --- | --- |
+| Rà các bên dùng kết quả so sánh và checkpoint | Giữ nguồn gốc, rà chất lượng, số liệu chẩn đoán vai trò và quyền thực thi. Xác định các trường báo cáo chỉ phục vụ tối ưu. |
+| Bỏ chấm điểm hiệu năng và đóng băng công cụ so sánh | Chạy test checkpoint và A/B shim cho review chất lượng, bằng chứng thiếu, quyền riêng tư và khả năng truy vết. |
+| Cập nhật điểm vào và lưu hồ sơ benchmark | Kiểm tra liên kết EN/VI, SHA-256, byte nguồn được bảo vệ và bằng chứng lịch sử. Giữ kiểm tra tập trung trong luồng mặc định. |
+
+Các phép kiểm hồi quy checkpoint và reporter đã tái hiện yêu cầu hiệu năng
+cũ và đạt sau khi bỏ yêu cầu đó. Ubuntu 24.04 chạy đạt các bộ shim A/B và
+Candidate-only. Windows chạy đạt kiểm tra bundle và bộ cài trong home giả,
+các fixture hành vi và mô phỏng tập trung E08. Ubuntu thiếu các chương trình
+mô phỏng cho fixture đó. 5.525 tệp bằng chứng lịch sử, các báo cáo hiện có,
+tài liệu kiến trúc, Skills, template, fixture và rubric khớp hash ban đầu.
+Kho lưu trữ giữ hồ sơ benchmark từ README và điều chỉnh liên kết local theo
+vị trí mới.
+
 <!-- source: en/plans/cirnet-rules/adaptive-stable/plan.md -->
-<!-- source-sha256: 8c7ff4ff30dea4ed52963dc25fd25ad47683ea9d23bf810340a81496084e37af -->
+<!-- source-sha256: fe7faca98e3fa7b15e3cdd0579176e25e97e808a76929064300c3c0f7320a13c -->

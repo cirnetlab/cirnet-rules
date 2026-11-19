@@ -40,5 +40,19 @@ tế. Sandbox E06 vẫn bao phủ fixture. Bộ chấm objective và kiểm tra 
 Git phát hiện vi phạm phạm vi. Điểm kiểm tra dùng runner hiện có. Các vai trò
 lịch sử chạy theo quy trình và bằng chứng đã pin của chúng.
 
+## Phạm vi bảo trì hiện tại
+
+Luồng hằng ngày dùng baseline chung, kiến trúc và contract của repo sở hữu,
+Work Prompt có phạm vi và kiểm chứng theo rủi ro. Các phép kiểm mặc định của
+bộ công cụ bao phủ handoff và các hồi quy thiết yếu ở chế độ offline.
+Thiết lập client hiện có và thực thi fixture cô lập thuộc phạm vi bảo trì.
+Nhánh Governance phục vụ tra cứu lịch sử.
+
+Bộ điều phối checkpoint và so sánh A/B quy mô lớn được giữ làm công cụ chạy
+thủ công. Chạy Native cần quyền riêng. Các đợt rà nghiệm thu mới đánh giá mức độ hoàn
+thành tác vụ, tuân thủ kiến trúc, độ bao phủ kiểm chứng và quyền riêng tư.
+Số liệu sử dụng và thời gian đo được của từng vai trò phục vụ chẩn đoán.
+Các phép so sánh lịch sử giữ nguyên đầu vào, báo cáo, cách chấm và revision nguồn.
+
 <!-- source: en/specs/cirnet-rules/adaptive-stable/spec.md -->
-<!-- source-sha256: e79f6a990bdddae1cfcf72e3ea101161da34755042ab0f3a33f6e969b8b925f0 -->
+<!-- source-sha256: 03fc8874ba1542c2518286c1c34c6110652aca60f25cc9719e309c2365067743 -->

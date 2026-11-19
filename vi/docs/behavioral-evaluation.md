@@ -1,8 +1,8 @@
 # Đánh giá hành vi kỹ thuật với Codex
 
 Dùng [smoke tương thích Candidate-only](model-compatibility.md) khi chỉ đổi
-model. Dùng quy trình A/B đầy đủ cho thay đổi lớn về hành vi hoặc kiến trúc khi
-đợt nghiệm thu được cấp quyền rõ ràng.
+model. Chọn thêm ca theo hành vi hoặc ranh giới bị ảnh hưởng và dùng test của
+bên sở hữu khi thay đổi mã sản phẩm.
 
 Runner tạo workspace tạm cho từng ca được chọn từ fixture trong
 `tests/behavioral/fixtures`, baseline chung và các skill đã chọn. Giữ định nghĩa
@@ -65,6 +65,12 @@ fixture, nên cần kiểm tra các lệnh vượt ranh giới trong trace.
   lệnh tiếp theo. Xác minh reset, permit loss, watchdog expiry và fault trong
   trace native. Yêu cầu `physical verification: NOT_RUN` nếu chưa kiểm tra
   bo mạch thực tế.
+  Vai trò có thể quan sát mã thoát tiến trình con bằng
+  `node --import ./toolkit/rtl-observer.mjs simulate.mjs`.
+  Giữ các marker JSON an toàn `CIRNET_RTL_STAGE ` và marker lịch sử
+  `Child result ` khi lọc output. Yêu cầu mã thoát con dạng số từ lệnh đã hoàn
+  tất và từ chối khi có error hoặc signal kể cả với mã 0. Các phép kiểm tập trung
+  gồm `tests/eval-codex-rtl.tests.ps1` và `node --test tests/eval-codex-rtl.test.mjs`.
 - Ghi kết quả bộ kiểm tra offline riêng với kết quả native.
   `./tests/behavioral-followup.tests.ps1` kiểm tra E01/E08 bằng mock.
   Giữ bằng chứng thô trong thư mục tạm được cấp cho phiên hoặc thư mục Git bỏ
@@ -72,149 +78,37 @@ fixture, nên cần kiểm tra các lệnh vượt ranh giới trong trace.
 
 ## Tái lập phép so sánh Codex A/B2
 
-Dùng PowerShell 7, Git objects cục bộ của A và B lịch sử, `tar`, Node và
-Codex CLI. Bắt đầu với bốn ca pilot. Preview đóng băng đầu vào và in đường
-dẫn bằng chứng mà không gọi mô hình. Ứng viên được đặt tên lấy cặp EN/VI
-biên soạn và context hiện tại, phủ lên nguồn B đã đóng băng và ghi hash chính xác. A dùng snapshot
-Baseline ban đầu. Work dùng cùng Skills thực thi đã chọn từ B ở cả hai nhánh.
+`scripts/eval-codex-ab.ps1` và `scripts/eval-adaptive-stable.ps1` là công cụ
+bảo trì đã đóng băng. [Kho lưu trữ
+benchmark](../../reports/work-prompt-benchmark-history.md) dẫn đến checkout đã
+pin có lệnh vận hành, cách chấm và kết quả gốc. Dùng revision đó để rà soát
+hoặc tái lập số liệu và checkpoint lịch sử của nó.
 
-```powershell
-$out = [IO.Path]::GetTempPath()
-$pilot = 'E01,E06,E02,E05'
-$settings = @{
-  CandidateId = 'B2.3'; Preset = 'high'; TimeoutSeconds = 420
-  AuthorModel = 'gpt-6.1-sol'; WorkModel = 'gpt-6.1-sol'
-  AuthorEffort = 'high'; WorkEffort = 'high'
-}
-./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session b23-preview -CaseId $pilot -Seed 17 @settings
-./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session b23-pilot -CaseId $pilot -Seed 17 @settings -AuthHome $authHome -Execute -MaxNativeCalls 16
-```
+Báo cáo A/B hiện tại chấm mức hoàn thành tác vụ, tuân thủ kiến trúc, kiểm chứng
+và quyền riêng tư. Số liệu sử dụng và thời gian của từng vai trò phục vụ chẩn
+đoán. Profile `-CurrentWorkRules` cấp cùng Work Skills cho cả hai cohort và
+cùng hướng dẫn đọc thay thế có giới hạn, lọc tóm tắt test cho E06. A và Candidate
+giữ snapshot Author riêng.
 
-Dùng tên phiên mới, hồ sơ đăng nhập đánh giá riêng như trên hoặc
-`-UseApiKey` được phép và giới hạn lượt gọi được duyệt. Tính hai vai trò cho
-mỗi lượt và hai nhánh cho mỗi ca/lần lặp. Mô hình mặc định của mỗi vai trò là
-`gpt-6.1-sol`. Chọn `-Preset high` hoặc đặt riêng `-AuthorModel`,
-`-WorkModel`, `-AuthorEffort` và `-WorkEffort`. Hai nhánh dùng cùng thiết lập
-cho từng vai trò. Phiên bản mô hình và effort hiệu lực vẫn chưa xác minh nếu
-sự kiện native không cung cấp. Để chạy đủ, chọn
-`'E01,E06,E02,E05,E03,E04,E07,E08'` và `-Repetitions 3`, tối đa 96 lượt gọi.
-Dùng tên mới và gắn `-PriorSession` khi ghi lượt sửa hoặc lặp độc lập qua
-`-RunPurpose`.
+- Chạy preview bằng ID session chưa dùng và chỉ định rõ các ca trước khi thực
+  thi. Chạy Native cần thông tin xác thực dành riêng, quyền riêng và giới hạn
+  lượt gọi rõ ràng. Khi tiếp tục, giữ thứ tự ca, số lần lặp, seed, thiết lập
+  từng vai trò, đầu vào đóng băng và chỉ mục bằng chứng gốc.
+- Điền `review-template.json` của session theo thứ tự ca đã đóng băng. Giữ
+  hash trial và ghi `status`, `reason`, `evidence` cho từng phép kiểm. Dẫn bằng
+  chứng tương đối với vai trò như `Work/events.jsonl` hoặc `Work/item_3`.
+  Khi chấm kiểm chứng PASS, xem output và dẫn lệnh Work đã hoàn tất có mã
+  thoát quan sát được. Ghi lỗi thiết lập đã xác nhận riêng trong `harnessIssue`
+  với `reason` và `evidence`.
+- Giữ bản tóm tắt, trace và chỉ mục gốc. Với bộ điều phối hiện có, dùng
+  `candidate-review.json` hoặc `ab-review.json` tùy bước và để checkpoint
+  thực thi giới hạn lượt tích lũy đã duyệt. Người bảo trì dùng hai bộ kiểm
+  offline `tests/behavioral-ab.tests.ps1` và `tests/adaptive-stable-checkpoint.tests.ps1`.
 
-Dùng `-CandidateId` có phiên bản mới khi byte biên soạn thay đổi; không tái dùng
-danh tính cũ cho đầu vào khác. Ví dụ chọn bản sửa khôi phục mục tiêu và bằng chứng stage B2.3, cần
-kiểm chứng native riêng. B2.1 lịch sử và preview B2.2 chưa chạy được giữ riêng.
-Mặc định vẫn là `B2` để tương thích. Manifest gắn ID với HEAD source đủ 40 ký tự, digest snapshot và
-hash từng tệp. Mỗi vai trò, cohort có fixture và phiên native mới. Tiếp tục
-B2 lịch sử và so sánh A/ứng viên sửa mới là hai lane độc lập; không gộp mẫu số.
-Giữ nguyên runner và observer lịch sử trong khi hoàn tất lane đó.
-So sánh mới còn ghim helper riêng tư dùng giống nhau ở hai cohort.
-
-Với mỗi ứng viên sửa lỗi, preview và chạy E01/E06/E02/E05 trước, đặt rõ cả hai vai trò là
-`gpt-6.1-sol` / `high` với cap 16 lần gọi. Rà trace và diff thực tế trước khi
-chạy lịch đầy đủ 48 lượt, 96 lần gọi trong phiên mới. Hết quota là checkpoint,
-không phải so sánh hoàn tất. Giữ riêng usage pilot; pilot PASS chưa đủ nghiệm thu
-G0–G6. Không đánh giá tiết kiệm khi chất lượng còn FAIL, BLOCKED hoặc INCONCLUSIVE.
-
-### So sánh biên soạn với Work Skills hiện tại
-
-Dùng `-CurrentWorkRules` trong phiên mới khi cần bằng chứng nghiệm thu
-cho Skill thực thi hiện tại. Runner đóng băng Rules runtime và tài liệu
-kiến trúc được Git theo dõi trong checkout. Candidate Author dùng nguồn đó,
-và hai cohort dùng chung Work Rules từ nguồn này để giữ phép so sánh theo
-cặp hợp lệ. Baseline Author vẫn dùng snapshot A gốc. Reporter đối chiếu
-hash baseline, tài liệu tham chiếu và Skill đã nạp với snapshot. Profile
-này giữ Work cố định khi so sánh cách biên soạn, đồng thời thu bằng chứng
-hành vi của Work Skills hiện tại.
-
-```powershell
-$current = @{
-  OutputRoot = [IO.Path]::GetTempPath()
-  CaseId = 'E01,E06,E02,E05'
-  CurrentWorkRules = $true
-  AuthorModel = 'gpt-6.2-sol'
-  WorkModel = 'gpt-6.2-sol'
-  AuthorEffort = 'xhigh'
-  WorkEffort = 'xhigh'
-  TimeoutSeconds = 300
-}
-./scripts/eval-codex-ab.ps1 @current -Session current-work-pilot-preview
-# Sau khi được cấp quyền riêng cho 16 lượt pilot.
-./scripts/eval-codex-ab.ps1 @current -Session current-work-pilot -AuthHome $authHome -Execute -MaxNativeCalls 16
-```
-
-Khi trích dẫn bằng chứng, ghi profile, HEAD source và SHA-256 snapshot.
-Lượt tiếp tục phải chọn lại cùng Work Rules profile và dùng các đầu vào
-đã đóng băng ban đầu. Giữ bằng chứng Candidate-only và giao thức A/B
-legacy riêng với phép so sánh sử dụng Work hiện tại.
-
-Sau khi bị gián đoạn bởi quota hoặc xác thực, dùng phiên mới với
-`-RunPurpose Continuation -PriorSession <interrupted-session>` và giữ nguyên
-các ca, số lần lặp, seed, timeout và thiết lập từng vai trò. Scheduler xác minh
-danh mục bằng chứng cũ, dùng lại rules và tệp đánh giá gốc theo hash đã ghi,
-rồi sao chép đúng từng byte các lượt đã hoàn tất (kể cả FAIL). Scheduler chỉ
-chạy các lượt còn thiếu và ghi ID lượt được giữ cùng digest danh mục cũ.
-Đặt `-MaxNativeCalls` đủ hai lượt gọi vai trò cho mỗi lượt thử còn thiếu.
-Giữ phiên bị gián đoạn vì các lần
-bị chặn vẫn là bằng chứng vận hành. Ghi riêng mọi thay đổi hồ sơ xác thực,
-không xuất thông tin đăng nhập. Nếu đổi đầu vào hoặc thiết lập, dùng lượt sửa
-hoặc lặp độc lập.
-
-Author có shell chỉ đọc và nguồn biên soạn đã chọn. Work bắt đầu từ fixture
-mới với đúng byte bản bàn giao cuối trên stdin. Cả hai có thể đọc producer
-giả lập của E04 trong fixture. Chỉ đường dẫn consumer được phép ghi. Rubric
-và đầu vào đánh giá đã đóng băng nằm ngoài fixture mỗi vai trò. Runner rà
-hoạt động công cụ và ghi giới hạn cách ly quyền đọc. Dùng môi trường đánh giá riêng.
-
-Với E08, dùng bản Icarus cục bộ đã xác minh hoặc giải nén gói portable tin
-cậy vào thư mục riêng trong OS temp. Kiểm tra nhà phát hành hoặc digest gói
-kỳ vọng từ nhà cung cấp trước khi chạy. Truyền thư mục chứa executable qua
-`-ToolPath`. Harness ghi hash, phiên bản hai executable và chạy probe biên
-dịch/mô phỏng tối thiểu với tool path cách ly. Thiếu công cụ hoặc probe lỗi
-để E08 ở BLOCKED. Work có thể quan sát mã thoát tiến trình con của wrapper
-giữ nguyên bằng `node --import ./toolkit/rtl-observer.mjs simulate.mjs`.
-Reviewer kiểm tra output thật của reset, mất permit, watchdog hết hạn và fault.
-Trạng thái vật lý là `physical verification: NOT_RUN`.
-
-Giữ nguyên marker stage máy đọc được đã xác minh an toàn khi lọc output.
-Bộ thu nhận dòng JSON bắt đầu bằng `CIRNET_RTL_STAGE ` hoặc `Child result `
-lịch sử từ lệnh observer đã hoàn tất, kể cả CRLF. Mã thoát tiến trình con
-phải là số; null, thiếu mã hoặc chuỗi không phải bằng chứng thành công.
-Người soát phải dẫn đúng công cụ stage, xem assertion và bác bỏ error hoặc
-signal dù mã thoát bằng không. Sửa này chỉ áp dụng cho lượt mới, không đổi
-bản ghi vai trò hoặc cách chấm lịch sử. Kiểm tra tập trung:
-`tests/eval-codex-rtl.tests.ps1` và `node --test tests/eval-codex-rtl.test.mjs`.
-
-Dùng `review-template.json` của lượt chạy để ghi đánh giá độc lập trong tệp
-review riêng. Giữ các hash của lượt thử. Điền slot rubric theo thứ tự ca đã
-đóng băng. Mỗi phép kiểm dùng `status`, `reason` và `evidence`. Dẫn vị trí như
-`Work/events.jsonl` hoặc ID sự kiện như `Work/item_3`. Với mỗi lượt gọi thừa,
-ghi `tool`, `reason` và boolean `contextRefetch`. Reviewer đối chiếu byte bảo
-vệ, phạm vi, lệnh trong trace, diff thật và output kiểm chứng.
-Phép kiểm PASS phải dẫn lệnh Work đã hoàn tất và có mã thoát quan sát được.
-Xem output và kiểm tra phạm vi trước khi ghi kết quả.
-Ghi lỗi thiết lập đã xác nhận vào `harnessIssue` của lượt thử với `reason`
-và `evidence` để loại cặp đó khỏi phép suy luận ghép cặp.
-
-```powershell
-$session = 'b23-pilot'
-$reviewed = Join-Path $out "$session/reviewed-pilot.json"
-./scripts/eval-codex-ab.ps1 -OutputRoot $out -Session $session -Summarize -ReviewFile $review -SummaryFile $reviewed
-```
-
-Đọc `summary.json` cùng bản đã chấm. Kết quả toàn suite gồm lượt không hợp
-lệ và bị chặn. Usage native của lượt không hợp lệ vẫn nằm trong tổng vận
-hành. Hiệu quả dùng tập ca native PASS ghép cặp. Rà thất bại trước khi đánh
-giá hiệu quả. Tổng token là input + output thực tế của Author + Work; cached
-input và reasoning là tập con hoặc bộ đếm riêng, không cộng lại. Chỉ đánh
-giá tổng này sau G0–G6; giảm riêng input chưa đủ để kết luận giảm token hay
-chi phí nói chung. Thời gian tiến trình từng vai trò trên host không gồm
-chuẩn bị fixture và không phải độ trễ toàn bộ harness. Thiếu dữ liệu thanh
-toán thì chi phí vẫn chưa có. Thiếu bằng chứng lặp thì gate là INCONCLUSIVE. Canary E01 xuất
-hiện ở một trong hai vai trò là FAIL. Không trích giá trị đó. Rà output, bản
-bàn giao và danh mục bằng chứng trước khi chia sẻ. Danh mục chỉ lấy tệp đã lọc.
-Giữ profile, cây fixture và log runtime tạm trong thư mục riêng của lượt chạy.
-Chỉ chia sẻ báo cáo đã chấm hoặc bằng chứng đã lọc được phép.
+Rà kết quả cả bộ, kể cả lượt không hợp lệ hoặc bị chặn. Kiểm tra byte bàn giao,
+phạm vi, thay đổi và output kiểm chứng thực tế. Rà trước khi chia sẻ. Giữ
+profile riêng, fixture và log runtime trong session do bạn quản lý, đồng thời
+chỉ chia sẻ bằng chứng đã lọc và được phép.
 
 ## Đọc an toàn và kiểm soát bằng chứng
 
@@ -243,4 +137,4 @@ Chạy `tests/eval-codex-privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 4147940a98a9479e4299e79d84977294f3e581833d416f9547296fdb5f33479a -->
+<!-- source-sha256: 9196a4317371cdad274a84170cc6898b3b8c8c6e6bb475fa0ae3735637f9bd1e -->

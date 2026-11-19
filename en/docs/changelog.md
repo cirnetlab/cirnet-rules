@@ -2,6 +2,10 @@
 
 ## 0.2.0 (candidate)
 
+- Center the toolkit on scoped Work Prompts, Lab-First ownership and verified
+  code changes. Freeze checkpoint and large A/B tooling for manual use.
+  Keep role diagnostics and retire benchmark performance scoring.
+
 - Preserve safe verification stage protocols in filtered output; accept historical
   marker lines with numeric child statuses and reject error/signal false PASS.
   Cover both newline formats and keep old grading evidence immutable.
@@ -11,7 +15,7 @@
 - Preserve explicit handoff operations and per-role context reuse. Prefer bounded
   structural inspection and retain privacy limits in blocked handoffs.
 - Separate repaired candidate identities from historical B2 evidence. Extend
-  escaped-value audit coverage and keep native acceptance ahead of efficiency.
+  escaped-value audit coverage and tie native acceptance to reviewed evidence.
 - Add the opt-in Work Prompt authoring Skill and a bilingual template for
   handing scoped tasks to another agent.
 - Add Lab-First architecture selection, repository ownership routing and an

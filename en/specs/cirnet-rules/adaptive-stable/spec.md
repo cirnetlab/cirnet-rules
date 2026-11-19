@@ -41,3 +41,17 @@ negative cases, privacy and verification against the actual trace and diff.
 The E06 sandbox remains fixture-wide. Its objective and Git evidence checks
 detect scope violations. The gate uses the existing runner. Historical roles
 run under their pinned protocol and evidence.
+
+## Current maintenance scope
+
+The day-to-day workflow uses the common baseline, repository-owned architecture
+and contracts, scoped Work Prompts and risk-based verification. The default
+toolkit checks cover the handoff and essential regressions offline.
+Existing client setup and isolated fixture execution remain maintenance work.
+The Governance branch serves as historical reference.
+
+The checkpoint coordinator and large A/B comparisons are maintained as manual
+tools. Native execution requires separate authorization. New reviews cover task success,
+architecture compliance, verification coverage and privacy. Measured role
+usage and timing serve diagnosis. Historical comparisons keep their original
+inputs, reports, scoring and source revision.

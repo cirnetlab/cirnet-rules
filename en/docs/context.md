@@ -56,10 +56,9 @@ Give Work a minimal first read and reopen only changed or missing decisive evide
 
 ## Model lifecycle
 
-The Adaptive Stable behavioral contract is independent of model releases.
-Select model and effort at runtime. Use the [risk-based compatibility procedure](model-compatibility.md)
-to choose checks for the actual change. Keep selective Skill loading and
-retain historical Baseline A evidence at its original revision.
+The Work Prompt contract is independent of model releases. Select model and
+effort at runtime. Use [risk-based compatibility checks](model-compatibility.md)
+when a change affects handoff behavior, tool access or permissions.
 
 ## Walkthroughs
 
@@ -70,14 +69,9 @@ retain historical Baseline A evidence at its original revision.
 | Change a shared HTTP response field | Ecosystem ownership, applicable domain contract, API compatibility and a direct consumer test | Inspect SDK/default/null behavior at the selected revision |
 | Debug FPGA testbench timing | FPGA nested instruction, debugging skill, relevant RTL and testbench. Add Lab-First safety and FPGA architecture sections for changes at a Lab safety or RTL boundary | Report simulation results alongside the physical verification status |
 
-These are documentation walkthroughs. The separate
-[behavioral evaluation](behavioral-evaluation.md) uses synthetic projects and
-records native Codex observations when prerequisites permit.
-
 ## Text budgets
 
 Aim for 500 whitespace-delimited words and 4,000 UTF-8 bytes in the baseline,
 about 300 words in the fallback index, at most 240 characters in a skill
 description, and 900 words or 250 lines per skill body. Keep safety rules clear.
-The checker reports text statistics and advisory warnings. Token counts depend
-on what the client loads and its tokenizer.
+The checker reports text statistics and advisory warnings for maintainers.

@@ -339,8 +339,7 @@ foreach ($slot in $schedule) {
         if ($author.execution -eq 'COMPLETED' -and $author['finalSha256'] -and -not $author.process.scopeStop) {
             $handoff = Join-Path $trialRoot "Author/$($slot.caseId)/final.md"
             $trial.authorFinalSha256 = Get-CirnetHash -Path $handoff
-            $prompt = [IO.File]::ReadAllText($handoff, $utf8)
-            $trial.prompt = [ordered]@{ bytes = (Get-Item -LiteralPath $handoff).Length; words = [regex]::Matches($prompt, '\S+').Count; tokens = 'NOT_AVAILABLE' }
+            $trial.prompt = [ordered]@{ bytes = (Get-Item -LiteralPath $handoff).Length }
             $roleArgs.UseCurrentWorkGuidance = $CurrentWorkRules.IsPresent
             & $runner @roleArgs -Role Work -Session Work -RulesRoot (Join-Path $snapshots 'common') -SourceRevision $workRevision -Model $WorkModel -Effort $WorkEffort -HandoffPath $handoff
             $work = Read-Record (Join-Path $trialRoot "Work/$($slot.caseId)/run.json")

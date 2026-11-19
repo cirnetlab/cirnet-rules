@@ -159,3 +159,20 @@ The Candidate preview verified 96 input SHA-256 entries against
 300 seconds per role and at most four role calls. After separate authorization,
 verify the execution input hashes against the preview and review both cases
 independently. Native validation for this revision is `NOT_RUN`.
+
+## Development refocus
+
+| Step | Check |
+| --- | --- |
+| Trace comparison and checkpoint consumers | Keep provenance, quality review, role diagnostics and authorization. Identify reporting fields used only for optimization. |
+| Retire performance scoring and freeze the comparison tools | Run checkpoint and A/B shim tests for quality-only reviews, missing evidence, privacy and traceability. |
+| Update entrypoints and archive the benchmark record | Check EN/VI links and SHA-256, protected source bytes and historical evidence. Keep targeted checks in the default workflow. |
+
+The checkpoint and reporter regressions reproduced the old performance
+requirement and passed after its removal. Ubuntu 24.04 passed the A/B and
+Candidate-only shim suites. Windows passed package and fake-home installer
+checks, behavioral fixtures and the focused E08 simulation. Ubuntu lacked the
+simulator executables for that fixture. The 5,525 historical evidence files,
+existing reports, architecture documents, Skills, templates, fixtures and
+rubrics matched their starting hashes. The archive preserves the README's
+benchmark record with its local links adjusted for the new location.

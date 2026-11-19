@@ -480,8 +480,8 @@ try {
         $assessment = Read-Json (Resolve-CirnetPath -Root $root -Relative "$($full.id)/$($full.gradedFile)")
         $lines += @('', '## Quality gates', '', '| Gate | Result |', '| --- | --- |')
         foreach ($i in 0..6) { $lines += "| G$i | $($assessment['qualityGates']["G$i"]) |" }
-        $lines += @("| G7 | $($assessment['efficiency']) |", '',
-            'The linked artifacts contain the measured role telemetry and the evidence for Task Success, Architecture Compliance, Verification Coverage and Privacy.',
+        $lines += @('',
+            'The linked artifacts contain the role traces and evidence for Task Success, Architecture Compliance, Verification Coverage and Privacy.',
             'Owner approval is required to release Adaptive Stable.')
         [IO.File]::WriteAllText($report, ($lines -join "`n") + "`n", $utf8)
     }
