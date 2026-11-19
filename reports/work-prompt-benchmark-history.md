@@ -43,6 +43,11 @@ và mẫu RTL độc lập ở trên thuộc về revision lịch sử đó.
 
 ## Adaptive Work Prompt — Codex evaluation / Đánh giá với Codex
 
+The later, independently reviewed Current Work Rules pilot is recorded separately:
+[Codex A/B pilot, 19 November 2026](codex-adaptive-current-pilot-2026-11-19.md).
+/ [Pilot A/B Codex ngày 19/11/2026](codex-adaptive-current-pilot-2026-11-19.md)
+là một bản ghi evidence độc lập, không gộp với các cohort dưới đây.
+
 **2026-11-17 (Asia/Saigon). 40 of 48 trials completed, 20 matched pairs. B2: NOT_ACCEPTED.**
 **Đã hoàn tất 40/48 lượt và ghép được 20 cặp. B2 chưa đạt nghiệm thu.**
 
