@@ -37,6 +37,13 @@ Tối thiểu cần: File được phép sửa, hành vi đích, interface của
    chạy các phép kiểm tra gắn với nghiệm thu, gồm kiểm tra kiến trúc của bên
    sở hữu đối với ranh giới bị ảnh hưởng.
 
+Với công việc có Task Continuity, lưu trước khi sửa, sau khi sửa trực tiếp bằng
+agent và khi tiến độ hoặc quyết định thay đổi. Chạy các mốc lệnh đã được phép
+bằng `scripts/task-continuity.ps1 run` từ checkout toolkit đã duyệt. Trong
+phiên mới, dùng `resume`, đọc lại tham chiếu áp dụng và xác nhận quyền độc
+lập. Xử lý vướng mắc trước khi dùng `-ConfirmContinuation` và chỉ sửa khi
+`CanContinue` cho phép.
+
 Báo diff, hành vi, kiểm tra và giới hạn. Đối chiếu mỗi tuyên bố nghiệm thu
 với kết quả quan sát được và chỉ rõ phần còn thiếu.
 
@@ -44,4 +51,4 @@ Mở [Ví dụ kỹ thuật](references/engineering-examples.md#ví-dụ-kỹ-th
 thể tham khảo ca tương tự về API, Vue, testbench RTL hoặc kiểm thử hồi quy.
 
 <!-- source: en/skills/cirnet-implementation/SKILL.md -->
-<!-- source-sha256: 850a4365a3e9a257f59b23b9e61f5a31f8075570ba81b5a0e28520875f2cd9ce -->
+<!-- source-sha256: 4789fbd55aa89922bec8eadd45a1ef30544249222f1783bec97f18f69f6cb9e8 -->

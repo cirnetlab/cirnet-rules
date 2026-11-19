@@ -54,12 +54,18 @@ bundle. If that access is missing, the Skill reports `PROMPT_BLOCKED`.
 
 ## Task Continuity
 
-Run the PowerShell 7 manager from a reviewed `cirnet-rules` checkout. Set
-`Repository` to the target Git worktree root and use the same lowercase `TaskId`
-and `AgentFamily` (`codex` or `claude-code`) throughout the task. The target
-repository owns its `.cirnet/tasks/` store. It must already ignore that path in
-Git. Use `CheckpointRoot` in every call to select a different ignored, untracked
-path or an owned directory outside a worktree.
+Run the PowerShell 7 manager and its modules together from an approved
+`cirnet-rules` checkout at a reviewed revision. The installed bundle supplies
+the baseline and Skills. Give the agent separate access to the checkout that
+contains the manager. Set `Repository` to the owning Git worktree root and keep
+the same lowercase `TaskId` and `AgentFamily` (`codex` or `claude-code`).
+
+Use the owner's existing local storage convention. Before using the default
+`.cirnet/tasks/`, confirm it is untracked and ignored, using an owner approved
+repository ignore rule or the checkout's local Git exclude file. Set
+`CheckpointRoot` on every call for a different ignored path or an owned directory
+outside a worktree. Keep input notes and handoff files out of tracked paths and
+restrict access to authorized operators.
 
 Prepare UTF-8 task and progress notes with level-two headings (`##`). Keep only
 authorized, redacted task information. The required headings are:
@@ -76,32 +82,81 @@ applicable architecture and rules and any existing Plans/Specs. For a related
 repo, record its `id`, full Git `revision` and approved `access` (`read` or `edit`)
 and pass `-RelatedRoot` with an ID-to-worktree mapping when using the checkpoint.
 
-From the toolkit checkout, set `$repo`, `$taskFile`, `$progressFile`, and
-`$referencesFile` to the selected paths. This example targets a Rust project:
+List each acceptance criterion on a separate bullet or numbered line under
+`## Acceptance Criteria`. A single paragraph can represent a single criterion.
+The acceptance JSON is an array in the same order. Each record has a stable `id`
+and a `checks` array of required build or test evidence IDs. For example:
+
+```json
+[
+  {"id": "builds", "checks": ["build"]},
+  {"id": "ownership-reviewed", "checks": []}
+]
+```
+
+An empty `checks` array still requires an authorized review with evidence. Set
+the file variables below to the prepared paths. Initialize the checkpoint before
+edits. The example wraps a Rust project's authorized build:
 
 ```powershell
 $manager = './scripts/task-continuity.ps1'
 $task = @{ Repository = $repo; TaskId = 'toolkit-fix'; AgentFamily = 'codex' }
-& $manager save @task -TaskFile $taskFile -ProgressFile $progressFile -ReferencesFile $referencesFile -RequiredCheck 'build'
-& $manager run @task -EvidenceId 'build' -Kind build -Executable cargo -Arguments @('build', '--offline', '--locked')
-& $manager verify @task
-& $manager resume @task -ConfirmScope
+& $manager save @task -ConfirmScope -TaskFile $taskFile -ProgressFile $progressFile -ReferencesFile $referencesFile -AcceptanceFile $acceptanceFile
+& $manager run @task -ConfirmScope -EvidenceId 'build' -Kind build -Executable cargo -Arguments @('build', '--offline', '--locked')
+$recovery = & $manager resume @task -ConfirmScope
+```
+
+`run` saves state before and after a controlled edit, build, test or handoff
+command. Declare relevant ignored files and dependency inputs in the worktree
+with `-InputPath`. For agent edits outside the wrapper, review the changes
+and save with `-AcceptGitDrift -ConfirmScope`. Use `save -ProgressFile` after
+progress or decisions change and before handing off. These integrations cover
+explicit tool calls. Review external inputs and environment changes separately.
+
+`resume -ConfirmScope` returns the sealed notes for read-only recovery even
+when verification is stale, a command was interrupted or Git has drifted.
+Read `Blockers`, `Git.Changes`, `Checks` and `Acceptance` before taking action.
+Reopen the pinned references and verify present implementation authorization.
+Then repeat local `resume` with `-ConfirmContinuation` and require
+`CanContinue` before editing. Reconcile Git or
+document drift with owner approval and rerun stale checks. If `run` was left
+in its running phase, confirm its process and children stopped before passing
+`-ConfirmStopped` to retry the milestone or accept Git drift.
+
+After checking evidence for each criterion, prepare `$reviewFile` as a JSON
+array of records with `id`, `status` and a redacted `evidence` reference.
+Review statuses are `PASS`, `FAIL`, `NOT_RUN` and `BLOCKED`. The manager
+invalidates reviews when the recorded source, references or linked results
+change. Close only after checking the current evidence and authorization:
+
+```powershell
+& $manager review @task -ConfirmScope -ReviewFile $reviewFile
 & $manager close @task -ConfirmScope -ConfirmAcceptance
 ```
 
-`run` checkpoints before and after a controlled edit, build, test or handoff
-command. Pass `-InputPath` for relevant ignored inputs or dependency files
-within the worktree so changes invalidate prior evidence. Use `status` to
-review saved state. If Git has drifted, review the differences before saving
-with `-AcceptGitDrift -ConfirmScope`; run affected checks again. Read the pinned
-references and confirm current authorization before resuming. Confirm acceptance
-only after reviewing the task criteria and fresh required build or test evidence.
+Version 1 checkpoints remain readable. Before closing an open version 1 task,
+use `save -ConfirmScope -AcceptanceFile` to map its original criteria and
+retain its required checks. This writes a new snapshot, keeping the original
+task and snapshots. Version 1 closure is historical.
+An ambiguous legacy acceptance section remains readable. Get an owner approved
+criterion breakdown before attempting to upgrade or claim acceptance.
 
-`export -ConfirmScope -OutputFile <new-file>` produces a metadata-only handoff
-receipt. On the receiving machine, use `verify -HandoffFile` with the expected
-`-AgentFamily` and the trusted `-ExpectedSha256` returned by export. Resuming
-requires access to the local checkpoint and the relevant worktree. See the
-[Task Continuity specification](../specs/cirnet-rules/task-continuity/spec.md).
+For portable handoff, review the recipient's authorization and the approved
+sections of the task and progress notes and relative document references.
+Use `export -ConfirmScope -ConfirmExport -OutputFile <new-file>`. The handoff
+contains approved task context, repository fingerprints and evidence summaries.
+Keep secrets, session data and source excerpts out of shared notes. The tool
+rejects recognized sensitive content and omits source files, raw commands,
+logs, local Git paths and changed file names from its projection. The operator
+must review free text because filtering cannot identify every sensitive value.
+
+The same agent family can use `verify -HandoffFile` with the expected
+`-AgentFamily` and `-ExpectedSha256` obtained from export through a trusted
+channel. For reading context explicitly, use `resume -HandoffFile` with those
+options and `-ConfirmScope`. Portable verification covers integrity. It does
+not install a checkpoint or restore files. Live Git, authorization, references,
+and evidence freshness require the original worktree and its local checkpoint.
+See the [Task Continuity specification](../specs/cirnet-rules/task-continuity/spec.md).
 
 ## Update and restore
 

@@ -44,18 +44,70 @@ function Assert-NoCredential([string]$Text) {
     }
 }
 
-function Assert-Note([string]$Content, [string[]]$Headings) {
+function Get-ContinuityNoteSections([string]$Content, [ValidateSet('task', 'progress')][string]$Kind) {
     Assert-NoCredential $Content
+    $headings = switch ($Kind) {
+        'task' { $taskHeadings }
+        'progress' { $progressHeadings }
+    }
     $sections = [regex]::Matches($Content, '(?m)^## +([^\r\n]+)\r?$')
+    $result = [ordered]@{}
+    $bounds = @($sections | ForEach-Object { $_.Index }) + $Content.Length
     foreach ($heading in $Headings) {
-        $section = @($sections | Where-Object { $_.Groups[1].Value.TrimEnd() -ceq $heading })
-        if ($section.Count -ne 1) { throw "Supply exactly one '## $heading' section." }
-        $start = $section[0].Index + $section[0].Length
-        $next = $Content.IndexOf(([string][char]10 + '## '), $start, [StringComparison]::Ordinal)
-        if ($next -lt 0) { $next = $Content.Length }
-        if ([string]::IsNullOrWhiteSpace($Content.Substring($start, $next - $start))) {
-            throw "Supply content in the '## $heading' section."
+        $indices = @(for ($i = 0; $i -lt $sections.Count; $i++) {
+            if ($sections[$i].Groups[1].Value.TrimEnd() -ceq $heading) { $i }
+        })
+        if ($indices.Count -ne 1) { throw "Supply exactly one '## $heading' section." }
+        $index = $indices[0]
+        $start = $sections[$index].Index + $sections[$index].Length
+        $text = $Content.Substring($start, $bounds[$index + 1] - $start).Trim()
+        if (-not $text) { throw "Supply content in the '## $heading' section." }
+        $result.Add($heading, $text)
+    }
+    $result
+}
+
+function Get-ContinuityCriterionText([string]$Task) {
+    $text = (Get-ContinuityNoteSections $Task task)['Acceptance Criteria']
+    $lines = @($text -split '\r?\n' | Where-Object { $_.Trim() })
+    if ($lines[0] -match '^\s*(?:[-*+]|\d+[.)])\s+') {
+        foreach ($line in $lines) {
+            $criterion = [regex]::Match($line, '^\s*(?:[-*+]|\d+[.)])\s+(\S.*)$')
+            if (-not $criterion.Success) {
+                throw 'Declare each acceptance criterion as a separate one-line list item.'
+            }
+            $criterion.Groups[1].Value.TrimEnd()
         }
+        return
+    }
+    if ($text -match '\n\s*\n' -or @($lines | Where-Object { $_ -match '^\s*(?:[-*+]|\d+[.)])\s+' }).Count) {
+        throw 'Use an acceptance list with one criterion per line, or a single paragraph for one criterion.'
+    }
+    $text
+}
+
+function Assert-ContinuityCriteria($Criteria, [string[]]$Text, [string[]]$RequiredChecks) {
+    if ($Criteria -isnot [array] -or $Criteria.Count -eq 0 -or $Criteria.Count -ne $Text.Count) {
+        throw 'Declare one acceptance record for each criterion in the original task, in the same order.'
+    }
+    $ids = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $checkIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($item in $Criteria) {
+        Assert-Record $item @('id', 'checks')
+        if ($item.id -isnot [string] -or $item.checks -isnot [array]) { throw 'Invalid acceptance criterion record.' }
+        Assert-ContinuityId $item.id
+        if (-not $ids.Add($item.id)) { throw 'Duplicate acceptance criterion ID.' }
+        $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($id in $item.checks) {
+            if ($id -isnot [string]) { throw 'Invalid acceptance check ID.' }
+            Assert-ContinuityId $id
+            if (-not $seen.Add($id)) { throw 'Duplicate check ID for an acceptance criterion.' }
+            [void]$checkIds.Add($id)
+        }
+    }
+    if ($null -ne $RequiredChecks -and
+        ($RequiredChecks.Count -ne $checkIds.Count -or -not $checkIds.SetEquals($RequiredChecks))) {
+        throw 'Acceptance criteria disagree with the required check IDs.'
     }
 }
 
@@ -98,10 +150,16 @@ function Read-ContinuityInput([string]$Path) {
 function Write-ContinuityNewFile([string]$Path, [byte[]]$Bytes) {
     $stream = [IO.File]::Open($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
     try {
-        $stream.Write($Bytes, 0, $Bytes.Length)
-        $stream.Flush($true)
+        try {
+            $stream.Write($Bytes, 0, $Bytes.Length)
+            $stream.Flush($true)
+        }
+        finally { $stream.Dispose() }
     }
-    finally { $stream.Dispose() }
+    catch {
+        [IO.File]::Delete($Path)
+        throw
+    }
 }
 
 function Assert-ContinuityReferences($References, [switch]$Pinned) {
@@ -180,10 +238,13 @@ function Assert-Measurement($Check) {
     }
 }
 
-function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId) {
-    Assert-Record $State @('schemaVersion', 'taskId', 'taskKey', 'checkpointId', 'agentFamily', 'savedAtUnixMs',
+function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId, [string]$Task) {
+    $fields = @('schemaVersion', 'taskId', 'taskKey', 'checkpointId', 'agentFamily', 'savedAtUnixMs',
         'lifecycle', 'git', 'gitFingerprint', 'references', 'requiredChecks', 'checks')
-    if (-not (Test-Integer $State.schemaVersion) -or $State.schemaVersion -ne 1 -or
+    if ($State -isnot [Collections.IDictionary]) { throw 'Invalid checkpoint state.' }
+    if ($State.schemaVersion -eq 2) { $fields += @('criteria', 'reviews') }
+    Assert-Record $State $fields
+    if (-not (Test-Integer $State.schemaVersion) -or $State.schemaVersion -notin @(1, 2) -or
         $State.taskId -cne $TaskId -or $State.taskKey -cnotmatch $guidPattern -or
         $State.checkpointId -cne $CheckpointId -or $State.agentFamily -cnotin @('codex', 'claude-code') -or
         -not (Test-Integer $State.savedAtUnixMs) -or $State.savedAtUnixMs -le 0 -or
@@ -214,14 +275,52 @@ function Assert-ContinuityState($State, [string]$TaskId, [string]$CheckpointId) 
     Assert-ContinuityReferences $State.references -Pinned
     foreach ($id in $State.requiredChecks + @($State.checks.psbase.Keys)) { Assert-ContinuityId $id }
     foreach ($measurement in $State.checks.psbase.Values) { Assert-Measurement $measurement }
+    if ($State.schemaVersion -eq 2) {
+        Assert-ContinuityCriteria $State.criteria @(Get-ContinuityCriterionText $Task) $State.requiredChecks
+        if ($State.reviews -isnot [Collections.IDictionary]) { throw 'Invalid acceptance reviews.' }
+        foreach ($id in $State.reviews.psbase.Keys) {
+            if ($id -cnotin $State.criteria.id) { throw 'Review references an unknown criterion.' }
+            $review = $State.reviews[$id]
+            Assert-Record $review @('status', 'evidence', 'basis', 'reviewedAtUnixMs')
+            if ($review.status -cnotin @('PASS', 'FAIL', 'NOT_RUN', 'BLOCKED') -or
+                $review.evidence -isnot [string] -or -not $review.evidence.Trim() -or
+                $review.basis -cnotmatch $shaPattern -or -not (Test-Integer $review.reviewedAtUnixMs) -or
+                $review.reviewedAtUnixMs -le 0) {
+                throw 'Invalid acceptance review or evidence.'
+            }
+            Assert-NoCredential $review.evidence
+        }
+    }
     if ($State.lifecycle -ceq 'closed') {
-        if ($State.requiredChecks.Count -eq 0) { throw 'Closed task has no acceptance evidence.' }
+        if ($State.schemaVersion -eq 1 -and $State.requiredChecks.Count -eq 0) { throw 'Closed task has no acceptance evidence.' }
         foreach ($id in $State.requiredChecks) {
-            if (-not $State.checks.Contains($id) -or $State.checks[$id].result -cne 'PASS') {
+            if (-not $State.checks.Contains($id) -or $State.checks[$id].result -cne 'PASS' -or
+                ($State.schemaVersion -eq 2 -and $State.checks[$id].kind -cnotin @('build', 'test'))) {
                 throw 'Closed task has invalid acceptance evidence.'
             }
         }
+        if ($State.schemaVersion -eq 2) {
+            foreach ($item in $State.criteria) {
+                if (-not $State.reviews.Contains($item.id) -or $State.reviews[$item.id].status -cne 'PASS' -or
+                    $State.reviews[$item.id].basis -cne (Get-ContinuityReviewBasis $State $item)) {
+                    throw 'Closed task has an invalid criterion review.'
+                }
+            }
+        }
     }
+}
+
+function Get-ContinuityReviewBasis($State, $Criterion) {
+    $observations = [ordered]@{}
+    foreach ($id in $Criterion.checks) {
+        $observations[$id] = if ($State.checks.Contains($id)) { $State.checks[$id] } else { $null }
+    }
+    Get-ContinuityValueHash ([ordered]@{
+        git = $State.gitFingerprint
+        references = $State.references
+        criterion = $Criterion
+        observations = $observations
+    })
 }
 
 function Get-ContinuityStore($Repository, [string]$CheckpointRoot, [string]$TaskId) {
@@ -262,11 +361,11 @@ function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId) {
         }
     }
     $state = ConvertFrom-ContinuityJson $contents['state.json']
-    Assert-ContinuityState $state $TaskId $Pointer.checkpointId
     $task = $utf8.GetString($contents['task.md'])
     $progress = $utf8.GetString($contents['progress.md'])
-    Assert-Note $task $taskHeadings
-    Assert-Note $progress $progressHeadings
+    Assert-ContinuityState $state $TaskId $Pointer.checkpointId $task
+    $null = Get-ContinuityNoteSections $task task
+    $null = Get-ContinuityNoteSections $progress progress
     @{ State = $state; Task = $task; Progress = $progress; Directory = $directory; Seal = Get-ContinuityValueHash $Pointer }
 }
 
@@ -277,11 +376,11 @@ function Read-ContinuityCheckpoint([string]$Store, [string]$TaskId) {
 }
 
 function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [string]$Progress) {
-    Assert-Note $Task $taskHeadings
-    Assert-Note $Progress $progressHeadings
+    $null = Get-ContinuityNoteSections $Task task
+    $null = Get-ContinuityNoteSections $Progress progress
     $State.checkpointId = [guid]::NewGuid().ToString('N')
     $State.savedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    Assert-ContinuityState $State $State.taskId $State.checkpointId
+    Assert-ContinuityState $State $State.taskId $State.checkpointId $Task
     $current = Resolve-CirnetPath -Root $Store -Relative 'current.json'
     $candidate = Resolve-CirnetPath -Root $Store -Relative ('.pending-' + $State.checkpointId + '.json')
     $directory = Resolve-CirnetPath -Root $Store -Relative ('snapshots/' + $State.checkpointId)
@@ -308,6 +407,8 @@ function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [strin
 }
 
 Export-ModuleMember -Function Assert-ContinuityId, Assert-ContinuityReferences, Assert-NoCredential,
+    Assert-Record, Test-Integer, Get-ContinuityNoteSections, Get-ContinuityCriterionText,
+    Assert-ContinuityCriteria, Get-ContinuityReviewBasis,
     Read-ContinuityBytes, Read-ContinuityInput, ConvertFrom-ContinuityJson, ConvertTo-ContinuityBytes,
     Get-ContinuityInputPath, Write-ContinuityNewFile, Get-ContinuityStore, Enter-ContinuityLock,
     Read-ContinuityCheckpoint, Save-ContinuityCheckpoint

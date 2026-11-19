@@ -57,6 +57,11 @@ Yêu cầu client đọc `AGENTS.md` root của checkout local rồi đọc ch�
 của repo đích. Cung cấp path và quyền đọc khi cần. Chọn rõ một skill tiếng Anh
 nếu hữu ích. Lặp yêu cầu ở phiên mới chưa có baseline cấu hình.
 
+Với công việc Codex hoặc Claude Code dùng Task Continuity, cung cấp cho phiên
+checkout toolkit đã duyệt, worktree sở hữu, Task ID và vị trí checkpoint. Xem
+[thiết lập và lệnh Task Continuity](distribution.md#task-continuity) để chọn
+kho cục bộ được Git bỏ qua và khôi phục công việc sau gián đoạn.
+
 ## Kiểm tra discovery thực tế
 
 Xác minh file kiểm tra đích được chọn, nội dung managed, reference và xung đột
@@ -77,4 +82,4 @@ Discovery và hành vi native là NOT_RUN. Xem [phân phối](distribution.md)
 để cập nhật và restore.
 
 <!-- source: en/docs/setup.md -->
-<!-- source-sha256: d37dddd472ec55b33a823dbe1d461f09cfa8dbb95a8999201d2d4e354082664a -->
+<!-- source-sha256: 2f976be112dcba7850f2ae0543eddfed8b23c6986ae814aae43aa29e3604dc93 -->

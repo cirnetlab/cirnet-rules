@@ -91,11 +91,12 @@ function Get-EffectiveCheck($Repository, [string]$Store, [string]$Id, $Measureme
     $result = $Measurement.result
     $reason = $Measurement.cause
     if ($Measurement.phase -ceq 'running') { $reason = 'exit-not-observed' }
-    if ($Measurement.phase -ceq 'finished' -and $Measurement.kind -cin @('build', 'test') -and
-        ($reason -ceq 'changed-during-run' -or $Measurement.gitFingerprint -cne $GitFingerprint -or
+    if ($Measurement.phase -ceq 'finished' -and ($reason -ceq 'changed-during-run' -or
+        ($Measurement.kind -cin @('build', 'test') -and
+        ($Measurement.gitFingerprint -cne $GitFingerprint -or
             $Measurement.afterGitFingerprint -cne $GitFingerprint -or -not $ReferenceValid -or
             $Measurement.referenceFingerprint -cne $ReferenceFingerprint -or
-            -not (Get-ProcessInputsMatch $Repository $Store $Measurement))) {
+            -not (Get-ProcessInputsMatch $Repository $Store $Measurement))))) {
         $result = 'NOT_RUN'
         $reason = 're-verification-required'
     }
@@ -111,31 +112,96 @@ function Get-EffectiveCheck($Repository, [string]$Store, [string]$Id, $Measureme
     }
 }
 
+function Get-ContinuityAcceptance($Checkpoint, $Checks, [bool]$Current) {
+    $state = $Checkpoint.State
+    if ($state.schemaVersion -eq 1) {
+        return [pscustomobject]@{
+            Id = $null; Criterion = (Get-ContinuityNoteSections $Checkpoint.Task task)['Acceptance Criteria']
+            Checks = $state.requiredChecks; Status = 'NOT_RUN'; ReviewStatus = 'NOT_RUN'
+            Evidence = $null; Reason = 'criteria-not-declared'
+        }
+    }
+    $observed = @{}
+    foreach ($check in $Checks) { $observed.Add($check.Id, $check) }
+    $text = @(Get-ContinuityCriterionText $Checkpoint.Task)
+    for ($i = 0; $i -lt $state.criteria.Count; $i++) {
+        $item = $state.criteria[$i]
+        $review = $state.reviews[$item.id]
+        $staleObservation = @($item.checks | Where-Object {
+            $observed.ContainsKey($_) -and $observed[$_].Reason -ceq 're-verification-required'
+        }).Count -gt 0
+        $freshReview = $Current -and -not $staleObservation -and $null -ne $review -and
+            $review.basis -ceq (Get-ContinuityReviewBasis $state $item)
+        $reviewStatus = if ($freshReview) { $review.status } else { 'NOT_RUN' }
+        $results = @(foreach ($id in $item.checks) {
+            if ($observed.ContainsKey($id) -and $observed[$id].Kind -cin @('build', 'test')) { $observed[$id].Status }
+            else { 'NOT_RUN' }
+        })
+        $results += $reviewStatus
+        $status = if (-not $Current -or 'BLOCKED' -cin $results) { 'BLOCKED' }
+            elseif ('FAIL' -cin $results) { 'FAIL' }
+            elseif ('NOT_RUN' -cin $results) { 'NOT_RUN' }
+            else { 'PASS' }
+        [pscustomobject]@{
+            Id = $item.id; Criterion = $text[$i]; Checks = $item.checks; Status = $status
+            ReviewStatus = $reviewStatus
+            Evidence = if ($freshReview) { $review.evidence } else { $null }
+            Reason = if (-not $Current) { 'state-not-current' }
+                elseif (-not $freshReview) { 'review-required' }
+                elseif ($status -cne 'PASS') { 'review-or-check-incomplete' }
+                else { '' }
+        }
+    }
+}
+
+function Set-ContinuityReviews($State, [string]$Path) {
+    if ($State.schemaVersion -ne 2) { throw 'Declare the acceptance criteria before recording reviews.' }
+    $reviews = ConvertFrom-ContinuityJson (Read-ContinuityBytes (Get-ContinuityInputPath $Path) 1048576)
+    if ($reviews -isnot [array] -or $reviews.Count -eq 0) { throw 'Supply a nonempty array of acceptance reviews.' }
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($review in $reviews) {
+        Assert-Record $review @('id', 'status', 'evidence')
+        if ($review.id -isnot [string] -or $review.id -cnotin $State.criteria.id -or -not $seen.Add($review.id) -or
+            $review.status -cnotin @('PASS', 'FAIL', 'NOT_RUN', 'BLOCKED') -or
+            $review.evidence -isnot [string] -or -not $review.evidence.Trim()) {
+            throw 'Supply one valid status and evidence reference for each criterion being reviewed.'
+        }
+        Assert-NoCredential $review.evidence
+        $item = $State.criteria | Where-Object { $_.id -ceq $review.id }
+        $State.reviews[$review.id] = [ordered]@{
+            status = $review.status
+            evidence = $review.evidence
+            basis = Get-ContinuityReviewBasis $State $item
+            reviewedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        }
+    }
+}
+
 function Get-ContinuityStatus($Repository, [string]$Store, $Checkpoint, $Git, [hashtable]$RelatedRoot) {
     $state = $Checkpoint.State
-    $comparison = Compare-ContinuityGit $state.git $Git
+    $comparison = if ($null -ne $Git) { Compare-ContinuityGit $state.git $Git }
+        else { @{ Matches = $false; Changes = $null; Recorded = $state.git; Current = $null } }
     $referenceProblems = @(Get-ContinuityReferenceProblems $Repository $Store $state.references $RelatedRoot)
-    $gitFingerprint = Get-ContinuityGitFingerprint $Git
+    $gitFingerprint = if ($null -ne $Git) { Get-ContinuityGitFingerprint $Git } else { '' }
     $referenceFingerprint = Get-ContinuityValueHash $state.references
     $checks = @(
         foreach ($id in $state.checks.psbase.Keys) {
             Get-EffectiveCheck $Repository $Store $id $state.checks[$id] $gitFingerprint $referenceFingerprint ($referenceProblems.Count -eq 0)
         }
     )
+    $acceptance = @(Get-ContinuityAcceptance $Checkpoint $checks ($comparison.Matches -and $referenceProblems.Count -eq 0))
+    $acceptanceReady = @($acceptance | Where-Object Status -CNE 'PASS').Count -eq 0
     $blockers = @(
-        if (-not $comparison.Matches) { 'Git differs from the saved checkpoint. Review the classified changes.' }
+        if ($null -eq $Git) { 'Current Git state could not be captured. Retry with a stable, accessible worktree.' }
+        elseif (-not $comparison.Matches) { 'Git differs from the saved checkpoint. Review the classified changes.' }
         $referenceProblems
         foreach ($check in $checks) {
-            if ($check.Kind -cin @('build', 'test') -and $check.Status -cin @('NOT_RUN', 'BLOCKED')) {
+            if ($check.Status -cin @('NOT_RUN', 'BLOCKED')) {
                 "Check '$($check.Id)' requires a new observation."
             }
         }
-        if ($state.lifecycle -ceq 'closed') {
-            foreach ($id in $state.requiredChecks) {
-                if (-not ($checks | Where-Object { $_.Id -ceq $id -and $_.Status -ceq 'PASS' -and $_.Kind -cin @('build', 'test') })) {
-                    "Closure evidence for '$id' requires re-verification."
-                }
-            }
+        if ($state.lifecycle -ceq 'closed' -and -not $acceptanceReady) {
+            'The recorded closure lacks current evidence for every criterion.'
         }
     )
     [pscustomobject]@{
@@ -149,15 +215,18 @@ function Get-ContinuityStatus($Repository, [string]$Store, $Checkpoint, $Git, [h
         Blockers = $blockers
         Git = $comparison
         References = $state.references
+        ReferenceProblems = $referenceProblems
         RequiredChecks = $state.requiredChecks
         Checks = $checks
+        Acceptance = $acceptance
+        AcceptanceReady = $acceptanceReady
         CheckpointDirectory = $Checkpoint.Directory
     }
 }
 
 function New-ContinuityMeasurement($Repository, [string]$Store, $State, [string]$Kind, [string]$Executable,
         [string[]]$Arguments, [string[]]$InputPath) {
-    Assert-NoCredential (($Executable, ($Arguments -join ' ')) -join ' ')
+    Assert-NoCredential (($Executable, ($Arguments -join ' '), ($InputPath -join ' ')) -join ' ')
     $measurement = [ordered]@{
         kind = $Kind
         phase = 'running'
@@ -227,67 +296,6 @@ function Invoke-ContinuityMeasurement($Repository, $Measurement, [int]$TimeoutSe
     $Measurement.finishedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 }
 
-function Assert-PortableHandoff($Data, [string]$AgentFamily) {
-    $fields = @('schemaVersion', 'format', 'taskKey', 'checkpointId', 'checkpointSeal', 'agentFamily',
-        'lifecycle', 'savedAtUnixMs', 'gitHead', 'checks')
-    if ($Data -isnot [Collections.IDictionary] -or $Data.psbase.Count -ne $fields.Count -or
-        @($fields | Where-Object { $_ -cnotin $Data.psbase.Keys }).Count -or
-        $Data.schemaVersion -ne 1 -or $Data.format -cne 'cirnet-task-handoff' -or
-        $Data.taskKey -cnotmatch '^[a-f0-9]{32}\z' -or $Data.checkpointId -cnotmatch '^[a-f0-9]{32}\z' -or
-        $Data.checkpointSeal -cnotmatch '^[a-f0-9]{64}\z' -or $Data.agentFamily -cnotin @('codex', 'claude-code') -or
-        $Data.lifecycle -cnotin @('open', 'closed') -or ($Data.savedAtUnixMs -isnot [long] -and $Data.savedAtUnixMs -isnot [int]) -or
-        $Data.savedAtUnixMs -le 0 -or $Data.gitHead -cnotmatch '^(?:[a-f0-9]{40}|[a-f0-9]{64})?\z' -or
-        $Data.checks -isnot [array]) {
-        throw 'Invalid portable handoff schema.'
-    }
-    foreach ($check in $Data.checks) {
-        if ($check -isnot [Collections.IDictionary] -or $check.psbase.Count -ne 2 -or
-            'kind' -cnotin $check.psbase.Keys -or 'status' -cnotin $check.psbase.Keys -or
-            $check.kind -cnotin @('edit', 'build', 'test', 'handoff') -or $check.status -cnotin @('PASS', 'FAIL', 'NOT_RUN', 'BLOCKED')) {
-            throw 'Invalid portable handoff check.'
-        }
-    }
-    if ($Data.agentFamily -cne $AgentFamily) { throw 'Agent family does not match the portable handoff.' }
-}
-
-function Export-ContinuityHandoff($Repository, [string]$Store, $Checkpoint, $Report, [string]$Path) {
-    $output = Get-ContinuityInputPath $Path
-    Assert-ContinuityDestination $Repository $output
-    if (Test-ContinuityInside $Store $output) { throw 'Choose a new export file outside the checkpoint store.' }
-    $state = $Checkpoint.State
-    $projection = [ordered]@{
-        schemaVersion = 1
-        format = 'cirnet-task-handoff'
-        taskKey = $state.taskKey
-        checkpointId = $state.checkpointId
-        checkpointSeal = $Checkpoint.Seal
-        agentFamily = $state.agentFamily
-        lifecycle = $state.lifecycle
-        savedAtUnixMs = $state.savedAtUnixMs
-        gitHead = $state.git.head
-        checks = @(foreach ($check in $Report.Checks) { [ordered]@{ kind = $check.Kind; status = $check.Status } })
-    }
-    $bytes = ConvertTo-ContinuityBytes $projection
-    $sha = Get-CirnetPayloadHash -Bytes $bytes
-    $candidate = $output + '.pending-' + [guid]::NewGuid().ToString('N')
-    Write-ContinuityNewFile $candidate $bytes
-    try {
-        $null = Read-ContinuityHandoff $candidate $sha $state.agentFamily
-        [IO.File]::Move($candidate, $output)
-    }
-    finally { [IO.File]::Delete($candidate) }
-    [pscustomobject]@{ Status = 'PASS'; OutputFile = $output; Sha256 = $sha; CheckpointId = $state.checkpointId }
-}
-
-function Read-ContinuityHandoff([string]$Path, [string]$ExpectedSha256, [string]$AgentFamily) {
-    if ($ExpectedSha256 -cnotmatch '^[a-f0-9]{64}\z') { throw 'Supply the trusted SHA-256 from export using -ExpectedSha256.' }
-    $bytes = Read-ContinuityBytes (Get-ContinuityInputPath $Path) 1048576
-    if ((Get-CirnetPayloadHash -Bytes $bytes) -cne $ExpectedSha256) { throw 'Portable handoff hash mismatch.' }
-    $data = ConvertFrom-ContinuityJson $bytes
-    Assert-PortableHandoff $data $AgentFamily
-    [pscustomobject]@{ Status = 'PASS'; Sha256 = $ExpectedSha256; Handoff = $data }
-}
-
 Export-ModuleMember -Function New-ContinuityReferences, Get-ContinuityReferenceProblems, Get-ContinuityStatus,
     New-ContinuityMeasurement, Invoke-ContinuityMeasurement, Get-ProcessInputsMatch, Get-EffectiveCheck,
-    Export-ContinuityHandoff, Read-ContinuityHandoff
+    Set-ContinuityReviews

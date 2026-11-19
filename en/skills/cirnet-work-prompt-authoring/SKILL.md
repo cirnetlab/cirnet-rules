@@ -70,6 +70,11 @@ checkout, branch, instructions, permissions and evidence before implementation.
    boundaries even in a blocked handoff, following the template's safe-inspection
    procedure. Blocking implementation does not protect later tool output.
 
+For a continuing Codex or Claude Code task, reference the authorized Task ID,
+checkpoint location and agent family. Ask Work to recover context and revalidate
+Git, references and scope before editing. Have Work save before handoff. A
+portable handoff requires separate disclosure approval.
+
 ## Access and authority
 
 Model-agnostic handoff: specify required capabilities. Record evaluation

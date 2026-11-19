@@ -28,6 +28,11 @@ chuỗi tiến trình đã thực thi.
 Liệt kê từng lệnh và PASS, FAIL, NOT_RUN hoặc BLOCKED cùng phạm vi. Nếu có
 khoảng trống, nêu điều kiện còn thiếu hoặc phép kiểm tra chưa giải quyết.
 
+Với Task Continuity, dùng `run` để ghi build và kiểm thử được phép, đồng thời
+khai báo các tệp đầu vào liên quan. Kiểm tra lại Git, tham chiếu đã ghim và
+hiệu lực bằng chứng trước khi dùng kết quả đã lưu. Ghi bằng chứng được phép
+bằng `review` cho từng tiêu chí và chỉ dùng `close` khi mọi tiêu chí đã đạt.
+
 Với pipeline compile/simulation, ghi mã thoát thực tế của từng tiến trình trước
 khi lệnh khác, kể cả Git hoặc dọn dẹp, ghi đè nó. Nếu wrapper chỉ cung cấp kết
 quả tổng hợp, đọc luồng xử lý và quan sát kết quả tiến trình con trong một lượt
@@ -47,4 +52,4 @@ trên thực thi. Nếu chưa kiểm chứng vật lý, thêm chính xác dòng
 sở hữu cho phép.
 
 <!-- source: en/skills/cirnet-verification/SKILL.md -->
-<!-- source-sha256: a2b7f350751d5dec896eff065f45b8b277a1cf96bf748975c41743ccdc06a1b1 -->
+<!-- source-sha256: cf7d766dd0dd2b242648a73cb05ab49f78dfdf05137167046fb446f1de4f68ea -->

@@ -42,6 +42,20 @@ review or when requested.
   settings or physical operation. Physical programming and power also require
   owner safety evidence. Software tests cover the exercised software behavior.
 
+## Task Continuity
+
+- For an authorized Codex or Claude Code task likely to span sessions, initialize
+  a checkpoint from an approved `cirnet-rules` checkout before edits. Use
+  `scripts/task-continuity.ps1` and the owning repo's ignored local storage.
+  Record original requirements, criteria, scope and pinned document references.
+- Save progress and decisions as they change. Wrap authorized edit, build and test
+  commands with `run` when possible. Save again before handoff and disclose only
+  approved portable fields to an authorized recipient in the same agent family.
+- After interruption, use `resume` to read context. Check Git, evidence, pinned
+  Plans/Specs, architecture, rules and current authorization before editing.
+  Resolve blockers first and close only when each acceptance criterion has
+  current evidence and an authorized review.
+
 ## Verify and document
 
 - Define observable acceptance. For nontrivial work pair steps with checks and

@@ -50,12 +50,18 @@ phép. Mẫu nằm ngoài bundle. Nếu thiếu quyền truy cập, Skill báo
 
 ## Task Continuity
 
-Chạy công cụ PowerShell 7 từ checkout `cirnet-rules` đã được review. Đặt
-`Repository` là thư mục gốc của Git worktree đích và dùng cùng `TaskId` viết
-thường và `AgentFamily` (`codex` hoặc `claude-code`) trong suốt task. Repo đích
-sở hữu kho `.cirnet/tasks/`. Git phải được cấu hình để bỏ qua đường dẫn này
-trước khi chạy. Dùng `CheckpointRoot` trong mỗi lần gọi để chọn đường dẫn khác
-được Git bỏ qua và chưa được theo dõi, hoặc thư mục ngoài worktree do bạn sở hữu.
+Chạy công cụ PowerShell 7 cùng các module từ checkout `cirnet-rules` được phép
+ở revision đã duyệt. Bundle đã cài cung cấp baseline và Skills. Cấp cho agent
+quyền riêng vào checkout chứa công cụ. Đặt `Repository` là thư mục gốc của Git
+worktree sở hữu và giữ cùng `TaskId` viết thường và `AgentFamily` (`codex`
+hoặc `claude-code`).
+
+Dùng quy ước lưu trữ cục bộ của bên sở hữu. Trước khi chọn `.cirnet/tasks/`,
+xác nhận Git chưa theo dõi và đã bỏ qua đường dẫn qua quy tắc của repo được
+duyệt hoặc tệp loại trừ cục bộ của checkout. Dùng `CheckpointRoot` mỗi lần gọi
+nếu chọn đường dẫn bị bỏ qua khác hoặc thư mục do bạn sở hữu ngoài worktree.
+Lưu ghi chú đầu vào và gói bàn giao ngoài đường dẫn Git theo dõi, chỉ cấp quyền
+cho người thực hiện có thẩm quyền.
 
 Chuẩn bị ghi chú task và tiến độ bằng UTF-8 với các tiêu đề cấp hai (`##`). Chỉ
 giữ thông tin về task đã được phép lưu và đã loại bỏ dữ liệu nhạy cảm. Các tiêu
@@ -73,31 +79,81 @@ cho worktree đích) và `path` tương đối so với repo. Khai báo kiến t
 đầy đủ và quyền `access` được duyệt (`read` hoặc `edit`), rồi truyền `-RelatedRoot`
 ánh xạ ID tới worktree khi dùng checkpoint.
 
-Từ checkout toolkit, đặt `$repo`, `$taskFile`, `$progressFile` và `$referencesFile`
-trỏ đến các đường dẫn đã chọn. Ví dụ sau dùng một dự án Rust:
+Liệt kê từng tiêu chí bằng một dòng gạch đầu dòng hoặc đánh số dưới
+`## Acceptance Criteria`. Nếu chỉ có một tiêu chí có thể dùng một đoạn văn.
+JSON nghiệm thu là mảng theo cùng thứ tự. Mỗi mục có `id` ổn định và mảng
+`checks` chứa các ID bằng chứng build hoặc kiểm thử bắt buộc. Ví dụ:
+
+```json
+[
+  {"id": "builds", "checks": ["build"]},
+  {"id": "ownership-reviewed", "checks": []}
+]
+```
+
+Tiêu chí có mảng `checks` rỗng vẫn phải được người có thẩm quyền rà soát kèm
+bằng chứng. Đặt các biến tệp dưới đây theo đường dẫn đã chuẩn bị. Khởi tạo
+checkpoint trước khi sửa mã. Ví dụ bọc lệnh build đã được phép của dự án Rust:
 
 ```powershell
 $manager = './scripts/task-continuity.ps1'
 $task = @{ Repository = $repo; TaskId = 'toolkit-fix'; AgentFamily = 'codex' }
-& $manager save @task -TaskFile $taskFile -ProgressFile $progressFile -ReferencesFile $referencesFile -RequiredCheck 'build'
-& $manager run @task -EvidenceId 'build' -Kind build -Executable cargo -Arguments @('build', '--offline', '--locked')
-& $manager verify @task
-& $manager resume @task -ConfirmScope
+& $manager save @task -ConfirmScope -TaskFile $taskFile -ProgressFile $progressFile -ReferencesFile $referencesFile -AcceptanceFile $acceptanceFile
+& $manager run @task -ConfirmScope -EvidenceId 'build' -Kind build -Executable cargo -Arguments @('build', '--offline', '--locked')
+$recovery = & $manager resume @task -ConfirmScope
+```
+
+`run` lưu trạng thái trước và sau lệnh sửa, build, kiểm thử hoặc bàn giao được
+kiểm soát. Khai báo tệp bị Git bỏ qua và đầu vào phụ thuộc liên quan trong
+worktree bằng `-InputPath`. Với chỉnh sửa của agent ngoài trình bọc, xem lại
+thay đổi và lưu bằng `-AcceptGitDrift -ConfirmScope`. Dùng `save -ProgressFile`
+khi tiến độ hoặc quyết định thay đổi và trước khi bàn giao. Các điểm tích hợp
+áp dụng cho lệnh gọi công cụ rõ ràng. Xem riêng thay đổi đầu vào bên ngoài và
+môi trường.
+
+`resume -ConfirmScope` trả ghi chú đã niêm phong để khôi phục chỉ đọc, kể cả
+khi kết quả hết hiệu lực, lệnh bị gián đoạn hoặc Git đã thay đổi. Đọc
+`Blockers`, `Git.Changes`, `Checks` và `Acceptance` trước khi hành động.
+Mở lại tham chiếu đã ghim và xác minh quyền triển khai hiện tại. Sau đó gọi lại
+`resume` cục bộ với `-ConfirmContinuation` và chỉ sửa khi `CanContinue` cho phép.
+Đối chiếu sai khác Git hoặc
+tài liệu với sự chấp thuận của bên sở hữu và chạy lại các kiểm tra hết hiệu lực.
+Nếu `run` còn ở pha đang chạy, xác nhận tiến trình và tiến trình con đã dừng
+trước khi dùng `-ConfirmStopped` để chạy lại mốc hoặc chấp nhận thay đổi Git.
+
+Sau khi xem bằng chứng của từng tiêu chí, chuẩn bị `$reviewFile` là mảng JSON
+gồm các mục có `id`, `status` và tham chiếu `evidence` đã loại dữ liệu nhạy cảm.
+Trạng thái rà soát là `PASS`, `FAIL`, `NOT_RUN` hoặc `BLOCKED`. Công cụ
+đánh dấu lượt rà soát hết hiệu lực khi mã nguồn đã ghi, tham chiếu hoặc kết quả
+liên kết thay đổi. Chỉ đóng sau khi kiểm tra quyền và bằng chứng hiện tại:
+
+```powershell
+& $manager review @task -ConfirmScope -ReviewFile $reviewFile
 & $manager close @task -ConfirmScope -ConfirmAcceptance
 ```
 
-`run` tạo checkpoint trước và sau lệnh sửa, build, kiểm thử hoặc bàn giao được
-kiểm soát. Truyền `-InputPath` cho đầu vào liên quan bị Git bỏ qua hoặc tệp phụ
-thuộc trong worktree để thay đổi làm mất hiệu lực bằng chứng cũ. Dùng `status` để
-xem trạng thái đã lưu. Nếu trạng thái Git thay đổi, xem khác biệt trước khi lưu
-bằng `-AcceptGitDrift -ConfirmScope` rồi chạy lại các kiểm tra bị ảnh hưởng. Đọc
-các tham chiếu đã ghim và xác nhận quyền hiện tại trước khi tiếp tục. Chỉ xác nhận
-nghiệm thu sau khi xem tiêu chí của task và bằng chứng build hoặc kiểm thử còn hiệu lực.
+Checkpoint phiên bản 1 vẫn đọc được. Trước khi đóng công việc phiên bản 1 còn
+mở, dùng `save -ConfirmScope -AcceptanceFile` để ánh xạ tiêu chí gốc và giữ
+các kiểm tra bắt buộc. Thao tác ghi snapshot mới và giữ nguyên yêu cầu gốc cùng
+các snapshot cũ. Trạng thái đóng của phiên bản 1 là thông tin lịch sử.
+Mục tiêu chí cũ có cách diễn đạt chưa rõ vẫn đọc được. Cần bên sở hữu làm rõ
+từng tiêu chí trước khi nâng cấp hoặc xác nhận nghiệm thu.
 
-`export -ConfirmScope -OutputFile <new-file>` tạo biên nhận bàn giao chỉ gồm
-metadata. Trên máy nhận, dùng `verify -HandoffFile` với `-AgentFamily` dự kiến
-và `-ExpectedSha256` đáng tin cậy do lệnh export trả về. Để tiếp tục cần có
-quyền truy cập checkpoint cục bộ và worktree liên quan. Xem
+Trước khi bàn giao dạng tệp, rà quyền của người nhận, các phần được phép trong
+ghi chú công việc, tiến độ và tham chiếu tài liệu tương đối. Dùng
+`export -ConfirmScope -ConfirmExport -OutputFile <new-file>`. Gói chứa ngữ cảnh
+được phép, dấu vân tay repo và tóm tắt bằng chứng. Giữ bí mật, dữ liệu phiên và
+đoạn mã nguồn ngoài ghi chú chia sẻ. Công cụ từ chối nội dung nhạy cảm nhận diện
+được và loại tệp mã nguồn, lệnh thô, log, đường dẫn Git cục bộ và tên tệp đã đổi
+khỏi gói. Người thực hiện phải xem văn bản tự do vì bộ lọc không nhận ra mọi giá
+trị nhạy cảm.
+
+Cùng loại agent có thể dùng `verify -HandoffFile` với `-AgentFamily` dự kiến và
+`-ExpectedSha256` nhận từ lệnh export qua kênh đáng tin cậy. Để đọc ngữ cảnh rõ
+ràng, dùng `resume -HandoffFile` với các tùy chọn đó và `-ConfirmScope`. Xác
+minh gói chỉ kiểm tra tính toàn vẹn, không cài checkpoint hoặc khôi phục tệp.
+Việc kiểm tra Git hiện tại, quyền, tham chiếu và hiệu lực bằng chứng cần worktree
+gốc và checkpoint cục bộ. Xem
 [đặc tả Task Continuity](../specs/cirnet-rules/task-continuity/spec.md).
 
 ## Cập nhật và restore
@@ -130,4 +186,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 3b89fb3ee6f89e10ff00756537ac92baf4b157e162e7765d41539ac63819735d -->
+<!-- source-sha256: 2f8d3c5de501a34db318fd4c4bcbc7f4bb26eac3f47b83c25b251706c5476cf5 -->

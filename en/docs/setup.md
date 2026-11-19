@@ -61,6 +61,11 @@ target repository's applicable instructions. Supply the path and grant read
 access as needed. Select an English skill explicitly if useful. Repeat in new
 sessions that lack a configured baseline.
 
+For Codex or Claude Code tasks using Task Continuity, give the session the
+approved toolkit checkout, owning worktree, Task ID and checkpoint location.
+Use [Task Continuity setup and commands](distribution.md#task-continuity) to
+select an ignored local store and recover a task after interruption.
+
 ## Check actual discovery
 
 File verification checks selected destinations, managed content, references and

@@ -36,6 +36,13 @@ Minimum inputs: Authorized files, intended behavior, owning interfaces and nearb
    and run the checks tied to acceptance, including the owner's architecture
    checks for affected boundaries.
 
+For a task with Continuity enabled, save before edits, after native edits and
+when progress or decisions change. Run authorized command milestones with
+`scripts/task-continuity.ps1 run` from the approved toolkit checkout. On a new
+session, recover with `resume`, reload applicable references and independently
+confirm authorization. Resolve blockers before using `-ConfirmContinuation`
+and require `CanContinue` before editing.
+
 Report the diff, behavior, checks and limits. Match each acceptance claim to an
 observed result and identify any gaps.
 

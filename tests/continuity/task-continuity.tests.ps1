@@ -57,7 +57,8 @@ Make the fixture retain its state after interruption.
 ## Objectives
 Recover the same task in a new session.
 ## Acceptance Criteria
-The fixture verification process exits successfully.
+- The fixture verification process exits successfully.
+- The index and owning Plan and Spec retain their bytes.
 ## Architecture & Rules
 Use the referenced architecture and instructions.
 ## Scope & Authorization
@@ -65,6 +66,8 @@ The fixture operator may read and edit the primary checkout.
 ## Plans & Specs
 Consult the pinned plan and spec.
 '@
+    Write-Fixture 'acceptance.json' '[{"id":"fixture-exits","checks":["fixture-test"]},{"id":"ownership-preserved","checks":[]}]'
+    Write-Fixture 'reviews.json' '[{"id":"fixture-exits","status":"PASS","evidence":"Observed fixture-test exit 0."},{"id":"ownership-preserved","status":"PASS","evidence":"Compared the index and document hashes."}]'
     Write-Fixture 'progress.md' @'
 ## Completed Work
 Prepared the fixture.
@@ -97,7 +100,8 @@ Review the process evidence after any change.
         TaskFile = Join-Path $fixture 'task.md'
         ProgressFile = Join-Path $fixture 'progress.md'
         ReferencesFile = Join-Path $fixture 'refs.json'
-        RequiredCheck = @('fixture-test')
+        AcceptanceFile = Join-Path $fixture 'acceptance.json'
+        ConfirmScope = $true
     }
     $codex = @{ Repository = $worktree; TaskId = 'first-task'; AgentFamily = 'codex' }
     $saved = & $manager save @codex @seed
@@ -124,6 +128,7 @@ Review the process evidence after any change.
     finally { [IO.File]::WriteAllBytes($savedProgress, $originalProgress) }
     $resumed = & $manager resume @codex -ConfirmScope
     Assert-True ($resumed.Task -like '*Make the fixture retain*') 'Original task was not restored.'
+    Assert-True (-not $resumed.CanContinue -and (& $manager resume @codex -ConfirmScope -ConfirmContinuation).CanContinue) 'Continuation did not require its own scope confirmation.'
     Assert-True ($resumed.Progress -like '*Run the fixture verification command*') 'Next action was not restored.'
     Assert-True ($resumed.Git.Recorded.staged -ccontains 'staged.txt') 'Staged file was omitted.'
     Assert-True ($resumed.Git.Recorded.unstaged -ccontains 'source.txt') 'Unstaged file was omitted.'
@@ -131,6 +136,16 @@ Review the process evidence after any change.
     Assert-True ($resumed.References.documents.Count -eq 4) 'Pinned references were omitted.'
     Assert-Rejected { & $manager resume @codex } 'ConfirmScope'
     Assert-Rejected { & $manager resume -Repository $worktree -TaskId 'first-task' -AgentFamily 'claude-code' -ConfirmScope } 'Agent family'
+    $legacy = @{ Repository = $worktree; TaskId = 'legacy-task'; AgentFamily = 'codex' }
+    $legacySeed = $seed.Clone()
+    $legacySeed.Remove('AcceptanceFile')
+    $legacySeed.RequiredCheck = @('fixture-test')
+    $null = & $manager save @legacy @legacySeed
+    $legacyResume = & $manager resume @legacy -ConfirmScope
+    Assert-True ($legacyResume.ContextRecovered -and -not $legacyResume.AcceptanceReady) 'Legacy notes or pending acceptance were lost.'
+    Assert-Rejected { & $manager close @legacy -ConfirmScope -ConfirmAcceptance } 'save -AcceptanceFile'
+    $null = & $manager save @legacy -ConfirmScope -AcceptanceFile $seed.AcceptanceFile
+    Assert-True ((& $manager status @legacy).Acceptance.Count -eq 2) 'Legacy criteria were not declared on upgrade.'
 
     $related = Join-Path $fixture 'related'
     [void][IO.Directory]::CreateDirectory($related)
@@ -153,13 +168,19 @@ Review the process evidence after any change.
     Assert-True ((& $manager resume @claude -ConfirmScope).Ready) 'Claude Code checkpoint did not resume.'
     $claudeWithoutRelated = $claude.Clone()
     $claudeWithoutRelated.Remove('RelatedRoot')
-    Assert-Rejected { & $manager resume @claudeWithoutRelated -ConfirmScope } 'currently authorized -RelatedRoot'
+    $missingAccess = & $manager resume @claudeWithoutRelated -ConfirmScope
+    Assert-True ($missingAccess.RecoveryOnly -and $missingAccess.ReferenceProblems -like '*currently authorized -RelatedRoot*') 'Missing related access did not block continuation.'
     Write-Fixture 'related/spec.md' "# Changed related spec`n"
-    Assert-Rejected { & $manager resume @claude -ConfirmScope } 'spec reference changed'
+    $referenceDrift = & $manager resume @claude -ConfirmScope
+    Assert-True ($referenceDrift.RecoveryOnly -and $referenceDrift.ReferenceProblems -like '*spec reference changed*') 'Changed document did not block continuation.'
     Invoke-FixtureGit ($commitArgs + @('--allow-empty', '-m', 'new related revision')) $related
-    Assert-Rejected { & $manager resume @claude -ConfirmScope } 'differs from its selected revision'
+    $relatedDrift = & $manager resume @claude -ConfirmScope
+    Assert-True ($relatedDrift.RecoveryOnly -and $relatedDrift.ReferenceProblems -like '*differs from its selected revision*') 'Wrong related revision did not block continuation.'
     $wrongCheckout = & $manager verify -Repository $related -CheckpointRoot (Split-Path -Parent $store) -TaskId 'first-task'
     Assert-True (-not $wrongCheckout.Ready -and $wrongCheckout.Git.Changes.Fields -ccontains 'worktree') 'Different worktree was not reported.'
+    Assert-Rejected {
+        & $manager resume -Repository $related -CheckpointRoot (Split-Path -Parent $store) -TaskId 'first-task' -AgentFamily codex -ConfirmScope
+    } 'different worktree'
     $visible = $claude.Clone()
     $visible.CheckpointRoot = 'visible'
     Assert-Rejected { & $manager save @visible @seed } 'CheckpointRoot'
@@ -168,22 +189,25 @@ Review the process evidence after any change.
     $drift = & $manager verify @codex
     Assert-True (-not $drift.Ready) 'Verification accepted an unrecorded change.'
     Assert-True ($drift.Git.Changes.Files['untracked note.txt'] -ceq 'modified') 'Unrecorded bytes were not classified.'
-    Assert-Rejected { & $manager resume @codex -ConfirmScope } 'checkpoint is not ready'
+    $recovery = & $manager resume @codex -ConfirmScope -ConfirmContinuation
+    Assert-True ($recovery.ContextRecovered -and -not $recovery.CanContinue -and $recovery.Task -eq $resumed.Task) 'Git drift prevented read-only task recovery.'
     Assert-Rejected { & $manager save @codex } 'AcceptGitDrift'
     Write-Fixture 'primary/untracked note.txt' "untracked`n"
     Assert-True ((& $manager verify @codex).Ready) 'Restored Git bytes did not verify.'
 
-    Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'fixture-test'
+    Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'fixture-exits=NOT_RUN'
     $powershell = (Get-Process -Id $PID).Path
     [void][IO.Directory]::CreateDirectory((Join-Path $worktree '.local'))
     Write-Fixture 'primary/.local/input.txt' "expected`n"
-    $check = @{ EvidenceId = 'fixture-test'; Kind = 'test'; Executable = $powershell; InputPath = @('.local/input.txt') }
+    $check = @{ EvidenceId = 'fixture-test'; Kind = 'test'; Executable = $powershell; InputPath = @('.local/input.txt'); ConfirmScope = $true }
     $failed = & $manager run @codex @check -Arguments @('-NoProfile', '-Command', 'exit 17')
     Assert-True ($failed.Status -ceq 'FAIL' -and $failed.ExitCode -eq 17 -and $LASTEXITCODE -eq 17) 'Run lost the observed failure exit code.'
     $interrupted = & $manager run @codex @check -TimeoutSeconds 1 -Arguments @('-NoProfile', '-Command', 'Start-Sleep -Seconds 30')
     Assert-True ($interrupted.Status -ceq 'NOT_RUN' -and $interrupted.Phase -ceq 'interrupted' -and
         $interrupted.Reason -ceq 'timeout' -and $null -eq $interrupted.ExitCode) 'A timed-out process supplied completed evidence.'
-    Assert-Rejected { & $manager resume @codex -ConfirmScope } 'requires a new observation'
+    $interruptedRecovery = & $manager resume @codex -ConfirmScope
+    Assert-True ($interruptedRecovery.ContextRecovered -and -not $interruptedRecovery.CanContinue -and
+        $interruptedRecovery.Checks[0].Status -ceq 'NOT_RUN') 'Interrupted process did not remain read-only and unverified.'
     $passed = & $manager run @codex @check -Arguments @('-NoProfile', '-Command', 'exit 0')
     Assert-True ($passed.Status -ceq 'PASS' -and $passed.ExitCode -eq 0) 'Completed process did not provide PASS evidence.'
     Write-Fixture 'primary/.local/input.txt' "changed`n"
@@ -191,20 +215,28 @@ Review the process evidence after any change.
     Assert-True (-not $stale.Ready -and $stale.Checks[0].Status -ceq 'NOT_RUN') 'Changed ignored input retained PASS.'
     Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'checkpoint is not ready'
     $null = & $manager run @codex @check -Arguments @('-NoProfile', '-Command', 'exit 0')
+    Assert-Rejected { & $manager close @codex -ConfirmScope -ConfirmAcceptance } 'ownership-preserved=NOT_RUN'
 
     $destination = Join-Path $fixture 'handoff.json'
-    $handoff = & $manager export @codex -ConfirmScope -OutputFile $destination
-    Assert-True ((& $manager verify -HandoffFile $destination -ExpectedSha256 $handoff.Sha256 -AgentFamily codex).Status -ceq 'PASS') 'Portable handoff did not verify.'
+    Assert-Rejected { & $manager export @codex -ConfirmScope -OutputFile $destination } 'ConfirmExport'
+    $handoff = & $manager export @codex -ConfirmScope -ConfirmExport -OutputFile $destination
+    $package = & $manager resume -HandoffFile $destination -ExpectedSha256 $handoff.Sha256 -AgentFamily codex -ConfirmScope
+    Assert-True ($package.IntegrityVerified -and $package.ContextRecovered -and -not $package.CanContinue -and
+        $package.Handoff.taskId -ceq 'first-task' -and
+        $package.Handoff.task['Original Task'] -like '*retain its state*') 'Portable task context or read-only restrictions were lost.'
+    Assert-Rejected { & $manager verify -HandoffFile $destination -ExpectedSha256 $handoff.Sha256 -AgentFamily claude-code } 'incompatible agent family'
     $payload = [IO.File]::ReadAllText($destination)
-    Assert-True ($payload -notmatch '(?i)first-task|fixture-test|untracked note|input\.txt|retain its state|exit 0') 'Export disclosed local strings.'
+    Assert-True ($payload -notmatch '(?i)untracked note|input\.txt|exit 0' -and
+        -not $payload.Contains($worktree.Replace('\', '\\'))) 'Export disclosed local paths or raw commands.'
     [IO.File]::AppendAllText($destination, ' ')
     Assert-Rejected { & $manager verify -HandoffFile $destination -ExpectedSha256 $handoff.Sha256 -AgentFamily codex } 'hash mismatch'
 
-    $closed = & $manager close @codex -ConfirmScope -ConfirmAcceptance
-    Assert-True ($closed.Lifecycle -ceq 'closed') 'Fresh evidence did not allow closure.'
     Assert-True ((Get-FileHash -LiteralPath $index).Hash -ceq $indexHash) 'Manager changed the Git index.'
     Assert-True ((Get-FileHash -LiteralPath (Join-Path $worktree 'plan.md')).Hash -ceq $planHash) 'Manager changed the plan.'
     Assert-True ((Get-FileHash -LiteralPath (Join-Path $worktree 'spec.md')).Hash -ceq $specHash) 'Manager changed the spec.'
+    $null = & $manager review @codex -ConfirmScope -ReviewFile (Join-Path $fixture 'reviews.json')
+    $closed = & $manager close @codex -ConfirmScope -ConfirmAcceptance
+    Assert-True ($closed.Lifecycle -ceq 'closed') 'Fresh evidence and per-criterion reviews did not allow closure.'
     $head = Invoke-FixtureGit @('rev-parse', 'HEAD')
     Invoke-FixtureGit @('update-ref', 'refs/heads/another', $head)
     Invoke-FixtureGit @('symbolic-ref', 'HEAD', 'refs/heads/another')

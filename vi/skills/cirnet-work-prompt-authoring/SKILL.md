@@ -71,6 +71,11 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    theo quy trình đọc an toàn của mẫu. Chặn triển khai không bảo vệ output
    công cụ về sau.
 
+Với công việc Codex hoặc Claude Code đang tiếp tục, ghi Task ID, vị trí
+checkpoint và loại agent được phép. Yêu cầu Work khôi phục ngữ cảnh và kiểm
+tra lại Git, tham chiếu và phạm vi trước khi sửa. Yêu cầu Work lưu checkpoint
+trước khi bàn giao. Cần quyền riêng để cung cấp gói bàn giao.
+
 ## Truy cập và thẩm quyền
 
 Bàn giao độc lập model: nêu khả năng bắt buộc. Ghi model và effort đánh giá
@@ -101,4 +106,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: d7fc0a6cdff38fabf35f16284e017e17ace72166f4418cb914e1ba58fa7c5fd2 -->
+<!-- source-sha256: 40ab123c6976d78684a56b2ef55f6a8a599a73514b6e09e68ed99bdd089cdd05 -->

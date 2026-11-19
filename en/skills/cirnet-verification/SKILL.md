@@ -27,6 +27,11 @@ as evidence for an exercised process chain.
 List each command and PASS, FAIL, NOT_RUN or BLOCKED with its scope. For gaps,
 state the missing prerequisite or unresolved check.
 
+For Task Continuity, record authorized builds and tests with `run` and declare
+relevant input files. Recheck Git, pinned references and effective evidence
+before using a saved result. Record authorized evidence with `review` for each
+criterion and use `close` only after every criterion is satisfied.
+
 For compile/simulation pipelines, capture each process's actual exit code before
 another command, including Git or cleanup, can overwrite it. If a wrapper exposes
 only an aggregate result, inspect its flow and observe the child process results

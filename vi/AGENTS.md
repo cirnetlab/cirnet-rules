@@ -44,6 +44,20 @@ bản dịch hoặc theo yêu cầu.
   hoặc vận hành thiết bị thật. Nạp chương trình và cấp điện còn cần bằng chứng
   an toàn của owner. Test phần mềm chỉ bao phủ hành vi đã được thực thi.
 
+## Task Continuity
+
+- Với công việc Codex hoặc Claude Code được cấp quyền và có thể kéo dài qua
+  nhiều phiên, khởi tạo checkpoint từ checkout `cirnet-rules` đã duyệt trước khi
+  sửa mã. Dùng `scripts/task-continuity.ps1` và kho cục bộ được Git bỏ qua của
+  repo sở hữu. Ghi yêu cầu gốc, tiêu chí, phạm vi và tham chiếu tài liệu đã ghim.
+- Lưu tiến độ và quyết định khi thay đổi. Khi có thể, chạy lệnh sửa, build và
+  kiểm thử được phép qua `run`. Lưu lại trước khi bàn giao và chỉ cung cấp các
+  trường được phép xuất cho người nhận có thẩm quyền thuộc cùng loại agent.
+- Sau gián đoạn, dùng `resume` để đọc ngữ cảnh. Kiểm tra Git, bằng chứng,
+  Plans/Specs đã ghim, kiến trúc, quy tắc và quyền hiện tại trước khi sửa.
+  Xử lý vướng mắc trước và chỉ đóng khi mỗi tiêu chí có bằng chứng còn hiệu lực
+  và đã được người có thẩm quyền rà soát.
+
 ## Kiểm chứng và cập nhật tài liệu
 
 - Đặt tiêu chí nghiệm thu quan sát được. Với việc không đơn giản, gắn mỗi bước
@@ -64,4 +78,4 @@ bản dịch hoặc theo yêu cầu.
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: d60c316965db404da3e129ff282fab59e22b10831043e12214d0f4e142258656 -->
+<!-- source-sha256: 38ccca2681df255adb2a9e7d530d42fcf4aa2f3009ac31e4b4635c113a3cf2f1 -->
