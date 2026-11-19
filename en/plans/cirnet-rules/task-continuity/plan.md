@@ -26,3 +26,15 @@ Observed from the `cirnet-rules` root on Windows:
 - BLOCKED: Ubuntu run. WSL and the Docker Linux engine were inaccessible locally.
 - NOT_RUN: Native quota exhaustion and handoffs between separate accounts.
   The suite exercises Codex and Claude Code family checks with fixtures.
+
+## GitHub Actions follow-up
+
+The [Ubuntu job for c2a7671](https://github.com/cirnetlab/cirnet-rules/actions/runs/44495650591/job/135462022825)
+printed the suite's PASS message and exited with code 1. The runner forwards
+`$LASTEXITCODE`, which the final, intentionally rejected `verify` set to 1.
+The suite now asserts that rejection code and returns 0 after successful
+assertions and cleanup.
+
+The GitHub Actions PowerShell wrapper reproduced exit 1 on Windows before
+the fix and returned 0 afterward. An injected fixture setup failure still
+returned 1. A hosted CI run for the fix is pending.

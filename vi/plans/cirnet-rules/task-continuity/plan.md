@@ -32,5 +32,17 @@ Kết quả quan sát tại thư mục gốc `cirnet-rules` trên Windows:
 - NOT_RUN: Hết hạn mức và bàn giao thực tế giữa các tài khoản khác nhau.
   Bộ test kiểm tra loại agent Codex và Claude Code bằng fixture.
 
+## Xử lý lỗi GitHub Actions
+
+[Job Ubuntu của c2a7671](https://github.com/cirnetlab/cirnet-rules/actions/runs/44495650591/job/135462022825)
+in thông báo PASS của bộ test rồi thoát với mã 1. Runner trả lại
+`$LASTEXITCODE`, có giá trị 1 do lệnh `verify` cuối cùng được thiết kế để
+bị từ chối. Bộ test nay kiểm tra mã từ chối đó và trả 0 sau khi mọi assertion
+và bước dọn fixture hoàn tất.
+
+Cách gọi PowerShell của GitHub Actions tái hiện mã thoát 1 trên Windows trước
+khi sửa và trả 0 sau khi sửa. Khi chủ động tạo lỗi lúc chuẩn bị fixture, mã
+thoát vẫn là 1. Lượt CI trên GitHub cho bản sửa vẫn đang chờ.
+
 <!-- source: en/plans/cirnet-rules/task-continuity/plan.md -->
-<!-- source-sha256: 516665399891ff22f38622f8a6c90d2c980a885ad6d2d2eb8f4a00e6f0c080fa -->
+<!-- source-sha256: 1ca50f15e332322f4c3b26cfb2b737627bcff35d51465d5c9c975e1821c997f2 -->

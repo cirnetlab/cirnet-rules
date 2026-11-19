@@ -217,7 +217,8 @@ Review the process evidence after any change.
         $indexDrift.Git.Changes.Fields -ccontains 'entriesSha256') 'Changed Git index was not reported.'
     Invoke-FixtureGit ($commitArgs + @('-m', 'new primary revision'))
     $headDrift = & $manager verify @codex
-    Assert-True (-not $headDrift.Ready -and $headDrift.Git.Changes.Fields -ccontains 'head') 'Changed Git HEAD was not reported.'
+    Assert-True ($LASTEXITCODE -eq 1 -and -not $headDrift.Ready -and
+        $headDrift.Git.Changes.Fields -ccontains 'head') 'Verify did not reject the changed Git HEAD with exit code 1.'
     Write-Host 'PASS: Task Continuity lifecycle, checkpoint integrity, family compatibility, interrupted checks, verification freshness and portable handoff'
 }
 finally {
@@ -227,3 +228,6 @@ finally {
     }
     if ([IO.Directory]::Exists($resolved)) { Remove-Item -LiteralPath $resolved -Recurse -Force }
 }
+
+# GitHub Actions forwards $LASTEXITCODE. The final drift check intentionally exits 1.
+exit 0
