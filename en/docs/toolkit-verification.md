@@ -200,6 +200,7 @@ The hosted “Test Task Continuity” step in the Windows Server 2022 and Ubuntu
 | [67594ec](https://github.com/cirnetlab/cirnet-rules/actions/runs/44497570440) | PASS | PASS |
 | [c7c7132](https://github.com/cirnetlab/cirnet-rules/actions/runs/44502972015) | PASS | PASS |
 | [6ca1dcf](https://github.com/cirnetlab/cirnet-rules/actions/runs/44543670740) | PASS | PASS |
+| [7aa026a](https://github.com/cirnetlab/cirnet-rules/actions/runs/44555641413) | PASS | PASS |
 
 The [regression suite](../../tests/continuity/task-continuity.tests.ps1) uses
 disposable worktrees, real child processes and declared agent families. It

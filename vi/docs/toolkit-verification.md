@@ -199,6 +199,7 @@ cho Windows Server 2022 và Ubuntu 24.04 như sau.
 | [67594ec](https://github.com/cirnetlab/cirnet-rules/actions/runs/44497570440) | PASS | PASS |
 | [c7c7132](https://github.com/cirnetlab/cirnet-rules/actions/runs/44502972015) | PASS | PASS |
 | [6ca1dcf](https://github.com/cirnetlab/cirnet-rules/actions/runs/44543670740) | PASS | PASS |
+| [7aa026a](https://github.com/cirnetlab/cirnet-rules/actions/runs/44555641413) | PASS | PASS |
 
 [Bộ kiểm thử hồi quy](../../tests/continuity/task-continuity.tests.ps1) dùng
 worktree tạm, tiến trình con thực và loại agent được khai báo. Bộ test kiểm
@@ -208,4 +209,4 @@ do hết quota Native và bàn giao giữa các tài khoản là `NOT_RUN`. Nh�
 này cần tài khoản được cấp quyền cho từng loại agent ở giai đoạn nghiệm thu độc lập.
 
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: ec992e8098db95ecb657f0eb801b6a69f12d917e65023d903447796135e1174c -->
+<!-- source-sha256: c06e776b896fc16087d30f2ded5279cf13dadbcc3c53946dde8c935a3f8b10ee -->
