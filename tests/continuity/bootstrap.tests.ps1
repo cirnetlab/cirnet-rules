@@ -181,6 +181,23 @@ Review the latest evidence.
     Assert-True ((& $manager bootstrap @scope -TaskId second).Status -ceq 'BLOCKED') 'Corrupt checkpoint was recovered.'
     [IO.File]::WriteAllBytes($secondPointer,$pointerBytes)
 
+    $confirmSecond = @{ ConfirmContinuation = $true; ExpectedCheckpointId = $second.CheckpointId }
+    $duplicateCheckpointId = '{"checkpointId":"' + ('0' * 32) + '",'
+    $secondManifest = Join-Path $second.CheckpointDirectory 'manifest.json'
+    $boundSelection = Get-ContinuitySelection $checkout $defaultStore codex '' 'initialized-lane'
+    foreach ($checkpointRecord in @($secondPointer, $secondManifest)) {
+        $originalBytes = [IO.File]::ReadAllBytes($checkpointRecord)
+        $originalJson = [Text.Encoding]::UTF8.GetString($originalBytes)
+        [IO.File]::WriteAllText($checkpointRecord, $duplicateCheckpointId + $originalJson.Substring(1))
+        try {
+            $duplicate = & $manager bootstrap @scope @confirmSecond -SessionKey initialized-lane
+            Assert-True ($duplicate.Status -ceq 'BLOCKED' -and -not $duplicate.ContextRecovered -and -not $duplicate.CanContinue) 'A checkpoint record with contradictory duplicate IDs authorized continuation.'
+            Assert-True ((& $manager discover @scope).Status -ceq 'BLOCKED') 'Implicit discovery ignored a checkpoint record with duplicate IDs.'
+            Assert-True (-not (Test-ContinuitySelectionCurrent $checkout $defaultStore codex 'initialized-lane' $boundSelection)) 'A duplicate ID added during recovery passed checkpoint revalidation.'
+        }
+        finally { [IO.File]::WriteAllBytes($checkpointRecord, $originalBytes) }
+    }
+
     $shared = Join-Path $fixture 'shared'
     $linked = Join-Path $fixture 'linked'
     $foreign = Join-Path $fixture 'foreign'

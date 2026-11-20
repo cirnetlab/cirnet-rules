@@ -136,8 +136,16 @@ function Read-ContinuityBytes([string]$Path, [int]$MaxBytes = 67108864, [ref]$Re
     finally { $file.Dispose() }
 }
 
-function ConvertFrom-ContinuityJson([byte[]]$Bytes) {
-    try { ConvertFrom-Json -InputObject $utf8.GetString($Bytes) -AsHashtable -Depth 24 -NoEnumerate }
+function ConvertFrom-ContinuityJson([byte[]]$Bytes, [switch]$UniqueProperties) {
+    try {
+        $json = $utf8.GetString($Bytes)
+        if ($UniqueProperties) {
+            $settings = [Newtonsoft.Json.Linq.JsonLoadSettings]::new()
+            $settings.DuplicatePropertyNameHandling = 'Error'
+            $null = [Newtonsoft.Json.Linq.JObject]::Parse($json, $settings)
+        }
+        ConvertFrom-Json -InputObject $json -AsHashtable -Depth 24 -NoEnumerate
+    }
     catch { throw 'Invalid continuity JSON.' }
 }
 
@@ -428,7 +436,7 @@ function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId, [ref]
     Assert-Record $Pointer.files $payloadNames
     $directory = Resolve-CirnetPath -Root $Store -Relative ('snapshots/' + $Pointer.checkpointId)
     $manifestPath = Resolve-CirnetPath -Root $directory -Relative 'manifest.json'
-    $manifest = ConvertFrom-ContinuityJson (Read-ContinuityBytes $manifestPath 4096)
+    $manifest = ConvertFrom-ContinuityJson (Read-ContinuityBytes $manifestPath 4096) -UniqueProperties
     $seal = Get-ContinuityValueHash $Pointer
     if ($seal -cne (Get-ContinuityValueHash $manifest)) { throw 'Checkpoint pointer and manifest disagree.' }
     $contents = @{}
@@ -456,7 +464,8 @@ function Read-ContinuityCheckpoint([string]$Store, [string]$TaskId, [switch]$Pre
     if (-not [IO.File]::Exists($current)) { throw 'No confirmed checkpoint exists for this task.' }
     $budget = @{}
     if ($null -ne $RemainingBytes) { $budget.RemainingBytes = $RemainingBytes }
-    Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson (Read-ContinuityBytes $current 4096)) $TaskId @budget
+    $pointer = ConvertFrom-ContinuityJson (Read-ContinuityBytes $current 4096) -UniqueProperties
+    Read-CheckpointPayload $Store $pointer $TaskId @budget
 }
 
 function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [string]$Progress) {
@@ -490,12 +499,13 @@ function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [strin
     $pointer = [ordered]@{ schemaVersion = 1; checkpointId = $State.checkpointId; files = $hashes }
     $pointerBytes = ConvertTo-ContinuityBytes $pointer
     Write-ContinuityNewFile (Join-Path $directory 'manifest.json') $pointerBytes
-    $confirmed = Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson (Read-ContinuityBytes (Join-Path $directory 'manifest.json') 4096)) $State.taskId
+    $manifest = ConvertFrom-ContinuityJson (Read-ContinuityBytes (Join-Path $directory 'manifest.json') 4096) -UniqueProperties
+    $confirmed = Read-CheckpointPayload $Store $manifest $State.taskId
     Write-ContinuityNewFile $candidate $pointerBytes
     try {
         if ([IO.File]::Exists($current)) {
             $priorBytes = Read-ContinuityBytes $current 4096
-            $prior = Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson $priorBytes) $State.taskId
+            $prior = Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson $priorBytes -UniqueProperties) $State.taskId
             if ($prior.State.taskKey -cne $State.taskKey) { throw 'Task identity changed during publication.' }
             $backup = $candidate + '.prior'
             Write-ContinuityNewFile $backup $priorBytes

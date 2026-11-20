@@ -24,10 +24,7 @@ function Read-Binding([string]$Root, [string]$BindingId) {
     if ($file.LinkType -eq 'HardLink') { throw 'Invalid binding file.' }
     try { $bytes = Read-ContinuityBytes $path 4096 }
     catch [IO.FileNotFoundException], [IO.DirectoryNotFoundException] { return }
-    $settings = [Newtonsoft.Json.Linq.JsonLoadSettings]::new()
-    $settings.DuplicatePropertyNameHandling = 'Error'
-    $null = [Newtonsoft.Json.Linq.JObject]::Parse([Text.UTF8Encoding]::new($false, $true).GetString($bytes), $settings)
-    $binding = ConvertFrom-ContinuityJson $bytes
+    $binding = ConvertFrom-ContinuityJson $bytes -UniqueProperties
     Assert-Record $binding @('schemaVersion', 'bindingId', 'taskId', 'taskKey')
     if (-not (Test-Integer $binding.schemaVersion) -or $binding.schemaVersion -ne 1 -or
         $binding.bindingId -isnot [string] -or $binding.bindingId -cne $BindingId -or
@@ -169,8 +166,11 @@ function Test-ContinuitySelectionCurrent($Repository, [string]$Root, [string]$Ag
             if ((Get-ContinuityValueHash $liveBinding) -cne (Get-ContinuityValueHash $Selection.Binding)) { return $false }
         }
         $path = Resolve-CirnetPath $Selection.Store 'current.json'
-        $pointer = ConvertFrom-ContinuityJson (Read-ContinuityBytes $path 4096)
-        $Selection.Checkpoint.Seal -ceq (Get-ContinuityValueHash $pointer)
+        $pointer = ConvertFrom-ContinuityJson (Read-ContinuityBytes $path 4096) -UniqueProperties
+        if ($Selection.Checkpoint.Seal -cne (Get-ContinuityValueHash $pointer)) { return $false }
+        $path = Resolve-CirnetPath $Selection.Checkpoint.Directory 'manifest.json'
+        $manifest = ConvertFrom-ContinuityJson (Read-ContinuityBytes $path 4096) -UniqueProperties
+        $Selection.Checkpoint.Seal -ceq (Get-ContinuityValueHash $manifest)
     }
     catch { $false }
 }
