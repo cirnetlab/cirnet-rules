@@ -370,3 +370,37 @@ an independent eight-case, three-repetition comparison (48 trials / 96 role call
 Pilot evidence must pass before proposing full execution. E07 partner integration
 remains BLOCKED; physical verification remains NOT_RUN.
 / B2.3 mới đạt kiểm tra offline; chưa được gọi là benchmark đầy đủ hay Stable.
+
+## Verified pilot scope / Phạm vi thí điểm đã kiểm chứng
+
+**2026-11-20 · PASS for a supervised pilot.** Use Work Prompt for scoped
+read-only handoffs and supervised, low-risk edits in one worktree with an
+approved owner, a pinned baseline, a trusted runtime boundary and independent
+review of the result. / **Đủ điều kiện thí điểm có giám sát** cho bàn giao chỉ
+đọc và chỉnh sửa rủi ro thấp trong một worktree, khi đã xác định owner, ghim
+baseline, giới hạn quyền thực thi và rà kết quả độc lập.
+
+The reviewed [GitHub commit](https://github.com/cirnetlab/cirnet-rules/commit/8a7cf78c7d514a546eb972f2c44d07b99bb48f1d)
+is `8a7cf78c7d514a546eb972f2c44d07b99bb48f1d`. Its parent-to-commit diff
+matches the tested working diff from `169ddd424e8d24bb99d0839f11d9b062056af089`
+byte for byte (SHA-256
+`0be2634827b3c9c0cc16d4333ab37d3d7b93f1d3a3be50acfac5c4f659c90f6f`).
+
+| Evidence / Bằng chứng | Status / Trạng thái | Observed scope / Phạm vi quan sát |
+| --- | --- | --- |
+| Windows toolkit checks / Kiểm tra toolkit Windows | PASS | All 12 commands exited 0, including build, Work Prompt regression, Candidate shim, documentation, packaging and Task Continuity. The regression rejects Git configuration and ref drift. |
+| Native Codex Work / Chạy Work bằng Codex thực tế | PASS | One synthetic worktree. The missing-baseline gate returned 3, then the approved intake returned 0. Codex edited only `label.mjs`, ran the test and passed the audit, both exit 0. An independent check verified the trace order and resulting diff. |
+| Windows MXC runtime / Giới hạn thực thi MXC | PASS | A separate fixture allowed a regular worktree write and denied a write to `.git/config`. The configuration hash matched its baseline. |
+| Owner intake / Tiếp nhận tại repo owner | PASS | Read-only handoffs passed with pinned HEAD and source at Interface `82dd99a`, Contracts `c913108`, Remote `df11ba3`, Hardware `17fb9e3` and FPGA `ac7f47c`. Owner checks passed for Contracts validation parity (23), Remote input provenance (7) and FPGA scaffold (4). |
+| GitHub Actions Ubuntu / CI Ubuntu | Reported passing / Người dùng báo đạt | The GitHub branch and source SHA were confirmed. The Ubuntu job for that SHA could not be independently retrieved, so this entry leaves its CI result unverified. |
+
+Local evidence: `target/work-prompt-owner-acceptance-21f24996/`, including
+`final-source-identity.txt` and `native-and-owner-evidence.json`.
+
+Production owner writes, a full native Candidate benchmark, RTL simulation
+and physical verification remain `NOT_RUN` for this record. Git audit
+measures net changes in its recorded scope. Keep implementation acceptance
+with the reviewer and retain the [execution gates](../en/docs/context.md#offline-handoff-validation).
+/ Các lượt ghi trên repo owner thật, benchmark native đầy đủ, mô phỏng RTL và
+kiểm chứng vật lý chưa chạy trong đợt này. Audit Git đối chiếu chênh lệch ròng
+trong phạm vi đã ghi. Người rà chịu trách nhiệm nghiệm thu triển khai.
