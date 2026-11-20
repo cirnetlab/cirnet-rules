@@ -57,4 +57,43 @@ if ($signalTrace.Count -ne 1 -or -not $signalTrace[0].Contains('signal') -or $si
     $issues.Add('Observed simulator signal was dropped')
 }
 if ($issues.Count) { throw ('RTL stage capture regression: ' + ($issues -join '; ')) }
+$summaryPrefix = 'PowerShell RTL summary command: '
+$summary = $ast.Find({ param($node)
+    $node -is [Management.Automation.Language.StringConstantExpressionAst] -and
+    $node.Value.StartsWith($summaryPrefix, [StringComparison]::Ordinal)
+}, $true)
+if (-not $summary) { throw 'Work needs an executable safe RTL output projection.' }
+$probe = Join-Path ([IO.Path]::GetTempPath()) ('cirnet-rtl-summary-' + [guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path (Join-Path $probe 'toolkit')
+Copy-Item -LiteralPath (Join-Path $repo 'scripts/benchmark/rtl-observer.mjs') -Destination (Join-Path $probe 'toolkit/rtl-observer.mjs')
+Push-Location -LiteralPath $probe
+try {
+    $simulation = @'
+console.log('CIRNET_RTL_STAGE {"stage":"compile","exitCode":0,"error":null,"signal":null}');
+console.log('CIRNET_RTL_STAGE {"stage":"simulation","exitCode":1,"error":null,"signal":null}');
+console.log('CIRNET_RTL_STAGE {"stage":"simulation","exitCode":0,"error":null,"signal":null,"extra":"unrelated diagnostic"}');
+console.log('unrelated diagnostic should not leave the filter');
+console.log('FATAL: tb.sv:23: startup timeout');
+process.exitCode = 1;
+'@
+    [IO.File]::WriteAllText((Join-Path $probe 'simulate.mjs'), $simulation)
+    $command = $summary.Value.Substring($summaryPrefix.Length)
+    $output = & (Join-Path $PSHOME 'pwsh') -NoProfile -NonInteractive -Command $command
+    $exit = $LASTEXITCODE
+    $stages = (Read-TestTrace ($output -join "`n") $command).rtlStages
+    if ($exit -ne 1 -or $stages.Count -ne 2 -or $stages[0].exitCode -ne 0 -or $stages[1].exitCode -ne 1 -or
+        ($output -join "`n") -match 'unrelated diagnostic' -or 'startup timeout' -cnotin $output) {
+        throw 'The safe projection must suppress unrelated output and preserve the exact child records and failing wrapper exit.'
+    }
+    $simulation = $simulation.Replace('"exitCode":1', '"exitCode":0').Replace('process.exitCode = 1;', 'process.exitCode = 0;')
+    $simulation = $simulation.Replace("console.log('FATAL: tb.sv:23: startup timeout');", "for (const label of ['permit loss', 'watchdog expiry', 'fault', 'reset', 'simulation']) console.log(label + ' PASS');")
+    [IO.File]::WriteAllText((Join-Path $probe 'simulate.mjs'), $simulation)
+    $output = & (Join-Path $PSHOME 'pwsh') -NoProfile -NonInteractive -Command $command
+    $exit = $LASTEXITCODE
+    $stages = (Read-TestTrace ($output -join "`n") $command).rtlStages
+    if ($exit -ne 0 -or $stages.Count -ne 2 -or $stages[0].exitCode -ne 0 -or $stages[1].exitCode -ne 0 -or
+        @('permit loss PASS', 'watchdog expiry PASS', 'fault PASS', 'reset PASS', 'simulation PASS').Where({ $_ -cnotin $output }).Count) {
+        throw 'The safe projection must retain both successful child records and every safe assertion marker.'
+    }
+} finally { Pop-Location }
 Write-Host 'PASS: canonical/filtered child status capture, numeric failure preservation, malformed/incomplete output rejection and signal retention (offline parser checks).'

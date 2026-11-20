@@ -59,6 +59,9 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
   Exit 0 covers preview or objective success, exit 1 a failure, and exit 2 a
   blocked run. An objective result remains pending independent review.
 - The Author is read-only. Work gets a fresh fixture and the exact Author bytes.
+  Role-specific files make the synthetic Git commits differ. Use relative paths
+  and verified file hashes for shared source evidence. Work checks its own Git
+  state before editing.
   Both roles get the pinned `toolkit/en/docs/context.md` intake guide.
   The other `en/docs` guides, authoring template and authoring Skill belong to
   Author. The gate checks readiness, original task, write scope, reporting and
@@ -82,8 +85,10 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
   Work commands and observed exits for verification PASS.
 - E08 requires real compile and simulator exits plus reset, permit loss,
   watchdog expiry and fault assertions. The observer command is
-  `node --import ./toolkit/rtl-observer.mjs simulate.mjs`. Retain safe
-  `CIRNET_RTL_STAGE ` and historical `Child result ` JSON markers when filtering.
+  `node --import ./toolkit/rtl-observer.mjs simulate.mjs`. On PowerShell, use
+  the summary command in the Work fixture's `AGENTS.md`. It keeps safe JSON
+  `CIRNET_RTL_STAGE ` lines unchanged and preserves the wrapper exit. The parser
+  also accepts historical `Child result ` JSON markers.
   Numeric exit 0 with a process error or signal is insufficient. Report
   `physical verification: NOT_RUN` unless there is separate board evidence.
 

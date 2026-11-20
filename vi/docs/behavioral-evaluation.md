@@ -57,7 +57,10 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
 - Xem `compatibility-summary.json` để biết kết quả thực thi và phép kiểm
   objective. Mã thoát 0 cho preview hoặc objective đạt, 1 cho lỗi và 2 cho lượt
   bị chặn. Kết quả objective vẫn cần rà soát độc lập.
-- Author chỉ đọc. Work nhận bản sao fixture mới và đúng byte từ Author. Cả hai
+- Author chỉ đọc. Work nhận bản sao fixture mới và đúng byte từ Author. Các
+  tệp riêng của từng vai trò khiến commit Git giả lập khác nhau. Dùng đường
+  dẫn tương đối và mã băm tệp đã kiểm tra làm bằng chứng cho mã nguồn chung.
+  Work kiểm tra trạng thái Git của fixture mình trước khi sửa. Cả hai
   vai trò nhận hướng dẫn intake `toolkit/en/docs/context.md` đã ghim. Các
   hướng dẫn `en/docs` khác, mẫu soạn thảo và Skill soạn thảo dành cho Author.
   Cổng kiểm trạng thái, nhiệm vụ gốc, phạm vi ghi, yêu cầu báo cáo và hai mục
@@ -80,8 +83,10 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
   chứng PASS cần dẫn lệnh Work đã hoàn tất và mã thoát quan sát được.
 - E08 cần mã thoát compile và mô phỏng thật, cùng các assertion về reset, mất
   permit, watchdog hết hạn và fault. Lệnh observer là
-  `node --import ./toolkit/rtl-observer.mjs simulate.mjs`. Khi lọc output, giữ
-  marker JSON an toàn `CIRNET_RTL_STAGE ` và marker lịch sử `Child result `.
+  `node --import ./toolkit/rtl-observer.mjs simulate.mjs`. Trên PowerShell,
+  dùng lệnh tóm tắt trong `AGENTS.md` của fixture Work. Lệnh giữ nguyên các
+  dòng JSON an toàn `CIRNET_RTL_STAGE ` và mã thoát của wrapper. Bộ phân tích
+  cũng chấp nhận marker JSON lịch sử `Child result `.
   Mã thoát số 0 kèm lỗi tiến trình hoặc signal chưa đủ. Báo
   `physical verification: NOT_RUN` trừ khi có bằng chứng bo mạch riêng.
 
@@ -137,4 +142,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 0a038b0556d434e694bd8df631c0508d3942dabc9c7aa1f57298f39a75184c59 -->
+<!-- source-sha256: f3f3e4b16758483397eb613f2ef1442e97af63cc8b15aef629975c9ad32ace19 -->

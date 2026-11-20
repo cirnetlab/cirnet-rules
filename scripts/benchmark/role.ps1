@@ -838,6 +838,7 @@ foreach ($case in $cases) {
         if ($Role -eq 'Author') { $scope += 'Chat Author may only read. Work runs in a separate fixture.' }
         elseif ($readOnlyRole) { $scope += 'Work may inspect and verify within read-only scope. Report any missing authority or prerequisite.' }
         else { $scope += 'Work may run relevant local checks using owned scratch output.' }
+        $scope += 'Each role has its own synthetic Git commit, including role-specific files. Reconcile shared source by relative path and SHA-256. Use local HEAD and status for Git preflight and verify actual drift before edits.'
         $scope += 'The fixture-root-relative source write scope for Work is ' + (ConvertTo-Json -InputObject $writeScope -Compress) + '.'
         if ($Role -eq 'Work' -and $id -ceq 'E06') {
             $scope += @(
@@ -849,7 +850,10 @@ foreach ($case in $cases) {
         }
         if ($id -ceq 'E04') { $scope += 'From consumer/, ../producer/ is inside the assigned fixture and available for read-only inspection. Producer writes are outside scope.' }
         if ($case['rtl'] -and $Role -eq 'Work') {
-            $scope += 'To capture compiler and simulator child status without editing the wrapper, use node --import ./toolkit/rtl-observer.mjs simulate.mjs. Review the assertions in native output and report physical verification: NOT_RUN.'
+            $scope += @(
+                'Run node --import ./toolkit/rtl-observer.mjs simulate.mjs before and after the scoped repair. On PowerShell use the summary command below exactly. It retains the observer JSON unchanged and the approved assertion markers. Keep both child exits separate from the wrapper exit. Report physical verification: NOT_RUN.'
+                'PowerShell RTL summary command: $lines = @(node --import ./toolkit/rtl-observer.mjs simulate.mjs 2>&1); $result = $LASTEXITCODE; foreach ($line in $lines) { $text = $line.ToString(); if ($text -cmatch ''^CIRNET_RTL_STAGE \{"stage":"(?:compile|simulation)","exitCode":(?:-?[0-9]{1,10}|null),"error":(?:null|"[A-Z][A-Z0-9_]{0,31}"),"signal":(?:null|"SIG[A-Z0-9]{1,12}")\}$'' -or $text -cmatch ''^(?:permit loss|watchdog expiry|fault|reset|simulation) PASS$'') { $text } elseif ($text -cmatch ''^FATAL: tb\.sv:[0-9]+: startup timeout(?:[: ]|$)'') { ''startup timeout'' } }; exit $result'
+            )
         }
         $scopePath = Join-Path $working 'AGENTS.md'
         $lf = [string][char]10
@@ -984,6 +988,7 @@ $($candidateHeader -join "`n")
 Follow with two nonempty sections, headed exactly '## Requirements and constraints' and '## Acceptance and verification'.
 Carry the functional requirements, negative cases, privacy boundaries and permitted preflight into those sections. For a blocked task, identify the missing authority and limit Work to read-only clarification.
 Cite only sources available to Work. Work gets toolkit/en/docs/context.md, the shared policies, rules, references and architecture snapshots, and the selected execution Skills. The authoring template is staged for Author only. Other toolkit/en/docs guides and the authoring Skill are also Author-only.
+Do not use Author HEAD as a Work prerequisite. Role-specific synthetic commits differ by design. Cite shared fixture files by relative path and verified SHA-256. Work must inspect its own Git status and HEAD locally and reconcile actual source drift before editing.
 For an actionable handoff, include this exact reporting instruction in the verification section:
 $(Get-CirnetWorkPromptReportLine)
 "@
@@ -994,7 +999,7 @@ $(Get-CirnetWorkPromptReportLine)
                     $task += "`nIn the requirements section, record the prompt level you chose from LIGHT, STANDARD or DEEP and the reason. Derive the verification command and acceptance evidence from the owner's sources and the applicable Skills."
                 }
                 if ($case['rtl']) {
-                    $task += "`nFor Work verification use node --import ./toolkit/rtl-observer.mjs simulate.mjs from the fixture root. Work receives this observer to capture the actual compile and simulation child exits."
+                    $task += "`nFor Work verification use node --import ./toolkit/rtl-observer.mjs simulate.mjs from the fixture root. On PowerShell tell Work to use the exact RTL summary command in its AGENTS.md. The reviewer needs the unchanged CIRNET_RTL_STAGE JSON lines in tool output, the separate child exits, and the four assertion markers."
                 }
             }
             $inputText = @"

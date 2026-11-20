@@ -163,7 +163,7 @@ if ($LASTEXITCODE -ne 0 -or ($mixed.cases -join ',') -cne 'E02,python-retry-coun
     throw 'Mixed scenarios must freeze once in a single Candidate session.'
 }
 $mixedRoot = Join-Path $output 'mixed-preview'
-foreach ($id in @('python-retry-count-refactor', 'rust-timeout-bound')) {
+foreach ($id in @('E02', 'python-retry-count-refactor', 'rust-timeout-bound')) {
     $trial = (New-Item -ItemType Directory -Path (Join-Path $mixedRoot "trials/$id")).FullName
     $rolePreview = @{
         RulesRoot=(Join-Path $mixedRoot 'rules'); SuiteRoot=(Join-Path $mixedRoot 'evaluator')
@@ -175,7 +175,15 @@ foreach ($id in @('python-retry-count-refactor', 'rust-timeout-bound')) {
     $roleManifest = Read-Evidence "mixed-preview/trials/$id/Author/session.json"
     if ($roleRecord.id -cne $id -or $roleRecord.execution -cne 'NOT_RUN' -or $roleRecord.startUtc -or
         $roleManifest.cases[0].evidence -cne 'run.json') {
-        throw 'Long descriptive IDs must stage a bounded role preview without duplicate case directories or client calls.'
+        throw 'Selected IDs must stage a bounded role preview without duplicate case directories or client calls.'
+    }
+    if ($id -ceq 'E02') {
+        $authorPrompt = [IO.File]::ReadAllText((Join-Path $trial 'Author/prompt.txt'))
+        if ($authorPrompt -cnotmatch 'Do not use Author HEAD as a Work prerequisite' -or
+            $authorPrompt -cnotmatch 'shared fixture files by relative path and verified SHA-256' -or
+            $authorPrompt -cnotmatch 'Work must inspect its own Git status') {
+            throw 'E02 must transfer shared file identity while retaining the local Git preflight.'
+        }
     }
 }
 Assert-Rejected duplicate-alias @{ CaseId='P01,python-retry-count-refactor' } 'known, unique'

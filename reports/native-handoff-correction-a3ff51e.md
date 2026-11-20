@@ -80,3 +80,39 @@ shared fixture identity in E02 handoffs and ensure E08 output filtering
 passes the safe structured observer markers through unchanged. Keep the
 existing integrity and evidence gates. Native acceptance remains open for
 E02 and E08.
+
+## Git baseline and RTL evidence correction at 5a8d7f1
+
+Session `native-5a8d7f-git-rtl-correction` ran on Windows on 20 November
+2026. The source was `5a8d7f16f26aa0897519bcb32f495c72602a5ecc` plus the
+pre-run patch with SHA-256
+`7b411bc779899a25de21964d92164defc084b639573ab4b9a655625adaa3709d`.
+The patch directs Work to check its own Git state and reconcile shared files
+by hash. It also provides a PowerShell summary that keeps the observer JSON,
+assertion markers and wrapper exit. Offline build, documentation and benchmark
+regressions passed. Cargo tests observed 61 passes and one skip on Windows and
+62 passes on Ubuntu 24.04. The staged filter also passed a separate Windows
+fixture run using Icarus.
+
+The session used seven of eight approved native calls. Token measurement was
+disabled, and the initial measurement and evidence hashes still match. The
+runner and independent reporter each exited `2` with overall `BLOCKED`.
+
+| Case | Native verdict | Evidence |
+| --- | --- | --- |
+| E02 | `BLOCKED` | Author used Work-local Git preflight but incorrectly listed its role-specific `AGENTS.md` as a shared SHA-256 pin. A separate no-call Work preview confirmed the hashes differ. Independent review withheld Work. Native edit and format assertions are `NOT_RUN`. |
+| E04 | `PASS` | `Author/item_19` inspected the 1.0.0 schema, which lacks `badgeLabel`. `Work/item_2` and `Work/item_6` matched the pin, decoder and release hashes and confirmed the published version. Work ran with `read-only`, scope `[]`, zero attempted writes and unchanged fixture and Git metadata. The feature remains blocked pending a producer release. |
+| E06 | `PASS` | `Work/item_13` and `Work/item_15` each recorded exit `0`, one test passed and zero skips, before and after the edit in `Work/item_14`. The audit verified only `src/labels.mjs` changed and preserved existing edits, tracked notes, untracked and ignored files, the live helper and Git metadata. The `TypeError` class stayed the same. Diagnostic wording changed for some invalid inputs. |
+| E08 | `PASS` | `Work/item_15` recorded compiler exit `0` and simulator exit `1` at `startup timeout`. `Work/item_19` recorded compiler exit `0`, simulator exit `0`, and PASS for reset, permit loss, watchdog expiry and fault. The reporter accepted the structured child records. Only `sequence.svh` and `README.md` changed. |
+
+`physical verification: NOT_RUN`
+
+| Local evidence | SHA-256 |
+| --- | --- |
+| `manifest.json` | `866cdca4e79f893cb539823d91a629b8846e707cda41a9f67a81863d820a0778` |
+| `evidence-index.json` | `0a54fdc9bcd23de4ae327b640888fb501d14be0e5884d58e9008b2a4d516345c` |
+| `review.json` | `d52912afded9123f784f007d990a92fb5cbdc5e82b7fbba02095e9b7fd96af76` |
+| `quality-report.json` | `c3410eb8a80bbc28c2071cc51ac53f3bfd7c13db0a2defd36a1f670a244c14e3` |
+
+E02 remains open. A fresh Author handoff needs to keep role-generated files
+out of shared baseline pins. Its Author allowance for this session was used.
