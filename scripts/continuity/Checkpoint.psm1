@@ -389,12 +389,16 @@ function Get-ContinuityCompletedBasis($State, [string]$Progress) {
     })
 }
 
-function Get-ContinuityStore($Repository, [string]$CheckpointRoot, [string]$TaskId) {
-    Assert-ContinuityId $TaskId
+function Get-ContinuityStorageRoot($Repository, [string]$CheckpointRoot) {
     if (-not [IO.Path]::IsPathFullyQualified($CheckpointRoot)) { $CheckpointRoot = Join-Path $Repository.root $CheckpointRoot }
     $root = Resolve-CirnetRoot -Path $CheckpointRoot
     Assert-ContinuityDestination $Repository $root -Directory
-    Resolve-CirnetPath -Root $root -Relative $TaskId
+    $root
+}
+
+function Get-ContinuityStore($Repository, [string]$CheckpointRoot, [string]$TaskId) {
+    Assert-ContinuityId $TaskId
+    Resolve-CirnetPath -Root (Get-ContinuityStorageRoot $Repository $CheckpointRoot) -Relative $TaskId
 }
 
 function Enter-ContinuityLock([string]$Store, [switch]$Create) {
@@ -499,5 +503,5 @@ Export-ModuleMember -Function Assert-ContinuityId, Assert-ContinuityReferences, 
     Assert-Record, Test-Integer, Get-ContinuityNoteSections, Get-ContinuityCriterionText,
     Assert-ContinuityCriteria, Assert-ContinuityEnvironmentName, Get-ContinuityReviewBasis, Get-ContinuityCompletedBasis,
     Read-ContinuityBytes, Read-ContinuityInput, ConvertFrom-ContinuityJson, ConvertTo-ContinuityBytes,
-    Get-ContinuityInputPath, Write-ContinuityNewFile, Get-ContinuityStore, Enter-ContinuityLock,
+    Get-ContinuityInputPath, Write-ContinuityNewFile, Get-ContinuityStorageRoot, Get-ContinuityStore, Enter-ContinuityLock,
     Read-ContinuityCheckpoint, Save-ContinuityCheckpoint

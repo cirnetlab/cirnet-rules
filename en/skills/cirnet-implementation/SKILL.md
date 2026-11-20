@@ -39,9 +39,10 @@ Minimum inputs: Authorized files, intended behavior, owning interfaces and nearb
 For a task with Continuity enabled, save before edits, after native edits and
 when progress or decisions change. Run authorized command milestones with
 `scripts/task-continuity.ps1 run` from the approved toolkit checkout. On a new
-session, recover with `resume`, reload applicable references and independently
-confirm authorization. Resolve blockers before using `-ConfirmContinuation`
-and require `CanContinue` before editing.
+session, start with `bootstrap -ConfirmScope` for an unspecified task or use
+`resume -ConfirmScope` for a known ID. Follow the recovery procedure in
+`en/docs/distribution.md`. Reopen applicable references and establish current
+scope before confirming continuation. Require `CanContinue` for ordinary edits.
 
 Report the diff, behavior, checks and limits. Match each acceptance claim to an
 observed result and identify any gaps.

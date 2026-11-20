@@ -22,6 +22,9 @@ jobs:
       - name: Test Task Continuity
         shell: pwsh
         run: ./tests/continuity/task-continuity.tests.ps1
+      - name: Test Task Continuity discovery and bootstrap
+        shell: pwsh
+        run: ./tests/continuity/bootstrap.tests.ps1
       - name: Validate Work Prompt handoffs offline
         shell: pwsh
         run: ./tests/validation/work-prompt.tests.ps1

@@ -40,9 +40,10 @@ Tối thiểu cần: File được phép sửa, hành vi đích, interface của
 Với công việc có Task Continuity, lưu trước khi sửa, sau khi sửa trực tiếp bằng
 agent và khi tiến độ hoặc quyết định thay đổi. Chạy các mốc lệnh đã được phép
 bằng `scripts/task-continuity.ps1 run` từ checkout toolkit đã duyệt. Trong
-phiên mới, dùng `resume`, đọc lại tham chiếu áp dụng và xác nhận quyền độc
-lập. Xử lý vướng mắc trước khi dùng `-ConfirmContinuation` và chỉ sửa khi
-`CanContinue` cho phép.
+phiên mới, dùng `bootstrap -ConfirmScope` khi chưa biết task, hoặc
+`resume -ConfirmScope` khi đã biết ID. Theo quy trình khôi phục trong
+`en/docs/distribution.md`. Mở lại tham chiếu áp dụng và xác định quyền hiện tại
+trước khi xác nhận tiếp tục. Chỉ sửa thông thường khi `CanContinue` cho phép.
 
 Báo diff, hành vi, kiểm tra và giới hạn. Đối chiếu mỗi tuyên bố nghiệm thu
 với kết quả quan sát được và chỉ rõ phần còn thiếu.
@@ -51,4 +52,4 @@ Mở [Ví dụ kỹ thuật](references/engineering-examples.md#ví-dụ-kỹ-th
 thể tham khảo ca tương tự về API, Vue, testbench RTL hoặc kiểm thử hồi quy.
 
 <!-- source: en/skills/cirnet-implementation/SKILL.md -->
-<!-- source-sha256: 4789fbd55aa89922bec8eadd45a1ef30544249222f1783bec97f18f69f6cb9e8 -->
+<!-- source-sha256: ff20b6ba787944c6b3c2ddc97a109d4485a47683b52de1f38726b15d3d47b3fd -->

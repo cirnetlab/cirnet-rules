@@ -51,7 +51,8 @@ riêng. Nếu thiếu quyền này, Skill báo `PROMPT_BLOCKED`.
 Chạy `scripts/task-continuity.ps1` cùng các module bằng PowerShell 7 từ checkout
 `cirnet-rules` được phép ở revision đã duyệt. Bundle đã cài cung cấp baseline và
 Skills. Cấp riêng quyền đọc checkout. Đặt `Repository` là thư mục gốc của worktree
-sở hữu và giữ cùng `TaskId` viết thường và `AgentFamily` (`codex` hoặc `claude-code`).
+sở hữu và dùng `AgentFamily` hiện tại (`codex` hoặc `claude-code`). Với thao tác
+trên task đã xác định, dùng `TaskId` viết thường ban đầu.
 
 Dùng quy ước lưu trữ cục bộ của bên sở hữu. Trước khi chọn `.cirnet/tasks/`,
 xác nhận Git chưa theo dõi và đã bỏ qua đường dẫn qua quy tắc của repo được
@@ -122,6 +123,50 @@ và kiểm chứng lại. Cùng lệnh lưu đó có thể thay nội dung mục
 `-ConfirmProgressChange` và `-ProgressReason`. Lịch sử snapshot đã xác
 nhận giữ các ghi chú trước đó. Với v1, ghi thêm lý do vào phần
 Decisions & Blockers mới.
+
+### Tìm và khôi phục task chưa hoàn tất
+
+Với yêu cầu ngắn như “Resume unfinished task”, dùng worktree sở hữu và kho
+checkpoint đã duyệt. Khi có quyền đọc, chạy lệnh từ checkout toolkit đã duyệt:
+
+```powershell
+$manager = './scripts/task-continuity.ps1'
+$scope = @{ Repository = $repo; AgentFamily = 'codex'; ConfirmScope = $true }
+$recovery = & $manager bootstrap @scope
+```
+
+Dùng `claude-code` cho Claude Code. Thêm `CheckpointRoot` vào `$scope` nếu
+dùng kho khác mặc định đã duyệt. Đường dẫn tương đối tính từ `Repository`.
+Discovery chỉ xét thư mục task ngay dưới kho đó. Công cụ kiểm tra snapshot
+đã công bố, repo và worktree sở hữu, cùng loại agent. `discover @scope` trả
+ID và trạng thái chọn task, không trả ghi chú hay toàn bộ dữ liệu Git.
+`bootstrap` chọn và khôi phục task trong một lần gọi. Khi không có binding
+áp dụng, chỉ tự chọn nếu có đúng một task hợp lệ. Với `AMBIGUOUS`, yêu cầu
+người vận hành chọn trong `Candidates` rồi gọi `bootstrap @scope -TaskId <id>`.
+Với `NONE`, kiểm tra worktree, loại agent và vị trí kho. Với `BLOCKED` ở bước
+chọn task, giải quyết các mục trong `Blockers` trước khi khôi phục.
+
+Dùng `bind @scope -TaskId <id>` để ghi lựa chọn đã được duyệt cho các phiên
+sau. Lệnh tạo binding theo worktree và loại agent trong
+`<CheckpointRoot>/.bindings/`. Có thể thêm `-SessionKey <local-label>` khi
+gọi `bind`, `discover` và `bootstrap` để dùng binding theo nhãn cục bộ ổn
+định do người vận hành chọn, không chứa bí mật. Binding khớp phiên được ưu
+tiên trước binding worktree. Binding phải trỏ đến task đang mở có cùng khóa
+task ổn định. Để xử lý binding cũ hoặc hỏng, chọn Task ID tường minh rồi dùng
+`bind -ReplaceBinding` khi đã được cấp quyền. Giữ kho và binding cục bộ,
+giới hạn truy cập. Phiên sử dụng quy trình này cần nạp baseline và có quyền
+truy cập toolkit đã duyệt.
+
+Dùng `Task`, `Progress`, `References`, `Git.Changes` và tóm tắt kiểm tra để
+chỉ đọc ngữ cảnh cần cho bước tiếp theo. Tóm tắt Git gồm worktree, nhánh và
+HEAD đã ghi nhận và hiện tại. Rà Rules cục bộ hiện tại, Plans/Specs
+đã ghim có liên quan và kết quả đối chiếu. Sau khi xử lý vướng mắc và xác lập
+độc lập quyền hiện tại, gọi lại `bootstrap` với `-ConfirmContinuation
+-ExpectedCheckpointId $recovery.CheckpointId`, cùng phạm vi và Task ID tường
+minh nếu đã chọn. Chỉ sửa thông thường khi `CanContinue` cho phép. Nếu checkpoint
+hoặc binding đổi trong lúc khôi phục, đọc lại. Có thể dùng lại nhãn phiên cục
+bộ khi đổi tài khoản nếu truy cập được kho đã duyệt. Nhãn xác định binding
+cục bộ. Phiên đang hoạt động xác lập danh tính runtime và quyền của agent.
 
 ### Kiểm tra và tiếp tục
 
@@ -240,4 +285,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 230ba8c0cd115ff478a213d5bdc4cdc645c1b5ad9a6ddbca84f2559e152319c3 -->
+<!-- source-sha256: 33998ecb6d1f93b121e500951126f9a89bf4044a6794e938c079c626e0d615a7 -->

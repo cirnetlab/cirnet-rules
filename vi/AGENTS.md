@@ -53,10 +53,10 @@ bản dịch hoặc theo yêu cầu.
 - Lưu tiến độ và quyết định khi thay đổi. Khi có thể, chạy lệnh sửa, build và
   kiểm thử được phép qua `run`. Lưu lại trước khi bàn giao và chỉ cung cấp các
   trường được phép xuất cho người nhận có thẩm quyền thuộc cùng loại agent.
-- Sau gián đoạn, dùng `resume` để đọc ngữ cảnh. Kiểm tra Git, bằng chứng,
-  Plans/Specs đã ghim, kiến trúc, quy tắc và quyền hiện tại trước khi sửa.
-  Xử lý vướng mắc trước và chỉ đóng khi mỗi tiêu chí có bằng chứng còn hiệu lực
-  và đã được người có thẩm quyền rà soát.
+- Khi nhận yêu cầu tiếp tục chung, dùng `scripts/task-continuity.ps1 bootstrap`
+  từ toolkit đã duyệt. Theo `en/docs/distribution.md` để chọn task, đối chiếu
+  Git và tham chiếu, xác nhận quyền tiếp tục. Chỉ đóng task sau khi người có
+  thẩm quyền rà soát bằng chứng còn hiệu lực cho mỗi tiêu chí.
 
 ## Kiểm chứng và cập nhật tài liệu
 
@@ -78,4 +78,4 @@ bản dịch hoặc theo yêu cầu.
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: 38ccca2681df255adb2a9e7d530d42fcf4aa2f3009ac31e4b4635c113a3cf2f1 -->
+<!-- source-sha256: 14b0e0cda4359d28f46284019c68b1a250cd553454f0a663abc50159c1fab1e7 -->

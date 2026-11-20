@@ -55,8 +55,9 @@ Skill needs separate read access. Without it, the Skill reports `PROMPT_BLOCKED`
 Run `scripts/task-continuity.ps1` and its modules with PowerShell 7 from an
 approved `cirnet-rules` checkout at a reviewed revision. The installed bundle
 supplies the baseline and Skills. Grant separate read access to the checkout.
-Set `Repository` to the owning worktree root and keep the same lowercase
-`TaskId` and `AgentFamily` (`codex` or `claude-code`).
+Set `Repository` to the owning worktree root and use the current
+`AgentFamily` (`codex` or `claude-code`). Use the original lowercase
+`TaskId` for operations on an identified task.
 
 Use the owner's existing local storage convention. Before using the default
 `.cirnet/tasks/`, confirm it is untracked and ignored, using an owner approved
@@ -125,6 +126,54 @@ sections. The same save can replace `Next Action`. To revise earlier text in
 the other sections, add `-ConfirmProgressChange` with
 `-ProgressReason`. The confirmed snapshot history retains the previous notes.
 For v1, also record that reason in the new Decisions & Blockers section.
+
+### Find and recover an unfinished task
+
+For a short request such as “Resume unfinished task,” use the approved owning
+worktree and checkpoint root. With authorized read access, run this from the
+reviewed toolkit checkout:
+
+```powershell
+$manager = './scripts/task-continuity.ps1'
+$scope = @{ Repository = $repo; AgentFamily = 'codex'; ConfirmScope = $true }
+$recovery = & $manager bootstrap @scope
+```
+
+Use `claude-code` for Claude Code. Add `CheckpointRoot` to `$scope` for an
+approved nondefault location. A relative root is relative to `Repository`.
+Discovery examines direct task directories in that root. It checks the
+published snapshot, owning repository and worktree, and agent family.
+`discover @scope` returns IDs and selection status without task notes or a
+live Git inventory. `bootstrap` selects and recovers the task in one call.
+When no binding applies, exactly one eligible task supports automatic selection.
+For `AMBIGUOUS`, ask the operator to select from `Candidates` and call
+`bootstrap @scope -TaskId <id>`. For `NONE`, verify the worktree, family and
+storage location. For a selection-level `BLOCKED` result, resolve `Blockers`
+before recovering context.
+
+To record an operator-approved choice for future sessions, use
+`bind @scope -TaskId <id>`. It creates a worktree and agent-family binding in
+`<CheckpointRoot>/.bindings/`. An optional `-SessionKey <local-label>` on
+`bind`, `discover` and `bootstrap` makes the binding specific to a durable,
+nonsecret operator-chosen label. A matching session binding takes precedence
+over the worktree binding. The binding resolves to an open task with the same
+stable task key. Resolve stale or damaged bindings with an explicitly selected
+Task ID and an authorized `bind -ReplaceBinding`. Treat the root and bindings
+as local, access-controlled data. Availability of this workflow depends on the
+session loading the baseline and having access to the approved toolkit.
+
+Use the recovered `Task`, `Progress`, `References`, `Git.Changes` and check
+summaries to read only what's needed for the next action. The Git summary
+includes the worktree and the recorded and current branch and HEAD. Review
+current local Rules, applicable pinned Plans/Specs and live reconciliation.
+After resolving blockers and independently establishing current authorization,
+repeat `bootstrap` with `-ConfirmContinuation -ExpectedCheckpointId
+$recovery.CheckpointId`, using the same scope and explicit Task ID if one was
+selected. Require `CanContinue` before ordinary edits. A checkpoint or binding
+change during recovery requires a fresh read. A local session label can be
+reused across accounts when its authorized storage is available. The label
+identifies a local binding. The agent's runtime identity and permissions still
+come from the active session.
 
 ### Inspect and resume
 

@@ -51,10 +51,10 @@ review or when requested.
 - Save progress and decisions as they change. Wrap authorized edit, build and test
   commands with `run` when possible. Save again before handoff and disclose only
   approved portable fields to an authorized recipient in the same agent family.
-- After interruption, use `resume` to read context. Check Git, evidence, pinned
-  Plans/Specs, architecture, rules and current authorization before editing.
-  Resolve blockers first and close only when each acceptance criterion has
-  current evidence and an authorized review.
+- For a generic resume request, use `scripts/task-continuity.ps1 bootstrap`
+  from the approved toolkit. Follow `en/docs/distribution.md` for task selection,
+  Git and reference reconciliation, and continuation authorization. Close only
+  after authorized review of current evidence for every criterion.
 
 ## Verify and document
 

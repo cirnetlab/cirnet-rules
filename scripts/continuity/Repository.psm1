@@ -102,6 +102,11 @@ function Get-ContinuityHead($Repository) {
     Get-GitLine (Invoke-ContinuityGit $Repository.root @('rev-parse', '--verify', '--quiet', 'HEAD^{commit}') @(0, 1))
 }
 
+function Test-ContinuityWorktree($Repository, $RecordedGit) {
+    $Repository.root -ceq $RecordedGit.worktree -and $Repository.gitDirectory -ceq $RecordedGit.gitDirectory -and
+        $Repository.commonDirectory -ceq $RecordedGit.repository
+}
+
 function Test-ContinuityReferenceConflict($Repository, [string[]]$Paths) {
     if (-not $Paths.Count) { return $false }
     $unmerged = Invoke-ContinuityGit $Repository.root (@('ls-files', '--unmerged', '-z', '--') + $Paths)
@@ -292,7 +297,7 @@ function Compare-ContinuityGit($Saved, $Current) {
     }
 }
 
-Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityValueHash,
+Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityValueHash, Test-ContinuityWorktree,
     Test-ContinuityReferenceConflict,
     Assert-ContinuityDestination, Test-ContinuityInside, Resolve-ContinuityFile, Get-ContinuityFileDigest,
     Get-ContinuityGitFingerprint, Get-ContinuityGitSnapshot, Compare-ContinuityGit

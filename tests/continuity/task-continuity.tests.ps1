@@ -454,6 +454,8 @@ $childCommand = '[IO.File]::WriteAllText(".local/handoff-started", [string]$PID)
     Assert-True ($closed.Lifecycle -ceq 'closed') 'Fresh evidence and per-criterion reviews did not allow closure.'
     $closedStatus = & $manager verify @codex
     Assert-True ($LASTEXITCODE -eq 0 -and $closedStatus.CompletionStatus -ceq 'PASS') 'Current closure evidence was not reported.'
+    $closedBootstrap = & $manager bootstrap @codex -ConfirmScope
+    Assert-True ($closedBootstrap.Status -ceq 'BLOCKED' -and -not $closedBootstrap.ContextRecovered) 'Bootstrap recovered a closed task.'
     $head = Invoke-FixtureGit @('rev-parse', 'HEAD')
     Invoke-FixtureGit @('update-ref', 'refs/heads/another', $head)
     Invoke-FixtureGit @('symbolic-ref', 'HEAD', 'refs/heads/another')

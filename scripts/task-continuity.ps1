@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidateSet('save', 'status', 'verify', 'resume', 'review', 'close', 'export', 'run')][string]$Action,
+    [ValidateSet('save', 'status', 'verify', 'resume', 'review', 'close', 'export', 'run', 'discover', 'bootstrap', 'bind')][string]$Action,
     [string]$Repository = (Get-Location).ProviderPath,
     [string]$CheckpointRoot = '.cirnet/tasks',
     [string]$TaskId,
@@ -35,7 +35,9 @@ param(
     [ValidateRange(1, 86400)][int]$TimeoutSeconds = 600,
     [string]$OutputFile,
     [string]$HandoffFile,
-    [string]$ExpectedSha256
+    [string]$ExpectedSha256,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z')][string]$SessionKey,
+    [switch]$ReplaceBinding
 )
 
 Set-StrictMode -Version Latest
@@ -51,8 +53,14 @@ if ($Kind) { $Kind = $Kind.ToLowerInvariant() }
 if ($RecoverPrevious -and ($Action -cne 'resume' -or $HandoffFile -or $ConfirmContinuation)) {
     throw 'Use -RecoverPrevious only for a read-only local resume.'
 }
-if ($ConfirmContinuation -and ($Action -cne 'resume' -or $HandoffFile)) {
+if ($ConfirmContinuation -and ($Action -cnotin @('resume', 'bootstrap') -or $HandoffFile)) {
     throw 'Confirm continuation only when resuming from the original local checkpoint and worktree.'
+}
+if (($SessionKey -and $Action -cnotin @('discover', 'bootstrap', 'bind')) -or ($ReplaceBinding -and $Action -cne 'bind')) {
+    throw 'Use -SessionKey with discover, bootstrap or bind and -ReplaceBinding only with bind.'
+}
+if ($Action -ceq 'bootstrap' -and $ConfirmContinuation -and -not $ExpectedCheckpointId) {
+    throw 'Supply the reviewed -ExpectedCheckpointId with -ConfirmContinuation for bootstrap.'
 }
 if ($HandoffFile) {
     if ($Action -cnotin @('verify', 'resume') -or -not $AgentFamily) {
@@ -62,7 +70,7 @@ if ($HandoffFile) {
     return Read-ContinuityHandoff $HandoffFile $ExpectedSha256 $AgentFamily
 }
 if ($Action -cnotin @('status', 'verify') -and -not $AgentFamily) { throw 'Supply -AgentFamily.' }
-if (($Action -cin @('resume', 'review', 'close', 'export', 'run') -or $AcceptGitDrift -or $AcceptanceFile -or $ConfirmStopped) -and -not $ConfirmScope) {
+if (($Action -cin @('resume', 'review', 'close', 'export', 'run', 'discover', 'bootstrap', 'bind') -or $AcceptGitDrift -or $AcceptanceFile -or $ConfirmStopped) -and -not $ConfirmScope) {
     throw 'Use -ConfirmScope after reviewing current authorization for this operation.'
 }
 if ($Action -ceq 'export' -and (-not $ConfirmExport -or -not $OutputFile)) {
@@ -75,8 +83,34 @@ if ($Corrective -and ($Action -cne 'run' -or $Kind -cne 'edit')) {
     throw 'Use -Corrective only for an authorized controlled edit.'
 }
 
+$usesDiscovery = $Action -cin @('discover', 'bootstrap', 'bind')
+if ($usesDiscovery -and $IsWindows -and ($Repository -match '^[\\/]{2}' -or $CheckpointRoot -match '^[\\/]{2}')) {
+    throw 'Discovery and bindings require local worktree and checkpoint paths.'
+}
 $checkout = Get-ContinuityRepository (Get-ContinuityInputPath $Repository)
-$store = Get-ContinuityStore $checkout $CheckpointRoot $TaskId
+$selection = $null
+if ($usesDiscovery) {
+    Import-Module (Join-Path $PSScriptRoot 'continuity/Discovery.psm1')
+    Assert-NoCredential $SessionKey
+    $storage = Get-ContinuityStorageRoot $checkout $CheckpointRoot
+    if ([IO.File]::Exists($storage)) { throw 'CheckpointRoot must be a directory.' }
+    if ($Action -ceq 'bind') {
+        Set-ContinuityBinding $checkout $storage $AgentFamily $TaskId $SessionKey $ExpectedCheckpointId -Replace:$ReplaceBinding
+        exit 0
+    }
+    $selection = Get-ContinuitySelection $checkout $storage $AgentFamily $TaskId $SessionKey
+    if ($Action -ceq 'discover' -or $selection.Result.Status -cne 'SELECTED') {
+        $selection.Result
+        exit 0
+    }
+    if ($ExpectedCheckpointId -and $ExpectedCheckpointId -cne $selection.Result.CheckpointId) {
+        New-ContinuitySelection BLOCKED 'The selected checkpoint changed since review. Run bootstrap again and review the current context.'
+        exit 0
+    }
+    $TaskId = $selection.Result.TaskId
+    $store = $selection.Store
+}
+else { $store = Get-ContinuityStore $checkout $CheckpointRoot $TaskId }
 
 function Assert-AgentFamily($Saved) {
     if ($AgentFamily -and $AgentFamily -cne $Saved.State.agentFamily) {
@@ -85,9 +119,7 @@ function Assert-AgentFamily($Saved) {
 }
 
 function Assert-OriginalWorktree($Saved) {
-    $recorded = $Saved.State.git
-    if ($checkout.root -cne $recorded.worktree -or $checkout.gitDirectory -cne $recorded.gitDirectory -or
-        $checkout.commonDirectory -cne $recorded.repository) {
+    if (-not (Test-ContinuityWorktree $checkout $Saved.State.git)) {
         throw 'The checkpoint belongs to a different worktree. Use the owning worktree or an authorized portable handoff.'
     }
 }
@@ -170,22 +202,39 @@ function Assert-Ready($Report) {
     if (-not $Report.Ready) { throw ('The checkpoint is not ready. ' + ($Report.Blockers -join ' ')) }
 }
 
-if ($Action -cin @('status', 'verify', 'resume')) {
+if ($Action -cin @('status', 'verify', 'resume', 'bootstrap')) {
     $usingPrevious = $false
-    try { $checkpoint = Read-ContinuityCheckpoint $store $TaskId }
+    try {
+        $checkpoint = if ($selection) { $selection.Checkpoint } else { Read-ContinuityCheckpoint $store $TaskId }
+    }
     catch {
         if (-not $RecoverPrevious) { throw }
         $checkpoint = Read-ContinuityCheckpoint $store $TaskId -Previous
         $usingPrevious = $true
     }
     Assert-AgentFamily $checkpoint
-    if ($Action -ceq 'resume') { Assert-OriginalWorktree $checkpoint }
+    if ($Action -cin @('resume', 'bootstrap')) { Assert-OriginalWorktree $checkpoint }
     # A failed live capture is a recovery blocker, not a failure of the sealed notes.
     try { $git = Get-ContinuityGitSnapshot $checkout }
     catch { $git = $null }
     $report = Get-ContinuityStatus $checkout $store $checkpoint $git $RelatedRoot
     Add-Member -InputObject $report -NotePropertyName AgentFamilyMatched -NotePropertyValue $(if ($AgentFamily) { $true } else { $null })
-    if ($Action -ceq 'resume') {
+    if ($Action -cin @('resume', 'bootstrap')) {
+        if ($selection) {
+            if (-not (Test-ContinuitySelectionCurrent $checkout $storage $AgentFamily $SessionKey $selection)) {
+                New-ContinuitySelection BLOCKED 'The checkpoint or binding changed during recovery. Run bootstrap again.'
+                exit 0
+            }
+            # Keep revision identity and classified drift without both full inventories.
+            $report.Git = @{
+                Matches = $report.Git.Matches
+                Changes = $report.Git.Changes
+                Worktree = $checkout.root
+                Recorded = @{ head = $checkpoint.State.git.head; branch = $checkpoint.State.git.branch }
+                Current = if ($git) { @{ head = $git.head; branch = $git.branch } }
+            }
+            Add-Member -InputObject $report -NotePropertyName SelectedBy -NotePropertyValue $selection.Result.SelectedBy
+        }
         $canContinue = $ConfirmContinuation -and $report.Ready -and $report.Lifecycle -ceq 'open'
         if ($report.Lifecycle -ceq 'closed') { $report.Blockers += 'The task was recorded as closed.' }
         elseif (-not $ConfirmContinuation) { $report.Blockers += 'Current implementation authorization has not been confirmed.' }
