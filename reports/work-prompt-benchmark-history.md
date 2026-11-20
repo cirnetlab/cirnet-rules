@@ -16,6 +16,9 @@ preserves the comparison runner, reporter and checkpoint workflow as they stood
 before the single-Candidate refactor. / Checkout này giữ runner, reporter và
 quy trình checkpoint A/B trước khi chuyển sang một phiên Candidate.
 
+The [native reliability report for `671abff`](native-quality-reliability-671abff.md)
+records the single-Candidate run and the reviewed Windows bundle smoke.
+
 ## Adaptive Work Prompt — Gemini 3.8 Flash (High) evaluation / Đánh giá
 
 - **Date / Ngày**: 2026-11-17 · **Run ID**: `cirnet-bench-gemini38flash-20261116` · **Scope**: `FULL` (8/8 cases `E01`–`E08`, 16 native agent runs).
