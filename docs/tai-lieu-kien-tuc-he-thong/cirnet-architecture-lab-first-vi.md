@@ -1,10 +1,11 @@
-# CIRNET Lab-First — Kiến trúc hệ thống chính thức
+# CIRNET Lab-First — Kiến trúc hệ thống Lab
 
-> **Phạm vi:** Toàn bộ hệ sinh thái phần mềm và phần cứng của Organization [`cirnetlab`](https://github.com/cirnetlab).  
+> **Phạm vi:** Lab điện tử ảo và vật lý trong sáu repository Lab-First.  
+> **Tài liệu liên quan:** [Kiến trúc Ecosystem](cirnetlab-architecture-vi.md) · [Kiến trúc FPGA](../cirnetlab-FPGA-architecture-vi.md) · [English](cirnet-architecture-lab-first-en.md)  
 > **Tên kiến trúc chuẩn:** **CIRNET Lab-First** (không gắn phiên bản vào tên).  
 > **Định hướng kỹ thuật:** **Rust core services + C++ Simulator · Contract-driven · Virtual-to-Physical · Safety-gated · Lab-first**.  
 > **Tài liệu nguồn:** `cirnet-Remote_Architecture_Lab-First.md`; được tái cấu trúc và chuẩn hóa cho sáu Repository, bổ sung các ranh giới đã xác định trong mã nguồn hiện có.  
-> **Ngày rà soát cơ sở:** 2026-11-15. Trạng thái triển khai nêu trong tài liệu là ảnh chụp tại thời điểm rà soát, **không** tự động là chứng nhận production hoặc chứng nhận an toàn điện.
+> **Ngày rà soát cơ sở:** 2026-11-15. Các quan sát triển khai bên dưới mô tả thời điểm đó. Nghiệm thu production hoặc an toàn điện cần bằng chứng riêng cho cấu hình đã chọn.
 
 ## 0. Tóm tắt điều hành
 
@@ -16,7 +17,7 @@ Triết lý bất biến:
 
 **SAFETY ≠ CORRECTNESS.** Mạch sai đáp án không mặc nhiên bị chặn. Ngược lại, phần mềm **không được suy diễn** rằng mạch chưa rõ danh tính là an toàn. Chỉ cho phép cấp năng lượng khi có bằng chứng đáp ứng giới hạn điện, bảo vệ phần cứng hoạt động và các endpoint cần dùng thực sự route được.
 
-| Nội dung | Quyết định chính thức | Trạng thái thực tế cần phân biệt |
+| Nội dung | Kiến trúc mục tiêu | Quan sát tại thời điểm rà soát |
 |---|---|---|
 | Tổ chức mã nguồn | Sáu Repository độc lập theo trách nhiệm, Contracts làm chuẩn giao tiếp | Đã hình thành ranh giới chính |
 | Công nghệ xử lý mặc định | **Rust** cho Backend, Contracts runtime, Hardware Service; **C++** cho Simulator | Rust Remote/Contracts/Hardware đã có candidate; Simulator có C++ worker được pin |
@@ -27,7 +28,7 @@ Triết lý bất biến:
 | Physical Digital | Safety-gated, quét topology, resolve endpoint, route hạ tầng, quan sát mạch thật | Hardware/FPGA vật lý chưa được HIL và kiểm định an toàn điện đầy đủ |
 | Physical Analog | Nâng cấp tương lai thông qua capability/adapter/hardware | Ngoài phạm vi Physical Lab giai đoạn đầu |
 | Instrument | Logic Analyzer, Scope 2CH, Generator 2CH; ADC/DAC/AFE/SDRAM ngoài FPGA | Giao diện FPGA hiện là scaffold, chưa phải thiết bị đo đã nghiệm thu |
-| Tải người dùng | 30–50 kết nối; physical slot mặc định 1 | Mục tiêu cần load test trên phần cứng mục tiêu |
+| Tải người dùng | 30–50 máy khách kết nối. Mỗi hạ tầng điện dùng chung đã xác minh có một slot thực thi. | Mục tiêu cần kiểm thử tải trên phần cứng đích |
 
 **Quy tắc báo cáo:** `TARGET`, `DESIGNED`, `IMPLEMENTED`, `TESTED`, `VERIFIED`, `RELEASED`, `UNAVAILABLE`, `BLOCKED` phải được dùng đúng nghĩa. Mã chạy trong test không đồng nghĩa bản phát hành hoặc năng lực điện thực.
 
@@ -73,14 +74,16 @@ Triết lý bất biến:
 
 | Repository | Domain sở hữu | Công nghệ runtime mục tiêu | Điều không được sở hữu |
 |---|---|---|---|
-| [`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote) | API, Auth, RBAC, Projects, Assignments, Experiment Manager, scheduler/lease, persistence, capture metadata, WebSocket, deployment, **system release lock** | **Rust** (`axum`, `tokio`, `tonic`, PostgreSQL adapter) | Không thao tác MUX/FPGA register trực tiếp; không chứa simulator lõi |
+| [`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote) | Lab API/WS, phân quyền, cấu hình kỹ thuật bài Lab, quản lý thí nghiệm, lịch/lease, lưu capture, triển khai và **khóa phát hành Lab**. Sở hữu định danh và dự án Lab cục bộ trong phạm vi độc lập. | **Rust** (`axum`, `tokio`, `tonic`, PostgreSQL adapter) | Thao tác thanh ghi MUX/FPGA trực tiếp, lõi mô phỏng, bản ghi dùng chung đã chuyển giao |
 | [`cirnet-interface`](https://github.com/cirnetlab/cirnet-interface) | Vue Workbench, CircuitGraph editor, Pinia UI state, Three.js, instrument UI, typed SDK consumer | **TypeScript** trên browser | Không quyết định electrical safety, không tạo hardware routing và không làm mô phỏng có thẩm quyền server |
 | [`cirnet-contracts`](https://github.com/cirnetlab/cirnet-contracts) | Canonical CircuitGraph/Assignment/Physical Lab/schema, catalog, RPC, NCAP, wire protocol, codegen, SDK | **Rust** runtime + generator; TS bindings được sinh | Không đăng ký API business routes thay Remote, không quản lý station hoặc user |
 | [`cirnet-hardware`](https://github.com/cirnetlab/cirnet-hardware) | `HardwareStation`, local-only RPC, station lifecycle, safe stop, FPGA transport/driver, physical protection integration, supervised simulator worker | **Rust** (`tonic`, `tokio`) | Không cấp quyền người dùng, không giữ durable lease/DB nghiệp vụ |
 | [`cirnet-simulator`](https://github.com/cirnetlab/cirnet-simulator) | Deterministic simulation engine, digital event model, bounded DC, SPICE adapter boundary, worker protocol | **C++ là ngôn ngữ mặc định**; worker được pin, giám sát và kiểm chứng | Không truy cập browser, quyền user, FPGA vật lý hoặc DB ứng dụng |
 | [`cirnet-fpga`](https://github.com/cirnetlab/cirnet-fpga) | RTL, timing, trigger, protected control, FPGA protocol decoder, digital routing controller, instrument/SDRAM interface, testbench | **HDL/RTL** (Verilog/SystemVerilog), không bị thay bằng Rust | Không chứa auth, REST, database hoặc trình biên dịch graph business |
 
-**Quy tắc quản trị giao diện:** Repo sở hữu thay đổi nguồn chuẩn và xuất artifact có phiên bản. Repo tiêu thụ chỉ được dùng hợp đồng đã chọn, không copy rồi âm thầm sửa schema. Remote chọn **đúng phiên bản/digest** của toàn bộ release set.
+**Cấu hình triển khai.** Lab độc lập dùng định danh, dự án và bài Lab cục bộ của Remote. Với phạm vi đã chuyển giao, Platform cung cấp định danh và ngữ cảnh tenant, Project sở hữu phiên bản dự án và ACL, còn LMS sở hữu bài tập học vụ, bài nộp và điểm. Remote tiếp tục sở hữu phân quyền Lab, lease, cấu hình kỹ thuật và bằng chứng thí nghiệm. Áp dụng quy tắc chuyển giao theo phạm vi và quay lui tại [Ecosystem §5.1](cirnetlab-architecture-vi.md#51-lab-độc-lập-và-quyền-sở-hữu-khi-tích-hợp).
+
+**Quản trị giao diện.** Bên sở hữu phát hành nguồn chuẩn thành artifact có phiên bản. Consumer dùng đúng phiên bản đã chọn. Remote chọn chính xác phiên bản và mã băm của bộ phát hành Lab.
 
 **Lưu ý công nghệ:** Rust là ngôn ngữ mặc định cho Backend/Contracts/Hardware, **C++ là ngôn ngữ mặc định cho Simulator**; không thay TypeScript trên browser hay HDL trong FPGA. Worker C++ phải được pin và kiểm chứng; Python chỉ phục vụ lanes kiểm thử, benchmark và đối chiếu lịch sử, không nằm trong đường request production mới.
 
@@ -152,7 +155,7 @@ Các tag lịch sử vẫn phải được giữ để rollback. Quy ước tag/
 - **Rust Remote:** modular monolith, một scheduler có thẩm quyền cho station chia sẻ; không tách microservices trong giai đoạn đầu.
 - **Rust Hardware Service:** tiến trình riêng, cách ly crash/timeout từ USB/FPGA/simulator worker.
 - **Simulator Worker:** tiến trình được giám sát; CPU-bound không làm nghẽn Tokio/HTTP hoặc Stop.
-- **PostgreSQL:** durable principals, sessions/leases, experiments và capture metadata; waveform lớn lưu ngoài DB.
+- **PostgreSQL:** lưu phiên Lab, lease, thí nghiệm, metadata capture và bản ghi định danh Lab cục bộ trong cấu hình độc lập. Lưu waveform lớn bên ngoài cơ sở dữ liệu.
 - **Python:** không được khởi động từ API, Hardware Service hoặc Simulator worker production mới; chỉ chạy trong test/benchmark tools riêng.
 
 ---
@@ -212,7 +215,7 @@ ExecutionPlan        (derived, immutable, never edited by browser)
     └── PhysicalExecutionPlan / InstrumentationExecutionPlan
 ```
 
-- **DesignGraph:** project, circuit, component instances, ports, nets, properties, rotation, placement, user metadata, lịch sử chỉnh sửa.
+- **DesignGraph:** thiết kế logic có thể chỉnh sửa, biểu diễn bằng hợp đồng chuẩn `CircuitGraph`. Nó mô tả các linh kiện, cổng, net, thuộc tính và vị trí. Vòng đời dự án và lịch sử chỉnh sửa có chủ sở hữu và hợp đồng riêng.
 - **ValidatedGraph:** tham chiếu hợp lệ, signal widths/domains, net rules, component model availability; **không** coi sai đáp án là lỗi kỹ thuật.
 - **ExecutionPlan:** mapping backend, bounded event schedule hoặc resource allocation; có owner, phiên bản contract, fingerprint và expiry theo scope.
 - **Three.js Scene:** chỉ chiếu DesignGraph, không được tạo connectivity từ giao nhau 3D hoặc tọa độ gần nhau.
@@ -236,9 +239,11 @@ Observed physical truth  = DetectedTopologyGraph + measured evidence
 - `DetectedTopologyGraph`, `ObservedPinBinding`, `TopologyResolutionResult`, `ResolvedEndpointBinding`.
 - `SafetyVerificationResult`, `TopologyVerificationResult`, `FunctionalVerificationResult`, `ExecutionDecision`.
 - `StationCapabilities`, `HardwareStation` RPC boundary, error/status codes.
-- `SimulationRequest/Result/Error`, `VirtualExecutionPlan` và simulator private protocol (versioned).
-- FPGA logical control protocol, physical framing/transport ABI khi đã có bằng chứng hardware.
+- Lược đồ dùng chung `SimulationRequest/Result/Error` và `VirtualExecutionPlan`.
+- Hợp đồng điều khiển FPGA ở mức logic và ánh xạ tương thích, được kiểm chứng cùng Hardware với giao diện board do FPGA sở hữu.
 - `ExperimentResult`, `CaptureMetadata`, NCAP v1/v2 và streaming envelope.
+
+Simulator sở hữu định dạng khung worker riêng và fixture, với Hardware là consumer. FPGA sở hữu giao diện board và ABI khung vật lý. Hardware sở hữu driver và tích hợp transport.
 
 **Không gộp phiên bản:** version của Repo, toolkit, CircuitGraph, Assignment, Hardware RPC, FPGA frame, firmware, SDK, NCAP và selected system release là những miền khác nhau. Chúng phải được ghi riêng trong compatibility matrix.
 
@@ -302,7 +307,7 @@ CIRNET INTERFACE
 4. **Plan:** compiler tạo VirtualExecutionPlan bất biến có model IDs, net resolution, timing parameters, bounded event budget, instrument selection.
 5. **Hardware:** tạo một virtual station execution, quản lý worker, deadline, cancellation, expected protocol/digest.
 6. **Simulator:** đọc request đã xác nhận, chạy event scheduler, trả samples/traces + explicit status; không tạo samples nếu unsupported/error.
-7. **Hardware → Remote:** kiểm chứng frame/status/capture, lưu metadata và trả gRPC response.
+7. **Hardware → Remote:** Hardware xác minh khung worker, trạng thái và capture rồi trả phản hồi gRPC. Remote lưu metadata thí nghiệm và capture, đồng thời lưu dữ liệu capture.
 8. **Remote → Web:** trả Run acknowledgement riêng với kết quả cuối; WS event mang stream identity/sequence và có quy trình resync; binary capture được cấp theo quyền.
 9. **UI:** hiển thị state `QUEUED/RUNNING/COMPLETE/FAILED/UNAVAILABLE`; loading/pending không tự suy ra thành PASS.
 
@@ -321,7 +326,7 @@ End-to-end test phải ghi nhận **cả request/response trên mỗi process bo
 
 ### 6.4 Bộ artifact duy nhất và điều kiện pin
 
-`cirnet-remote/integration/release-set.json` là điểm chọn **system release**; candidate testing có thể dùng một manifest độc lập của phiên kiểm thử, không sửa khóa release lịch sử.
+Remote sở hữu manifest chọn **bộ phát hành hệ thống Lab**. Xác định đường dẫn theo revision và cấu hình Remote đã chọn. Ví dụ, khóa tham chiếu Python lịch sử nằm ở `migration/python-reference/integration/release-set.json` trong cấu trúc được mô tả bởi tài liệu hệ thống Remote. Phiên kiểm thử candidate dùng manifest riêng với artifact được khóa theo mã băm và giữ nguyên các khóa phát hành lịch sử.
 
 Một bộ E2E được chọn phải có ít nhất:
 
@@ -354,7 +359,7 @@ Không dùng `latest`, branch HEAD động, unpinned executable hoặc SDK copy 
 | VD-09 | Release provenance | Manifest pin source/artifact/compiler/backend; logs giữ run ID và exact SHA |
 | VD-10 | Cross-platform target | Windows integration và Linux Mini PC readiness được phân biệt; production chỉ PASS khi test trên môi trường mục tiêu |
 
-**Không đạt một gate thì chưa được tuyên bố “Virtual Digital E2E verified”.** Unit tests, contract tests hoặc loopback tests có thể PASS nhưng không thay thế Browser–API–Hardware–Worker E2E.
+Chỉ báo cáo **Virtual Digital E2E verified** khi cả mười cổng đều đạt cho bộ artifact và môi trường đã nêu. Ghi rõ cổng thất bại, chưa chạy hoặc bị chặn. Kết luận E2E cần bằng chứng từ toàn bộ chuỗi Browser–API–Hardware–Worker.
 
 ---
 
@@ -441,8 +446,8 @@ DetectedTopologyGraph  (student's ACTUAL wires and observed nodes)
                      ▼
 TopologyResolutionResult + ResolvedEndpointBinding
                      │
-                     ├── Safety Verification     → hard gate
-                     ├── Executability/Routing   → hard gate
+                     ├── Executability/Routing   → candidate plan
+                     ├── Safety Verification     → gate for the exact plan
                      ├── Topology Verification   → diagnostics only
                      └── Functional Verification → AFTER measured execution
 ```
@@ -460,13 +465,13 @@ BreadboardNodeID → Scan Matrix / Sense Front-End → RoutingResource
 
 Quy trình scan:
 
-1. Reserve station/lease; đưa phần cứng về `SAFE_STATE` đã kiểm chứng.
-2. Ngắt drive/power outputs và đưa routing về default-open.
-3. Kích các điểm được phép bằng **nguồn kiểm tra có giới hạn điện áp/dòng**, theo sơ đồ bảo vệ được phê duyệt.
+1. Giữ lease hợp lệ và xác nhận `SAFE_STATE` khi nguồn mạch và nguồn kích thí nghiệm đã ngắt, các tuyến ở trạng thái mở mặc định.
+2. Xác nhận hệ thống liên động và trạm sẵn sàng, đồng thời xác minh năng lượng dư hoặc từ bên ngoài nằm trong giới hạn an toàn. Giữ nguồn quét tắt nếu chưa xác minh được các điều kiện này.
+3. Chỉ quét những điểm được phép với **quyền cấp nguồn quét riêng** có giới hạn điện áp, dòng và thời lượng đã xác minh. Giữ nguồn mạch và nguồn kích thí nghiệm tắt. Ngắt nguồn quét khi quá hạn, có lệnh Stop hoặc có lỗi.
 4. Đo với front-end trở kháng cao, cân nhắc leakage, charge và cross-coupling.
 5. Lập observed nodes/continuity, pin contacts, signatures, confidence và provenance của phép đo.
 6. Dùng instructor profile hoặc signature library **chỉ khi có đủ điều kiện điện an toàn** để gợi ý IC orientation/identity.
-7. Tạo `DetectedTopologyGraph` lưu cả nhánh sai, thiếu, không nhận dạng được hoặc mơ hồ.
+7. Ngắt nguồn quét và xác nhận trạng thái an toàn trước khi áp dụng tuyến. Tạo `DetectedTopologyGraph` lưu các nhánh sai, thiếu, chưa nhận dạng hoặc mơ hồ cùng trạm/hồ sơ, thế hệ thực thi, phạm vi và hiệu lực của lần quét.
 8. Đưa kết quả sang Safety Verification, Topology Resolution và topology assessment riêng biệt.
 
 **Không tuyên bố:** đo continuity là xác định chắc chắn VCC/GND hoặc pin function của mọi IC; nhiều linh kiện có hành vi phi tuyến, diode bảo vệ, pin ẩn, ngưỡng nguồn và trạng thái phụ thuộc kích thích. Nếu không thể chứng minh safety → `INDETERMINATE` và **BLOCK**.
@@ -518,7 +523,7 @@ Physical Compiler reads RESOLVED observed bindings only
 
 Invariant an toàn:
 
-1. `reference_node_id != observed_node_id` trừ khi có bằng chứng ánh xạ độc lập.
+1. `reference_node_id` và `observed_node_id` thuộc hai không gian định danh. Ánh xạ cần bằng chứng độc lập dù chuỗi ID trùng nhau.
 2. Không dùng tọa độ/nhãn net giống nhau như bằng chứng liên tục điện.
 3. Mỗi `ObservedPinBinding` phải trỏ tới observed node tồn tại; pin/connection IDs không được trùng; malformed evidence → `DRIVER_ERROR` và fallback an toàn.
 4. Không tự gán pin role hoặc identity chỉ vì bài mẫu yêu cầu IC đó.
@@ -544,7 +549,7 @@ Invariant an toàn:
 DetectedTopologyGraph                  (actual observed wiring)
 + TopologyResolutionResult             (actual observed endpoint bindings)
 + AssignmentDefinition / allowed LabEndpoints
-+ SafetyVerificationResult             (separate authoritative gate)
++ Pre-check evidence and verified protection limits
 + StationCapabilities / HardwareProfile
 + Available protected routing/instrument resources
                         │
@@ -552,7 +557,7 @@ DetectedTopologyGraph                  (actual observed wiring)
             LabExecutionCompiler (Rust domain)
                         │
                         ▼
-        InstrumentationExecutionPlan (immutable)
+        InstrumentationExecutionPlan (immutable candidate)
 ```
 
 Output chỉ được phân bổ:
@@ -562,7 +567,7 @@ Output chỉ được phân bổ:
 - MUX/crosspoint/resources cho **kết nối hạ tầng** tới các observed endpoints được phép.
 - Runtime interlocks, power policy, protection budget, release path.
 
-**Không được** sinh route nối ngõ ra AND từ reference sang LED nếu sinh viên chưa nối như vậy. Điều sai được giữ nguyên; FPGA chỉ đo các điểm có thật, rồi `FunctionalVerificationResult` cho ra FAIL/NO_RESPONSE/PARTIAL như thực tế.
+Đánh giá an toàn và khả năng thực thi trên đúng kế hoạch bất biến trước khi áp dụng tuyến hoặc yêu cầu cấp nguồn thí nghiệm (§10.4). **Không được** tạo tuyến nối ngõ ra AND tới LED nếu sinh viên chưa nối như vậy. FPGA chỉ đo các điểm có thật, và `FunctionalVerificationResult` có thể báo FAIL/NO_RESPONSE/PARTIAL theo hành vi quan sát được.
 
 ### 9.3 Ví dụ cần kiểm thử
 
@@ -588,7 +593,7 @@ Trường hợp khác cần thử: IC sai nhưng safe, thiếu IC, IC opaque, d�
 - Dữ liệu vào: observed endpoint bindings, protected capabilities, resource graph, voltage/domain/driver constraints, reservation, instrument allocation.
 - Thuật toán có thể dùng BFS/Dijkstra/backtracking và conflict checking, miễn deterministic/bounded.
 - Phải tránh output contention, incompatible voltage domains, feedback short, bypass protection, route reuse giữa leases.
-- Kết quả là một plan xác thực được với `hardware_profile_id`, `scan_epoch`, `lease_id`, `plan_hash` và trạng thái `applied` từ driver; plan tính đúng chưa có nghĩa hardware đã áp dụng.
+- Kế hoạch mang `hardware_profile_id`, `scan_epoch`, `lease_id` và `plan_hash`. Driver báo `applied` riêng, kèm bằng chứng khớp kế hoạch và thế hệ thực thi.
 
 ---
 
@@ -623,6 +628,8 @@ RUN_GUARDED
 
 **Lưu ý:** `SAFE + WRONG → RUN` là viết tắt của **SAFE + EXECUTABLE + AUTHORIZED + protection verified → RUN**. Không được bỏ qua yêu cầu thực thi, quyền truy cập, trạng thái lease hoặc interlock.
 
+Cả hai chế độ Run đều cần bảo vệ đã xác minh và cấp nguồn có bảo vệ. Trạm thực thi các quyền cấp nguồn quét, nguồn mạch và nguồn kích thí nghiệm riêng, theo điều kiện bật tương ứng.
+
 ### 10.3 Electrical Safety Envelope
 
 **Bảo vệ phần cứng thực** trước khi có quyền `physicalDigital=true`:
@@ -647,18 +654,18 @@ Các yêu cầu tối thiểu:
 ### 10.4 Physical state machine
 
 ```text
-OFFLINE → IDLE → RESERVED → SAFE_STATE
-                         → TOPOLOGY_SCAN → SAFETY_CHECK
-                            ├── UNSAFE/UNKNOWN → FAULT/BLOCK
-                            └── SAFE → EXECUTION_DECISION
-                                ├── BLOCK_UNEXECUTABLE
-                                └── ROUTE_PREPARE → GUARDED_POWER_UP
-                                    → READY → ARMED → RUNNING
-                                    → CAPTURING → FUNCTIONAL_VERIFY
-                                    → STOPPING → SAFE_STATE → RELEASE → IDLE
+OFFLINE → IDLE → RESERVED → SAFE_STATE → PRE_CHECK → BOUNDED_SCAN
+        → SCAN_OFF → RESOLVE_ENDPOINTS → FREEZE_CANDIDATE_PLAN
+        → SAFETY_AND_EXECUTABILITY_CHECK → EXECUTION_DECISION
+          ├── BLOCK_SAFETY / BLOCK_UNEXECUTABLE → SAFE_CLEANUP
+          └── RUN_NORMAL / RUN_GUARDED → APPLY_AND_VERIFY_ROUTES
+              → GUARDED_POWER_UP → READY → ARMED → RUNNING
+              → STOPPING → SAFE_CLEANUP
+SAFE_CLEANUP → confirmed SAFE_STATE → RELEASE → IDLE
+             → unconfirmed safe state → QUARANTINE
 ```
 
-**Freshness và authority:** scan, protection verdict, route plan và lease phải thuộc cùng một execution generation; command cũ hoặc user khác không được tái sử dụng. Một fault bất kỳ phải gate output nhanh bằng hardware path và chuyển sang safe cleanup; nếu cleanup không xác nhận, **quarantine** station, không release để người tiếp theo chạy.
+Sơ đồ mô tả trình tự điều khiển. Dừng an toàn tiến hành độc lập với việc thu dữ liệu và đánh giá chức năng. Áp dụng và xác minh tuyến khi nguồn mạch và nguồn kích thí nghiệm đã ngắt. Trước khi cấp nguồn, Hardware kiểm tra hiệu lực lần quét, kế hoạch đã duyệt và tuyến đã áp dụng theo lease, trạm/hồ sơ và thế hệ thực thi hiện tại. Thay đổi dây hoặc cấu hình làm mất hiệu lực bằng chứng thì phải dừng an toàn và chuẩn bị lại. Lỗi hoặc mất quyền cấp năng lượng khiến trạm vô hiệu hóa các nguồn liên quan và đưa hệ thống về trạng thái an toàn. Giữ trạm cách ly nếu chưa xác nhận trạng thái đó.
 
 ---
 
@@ -819,7 +826,7 @@ Không cho Pinia thay thế simulator/DB/FPGA. Không cho Three.js tự tạo ne
 ### 14.1 Auth và điều khiển phiên
 
 - Role: `Student`, `Instructor`, `Administrator`; RBAC + ownership là hai kiểm tra riêng.
-- Password hash, session server-side, HttpOnly Secure cookie, exact Origin/CSRF cho mutation; production chạy HTTPS và PostgreSQL.
+- Trong phạm vi độc lập, Remote xác thực người dùng Lab cục bộ. Trong phạm vi tích hợp đã chuyển giao, Remote xác minh định danh Platform và áp dụng quyền Lab. Băm mật khẩu nếu có thông tin đăng nhập cục bộ, dùng cookie Secure và HttpOnly cho phiên trình duyệt, kiểm tra Origin/CSRF cho thao tác ghi. Production dùng HTTPS và PostgreSQL.
 - Một controller tab/client identity gắn với session/lease để điều khiển Run/Stop; viewer chỉ được xem dữ liệu đã được phép.
 - API phải phân biệt request accepted, command running, measurement complete, safe stop acknowledged.
 - Reconnect/sync có thể quan sát trạng thái cũ nhưng **không** tự phát lại `Run`/`Apply`/`Create`.
@@ -863,7 +870,7 @@ Mục tiêu năng lực:
 ```
 
 - Virtual sessions có worker pool có giới hạn, workload đo theo CPU/RAM/capture, không chạy CPU-bound engine trực tiếp trong API event loop.
-- Physical shared breadboard/routing fabric: **mặc định 1 physical execution slot**. User khác có thể edit/queue/read, không cùng lúc drive chung fabric.
+- Breadboard hoặc hạ tầng điện dùng chung đã xác minh có **mặc định một slot vật lý**. Hồ sơ chưa đạt công bố 0 slot. Những người khác có quyền có thể chỉnh sửa, xếp hàng hoặc đọc kết quả trong khi hạ tầng chỉ có một bên điều khiển.
 - Admission: FIFO + per-user rate limit + max runtime + lease TTL; có ưu tiên giảng viên nếu policy chấp nhận, nhưng phải công khai và bounded.
 - Phải serialize cho cả burst đồng thời; không dựa vào giả định sinh viên ít khi bấm Run trùng thời điểm.
 - Disconnect, lease expiry, Stop, crash → attempt safe cleanup; thất bại → quarantine. Tuyệt đối không giao tài nguyên cho user kế tiếp khi chưa xác nhận safe release.
@@ -971,11 +978,11 @@ Trường `?` không hiện diện hoặc `UNAVAILABLE` với simulator-only rel
 ### 18.3 Quy trình phát hành đa Repo
 
 1. Owner Contracts phát hành schemas/SDK/RPC/fixtures đã kiểm tra.
-2. Owner Simulator và Hardware build theo đúng pin; test worker protocol, cancellation, error parity.
-3. Remote tích hợp đúng artifact được chọn, run integration/E2E và lập release set.
-4. Interface build từ selected SDK, test native browser và checksum artifact.
+2. Simulator, Hardware và Interface build theo đúng phiên bản đã khóa, gồm SDK của Interface. Xác minh mã băm của bản build, giao thức worker, khả năng hủy và tính tương đương của lỗi.
+3. Remote tạo manifest candidate và khóa tất cả artifact trong phạm vi kiểm thử đã nêu.
+4. Interface và Remote chạy kiểm thử trình duyệt thật trên cùng bộ candidate.
 5. FPGA nếu có physical release phải có bitstream/board/timing/HIL/safety evidence; không gắn nhãn hardware-supported cho scaffold.
-6. Chạy acceptance matrix với **toàn bộ selected SHA/digests**, Windows và Linux target theo phạm vi claim.
+6. Hoàn tất ma trận nghiệm thu cho candidate đã khóa, phân biệt phạm vi kiểm thử Windows và Linux theo từng kết luận. Remote chọn bộ phát hành sau khi các cổng áp dụng đều đạt.
 7. Đóng gói artifacts, manifest, migration/rollback notes; phê duyệt riêng trước tag/publish.
 8. Rollback chỉ với bộ artifact/DB/capture backup tương thích, dừng admission, xác nhận safe cleanup/quarantine, không tự replay Start.
 
@@ -1029,19 +1036,19 @@ Các giai đoạn dưới đây **không** yêu cầu tạo đồng thời tất
 
 | Phase | Mục tiêu | Owner chính | Exit gate |
 |---|---|---|---|
-| **A — Contracts Stabilization** | Chuẩn Graph/Assignment/Endpoint/Resolution/Results/StationCapabilities/RPC/NCAP; SDK Rust/TS parity | Contracts + Remote + Interface | Generated fixtures, old/new compatibility và exact selected version PASS |
+| **A — Hợp đồng nền cho Virtual Digital** | Ổn định graph, bài Lab, kế hoạch ảo, năng lực, RPC, kết quả và NCAP cần cho B, với SDK Rust/TS tương đương trong phạm vi đó. | Contracts + Remote + Interface | Fixture sinh tự động, tương thích cũ/mới và kiểm thử đúng phiên bản đã chọn đều đạt |
 | **B — Virtual Digital E2E (Rust services + C++ Simulator)** | Web → Rust Remote → Rust Hardware → Worker → Web với digital gates/LED/clock/NCAP | Tất cả trừ physical FPGA | Gates VD-01…VD-10 trên artifact set pin; không mock boundary đã công bố |
-| **C — C++ Simulator Default** | Hoàn thiện và tối ưu C++ event worker mặc định; duy trì protocol, parity và artifact pin | Simulator + Hardware | Functional, error, Stop, performance, rollback evidence |
+| **C — Mở rộng và tối ưu C++ Simulator** | Mở rộng C++ worker đã dùng ở B, giữ giao thức, tính tương đương và khóa artifact. | Simulator + Hardware | Bằng chứng về chức năng, lỗi, Stop, hiệu năng và quay lui |
 | **D — Virtual Instruments** | Logic Analyzer, generator/scope **ảo** với capability chính xác | Simulator + Interface + Contracts | Typed samples, bounded capture, UI and E2E tests |
 | **E — Virtual Analog** | C++ SPICE adapter + native solver, analog waveform; mixed bridge khi đủ điều kiện | Simulator + Contracts | Real analog solver fixtures and licensing/provenance; không quảng cáo quá scope |
-| **F — Edge Multi-user** | Rust API lifecycle, PostgreSQL, auth, scheduler, lease, Linux install | Remote + Hardware | Load 30–50 connected clients, recovery, safe Stop in virtual lane |
+| **F — Nghiệm thu Edge nhiều người dùng** | Mở rộng cơ chế nhận yêu cầu, lập lịch và kiểm thử Linux ở B lên cấu hình Edge và tải mục tiêu. | Remote + Hardware | Tải 30–50 máy khách kết nối, phục hồi và dừng an toàn ở chế độ ảo |
 | **G — FPGA Emulator & EP4CE6** | FPGA protocol emulator, RTL control, small digital resources | FPGA + Hardware | CRC/timeout/Stop/RTL parity; physical power vẫn unavailable nếu chưa có board evidence |
 | **H — Physical Safety & Discovery** | Breadboard PCB/Scan/Protected Drive, HYBRID resolver, physical endpoint bindings | FPGA + Hardware + Contracts + Remote | Board HIL chứng minh SAFE/INDETERMINATE, fault cutoff và observed-physical routing |
 | **I — Physical Digital Lab** | Protected routing, guarded execution, real IC capture, three verifications | Hardware + FPGA + Remote + Interface | Safe-wrong runs allowed, unsafe blocked, no auto-rewiring; HIL + teaching tests |
 | **J — EP4CE10 Instruments & Scale** | SDRAM, Logic Analyzer, Generator 2CH, Scope 2CH, CDC/AFE calibration, multi-user queue | FPGA + Hardware + Remote | Real sample/trigger/timing/electrical evidence, resource and load gates |
 | **K — Future Physical Analog** | Analog routing/protection/physical compiler adapters | Hardware + FPGA + Contracts | Chỉ sau analog electrical safety design và measured HIL |
 
-**Đường ưu tiên ngắn:** `A → B → C → D/E → F → G → H → I → J`. Giai đoạn Analog và Edge có thể chuẩn bị song song một phần; **không** triển khai Physical Run trước safety hardware hoặc trước hợp đồng endpoint resolution đạt kiểm thử.
+**Mốc nghiệm thu đầu tiên.** Ổn định các hợp đồng cần cho B và hoàn thành luồng Virtual Digital qua C++ worker thật, với bằng chứng ở §6.5 gồm giới hạn tài nguyên và hệ điều hành đích theo từng kết luận. C, D, E và F mở rộng kết quả này theo các cổng riêng. Nhánh vật lý đi từ chuẩn bị giao thức và board (G), qua bảo vệ và nhận diện (H), tới Physical Digital (I) và mở rộng thiết bị đo (J). Virtual Analog (E) có thể tiến hành độc lập với nhánh vật lý. Physical Run cần phần cứng bảo vệ, hợp đồng endpoint và hồ sơ trạm đã xác minh.
 
 ### 20.1 Acceptance scenario dạy học quan trọng nhất
 
@@ -1106,7 +1113,7 @@ Mạch sinh viên khác vị trí giảng viên, cố tình đấu sai một dâ
 
 ### ADR-CIRNET-005 — Endpoint binding requires observed physical evidence
 
-**Decision:** `reference_node_id` không phải `observed_node_id`. Required endpoint phải map tới actual observed node trước khi route; ambiguity ở nhánh không liên quan không mặc định block.
+**Decision:** ID tham chiếu và ID quan sát thuộc hai không gian định danh. Ánh xạ endpoint bắt buộc tới node quan sát thực tế trước khi định tuyến. Bằng chứng an toàn và khả năng thực thi vẫn có thể đầy đủ khi điểm chưa rõ chỉ ảnh hưởng việc chấm bài.
 
 **Consequence:** Compiler dùng `TopologyResolutionResult`, không dùng reference graph để routing shortcut.
 
@@ -1136,7 +1143,7 @@ Mạch sinh viên khác vị trí giảng viên, cố tình đấu sai một dâ
 
 ### ADR-CIRNET-010 — Versionless architecture name, versioned artifacts
 
-**Decision:** Tên kiến trúc toàn Organization là **CIRNET Lab-First**, không kèm version. Mỗi Repository, schema, RPC, protocol, hardware profile và release vẫn version độc lập.
+**Decision:** Kiến trúc Lab có tên **CIRNET Lab-First**, không kèm phiên bản. Mỗi repository, lược đồ, RPC, giao thức, hồ sơ phần cứng và bộ phát hành có phiên bản độc lập.
 
 **Consequence:** Các tài liệu con dẫn về kiến trúc chuẩn; không tạo nhiều “kiến trúc chính thức” khác nhau theo từng Repo.
 
@@ -1144,9 +1151,9 @@ Mạch sinh viên khác vị trí giảng viên, cố tình đấu sai một dâ
 
 ## 23. Tài liệu chuẩn và quy trình cập nhật xuyên Repo
 
-**Chính sách nguồn tài liệu:** File này là **bản kiến trúc tổng thể do Organization dùng để thống nhất hướng phát triển**. Khi được duyệt và đưa vào nguồn quản lý của Organization, các tài liệu chi tiết ở từng Repo phải liên kết tới nó; **không** sao chép toàn bộ thành sáu bản khác nhau.
+[Chính sách kiến trúc của bộ quy tắc](../../vi/policies/architecture.md) dùng cặp Anh–Việt này cho thực thi Lab và an toàn điện. [Kiến trúc Ecosystem](cirnetlab-architecture-vi.md) quy định ranh giới tổ chức và tích hợp giữa các miền. Tài liệu của từng chủ sở hữu liên kết tới nguồn có thẩm quyền và ghi revision hợp đồng hoặc artifact đang áp dụng.
 
-- Kiến trúc tổng thể: `cirnet-architecture-lab-first.md` (tài liệu này).
+- Kiến trúc Lab: tài liệu này và [bản tiếng Anh](cirnet-architecture-lab-first-en.md).
 - Implementation/API/system release authority: `cirnet-remote`.
 - Canonical schema/SDK/RPC/NCAP: `cirnet-contracts`.
 - Browser UI: `cirnet-interface`.
@@ -1197,17 +1204,7 @@ Tài liệu này chuẩn hóa **quyết định thiết kế**, không tự đ�
 
 ## 25. Tóm tắt hành động ưu tiên
 
-**Ưu tiên 1 — Canonical Contracts:** chốt các mô hình graph, physical observations/endpoints, Rust/TypeScript generated bindings, RPC, result và release-set identity.
-
-**Ưu tiên 2 — Virtual Digital E2E thực:** một đường chạy từ browser qua Rust Remote/Hardware tới pinned simulator và trả về browser, được kiểm thử với dữ liệu thật, không mock, có Stop và capture ownership.
-
-**Ưu tiên 3 — C++ Simulator:** hoàn thiện event engine C++ mặc định, kiểm tra parity, performance, cancellation và giữ đường rollback cho candidate chưa nghiệm thu.
-
-**Ưu tiên 4 — Virtual Analog:** chỉ công bố capability sau khi SPICE native chạy dưới C++ adapter và có E2E evidence.
-
-**Ưu tiên 5 — Physical safety trước physical Run:** schematic/PCB scan matrix, current limiting/cutoff, protected routing, HIL và correct endpoint resolution.
-
-**Ưu tiên 6 — FPGA instrument và multi-user scale:** EP4CE10 + SDRAM + Logic Analyzer + Scope 2CH + Generator 2CH, sau đó stress test 30–50 user với physical slot được chứng minh.
+Hoàn thành luồng Virtual Digital dựa trên hợp đồng với C++ worker đã khóa theo mã băm trước. Xem §20 về các mốc riêng cho Simulator, Analog, tải và phần cứng. Chỉ bật từng năng lực trong phạm vi đã xác minh.
 
 > **Kết luận:** **CIRNET Lab-First** là kiến trúc xuyên sáu Repository, hướng tới Rust cho các dịch vụ lõi và **C++ mặc định cho Simulator**, hợp đồng thống nhất, virtual-to-physical và thực nghiệm an toàn. Virtual Digital E2E là mốc kiểm chứng đầu tiên. Khi chuyển sang mạch thật, hệ thống chỉ định tuyến **hạ tầng đo/điều khiển** tới các endpoint đã xác nhận trên **mạch sinh viên thật**; **không được sửa lại dây của sinh viên bằng routing FPGA**. Hành vi thực đo mới là căn cứ đánh giá học tập.
 

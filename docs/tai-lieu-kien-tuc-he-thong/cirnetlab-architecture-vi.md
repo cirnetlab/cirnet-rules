@@ -1,8 +1,8 @@
 # CIRNET — STEM & Engineering Learning Ecosystem
 
-> **Tài liệu:** `cirnetlab-architecture.md` · **Loại:** Kiến trúc tổng thể cấp Organization (Organization-wide Target Architecture)  
+> **Tài liệu:** `cirnetlab-architecture-vi.md` · **Loại:** Kiến trúc mục tiêu cấp tổ chức  
 > **Organization:** [`cirnetlab`](https://github.com/orgs/cirnetlab/repositories) · **Tên kiến trúc:** **CIRNET — STEM & Engineering Learning Ecosystem** (không gắn số phiên bản vào tên).  
-> **Kiến trúc chuyên ngành kế thừa:** **CIRNET Lab-First**, theo đặc tả `cirnet-architecture-lab-first.md` do dự án cung cấp.  
+> **Tài liệu liên quan:** [Kiến trúc Lab-First](cirnet-architecture-lab-first-vi.md) · [Kiến trúc FPGA](../cirnetlab-FPGA-architecture-vi.md) · [English](cirnetlab-architecture-en.md)  
 > **Ảnh chụp nguồn:** danh sách 33 Repository GitHub truy cập được và tài liệu Lab-First được rà soát ngày **2026-11-15**.  
 > **Tình trạng:** đặc tả **kiến trúc mục tiêu đề xuất để phê duyệt**; không đồng nghĩa các mô-đun đã được triển khai hoặc đã nghiệm thu production.  
 > **Phạm vi:** toàn bộ sản phẩm, dịch vụ, công cụ phát triển, chuẩn dữ liệu, giáo dục, kỹ thuật, thiết bị và liên kết liên Repository; **không chia thành các Phase phát triển**.
@@ -28,7 +28,7 @@ ONE IDENTITY + ONE ENGINEERING PROJECT + VERSIONED CONTRACTS
 
 ### 0.1 Phân biệt cam kết kiến trúc và trạng thái thực tế
 
-- **TARGET:** hướng thiết kế/khả năng dự kiến; **DESIGNED:** đã có đặc tả; **IMPLEMENTED:** có code; **TESTED:** có bằng chứng kiểm thử; **VERIFIED:** đã được nghiệm thu trong điều kiện xác định; **RELEASED:** có artifact được phát hành và khóa; **UNAVAILABLE/BLOCKED:** chưa thể dùng hoặc bị chặn.
+- **TARGET** là năng lực mục tiêu, có trạng thái triển khai ghi riêng. **DESIGNED** là đã có đặc tả. **IMPLEMENTED** là đã có mã nguồn. **TESTED** là có bằng chứng kiểm thử. **VERIFIED** là đã được xác minh trong phạm vi và môi trường xác định. **RELEASED** là artifact có phiên bản, truy vết được và đã phát hành. **UNAVAILABLE** là năng lực chưa cung cấp được ở cấu hình đó. **BLOCKED** là yêu cầu chưa đủ điều kiện, quyền hoặc phụ thuộc cần thiết.
 - **GitHub Repository tồn tại ≠ tính năng đã triển khai.** Nhiều Repo hiện chỉ chứa `README.md` và `LICENSE`.
 - **Một branch `master` ≠ một bộ hệ thống đã kiểm chứng tương thích.** Phải chọn chính xác version, source revision, digest, toolchain và môi trường của từng artifact.
 - **Hệ thống học tập ≠ hệ thống điều khiển điện.** Phân quyền học tập không được bỏ qua interlock, safety hay lease thiết bị.
@@ -157,7 +157,7 @@ Mỗi Repo dưới đây có **một vùng trách nhiệm chính**. Trường *O
 
 | Repository | Sở hữu độc quyền / mục tiêu | Outputs và consumers | Không được sở hữu |
 |---|---|---|---|
-| **[`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote)** | **Lab domain control plane**: Experiment Manager, Lab assignment adapters, station scheduling/lease, Lab API/WS, validation/plan orchestration, capture metadata, Lab system release lock | Lab APIs, experiment events/results, pinned Lab release-set | Không thay global identity owner sau migration; không thay Hardware driver; không làm gradebook học vụ |
+| **[`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote)** | **Điều phối Lab**, gồm quyền vào trạm, thí nghiệm, cấu hình kỹ thuật của bài Lab, lịch/lease, API/WS, kế hoạch chạy, lưu capture và **chọn bộ phát hành Lab**. Xem §5 về quyền trong chế độ độc lập. | Lab APIs, experiment events/results, pinned Lab release-set | Định danh và vòng đời dự án dùng chung sau khi chuyển giao, driver phần cứng, sổ điểm học vụ |
 | **[`cirnet-hardware`](https://github.com/cirnetlab/cirnet-hardware)** | Rust HardwareStation (virtual/physical), local-only RPC, worker supervision, protected hardware operations, safe Stop, transport abstraction | Station RPC, capabilities, driver reports, verified cleanup | Không sở hữu user/business DB, không tự chấm đúng/sai hoặc bypass safety gate |
 | **[`cirnet-simulator`](https://github.com/cirnetlab/cirnet-simulator)** | **C++ mặc định lâu dài** cho deterministic digital simulation, bounded DC, worker protocol và **SPICE adapter** | Pinned C++ workers, simulation result/status, waveform/capture | Không tự định nghĩa user rights, điều khiển FPGA thật, hoặc phát hành analog capability không có solver |
 | **[`cirnet-fpga`](https://github.com/cirnetlab/cirnet-fpga)** | HDL/RTL, FPGA protocol implementation, timing/trigger/capture, protected routing controller, SDRAM/CDC và hardware testbench | Verified RTL, board-specific bitstreams, timing/HIL evidence | Không sở hữu Web API, IAM, project DB, remote scheduler |
@@ -201,7 +201,8 @@ Mỗi Repo dưới đây có **một vùng trách nhiệm chính**. Trường *O
 |---|---|---|
 | **Studio / Interface / IDE** | Studio = product shell; Interface = Circuit Editor/Lab UI; IDE = source tooling | Import APIs/components versioned; không copy editor/codebase giữa Repo |
 | **Learn / LMS** | Learn = UX; LMS = học vụ và gradebook | Learn không tự tính/ghi điểm có thẩm quyền |
-| **Platform / Remote** | Platform = global Identity, tenant, policy; Remote = Lab experiment, lease, station | Auth đang tồn tại trong Remote phải được chuyển có kiểm chứng khi Platform sẵn sàng; không có hai issuer cùng quyền |
+| **Platform / Remote** | Platform sở hữu định danh và tenant dùng chung sau khi hoàn tất chuyển giao có kiểm thử. Remote giữ phân quyền Lab, quyền vào trạm, lease và chính sách an toàn Lab. | Mỗi phạm vi có một nguồn cấp định danh có thẩm quyền. |
+| **Project / LMS / Remote** | Project sở hữu vòng đời dự án dùng chung sau chuyển giao. LMS sở hữu bài tập và điểm học vụ. Remote sở hữu cấu hình kỹ thuật Lab, bản ghi thí nghiệm và bằng chứng. | Bài học vụ tham chiếu cấu hình kỹ thuật và bằng chứng được cấp quyền. |
 | **Platform / LMS** | Platform = institution membership và global roles; LMS = course/class enrollment và academic rights | `Instructor` trong lớp không tự có admin/device control quyền rộng |
 | **Project / Format-Project / Contracts** | Project = lifecycle/ACL; Format = portable encoding; Contracts = public cross-boundary interface | Cùng một entity có owner rõ; chỉ tham chiếu, không tạo ba phiên bản schema nghiệp vụ độc lập |
 | **Database / mọi domain** | Database = infra/runner; mỗi domain = bảng/schema/migration nghiệp vụ | Không “centralize ownership” khiến domain thay đổi bảng của nhau trực tiếp |
@@ -213,7 +214,16 @@ Mỗi Repo dưới đây có **một vùng trách nhiệm chính**. Trường *O
 | **Extensions / Integrations** | Extensions = plugin/host lifecycle; Integrations = external service connectors | Connector có thể là extension nhưng nguồn thực thi được quản trị theo trust boundary |
 | **AI / LMS / Remote** | AI = tư vấn; LMS = assessment authority; Remote/Hardware = safety/run authority | AI suggestion không tự thành điểm, safety verdict hoặc physical command |
 
-**Migration rule:** khi chuyển một responsibility từ Repo A sang Repo B, phải có owner mới, API adapter, dữ liệu migration, backward compatibility, consumer contract tests, rollback và thời điểm tắt đường cũ. Trước khi chuyển xong, Repo A vẫn là source of truth; không âm thầm chia đôi quyền sở hữu.
+### 5.1 Lab độc lập và quyền sở hữu khi tích hợp
+
+| Dữ liệu hoặc quyết định | Lab độc lập hoặc trước khi chuyển giao | Phạm vi tích hợp sau khi chuyển giao |
+|---|---|---|
+| Định danh và ngữ cảnh tenant | Remote cấp phiên Lab cho người dùng Lab cục bộ. | Platform cung cấp định danh và ngữ cảnh tenant. Remote xác minh ngữ cảnh đó và áp dụng quyền riêng của Lab. |
+| Định danh và phiên bản dự án | Remote sở hữu bản ghi dự án Lab cục bộ phục vụ chỉnh sửa mạch và chạy thí nghiệm. | Project sở hữu mã dự án, phiên bản và ACL dùng chung. Remote tham chiếu phiên bản được cấp quyền và giữ đầu vào chính xác cùng bằng chứng của từng thí nghiệm. |
+| Bài tập và đánh giá | Remote sở hữu bài Lab cục bộ, quyền công bố và phản hồi kỹ thuật. | LMS sở hữu bài tập học vụ, bài nộp, điểm và quyền công bố học vụ. Remote sở hữu cấu hình kỹ thuật Lab có phiên bản, endpoint được phép, kết quả kỹ thuật và quyền truy cập bằng chứng theo chính sách Lab. LMS tham chiếu cấu hình đã giao và bằng chứng được phép. |
+| Vận hành Lab và bảo vệ vật lý | Remote cấp quyền vào trạm, quản lý lease và cho phép thực thi kế hoạch. Hardware và FPGA thực thi điều kiện cấp năng lượng, liên động và dừng an toàn tại trạm. | Các quyền này tiếp tục thuộc cùng các thành phần. |
+
+Ghi một bên có thẩm quyền ghi và quyết định quyền trên từng tài nguyên, theo tenant hoặc workspace và loại bản ghi. Trước khi chuyển giao, ánh xạ định danh và quyền, đối soát dữ liệu, kiểm thử consumer và phương án quay lui. Tại thời điểm chuyển giao, khóa đường ghi cũ, chuyển sang chủ sở hữu đã chỉ định và thu hồi thông tin xác thực cũ nếu áp dụng. Đối soát các lần ghi mới trước khi quay lui.
 
 ---
 
@@ -297,7 +307,7 @@ Các tác vụ có side effects không được tự replay khi reconnect; `acce
 
 ### 7.3 Event stream và dữ liệu lớn
 
-- Control API dùng HTTPS + typed SDK; realtime dùng WS/event stream đã xác thực và có sequence/resync; private Hardware RPC chỉ nằm trong trusted edge boundary.
+- API điều khiển dùng HTTPS và SDK định kiểu. Luồng thời gian thực có xác thực, số thứ tự và cơ chế đồng bộ lại. Hardware RPC chỉ cho truy cập cục bộ đã xác thực và phân quyền. Khung worker chỉ truyền giữa Hardware và worker được giám sát. Simulator sở hữu giao thức riêng đó, còn Contracts sở hữu RPC và lược đồ logic dùng chung.
 - Waveform, binary capture, CAD assets, firmware, notebook dataset và EDA reports lớn được stream hoặc tải có ủy quyền, không nhét vào một JSON response.
 - Event phải mang request/correlation ID, producer version, stream sequence và scope quyền; cần explicit gap detection.
 - `NCAP` thuộc Lab capture; các domain khác có format riêng dưới một artifact envelope dùng chung.
@@ -306,48 +316,51 @@ Các tác vụ có side effects không được tự replay khi reconnect; `acce
 
 ## 8. CIRNET Lab-First là chuyên ngành được kế thừa nguyên vẹn về an toàn
 
-Đặc tả **`cirnet-architecture-lab-first.md`** tiếp tục là **nguồn chuẩn về điện tử, Lab execution và electrical safety**. Tài liệu hệ sinh thái này chỉ đặt Lab vào bối cảnh lớn hơn, **không thay thế định nghĩa kỹ thuật** của `CircuitGraph`, `LabEndpoint`, `HardwareStation`, `SafetyVerificationResult`, FPGA transport và các điều kiện nghiệm thu.
+[Lab-First](cirnet-architecture-lab-first-vi.md) quy định thực thi Lab điện tử, ánh xạ endpoint và an toàn điện. [Kiến trúc FPGA](../cirnetlab-FPGA-architecture-vi.md) quy định hành vi board và RTL trong các giới hạn đó. Tài liệu Ecosystem quy định cách Lab tích hợp với các miền khác.
 
 ### 8.1 Virtual Digital E2E
 
 ```text
 Web Lab Interface (TS/Three.js)
-  → Lab Remote (Rust): auth delegation + experiment/lease + plan
+  → Lab Remote (Rust): authentication/authorization + experiment/lease + plan
   → HardwareStation (Rust): worker supervision
   → Simulator (C++ default, version/hash pinned)
   → HardwareStation → Remote → authenticated Web result/capture
 ```
 
-Chỉ được công nhận verified khi **real browser → real API → real Rust Hardware process → real C++ worker → Web** sử dụng cùng bộ artifact được pin, kiểm qua contract, waveform, persisted metadata, cancellation, negative cases, resource bounds và đúng target OS. Virtual runtime không được bịa topology scan, raw physical measurement hoặc electrical `SAFE`.
+Áp dụng [các cổng nghiệm thu VD-01–VD-10](cirnet-architecture-lab-first-vi.md#65-acceptance-gates-virtual-digital-e2e) cho bộ artifact đã chọn và môi trường đã kiểm thử. Kết quả ảo ghi rõ là mô phỏng, và các trường an toàn điện hay quét mạch dùng trạng thái không áp dụng theo hợp đồng.
 
 ### 8.2 Physical Lab và endpoint resolution
 
 ```text
-Reference Assignment + Instructor Profile
-               + measured DetectedTopologyGraph + StationProfile
+Lease hợp lệ → xác nhận trạng thái an toàn → quét có giới hạn với quyền riêng
                           ↓
-Conservative TopologyResolver: reference endpoint → observed student node
+Topology quan sát + hồ sơ bài Lab → ánh xạ endpoint bắt buộc
                           ↓
-Safety Gate + Executability Gate + Authorized Lease
+Lập kế hoạch chỉ định tuyến hạ tầng → xác minh đúng kế hoạch và an toàn
                           ↓
-Physical Compiler: protected infrastructure-only routing
+Áp dụng và xác minh tuyến khi nguồn mạch và nguồn kích thí nghiệm đã ngắt
                           ↓
-Guarded physical execution → measured function → learning evaluation
+Cấp nguồn có bảo vệ → kích thích được phép → đo và đánh giá
 ```
 
 **Bất biến kiến trúc:**
 
-- `reference_node_id` **không phải** `observed_node_id` khi chưa có evidence độc lập; khi thiếu required binding thì `BLOCK_UNEXECUTABLE`.
+- `reference_node_id` và `observed_node_id` thuộc hai không gian định danh. Ánh xạ cần bằng chứng độc lập dù chuỗi ID trùng nhau. Thiếu ánh xạ bắt buộc thì trả `BLOCK_UNEXECUTABLE`.
 - `SafetyVerificationResult` là hard gate; `UNSAFE` hoặc `INDETERMINATE` → **BLOCK**. Bài đúng/sai không được dùng thay safety.
 - `TopologyVerificationResult` dùng diagnostics/grading và không tự chặn mạch đã an toàn/executable.
 - `FunctionalVerificationResult` chỉ từ hành vi đã chạy/đo thực, không phải giá trị giả lập để đạt đáp án.
 - **Physical Compiler MUST NOT repair student IC/jumper wiring** bằng FPGA/MUX. Chỉ route nguồn kích, nguồn cấp có bảo vệ, sense/probe/clock/instruments tới observed allowed endpoints.
 - Phải có eFuse/current limit, sensing/fast cutoff, safe startup/reset, watchdog, HIL và chứng cứ board cụ thể trước khi bật physical capability.
-- Một shared physical routing fabric mặc định có **1 slot**, trừ khi chứng minh được các partition độc lập về điện. Mất xác nhận safe cleanup → station quarantine.
+- Mỗi hạ tầng điện dùng chung đã được xác minh có **một slot vật lý** cho đến khi các phân vùng cách ly điện được xác minh. Cấu hình chưa đạt công bố 0 slot. Nếu chưa xác nhận dừng an toàn, cách ly trạm và giữ quyền điều khiển để tránh cấp lại cho người khác.
 
-### 8.3 C++ Simulator và SPICE
+### 8.3 Tách FPGA điều khiển Lab và FPGA cho người học
 
-`cirnet-simulator` giữ **C++ là mặc định lâu dài**. Rust tiếp tục cho `remote`, `hardware`, `contracts` runtime; TypeScript cho UI, Verilog/SystemVerilog cho FPGA. `cirnet-nhspice` **không** thay vai trò chủ của `cirnet-simulator`. Virtual Analog chỉ được công bố khi C++ adapter tích hợp được native SPICE engine thực với model/license provenance và E2E evidence; bounded DC không tương đương full SPICE.
+Chỉ nạp bitstream của người học lên thiết bị cách ly có BoardProfile đã xác minh và quyền nạp phù hợp. FPGA điều khiển Lab dành riêng cho firmware trạm đã qua xác minh và được phép nạp.
+
+### 8.4 C++ Simulator và SPICE
+
+`cirnet-simulator` giữ **C++ là mặc định lâu dài**. Rust tiếp tục cho `remote`, `hardware`, `contracts` runtime; TypeScript cho UI, Verilog/SystemVerilog cho FPGA. Vai trò tùy chọn của `cirnet-nhspice` là đóng gói phụ thuộc native. Chỉ công bố Virtual Analog khi adapter C++ tích hợp solver SPICE native, có thông tin nguồn và giấy phép mô hình, lỗi định kiểu, cơ chế hủy và bằng chứng E2E của bộ artifact đã khóa. Mô hình DC giới hạn, Virtual Analog và định tuyến analog vật lý có tiêu chí riêng. Logic Analyzer, Scope 2CH, Generator 2CH, SDRAM và ADC/DAC/AFE là mục tiêu cho đến khi có phép đo và xác minh trên board cụ thể.
 
 **Python chỉ dùng trong đường kiểm thử/benchmark/parity của CIRNET production platform**, đúng định hướng Lab-First. Việc sau này hỗ trợ chương trình do người học viết bằng Python/MicroPython là **quyết định sản phẩm độc lập**, bắt buộc phân biệt interpreter sandbox/board runtime của người dùng với platform backend; không được âm thầm đưa Python request handlers/solver vào CIRNET production.
 
@@ -404,6 +417,8 @@ CIRNET hướng tới công cụ phân tích kỹ thuật có thể tái lập, 
 ## 11. CIRNET Learn & LMS: giáo dục tích hợp kỹ thuật
 
 ### 11.1 Data ownership
+
+Các quyền học vụ và dữ liệu dùng chung dưới đây áp dụng trong phạm vi đã tích hợp theo §5.1.
 
 - `cirnet-platform`: user/institution identity, tenants, global membership và cross-app authorization.
 - `cirnet-lms`: course, cohort/class, enrollment, lesson/assessment rules, submission, rubric, gradebook, competency/progress.
@@ -484,6 +499,8 @@ Các lệnh từ dashboard/AI phải qua actor authorization, policy, bounded si
 
 ### 14.1 Nhiều lớp quyền
 
+Trong cấu hình tích hợp, quyền dùng chung thuộc các chủ sở hữu đã chuyển giao theo §5.1. Trong mọi cấu hình Lab, Remote kiểm tra quyền Lab và lease đang hiệu lực. Hardware và bảo vệ độc lập thực thi điều kiện cấp năng lượng tại trạm.
+
 - **Global identity:** user, institution, tenant, org membership (`platform`).
 - **Project permissions:** owner/editor/viewer/submitter, artifact export (`project`).
 - **Academic permissions:** course, assignment, grading và answer disclosure (`lms`).
@@ -555,8 +572,8 @@ Không tự thêm prefix `v`; không đổi tên tag lịch sử đang được 
 
 Một deployment đã chọn phải có **Composition Manifest** rõ package identity: repository, source SHA, artifact bytes digest, target OS/ABI, build toolchain, public contract/schema/SDK fingerprint, required runtime dependencies, migrations và rollback constraints.
 
-- `cirnet-remote` **tiếp tục là owner của Lab release lock** tại `integration/release-set.json` theo Lab-First; không sửa lịch sử để đưa candidate mới vào mặc định.
-- `cirnet-platform` có thể quản **deployed application composition catalog** toàn hệ sinh thái khi thực sự có nhiều app; catalog này **tham chiếu** Lab release lock, không thay quyền phê duyệt electrical/FPGA compatibility của Lab owner.
+- `cirnet-remote` sở hữu việc chọn bộ phát hành Lab. Xác định đường dẫn manifest theo revision và cấu hình đã chọn. Xem [Lab-First §6.4](cirnet-architecture-lab-first-vi.md#64-bộ-artifact-duy-nhất-và-điều-kiện-pin).
+- Manifest tích hợp cấp hệ sinh thái có thể tham chiếu đúng phiên bản khóa phát hành Lab. Vị trí và chủ sở hữu manifest cấp hệ sinh thái vẫn là quyết định mở.
 - `cirnet-toolchains` xuất build provenance; `cirnet-devices` xuất device/board compatibility; `cirnet-project` pin input artifact IDs; `cirnet-lms` pin submission/grade evidence.
 - Mỗi run lưu exact software+data+hardware capability, không dùng dynamic `latest`, unpinned SDK hoặc auto-upgrade mid-run.
 
@@ -605,9 +622,7 @@ Unit/domain tests đặt gần code owner. Cross-repo conformance fixtures do Co
 
 ### 18.1 Một tài liệu kiến trúc chuẩn, nhiều đặc tả chuyên sâu
 
-**Đề xuất nơi đặt tài liệu:** `about-cirnetlab/architecture/cirnetlab-architecture.md` vì đây là Repo tài liệu cấp Organization, **không phải runtime**. Các Repo sản phẩm và `cirnet-rules` chỉ liên kết tới nguồn chuẩn này. Nếu Organization chọn một docs location khác, vẫn **chỉ giữ một canonical copy** và cập nhật links.
-
-`cirnet-architecture-lab-first.md` là **đặc tả chuyên sâu** của CIRNET Lab; văn bản này không xóa, thay tên, gộp hoặc sao chép toàn bộ Lab-First. Source owner của tài liệu Lab-First cần được phê duyệt và khai báo bằng canonical URL/path; khi đổi từ tài liệu cục bộ sang GitHub phải giữ link migration và lịch sử.
+Cặp Anh–Việt này là [tài liệu Ecosystem chuẩn của bộ quy tắc](../../vi/policies/architecture.md) về ranh giới tổ chức và tích hợp. Phê duyệt và nơi công bố lâu dài cấp tổ chức vẫn là quyết định mở (§21). Repo sản phẩm liên kết đến tài liệu này và kiến trúc Lab-First hoặc FPGA tương ứng. Cập nhật cặp ngôn ngữ theo cùng nội dung và giữ các phiên bản lịch sử trong Git.
 
 ### 18.2 Quy tắc cho AI Agents
 
@@ -636,7 +651,7 @@ Giữ **multi-repository** theo domain đang có. Local folder chung `E:\ALL_PRO
 
 ### 19.1 Một bài thực hành điện tử
 
-`Learn/LMS` giao bài và quyền → `Project` tạo revision → `Studio/Interface` sửa CircuitGraph → `Remote` xác thực experiment → `Hardware` supervises `Simulator C++` → `Remote` lưu result/capture → `Analyze` biểu diễn nếu cần → `LMS` thu immutable evidence + rubric/giảng viên đánh giá. Nếu dùng mạch thật, áp dụng toàn bộ Safety/Observed Endpoint rules của Lab-First; không thay bằng một nút “Run” trong LMS.
+Trong cấu hình tích hợp, giảng viên liên kết bài LMS và rubric với cấu hình kỹ thuật có phiên bản tại Remote, gồm các endpoint được phép. Người học mở bài trong Learn, dùng bản sửa đổi của Project để thiết kế `CircuitGraph`, rồi chạy Virtual Digital qua Remote → Hardware → C++ worker đã khóa theo mã băm. Người có quyền nhận waveform, kết quả và thông tin nguồn. Analyze có thể phân tích bằng chứng, còn LMS chấm theo tham chiếu cố định và chính sách công bố. Bài thực hành vật lý cần thêm topology quan sát, kiểm tra an toàn, khả năng thực thi và phép đo thật.
 
 ### 19.2 Lập trình ESP32/STM32/Arduino
 
@@ -660,7 +675,7 @@ Giữ **multi-repository** theo domain đang có. Local folder chung `E:\ALL_PRO
 
 | ID | Quyết định | Hệ quả không được vi phạm |
 |---|---|---|
-| **CIRNET-ECO-001** | Ecosystem architecture cấp Org nằm trên Lab-First | Lab-First giữ quyền sở hữu đặc tả electrical safety; Ecosystem không viết lại rules Lab |
+| **CIRNET-ECO-001** | Ecosystem quy định ranh giới tổ chức và tích hợp | Lab-First quy định thực thi và an toàn điện của Lab |
 | **CIRNET-ECO-002** | Multi-platform, one project, typed contracts | Không nhân đôi business data hoặc engine theo UI platform |
 | **CIRNET-ECO-003** | One source of truth per bounded context | Platform/IAM, Project, LMS, Remote, Format, Database có owner tách bạch |
 | **CIRNET-ECO-004** | Rust-first backend/Hardware/Contracts; **C++ Simulator default** | Không tự chuyển Simulator sang Rust; Python không tham gia production service path |
@@ -675,6 +690,7 @@ Giữ **multi-repository** theo domain đang có. Local folder chung `E:\ALL_PRO
 | **CIRNET-ECO-013** | Multi-tenant education privacy and IP protection | Tenant data, student records, instructor answers, private project/PDK có policy khác nhau |
 | **CIRNET-ECO-014** | Names remain stable; artifacts independently versioned | `<repo_name>-<version>`, compatibility lock, không đổi tag lịch sử |
 | **CIRNET-ECO-015** | Documentation hygiene and evidence integrity | Một canonical architecture; cập nhật tài liệu hiện có, bảo toàn lịch sử và kết quả thật |
+| **CIRNET-ECO-016** | Tách FPGA điều khiển Lab và FPGA của người học | Quyền biên dịch hoặc nạp HDL của người học không cấp quyền điều khiển điện trong Lab |
 
 ---
 
@@ -683,7 +699,7 @@ Giữ **multi-repository** theo domain đang có. Local folder chung `E:\ALL_PRO
 Các mục này là **quyết định mở**, không được suy ra là hệ thống đã thực hiện:
 
 1. **Architecture storage authority:** phê duyệt nơi đặt một bản canonical `cirnetlab-architecture.md`, Lab-First URL chuẩn và chính sách link/translation EN/VI.
-2. **Identity migration:** domain Platform mới có README; Auth hiện có ở Remote. Cần cách migrate account/session/authorization có rollback trước khi Platform trở thành issuer chính.
+2. **Chuyển giao định danh, dự án và học vụ.** Áp dụng §5.1 và xác minh bên đang cấp định danh, bên đang ghi dữ liệu và các consumer trước mỗi lần chuyển giao hoặc quay lui.
 3. **Project format ownership:** định nghĩa rõ `cirnet-project` vs `cirnet-format-project` vs `cirnet-contracts`, tránh ba nguồn serialization cạnh tranh.
 4. **SPICE ownership:** xác nhận có cần `cirnet-nhspice` độc lập không; chuẩn hóa README heading `cirnet-core-spice` với tên Repo và licensing strategy.
 5. **Lab release compatibility:** real Virtual Digital E2E với Rust services + C++ Simulator pinned; chứng nhận Physical vẫn cần board HIL/electrical evidence.
@@ -695,7 +711,7 @@ Các mục này là **quyết định mở**, không được suy ra là hệ th
 11. **AI boundaries:** model providers, data sharing/retention, human review, cost quotas và không can thiệp physical controls.
 12. **Runtime claim vocabulary:** duy trì `TARGET/DESIGNED/IMPLEMENTED/TESTED/VERIFIED/RELEASED/UNAVAILABLE/BLOCKED` có bằng chứng; các README-only Repo không được quảng cáo là supported.
 
-Không có yêu cầu chia dự án thành Phase; mỗi bounded context có thể tiến hóa độc lập **theo compatibility/quality gates**, và chỉ tích hợp vào deployment khi toàn bộ ranh giới liên quan đã được kiểm chứng.
+Các miền có thể phát triển theo nhịp riêng và chỉ tích hợp khi đã xác minh các ranh giới liên quan. Mốc nghiệm thu Lab áp dụng trong phạm vi [Lab-First](cirnet-architecture-lab-first-vi.md).
 
 ---
 

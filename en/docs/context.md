@@ -150,10 +150,13 @@ Use the same approved inputs at each stage:
    required. Review actual verification and deliverables independently.
 
 `acceptanceStatus` stays `NOT_RUN` in this CLI. Each owner worktree requires its
-own approval and evidence. The audit compares HEAD, branch, index, tracked and
-untracked bytes, and up to 1,024 ignored files totaling 32 MiB. Unavailable or
+own approval and evidence. The audit compares HEAD, branch, index, local and
+worktree Git configuration, repository refs, local exclude and attributes
+files, tracked and untracked bytes, and up to 1,024 ignored files totaling
+32 MiB. Recapture baselines created before Git metadata was recorded. Unavailable or
 unsupported audit inputs block the respective stage. The audit measures net
-changes. Apply a trusted preventive boundary where the task requires one.
+changes. Protect Git administration separately through runtime permissions.
+Git hooks, global settings and other repositories require their own controls.
 External agents must honor the intake result and use separately authorized
 tool restrictions. The validator has no control over their execution.
 

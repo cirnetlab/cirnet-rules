@@ -3,7 +3,7 @@
 > **Document:** `cirnetlab-architecture-en.md` · **Language:** English  
 > **Scope:** Organization-wide target architecture for [`cirnetlab`](https://github.com/orgs/cirnetlab/repositories).  
 > **Architecture name:** **CIRNET — STEM & Engineering Learning Ecosystem**, without a version suffix.  
-> **Related specialist architectures:** `cirnet-architecture-lab-first.md` (Lab-First), `cirnetlab-FPGA-architecture-vi.md` (FPGA, Vietnamese).  
+> **Related documents:** [Lab-First Architecture](cirnet-architecture-lab-first-en.md) · [FPGA Architecture](../cirnetlab-FPGA-architecture-en.md) · [Tiếng Việt](cirnetlab-architecture-vi.md)  
 > **Evidence snapshot:** GitHub repository inventory and supplied architecture reviewed on **2026-11-15**.  
 > **Status:** **PROPOSED TARGET ARCHITECTURE**; not an implementation, performance, production, electrical-safety or semiconductor sign-off certificate.  
 > **Organization structure:** 33 existing repositories: 30 product/engineering/tool repositories, `cirnet-rules`, and two documentation/organization repositories. **No development phases are prescribed by this document.**
@@ -29,12 +29,12 @@ ONE IDENTITY + ONE ENGINEERING PROJECT + VERSIONED CONTRACTS
 
 | Label | Meaning |
 |---|---|
-| `TARGET` | Intended architectural capability, not implemented |
+| `TARGET` | Intended architectural capability. Record implementation status separately. |
 | `DESIGNED` | Documented design without a verified implementation claim |
 | `IMPLEMENTED` | Actual corresponding source exists |
 | `TESTED` | Specific tests completed with identifiable evidence |
 | `VERIFIED` | Capability verified in the declared environment and scope |
-| `RELEASED` | Selected, traceable, versioned artifacts have actually been published |
+| `RELEASED` | Traceable, versioned artifacts have been published. Record deployment selection separately. |
 | `UNAVAILABLE` | Feature cannot currently be offered by this target/runtime |
 | `BLOCKED` | A precondition, permission, protection or necessary dependency is unmet |
 
@@ -164,7 +164,7 @@ Every repository has one primary bounded context. **Outputs are target interface
 
 | Repository | Exclusive responsibility | Published output / clients | Must not own |
 |---|---|---|---|
-| [`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote) | **Lab domain control plane**: experiments, lab assignments, scheduling/leases, APIs/WS, execution planning, capture metadata and **Lab release-set selection** | Authorized Lab APIs, operation events and pinned Lab manifest | Global identity after migration, hardware drivers, academic gradebook |
+| [`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote) | **Lab domain control plane**, including admission, experiments, technical Lab assignment configuration, scheduling/leases, APIs/WS, plans, capture persistence and **Lab release-set selection**. See §5 for standalone ownership. | Authorized Lab APIs, operation events and pinned Lab manifest | Shared identity or project lifecycle after the respective cutover, hardware drivers, academic gradebook |
 | [`cirnet-hardware`](https://github.com/cirnetlab/cirnet-hardware) | Rust Virtual/Physical HardwareStation, local RPC, worker supervision, safe Stop and FPGA transport | Station RPC, capabilities, protection/driver status | Business IAM, grading, bypassing protection |
 | [`cirnet-simulator`](https://github.com/cirnetlab/cirnet-simulator) | **Long-term default C++** discrete-event digital simulation, bounded DC, private worker protocol and SPICE adapter | Pinned worker and honest simulation result/waveform | User rights, physical FPGA control, unsupported analog claims |
 | [`cirnet-fpga`](https://github.com/cirnetlab/cirnet-fpga) | RTL, FPGA protocol implementation, timing/trigger/capture, protected routing, SDRAM/CDC and testbench | RTL sources, verified board bitstreams, timing/HIL artifacts | Web API, global IAM, scheduler or project database |
@@ -203,7 +203,8 @@ Every repository has one primary bounded context. **Outputs are target interface
 | Studio vs Interface | Studio composes tools; Interface owns CircuitGraph/Three.js Lab editing and electrical UX semantics |
 | Learn vs LMS | Learn owns experiences; LMS owns courses, submissions, rubrics, academic grade data |
 | Project vs Format-Project vs Contracts | Project owns lifecycle; Format owns portable serialization; Contracts owns versioned inter-boundary DTOs |
-| Platform vs Remote | Platform becomes global identity/policy authority through tested migration; Remote retains Lab admission/lease/safety domain |
+| Platform vs Remote | Platform becomes the shared identity and tenant authority after tested cutover. Remote retains Lab authorization, admission, leases and safety policy. |
+| Project / LMS vs Remote | Project owns shared project lifecycle after cutover. LMS owns academic assignments and grades. Remote owns technical Lab configuration, experiment records and evidence. |
 | Database vs domain schemas | Database owns provisioning/recovery conventions; each domain owns its business schema/migrations |
 | IDE vs Toolchains vs Devices vs CLI | IDE/CLI are interfaces; Toolchains build; Devices identify/flash/debug targets with separate authorization |
 | Analyze vs Numerics vs Simulator | Analyze visualizes/jobs; Numerics computes general kernels; Simulator owns C++ electronic simulation semantics |
@@ -214,6 +215,17 @@ Every repository has one primary bounded context. **Outputs are target interface
 | Rules vs runtime | `cirnet-rules` governs development agents/doc quality; it does not approve student runs or implement product policies |
 
 No repository may become a catch-all for every missing feature. Split by **independently meaningful bounded context**, security boundary or independently distributed SDK, not by endpoint/CRUD table. An owner's public API is not permission for consumers to reimplement its internals.
+
+### 5.1 Standalone Lab and integrated ownership
+
+| Records or decisions | Standalone Lab or before cutover | Integrated scope after cutover |
+|---|---|---|
+| Identity and tenant context | Remote issues Lab-local sessions for its own principals. | Platform supplies shared identity and tenant context. Remote verifies that context and applies Lab-specific permissions. |
+| Project identity and revisions | Remote owns the Lab-local project records used for circuit editing and runs. | Project owns shared project IDs, revisions and ACLs. Remote references authorized revisions and keeps the exact inputs and evidence of each experiment. |
+| Assignments and assessment | Remote owns local Lab assignments, disclosure and technical feedback. | LMS owns academic assignments, submission, grading and academic disclosure. Remote owns versioned technical Lab configuration, permitted endpoints, technical results and evidence access under Lab policy. LMS references the assigned configuration and authorized evidence. |
+| Lab operation and physical protection | Remote authorizes admission, leases and plan execution. Hardware and FPGA enforce station permits, interlocks and safe Stop. | The same authorities apply. |
+
+Record one authority for writes and permission decisions on each resource in each tenant or workspace and record type. Before switching, map IDs and permissions, reconcile data, and test consumers and rollback. At cutover, fence legacy writes, switch to the designated owner and revoke superseded credentials where applicable. Account for writes made after cutover before rolling back.
 
 ---
 
@@ -273,7 +285,7 @@ Do not rewrite the C++ Simulator in Rust. Do not assume that providing Python to
 ### 7.2 API and execution rules
 
 - Public REST/WS/event APIs are owned by the relevant domain; SDK/descriptor/schema versions are maintained by Contracts.
-- Private Hardware RPC and simulator worker frames remain private, authenticated or local-only as appropriate; never expose them as public device-control endpoints.
+- Hardware RPC is local-only and requires authenticated, authorized local access. Worker frames stay between Hardware and the supervised Simulator worker. Simulator owns that private protocol. Contracts owns shared RPC and logical schemas.
 - An accepted request is not a completed operation; represent QUEUED, RUNNING, COMPLETE, FAILED, CANCELED, PARTIAL and UNAVAILABLE accurately.
 - Explicit idempotency, replay protection, correlation IDs, bounded queues, cancellation and timeouts apply to mutating or long-running operations.
 - API, schema, RPC, worker ABI, firmware, project-format and release versions are independent and need compatibility negotiation and migration plans.
@@ -287,7 +299,7 @@ Compiling a project, flashing a target, running a physical experiment, starting 
 
 ## 8. CIRNET Lab-First — retained specialist architecture
 
-The definitive electronics/virtual-to-physical safety model remains `cirnet-architecture-lab-first.md`, with this ecosystem specification covering only its organizational integration. The FPGA-specific hardware fabric architecture is `cirnetlab-FPGA-architecture-vi.md`.
+[Lab-First](cirnet-architecture-lab-first-en.md) governs electronics execution, endpoint binding and electrical safety. [FPGA Architecture](../cirnetlab-FPGA-architecture-en.md) specifies board and RTL behavior within those limits. This Ecosystem document governs how Lab integrates with the other domains.
 
 ### 8.1 Required real Virtual Digital end-to-end chain
 
@@ -299,21 +311,20 @@ Browser Lab Interface (TypeScript/Three.js)
   → HardwareStation → Remote → authorized Web results/capture
 ```
 
-E2E verification requires the **actual selected browser/build/API/Hardware/C++ worker processes and exact pinned contract artifacts**, not mocks in place of an advertised real boundary. Verify truth tables, events/timestamps, 0/1/X, persistence, binary captures, ownership, crash/timeout/Stop, reconnect/replay, resource bounds and target OS. Digital/DC support is **not** evidence that full analog SPICE is available.
+Use the [VD-01–VD-10 acceptance gates](cirnet-architecture-lab-first-en.md#65-acceptance-gates-virtual-digital-e2e) for the selected artifact set and tested environment.
 
 ### 8.2 Actual student wiring, topology and endpoint resolution
 
 ```text
-Reference assignment + instructor profile
-     + DetectedTopologyGraph + observed evidence + StationProfile
+Authorized lease → verified safe state → bounded scan under its own permit
                          ↓
-Conservative TopologyResolver: reference endpoint → observed student node
+Observed topology + assignment/profile → resolve required endpoints
                          ↓
-Safety and executability gates + authorized lease
+Prepare infrastructure-only plan → verify exact plan and safety
                          ↓
-Physical Compiler: protected, infrastructure-only routing
+Apply and verify routes with DUT power and experiment stimuli disabled
                          ↓
-Guarded run + actual measurement + separate educational assessment
+Guarded power-up → authorized stimuli → actual measurement and assessment
 ```
 
 - `reference_node_id` is **not** automatically `observed_node_id`. Missing required observed bindings → `BLOCK_UNEXECUTABLE`.
@@ -322,16 +333,16 @@ Guarded run + actual measurement + separate educational assessment
 - `FunctionalVerificationResult` comes from real behavior after execution; UI must never fabricate a passing waveform.
 - The Physical Compiler **MUST NOT** repair student IC/jumper wiring using FPGA routing.
 - Hardware needs independent current/voltage protection, fail-safe startup/reset, watchdog, measured cutoff and board HIL before physical capability is enabled.
-- A shared fabric ordinarily offers **one physical execution slot** until electrically isolated partitions are actually verified; uncertain cleanup triggers station quarantine.
+- A qualified shared fabric offers **one physical execution slot** until electrically isolated partitions are verified. Unqualified profiles advertise zero physical slots. Unconfirmed safe cleanup triggers quarantine and prevents reassignment.
 - FPGA RTL tests, synthesis and timing analysis alone do not prove board electrical safety.
 
 ### 8.3 FPGA dual-role protection
 
-Separate a **trusted Lab Control FPGA** from a **learner-programmable FPGA target**. The former operates protected station routing/instruments under controlled firmware/permission; the latter runs untrusted learner HDL under isolated BoardProfile, toolchain and upload policies. Learner bitstreams must never overwrite an energized Lab Control FPGA simply because they use the same chip family.
+Separate a **trusted Lab Control FPGA** from a **learner-programmable FPGA target**. Restrict learner bitstreams to isolated targets with verified BoardProfiles and applicable upload permissions. Reserve Lab Control FPGA programming for authorized, qualified station firmware.
 
 ### 8.4 Analog/measurements
 
-`cirnet-simulator` owns the default C++ simulator and any SPICE adapter. The optional `cirnet-nhspice` boundary concerns native dependency packaging only. `virtualAnalog=true` requires a real native solver, model provenance/licensing, typed errors/cancellation and exact E2E acceptance. Oscilloscope 2CH, Generator 2CH, Logic Analyzer, SDRAM and ADC/DAC/AFE are hardware **targets** until measured/validated for a specific board.
+`cirnet-simulator` owns the default C++ simulator and any SPICE adapter. The optional `cirnet-nhspice` boundary concerns native dependency packaging only. `virtualAnalog=true` requires a real native solver, model provenance/licensing, typed errors/cancellation and acceptance for the exact E2E artifact set. Bounded DC, Virtual Analog and physical analog routing have separate criteria. Oscilloscope 2CH, Generator 2CH, Logic Analyzer, SDRAM and ADC/DAC/AFE are hardware **targets** until measured and validated for a specific board.
 
 ---
 
@@ -366,7 +377,7 @@ Every notebook/job must pin engine, environment/dependencies, input digests, lim
 
 ## 11. CIRNET Learn and LMS — evidence-driven education
 
-**Canonical ownership:** Platform owns institution, identity, common membership and policy; LMS owns courses, enrollments, assignments, submission state, rubric, grades and competence/progress data; Learn owns the interfaces; Project owns engineering revisions/artifacts; Lab Remote owns measured experiment evidence.
+In the integrated profile (§5.1), Platform owns institution, identity, common membership and policy. LMS owns academic assignments, submissions, rubrics, grades and progress. Learn provides the interfaces. Project owns engineering revisions and artifact references. Lab Remote retains technical experiment records and capture persistence, with measurements produced by the station.
 
 ```text
 Instructor → LMS assignment/rubric + allowed lab/device capabilities
@@ -415,7 +426,7 @@ Automated evidence checks, instructor grading, and AI-generated suggestions are 
 
 ### 14.1 Authority separation
 
-**Platform identity** proves principal and tenant context; **LMS membership** proves education relation; **Project ACL** controls engineering content; **Lab Remote lease** controls who may request a station operation; **Hardware and independent protection** decide whether physical actuation may occur. None implies the next permission automatically.
+In an integrated deployment, **Platform identity** establishes principal and tenant context, **LMS membership** establishes the educational relationship and **Project ACLs** govern engineering content. For every Lab deployment, Remote checks Lab permissions and the active lease. Hardware and independent protection enforce physical actuation conditions. Each check is required within its own scope.
 
 ### 14.2 Security controls
 
@@ -472,7 +483,7 @@ Repository, SDK, schema, API, RPC, worker protocol, project-format, board/firmwa
 
 Each selected application or Lab system release set records exact repository/source revisions, built artifact SHA-256, compiler/SDK/dependency versions, schema/API/RPC/NCAP/FPGA compatibility, target OS, board profiles where relevant, database migration bounds and rollback/restore prerequisites. Never use moving `latest`/branch HEAD as a substitute for a verified digest.
 
-For Lab, `cirnet-remote` currently owns `integration/release-set.json`. For a future ecosystem-wide release composition, avoid creating a second conflicting authority: either explicitly delegate selected manifests from a separately governed top-level composition or extend the existing release coordination with a compatible migration. The exact location/owner of a top-level release manifest is an **open architecture decision**.
+For Lab, `cirnet-remote` owns release-set selection. Resolve the manifest path against the selected revision and deployment profile. See [Lab-First §6.4](cirnet-architecture-lab-first-en.md#64-single-artifact-set-and-pinning-requirements). An ecosystem-wide composition manifest can reference the exact Lab release lock. Its own location and owner remain open decisions.
 
 ### 16.3 Promotion and rollback
 
@@ -515,7 +526,7 @@ The GitHub organization maintains **independent repositories**. Local clones und
 
 ### 18.1 Architecture document ownership
 
-This file is the **organization-wide canonical architecture candidate** once approved and stored at a designated path. `cirnet-architecture-lab-first.md` retains authority over Lab execution/electrical safety; `cirnetlab-FPGA-architecture-vi.md` describes FPGA-specific implementation constraints. Domain repositories link to those documents rather than reproducing the entire text. Keep EN/VI translations matched by meaning and prevent competing documents named `architecture-final`, `architecture-new` and similar.
+This EN/VI pair is the toolkit's [canonical Ecosystem reference](../../en/policies/architecture.md) for organization boundaries and integration. Approval and the long-term Organization publication location remain open (§21). Domain repositories link to this reference and the applicable Lab-First or FPGA architecture. Keep the paired editions aligned by meaning and retain historical revisions in Git.
 
 ---
 
@@ -523,7 +534,7 @@ This file is the **organization-wide canonical architecture candidate** once app
 
 ### 19.1 A digital electronics assignment
 
-An instructor creates an LMS assignment/rubric and approved Lab endpoints. A learner opens Learn and a Project revision in Studio/Interface, authors CircuitGraph, and runs a compatible Virtual Digital experiment through Remote→Hardware→pinned C++ Simulator. Waveform/results and provenance return to the authorized viewer. Analyze may process the evidence; LMS grades against exact references and disclosure policy. A physical exercise additionally requires observed topology, safety, executability and true measurement.
+In the integrated profile, an instructor links an LMS assignment and rubric to a versioned technical configuration in Remote with approved Lab endpoints. A learner opens Learn and a Project revision in Studio/Interface, authors CircuitGraph, and runs a compatible Virtual Digital experiment through Remote → Hardware → pinned C++ Simulator. Waveforms, results and provenance return to the authorized viewer. Analyze may process the evidence. LMS grades against exact references and disclosure policy. A physical exercise additionally requires observed topology, safety, executability and actual measurement.
 
 ### 19.2 Embedded firmware design
 
@@ -547,7 +558,7 @@ Robotics models and numerical controls are compiled for Device targets. IoT mana
 
 | ID | Decision | Non-negotiable consequence |
 |---|---|---|
-| CIRNET-ECO-001 | Organization-wide Ecosystem architecture is above Lab-First | Lab-First retains specialist electrical-safety authority |
+| CIRNET-ECO-001 | Ecosystem governs Organization boundaries and integration | Lab-First governs Lab execution and electrical safety |
 | CIRNET-ECO-002 | Multi-platform apps share one EngineeringProject and versioned contracts | Do not clone business data/engines for each UI |
 | CIRNET-ECO-003 | One source of truth per bounded context | Platform, Project, LMS, Remote, Format and Database roles stay separate |
 | CIRNET-ECO-004 | Rust-first services, **C++ Simulator default**, FPGA RTL | No forced Rust Simulator rewrite or new privileged Python services |
@@ -569,7 +580,7 @@ Robotics models and numerical controls are compiled for Device targets. IoT mana
 ## 21. Open decisions at Organization level — not a development schedule
 
 1. **Canonical document location:** approve the exact repository/path for this global architecture, specialist Lab-First and FPGA references and EN/VI sync policy.
-2. **Identity migration:** current Remote code includes authentication; `cirnet-platform` is placeholder only. Define transfer/rollback before Platform becomes sole issuer.
+2. **Identity, Project and LMS migrations:** follow §5.1 and verify the actual issuers, writers and consumers before each scoped cutover or rollback.
 3. **Project versus format versus contracts:** freeze the precise EngineeringProject revision, portable format and public DTO compatibility rules.
 4. **SPICE dependency:** decide whether `cirnet-nhspice` will be independently built/licensed/distributed or whether a pinned external engine from Simulator is sufficient; resolve the README-title discrepancy.
 5. **Real Lab E2E:** pin Rust Remote, Rust Hardware, C++ worker, interface and Contracts on a verified test set; physical FPGA still needs HIL.
@@ -581,7 +592,7 @@ Robotics models and numerical controls are compiled for Device targets. IoT mana
 11. **AI controls:** data sharing, model-provider permission, cost quota, explanation and human oversight, especially around side effects.
 12. **Truthful runtime status:** README-only repositories must not be labeled as implemented or released capabilities.
 
-No phase, timeline or rollout sequence is mandated here. Each bounded context can evolve at its own cadence while respecting compatibility, security, evidence and existing consumer obligations.
+Each bounded context can evolve at its own cadence while respecting compatibility, security, evidence and existing consumer obligations. The [Lab-First](cirnet-architecture-lab-first-en.md) acceptance milestones apply within the Lab domain.
 
 ---
 

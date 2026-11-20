@@ -1,10 +1,11 @@
-# CIRNET Lab-First — Official System Architecture
+# CIRNET Lab-First — Lab System Architecture
 
-> **Scope:** The entire software and hardware ecosystem of the [`cirnetlab`](https://github.com/cirnetlab) organization.  
+> **Scope:** Virtual and Physical Electronics Lab across the six Lab-First repositories.  
+> **Related documents:** [Ecosystem Architecture](cirnetlab-architecture-en.md) · [FPGA Architecture](../cirnetlab-FPGA-architecture-en.md) · [Tiếng Việt](cirnet-architecture-lab-first-vi.md)  
 > **Canonical architecture name:** **CIRNET Lab-First** (no version suffix in the architecture name).  
 > **Technical direction:** **Rust core services + C++ Simulator · Contract-driven · Virtual-to-Physical · Safety-gated · Lab-first**.  
 > **Source document:** `cirnet-Remote_Architecture_Lab-First.md`; restructured and standardized for six repositories, incorporating boundaries identified in the existing codebase.  
-> **Baseline review date:** 2026-11-15. Implementation statuses in this document reflect the state observed at that time; they **do not** automatically constitute production qualification or electrical safety certification.
+> **Baseline review date:** 2026-11-15. The implementation observations below describe that baseline. Production or electrical safety qualification requires separate evidence for the selected profile.
 
 ## 0. Executive Summary
 
@@ -16,7 +17,7 @@ The non-negotiable philosophy is:
 
 **SAFETY ≠ CORRECTNESS.** A circuit that produces an incorrect answer is not automatically blocked. Conversely, software **must not infer** that an unidentified circuit is electrically safe. Energization is permitted only when evidence establishes compliance with electrical limits, functioning hardware protection, and routability of the required endpoints.
 
-| Topic | Official decision | Actual status that must remain distinct |
+| Topic | Target architecture | Baseline observation |
 |---|---|---|
 | Source organization | Six independent repositories with clearly assigned responsibilities; Contracts defines communication standards | Primary boundaries are already established |
 | Default processing technologies | **Rust** for Backend, Contracts runtime and Hardware Service; **C++** for Simulator | Rust Remote/Contracts/Hardware candidates exist; the Simulator has a pinned C++ worker |
@@ -27,7 +28,7 @@ The non-negotiable philosophy is:
 | Physical Digital | Safety-gated, topology scanning, endpoint resolution, infrastructure routing and real-circuit observations | Physical Hardware/FPGA has not completed full HIL and electrical safety validation |
 | Physical Analog | Future expansion via capabilities, adapters and hardware | Outside the initial Physical Lab scope |
 | Instruments | Logic Analyzer, 2CH Scope, 2CH Generator; ADC/DAC/AFE/SDRAM external to FPGA | FPGA interfaces are currently scaffolds, not qualified instruments |
-| User load | 30–50 connected clients; default physical execution slots: 1 | Target requiring load tests on the actual target hardware |
+| User load | 30–50 connected clients. One execution slot per qualified shared electrical fabric. | Target requiring load tests on the actual target hardware |
 
 **Reporting rule:** `TARGET`, `DESIGNED`, `IMPLEMENTED`, `TESTED`, `VERIFIED`, `RELEASED`, `UNAVAILABLE`, and `BLOCKED` must be used precisely. Code that executes in a test is not equivalent to a published release or a verified physical electrical capability.
 
@@ -73,14 +74,16 @@ The non-negotiable philosophy is:
 
 | Repository | Owned domain | Target runtime technology | Must not own |
 |---|---|---|---|
-| [`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote) | API, Auth, RBAC, Projects, Assignments, Experiment Manager, scheduler/leases, persistence, capture metadata, WebSocket, deployment and **system release lock** | **Rust** (`axum`, `tokio`, `tonic`, PostgreSQL adapter) | Direct MUX/FPGA register manipulation; simulator core |
+| [`cirnet-remote`](https://github.com/cirnetlab/cirnet-remote) | Lab API/WS, authorization, technical Lab assignments, experiment management, scheduling/leases, capture persistence, deployment and **Lab release lock**. Owns Lab-local identity and project records in standalone scope. | **Rust** (`axum`, `tokio`, `tonic`, PostgreSQL adapter) | Direct MUX/FPGA register manipulation, simulator core, shared records after their cutover |
 | [`cirnet-interface`](https://github.com/cirnetlab/cirnet-interface) | Vue Workbench, CircuitGraph editor, Pinia UI state, Three.js, instrument UI, typed SDK consumer | Browser **TypeScript** | Authoritative electrical safety decisions, hardware routing or authoritative server-side simulation |
 | [`cirnet-contracts`](https://github.com/cirnetlab/cirnet-contracts) | Canonical CircuitGraph/Assignment/Physical Lab schemas, catalog, RPC, NCAP, wire protocols, code generation and SDK | **Rust** runtime and generator; generated TS bindings | Business API route registration instead of Remote; station or user management |
 | [`cirnet-hardware`](https://github.com/cirnetlab/cirnet-hardware) | `HardwareStation`, local-only RPC, station lifecycle, safe Stop, FPGA transport/driver, physical protection integration and supervised simulator worker | **Rust** (`tonic`, `tokio`) | User authorization or durable leases/business databases |
 | [`cirnet-simulator`](https://github.com/cirnetlab/cirnet-simulator) | Deterministic simulation engine, digital event model, bounded DC, SPICE adapter boundary and worker protocol | **C++ is the default language**; pinned, supervised and verified worker | Browser access, user permissions, physical FPGA or application database |
 | [`cirnet-fpga`](https://github.com/cirnetlab/cirnet-fpga) | RTL, timing, triggers, protected control, FPGA protocol decoder, digital routing controller, instrument/SDRAM interfaces and testbenches | **HDL/RTL** (Verilog/SystemVerilog), not replaced with Rust | Auth, REST, database or business graph compiler |
 
-**Interface governance:** The owning repository changes the canonical source and publishes a versioned artifact. Consumers use the selected contract; they do not silently copy and modify schemas. Remote selects the **exact version/digest** of the entire release set.
+**Deployment profiles.** Standalone Lab uses Remote's local principals, projects and Lab assignments. For a scope that has completed cutover, Platform provides identity and tenant context, Project owns project revisions and ACLs, and LMS owns academic assignments, submissions and grades. Remote continues to own Lab authorization, leases, technical configuration and experiment evidence. Follow the scoped migration and rollback rules in [Ecosystem §5.1](cirnetlab-architecture-en.md#51-standalone-lab-and-integrated-ownership).
+
+**Interface governance.** The owner publishes the canonical source as a versioned artifact. Consumers use those artifacts at their selected versions. Remote selects the exact versions and digests of the Lab release set.
 
 **Technology note:** Rust is the default for Backend/Contracts/Hardware, **C++ is the default for Simulator**; TypeScript remains on the browser and HDL on the FPGA. The C++ worker must be pinned and verified; Python serves only testing, benchmarking and historical comparison lanes and is not part of new production request processing.
 
@@ -152,7 +155,7 @@ Historical tags must remain available for rollback. CIRNETLAB's newer tag/releas
 - **Rust Remote:** Modular monolith with a single authoritative scheduler for shared stations; do not split into microservices initially.
 - **Rust Hardware Service:** Separate process, isolating USB/FPGA/simulator crashes and timeouts.
 - **Simulator Worker:** Supervised process; CPU-bound simulation must not block Tokio/HTTP or Stop operations.
-- **PostgreSQL:** Durable principals, sessions/leases, experiments and capture metadata; large waveforms are stored outside the database.
+- **PostgreSQL:** Durable Lab sessions, leases, experiments and capture metadata, plus Lab-local principal records in the standalone profile. Store large waveforms outside the database.
 - **Python:** Must not be launched from the new production API, Hardware Service or Simulator worker; use separate test/benchmark tools only.
 
 ---
@@ -212,7 +215,7 @@ ExecutionPlan        (derived, immutable, never edited by browser)
     └── PhysicalExecutionPlan / InstrumentationExecutionPlan
 ```
 
-- **DesignGraph:** Project, circuit, component instances, ports, nets, properties, rotation, placement, user metadata and edit history.
+- **DesignGraph:** The editable logical design represented by the canonical `CircuitGraph` contract. It describes circuit instances, ports, nets, properties and placement. Project lifecycle and editor history have their own owners and contracts.
 - **ValidatedGraph:** Valid references, signal widths/domains, net rules and component-model availability; **incorrect answers are not technical validation errors**.
 - **ExecutionPlan:** Backend mappings, bounded event schedule or resource allocation, with owner, contract version, fingerprint and scope-specific expiry.
 - **Three.js Scene:** A view of DesignGraph only; it must not infer electrical connectivity from intersecting 3D wires or nearby coordinates.
@@ -236,9 +239,11 @@ Incorrect wires placed by students belong to **observed truth**. The system may 
 - `DetectedTopologyGraph`, `ObservedPinBinding`, `TopologyResolutionResult` and `ResolvedEndpointBinding`.
 - `SafetyVerificationResult`, `TopologyVerificationResult`, `FunctionalVerificationResult` and `ExecutionDecision`.
 - `StationCapabilities`, `HardwareStation` RPC boundary and error/status codes.
-- `SimulationRequest/Result/Error`, `VirtualExecutionPlan` and the versioned private simulator protocol.
-- Logical FPGA control protocol and physical framing/transport ABI once hardware evidence exists.
+- Shared `SimulationRequest/Result/Error` and `VirtualExecutionPlan` schemas.
+- Shared logical FPGA control contracts and conformance mappings, verified against the FPGA-owned board interface with Hardware.
 - `ExperimentResult`, `CaptureMetadata`, NCAP v1/v2 and streaming envelopes.
+
+Simulator owns the private worker framing and fixtures with Hardware as its consumer. FPGA owns the board interface and physical frame ABI. Hardware owns the driver and transport integration.
 
 **Do not collapse versions:** Repository, toolkit, CircuitGraph, Assignment, Hardware RPC, FPGA frame, firmware, SDK, NCAP and selected system release versions are separate domains. Record each separately in a compatibility matrix.
 
@@ -302,7 +307,7 @@ CIRNET INTERFACE
 4. **Plan:** Compiler produces an immutable VirtualExecutionPlan with model IDs, net resolution, timing parameters, bounded event budget and instrument selection.
 5. **Hardware:** Create one virtual station execution; supervise worker, deadline, cancellation, expected protocol and digest.
 6. **Simulator:** Read validated requests, run event scheduler, return samples/traces and explicit status; never fabricate samples on unsupported requests or errors.
-7. **Hardware → Remote:** Validate frames, status and capture; persist metadata and return a gRPC response.
+7. **Hardware → Remote:** Hardware validates worker frames, status and capture and returns a gRPC response. Remote persists experiment and capture metadata and stores the capture payload.
 8. **Remote → Web:** Separate Run acknowledgement from final results; WS events carry stream identity/sequence and resynchronization behavior; binary capture is permission-gated.
 9. **UI:** Display `QUEUED/RUNNING/COMPLETE/FAILED/UNAVAILABLE`; loading/pending does not imply PASS.
 
@@ -321,7 +326,7 @@ The end-to-end test must record **requests/responses at every process boundary**
 
 ### 6.4 Single artifact set and pinning requirements
 
-`cirnet-remote/integration/release-set.json` selects the **system release**; candidate tests may use an independent test-session manifest without modifying historical release locks.
+Remote owns the manifest that selects the **Lab system release**. Resolve its path in the selected Remote revision and profile. For example, the historical Python reference lock is under `migration/python-reference/integration/release-set.json` in the layout described by Remote's system documentation. Candidate tests use a separate pinned test-session manifest and preserve historical locks.
 
 A selected E2E set must contain at least:
 
@@ -354,7 +359,7 @@ Do not use dynamic `latest`, branch HEAD, an unpinned executable or manually cop
 | VD-09 | Release provenance | Manifest pins source/artifact/compiler/backend; logs retain Run ID and exact SHA |
 | VD-10 | Cross-platform target | Windows integration and Linux Mini PC readiness are distinguished; production passes only after target-environment testing |
 
-**If any gate fails, the system must not be described as “Virtual Digital E2E verified.”** Unit tests, contract tests or loopback tests do not substitute for Browser–API–Hardware–Worker E2E.
+Report **Virtual Digital E2E verified** only when all ten gates have passed for the stated artifact set and environment. Record failures and unexecuted or blocked checks against their gates. Browser–API–Hardware–Worker evidence is required for the end-to-end claim.
 
 ---
 ## 7. C++ Simulator and Analog Expansion
@@ -440,8 +445,8 @@ DetectedTopologyGraph  (student's ACTUAL wires and observed nodes)
                      ▼
 TopologyResolutionResult + ResolvedEndpointBinding
                      │
-                     ├── Safety Verification     → hard gate
-                     ├── Executability/Routing   → hard gate
+                            ├── Executability/Routing   → candidate plan
+                            ├── Safety Verification     → gate for the exact plan
                      ├── Topology Verification   → diagnostics only
                      └── Functional Verification → AFTER measured execution
 ```
@@ -459,13 +464,13 @@ BreadboardNodeID → Scan Matrix / Sense Front-End → RoutingResource
 
 Scanning procedure:
 
-1. Reserve the station/lease and establish a verified `SAFE_STATE`.
-2. Disable drive/power outputs and set routing to default-open.
-3. Excite permitted points using a **voltage- and current-limited test source**, according to the approved protection design.
+1. Hold the authorized lease and confirm `SAFE_STATE` with DUT power and experiment stimuli disabled and routes default-open.
+2. Confirm interlock and station readiness and safe residual or external energy conditions before enabling any scan excitation. Keep scanning disabled when the pre-check cannot establish those conditions.
+3. Scan permitted points under a **separate scan permit** bounded by verified voltage, current and duration limits. Keep DUT power and experiment stimuli disabled. Inhibit scan excitation on timeout, Stop or fault.
 4. Measure with a high-impedance front-end, accounting for leakage, charge and cross-coupling.
 5. Construct observed nodes/continuity, pin contacts, signatures, confidence and measurement provenance.
 6. Use an instructor profile or signature library to suggest IC orientation/identity **only when the electrical conditions are demonstrably safe**.
-7. Create `DetectedTopologyGraph`, retaining incorrect, missing, unidentified or ambiguous branches.
+7. Disable scan excitation and confirm the safe state before route application. Create `DetectedTopologyGraph`, retaining incorrect, missing, unidentified or ambiguous branches and the scan's station/profile, generation, coverage and validity.
 8. Send the observations to separate Safety Verification, Topology Resolution and topology assessment.
 
 **Do not claim** continuity measurements reliably identify VCC/GND or every IC pin function: many components exhibit nonlinear behavior, protection diodes, hidden pins, supply-dependent thresholds and stimulus-dependent states. If safety cannot be established → `INDETERMINATE` and **BLOCK**.
@@ -517,7 +522,7 @@ Physical Compiler reads RESOLVED observed bindings only
 
 Safety invariants:
 
-1. `reference_node_id != observed_node_id` unless independent mapping evidence establishes correspondence.
+1. Treat `reference_node_id` and `observed_node_id` as separate namespaces. Require independent mapping evidence even when their text values coincide.
 2. Matching coordinates or net labels do not prove electrical continuity.
 3. Every `ObservedPinBinding` must reference an existing observed node; pin/connection IDs must not be duplicated; malformed evidence → `DRIVER_ERROR` and safe fallback.
 4. Do not assign pin roles or identity simply because the reference assignment expects a particular IC.
@@ -543,7 +548,7 @@ This applies even when the system knows the instructor's correct schematic. Reco
 DetectedTopologyGraph                  (actual observed wiring)
 + TopologyResolutionResult             (actual observed endpoint bindings)
 + AssignmentDefinition / allowed LabEndpoints
-+ SafetyVerificationResult             (separate authoritative gate)
++ Pre-check evidence and verified protection limits
 + StationCapabilities / HardwareProfile
 + Available protected routing/instrument resources
                        │
@@ -551,7 +556,7 @@ DetectedTopologyGraph                  (actual observed wiring)
             LabExecutionCompiler (Rust domain)
                        │
                        ▼
-        InstrumentationExecutionPlan (immutable)
+        InstrumentationExecutionPlan (immutable candidate)
 ```
 
 Output may allocate only:
@@ -561,7 +566,7 @@ Output may allocate only:
 - MUX/crosspoint/resources for **infrastructure connections** to authorized observed endpoints.
 - Runtime interlocks, power policies, protection budgets and resource-release paths.
 
-The compiler **must not** create a route from the reference AND output to the LED if the student did not wire them together. That error must remain observable; FPGA measures actual points, and `FunctionalVerificationResult` may report FAIL/NO_RESPONSE/PARTIAL based on actual behavior.
+Assess safety and executability on the exact immutable candidate before applying routes or requesting any experiment energy (§10.4). The compiler **must not** create a route from the reference AND output to the LED if the student did not wire them together. FPGA measures actual points, and `FunctionalVerificationResult` may report FAIL/NO_RESPONSE/PARTIAL based on actual behavior.
 
 ### 9.3 Example that must be tested
 
@@ -587,7 +592,7 @@ Additional test cases: wrong but safe IC, missing IC, opaque IC, dangerous short
 - Inputs: observed endpoint bindings, protected capabilities, resource graph, voltage/domain/driver constraints, reservations and instrument allocation.
 - Algorithms may use BFS/Dijkstra/backtracking and conflict checks, provided execution is deterministic and bounded.
 - Prevent output contention, incompatible voltage domains, feedback shorts, protection bypass and route reuse across leases.
-- The result is a verifiable plan carrying `hardware_profile_id`, `scan_epoch`, `lease_id`, `plan_hash` and an `applied` status from the driver; a correct plan does not mean that hardware has applied it.
+- The plan carries `hardware_profile_id`, `scan_epoch`, `lease_id` and `plan_hash`. The driver reports `applied` separately, with evidence for the matching plan and execution generation.
 
 ---
 
@@ -622,6 +627,8 @@ RUN_GUARDED
 
 **Important:** `SAFE + WRONG → RUN` is shorthand for **SAFE + EXECUTABLE + AUTHORIZED + protection verified → RUN**. It does not waive executability, permissions, lease state or interlocks.
 
+Both Run modes require verified protection and guarded physical power-up. The station enforces separate scan, DUT power and experiment stimulus permits with their own enable conditions.
+
 ### 10.3 Electrical Safety Envelope
 
 **Actual hardware protection** required before enabling `physicalDigital=true`:
@@ -646,18 +653,18 @@ Minimum requirements:
 ### 10.4 Physical state machine
 
 ```text
-OFFLINE → IDLE → RESERVED → SAFE_STATE
-                         → TOPOLOGY_SCAN → SAFETY_CHECK
-                            ├── UNSAFE/UNKNOWN → FAULT/BLOCK
-                            └── SAFE → EXECUTION_DECISION
-                                ├── BLOCK_UNEXECUTABLE
-                                └── ROUTE_PREPARE → GUARDED_POWER_UP
-                                    → READY → ARMED → RUNNING
-                                    → CAPTURING → FUNCTIONAL_VERIFY
-                                    → STOPPING → SAFE_STATE → RELEASE → IDLE
+OFFLINE → IDLE → RESERVED → SAFE_STATE → PRE_CHECK → BOUNDED_SCAN
+        → SCAN_OFF → RESOLVE_ENDPOINTS → FREEZE_CANDIDATE_PLAN
+        → SAFETY_AND_EXECUTABILITY_CHECK → EXECUTION_DECISION
+          ├── BLOCK_SAFETY / BLOCK_UNEXECUTABLE → SAFE_CLEANUP
+          └── RUN_NORMAL / RUN_GUARDED → APPLY_AND_VERIFY_ROUTES
+              → GUARDED_POWER_UP → READY → ARMED → RUNNING
+              → STOPPING → SAFE_CLEANUP
+SAFE_CLEANUP → confirmed SAFE_STATE → RELEASE → IDLE
+             → unconfirmed safe state → QUARANTINE
 ```
 
-**Freshness and authority:** Scan, protection verdict, routing plan and lease must belong to the same execution generation; an old command or another user cannot reuse them. Any fault must quickly gate hardware outputs and begin safe cleanup. If cleanup cannot be confirmed, **quarantine** the station rather than releasing it to the next user.
+This diagram describes control order. Safe Stop proceeds independently of capture and functional assessment. Apply and verify routes with DUT power and experiment stimuli disabled. Before power-up, Hardware verifies the fresh scan, exact approved plan and applied routes against the current lease, station/profile and generation. Wiring or configuration changes that invalidate this evidence require a safe stop and fresh preparation. Faults and permit loss inhibit the affected energy sources and start safe cleanup. Keep the station fenced in quarantine when safe cleanup is unconfirmed.
 
 ---
 
@@ -817,7 +824,7 @@ Pinia must not replace the simulator/database/FPGA. Three.js must not create a n
 ### 14.1 Authentication and session control
 
 - Roles: `Student`, `Instructor`, `Administrator`; RBAC and ownership are separate checks.
-- Use password hashing, server-side sessions, HttpOnly Secure cookies and exact Origin/CSRF controls for mutations; production uses HTTPS and PostgreSQL.
+- In standalone scope, Remote authenticates Lab-local principals. In an integrated scope after cutover, Remote verifies Platform identity and applies Lab permissions. Use password hashing where local credentials exist, Secure and HttpOnly cookies for browser sessions, and Origin/CSRF controls for mutations. Production uses HTTPS and PostgreSQL.
 - Bind the controlling tab/client identity to a session/lease for Run/Stop control; viewers may access only authorized data.
 - The API must distinguish request accepted, command running, measurement complete and safe Stop acknowledged.
 - Reconnect/resynchronization may observe previous state but **must not** automatically replay `Run`/`Apply`/`Create`.
@@ -861,7 +868,7 @@ Target capacity:
 ```
 
 - Virtual sessions use a bounded worker pool, with workloads measured against CPU/RAM/capture; do not run CPU-bound engines directly in the API event loop.
-- A shared physical breadboard/routing fabric has **one physical execution slot by default**. Other users may edit, queue and read results, but may not simultaneously drive that shared fabric.
+- A qualified shared physical breadboard/routing fabric has **one physical execution slot by default**. Unqualified profiles expose zero slots. Other authorized users may edit, queue and read results while that fabric has a single controller.
 - Admission: FIFO + per-user rate limits + maximum runtime + lease TTL; instructor priority may be introduced only under an explicit, bounded policy.
 - Serialize even under simultaneous bursts; do not rely on the assumption that students rarely press Run at the same time.
 - Disconnect, lease expiry, Stop or crash → attempt safe cleanup; on failure → quarantine. Never allocate resources to another user until safe release is confirmed.
@@ -969,11 +976,11 @@ Optional `?` fields are absent or `UNAVAILABLE` in a simulator-only release; nev
 ### 18.3 Multi-repository release workflow
 
 1. Contracts owner publishes verified schemas/SDK/RPC/fixtures.
-2. Simulator and Hardware owners build against exact pins; test worker protocol, cancellation and error parity.
-3. Remote integrates the selected artifacts, performs integration/E2E tests and establishes the release set.
-4. Interface builds against the selected SDK, runs real-browser tests and verifies artifact checksum.
+2. Simulator, Hardware and Interface build against exact pins, including the SDK for Interface. Verify build digests, worker protocol, cancellation and error parity.
+3. Remote assembles the candidate manifest and pins all artifacts for the declared test scope.
+4. Interface and Remote run the real-browser tests against that same candidate set.
 5. An FPGA physical release requires bitstream/board/timing/HIL/safety evidence; never label scaffold-only source as hardware-supported.
-6. Run the acceptance matrix against **all selected SHA/digests**, distinguishing Windows and Linux target coverage according to each claim.
+6. Complete the acceptance matrix for the pinned candidate, distinguishing Windows and Linux target coverage according to each claim. Remote selects the release set after the applicable gates pass.
 7. Package artifacts, manifest and migration/rollback notes; obtain separate authorization before tagging/publishing.
 8. Roll back only to a compatible artifact set with database/capture backup, stop admission, confirm safe cleanup/quarantine and do not automatically replay Start.
 
@@ -1026,19 +1033,19 @@ The stages below **do not** require implementing every abstraction simultaneousl
 
 | Phase | Goal | Primary owner | Exit gate |
 |---|---|---|---|
-| **A — Contracts Stabilization** | Standardize Graph/Assignment/Endpoint/Resolution/Results/StationCapabilities/RPC/NCAP; Rust/TS SDK parity | Contracts + Remote + Interface | Generated fixtures, old/new compatibility and exact selected-version tests PASS |
+| **A — Virtual Digital contract baseline** | Stabilize the graph, assignment, virtual plan, capabilities, RPC, results and NCAP needed for B, with Rust/TS SDK parity in that scope. | Contracts + Remote + Interface | Generated fixtures, old/new compatibility and exact selected-version tests PASS |
 | **B — Virtual Digital E2E (Rust services + C++ Simulator)** | Web → Rust Remote → Rust Hardware → Worker → Web with digital gates/LED/clock/NCAP | All except physical FPGA | Gates VD-01…VD-10 PASS on a pinned artifact set; no mock at a boundary claimed to be real |
-| **C — C++ Simulator Default** | Complete and optimize the default C++ event worker; retain protocols, parity and artifact pins | Simulator + Hardware | Functional, error, Stop, performance and rollback evidence |
+| **C — Expand and optimize C++ Simulator** | Extend the C++ worker already used in B. Preserve protocols, parity and artifact pins. | Simulator + Hardware | Functional, error, Stop, performance and rollback evidence |
 | **D — Virtual Instruments** | **Virtual** Logic Analyzer, generator/scope with accurate capabilities | Simulator + Interface + Contracts | Typed samples, bounded captures, UI and E2E tests |
 | **E — Virtual Analog** | C++ SPICE adapter + native solver, analog waveforms and mixed bridges when ready | Simulator + Contracts | Real analog solver fixtures and licensing/provenance; no capability overclaim |
-| **F — Edge Multi-user** | Rust API lifecycle, PostgreSQL, authentication, scheduler, leases, Linux installation | Remote + Hardware | Load of 30–50 connected clients, recovery and safe Stop in the virtual lane |
+| **F — Edge multi-user qualification** | Extend the baseline admission, scheduler and Linux coverage exercised in B to the target edge deployment and load. | Remote + Hardware | Load of 30–50 connected clients, recovery and safe Stop in the virtual lane |
 | **G — FPGA Emulator & EP4CE6** | FPGA protocol emulator, RTL control and small digital resources | FPGA + Hardware | CRC/timeout/Stop/RTL parity; physical power stays unavailable without board evidence |
 | **H — Physical Safety & Discovery** | Breadboard PCB/scan matrix/protected drive, HYBRID resolver, physical endpoint bindings | FPGA + Hardware + Contracts + Remote | Board HIL demonstrates SAFE/INDETERMINATE, fault cutoff and observed-physical routing |
 | **I — Physical Digital Lab** | Protected routing, guarded execution, real IC captures and three separate verifications | Hardware + FPGA + Remote + Interface | Safe-but-wrong circuits may run; unsafe blocked; no automatic rewiring; HIL + teaching tests |
 | **J — EP4CE10 Instruments & Scale** | SDRAM, Logic Analyzer, 2CH Generator, 2CH Scope, CDC/AFE calibration, multi-user queue | FPGA + Hardware + Remote | Actual sample/trigger/timing/electrical evidence and resource/load gates |
 | **K — Future Physical Analog** | Analog routing/protection/physical compiler adapters | Hardware + FPGA + Contracts | Only after analog electrical safety design and measured HIL |
 
-**Shortest priority path:** `A → B → C → D/E → F → G → H → I → J`. Some Analog and Edge preparation can run in parallel; **do not** implement Physical Run ahead of safety hardware or verified endpoint-resolution contracts.
+**First acceptance milestone:** Stabilize the contracts needed for B and deliver the real C++ Virtual Digital slice with §6.5 evidence, including resource bounds and the target OS for each claim. C, D, E and F expand that baseline according to their own acceptance gates. Physical work follows its own prerequisites, from protocol/board preparation (G) through protection and discovery (H) to Physical Digital (I) and instrument scale (J). Virtual Analog (E) can proceed independently of that physical path. Physical Run requires the relevant safety hardware, endpoint contracts and verified station profile.
 
 ### 20.1 Most important teaching acceptance scenario
 
@@ -1103,7 +1110,7 @@ This is the **core acceptance scenario** for Lab-First. If the system uses a MUX
 
 ### ADR-CIRNET-005 — Endpoint binding requires observed physical evidence
 
-**Decision:** `reference_node_id` is not `observed_node_id`. Required endpoints must map to actual observed nodes before routing; unrelated ambiguity does not automatically block execution.
+**Decision:** Reference IDs and observed IDs belong to separate namespaces. Bind required endpoints to actual observed nodes before routing. Ambiguity confined to grading can coexist with proven safety and executability.
 
 **Consequence:** Compiler consumes `TopologyResolutionResult`, not a reference graph as a shortcut for routing.
 
@@ -1133,7 +1140,7 @@ This is the **core acceptance scenario** for Lab-First. If the system uses a MUX
 
 ### ADR-CIRNET-010 — Versionless architecture name, versioned artifacts
 
-**Decision:** The Organization-wide architecture is named **CIRNET Lab-First** with no version suffix. Each repository, schema, RPC, protocol, hardware profile and release is versioned independently.
+**Decision:** The Lab architecture is named **CIRNET Lab-First** with no version suffix. Each repository, schema, RPC, protocol, hardware profile and release is versioned independently.
 
 **Consequence:** Subordinate documents link to the canonical architecture; do not create conflicting competing “official architectures” in each repository.
 
@@ -1141,9 +1148,9 @@ This is the **core acceptance scenario** for Lab-First. If the system uses a MUX
 
 ## 23. Canonical Documentation and Cross-Repository Update Process
 
-**Documentation authority policy:** This file is the **Organization-wide architecture document used to align development direction**. Once approved and placed under the Organization's document management, each repository's detailed documents should link to it rather than **copying the entire architecture six times**.
+The [toolkit architecture policy](../../en/policies/architecture.md) uses this EN/VI pair for Lab execution and electrical safety. The [Ecosystem Architecture](cirnetlab-architecture-en.md) governs Organization boundaries and cross-domain integration. Owner documentation links to the applicable authority and records the contract or artifact revision it implements.
 
-- Overall Lab architecture: `cirnet-architecture-lab-first.md` (this document's Vietnamese source; this English file is its translation).
+- Lab architecture: this document and the paired [Vietnamese edition](cirnet-architecture-lab-first-vi.md).
 - Implementation/API/system release authority: `cirnet-remote`.
 - Canonical schemas/SDK/RPC/NCAP: `cirnet-contracts`.
 - Browser UI: `cirnet-interface`.
@@ -1194,17 +1201,7 @@ This document standardizes **design decisions**; it does not itself prove that t
 
 ## 25. Summary of Development Priorities
 
-**Priority 1 — Canonical Contracts:** Stabilize graph models, physical observations/endpoints, Rust/TypeScript generated bindings, RPC, results and release-set identity.
-
-**Priority 2 — Real Virtual Digital E2E:** Implement a working path from browser through Rust Remote/Hardware to a pinned simulator and back, verified using actual data without mocks, including Stop and capture ownership.
-
-**Priority 3 — C++ Simulator:** Complete the default C++ event engine, test parity, performance and cancellation, and retain rollback for unaccepted candidates.
-
-**Priority 4 — Virtual Analog:** Advertise capability only when native SPICE operates under the C++ adapter and has E2E evidence.
-
-**Priority 5 — Physical safety before Physical Run:** Schematics/PCB scan matrix, current limiting/cutoff, protected routing, HIL and correct endpoint resolution.
-
-**Priority 6 — FPGA instruments and multi-user scale:** EP4CE10 + SDRAM + Logic Analyzer + 2CH Scope + 2CH Generator, followed by stress tests for 30–50 users with a proven physical execution slot.
+Deliver the contract-driven Virtual Digital slice with a pinned C++ worker first. Use §20 for the separate Simulator, analog, load and physical milestones. Each capability is enabled within the scope of its verified evidence.
 
 > **Conclusion:** **CIRNET Lab-First** is the architecture shared by six repositories, built around Rust core services and **C++ as the default Simulator**, unified contracts, virtual-to-physical operation and safe experimentation. Virtual Digital E2E is the first verification milestone. When moving to real circuits, the system routes only **protected measurement/control infrastructure** to verified endpoints on **the student's actual circuit**; it **must not repair student wiring using FPGA routing**. Real measured behavior, rather than software-corrected outputs, provides the basis for learning assessment.
 
