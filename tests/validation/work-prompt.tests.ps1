@@ -156,3 +156,5 @@ foreach ($sample in @(
     if ($observed.status -cne $sample[2]) { throw "Candidate expected $($sample[2]), got $($observed.status)." }
 }
 Write-Host 'PASS original task coverage, scope, evidence, review, sensitive and blocked handoffs.'
+# GitHub Actions forwards $LASTEXITCODE. The final CLI case intentionally exits 3.
+exit 0
