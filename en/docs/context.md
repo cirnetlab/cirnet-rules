@@ -101,15 +101,21 @@ task requires preventive execution controls. The offline runner returns
 `BLOCKED` for this input. Establish a suitable boundary before proceeding.
 
 Start the draft with the approved readiness, then `Original: <request digest>`
-and `Authorization: <approval digest>` on separate lines. Keep action, target
-and transformation explicit. In original order, use the exact lines or
-`Task#N` for other nonblank lines that Work can reopen. Add
-`Verify Task#3: test: node --test` and `Source: label.js` for the example.
-The authorization reference carries the ceiling. Each optional action line, such
-as `write: label.js`, must also match this task's actions, checks or source reads.
-Include each mandatory statement or permitted reference as a visible line.
-Keep action, target and transformation verbatim. Independent review covers
-additional prose. Candidate headings apply only to benchmark fixtures.
+and `Authorization: <approval digest>` on separate lines. In an actionable
+handoff, keep the mapped goal, expected behavior, scope, negative cases and
+acceptance as visible verbatim statements in original order. Use `Task#N`
+only for supplemental lines that Work can reopen and an independent reviewer
+has checked. Put `Owner: <approved repository root>`, each mapped action
+effect, and the verification and source mappings on visible lines. For the
+example, include `write: label.js`, `Verify Task#3: test: node --test` and
+`Source: label.js`. Use `Write scope: []` when no file writes are mapped.
+Add the shared reporting instruction as one line:
+
+`Report: deliverables, changed paths, actual verification, failures, and unresolved limitations.`
+
+Group these lines as needed for LIGHT, STANDARD or DEEP. Independent review
+covers additional prose and the meaning of the supplied task and authority.
+Candidate headings apply only to benchmark fixtures.
 
 ```powershell
 ./scripts/validate-work-prompt.ps1 -OriginalTask request.txt -Authorization approval.json -AuthorizationSha256 $approvedPin -Prompt handoff.md -Repository $ownerRoot
@@ -127,17 +133,29 @@ The digest pins the reviewed bytes. Missing coverage and integrity or scope
 failures still require correction. The operator assesses semantic equivalence,
 authorizes tools and reviews actual Work evidence.
 
-For a bounded one-worktree audit, the operator must approve worktree-wide
-inventory and hashing, including ignored files, with `"scopeAudit": true` in
-the authorization record. Run the same invocation with `-CaptureScope` before
-Work starts. Save its JSON output in a trusted local directory outside
-the owner worktree and retain the file's SHA-256 independently. After Work,
-repeat validation with `-ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`.
-Reconcile any failures before accepting the result. The audit compares HEAD,
-branch, index, tracked and untracked bytes, and up to 1,024 ignored files
-totaling 32 MiB. An unsupported snapshot blocks reconciliation. The audit
-measures net changes. Commands, transient effects, reads and other
-repositories require their own authorized controls and evidence.
+Use the same approved inputs at each stage:
+
+1. Validate the handoff and require `handoffStatus = PASS`.
+2. For file effects or potentially mutating commands such as test/build,
+   approve inventory and hashing with `"scopeAudit": true`. Run with
+   `-CaptureScope` and require `baselineStatus = PASS`. Save the exact JSON
+   outside the owner worktree and keep its SHA-256 independently.
+3. Immediately before Work, run with `-ExecutionPreflight -ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`
+   and require `executionStatus = PASS`. A task with only read effects uses
+   `-ExecutionPreflight` alone. Review actual command side effects and include
+   any approved Work output paths in the task's action effects. Recapture
+   older or stale baselines after authorized reconciliation.
+4. After Work, pass `-ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`
+   for reconciliation and require `scopeAuditStatus = PASS` when auditing is
+   required. Review actual verification and deliverables independently.
+
+`acceptanceStatus` stays `NOT_RUN` in this CLI. Each owner worktree requires its
+own approval and evidence. The audit compares HEAD, branch, index, tracked and
+untracked bytes, and up to 1,024 ignored files totaling 32 MiB. Unavailable or
+unsupported audit inputs block the respective stage. The audit measures net
+changes. Apply a trusted preventive boundary where the task requires one.
+External agents must honor the intake result and use separately authorized
+tool restrictions. The validator has no control over their execution.
 
 ## Model lifecycle
 

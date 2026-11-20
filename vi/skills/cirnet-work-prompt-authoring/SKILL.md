@@ -63,7 +63,8 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    khi thiếu quyết định hoặc thẩm quyền thiết yếu, thao tác không an toàn hay
    xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng phép kiểm bàn giao
    offline trong `en/docs/context.md` trước khi giao và khi Work tiếp nhận.
-   Lấy yêu cầu và pin cấp quyền độc lập. Người vận hành phải thiết lập ranh giới
+   Hiển thị tác động được duyệt và yêu cầu báo cáo. Lấy yêu cầu và pin cấp quyền
+   độc lập. Người vận hành phải thiết lập ranh giới
    ngăn truy cập trước khi khảo sát dữ liệu nhạy cảm. Kết quả thực thi cần bằng chứng từ Work.
 8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
    chép theo định dạng được yêu cầu. Loại chỉ dẫn dùng mẫu và placeholder thừa.
@@ -109,4 +110,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 62b40b14da2718e8c8ba31e754bc3eb0ca7b946fe44d7240fb44013b08eb6b93 -->
+<!-- source-sha256: 0ac5878044c8f8d4272b19d92e9a12a84bd2fc6a00668c57dc0c7f46ae30feee -->

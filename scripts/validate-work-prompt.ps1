@@ -8,6 +8,7 @@ param(
     [Parameter(ParameterSetName='Validate')]
     [ValidatePattern('^[0-9a-f]{64}\z')][string]$ReviewedPromptSha256,
     [Parameter(ParameterSetName='Validate')][switch]$RequirePreventiveScope,
+    [Parameter(ParameterSetName='Validate')][switch]$ExecutionPreflight,
     [Parameter(ParameterSetName='Validate')][switch]$CaptureScope,
     [Parameter(ParameterSetName='Validate')][string]$ScopeSnapshot,
     [Parameter(ParameterSetName='Validate')][ValidatePattern('^[0-9a-f]{64}\z')][string]$ScopeSnapshotSha256,

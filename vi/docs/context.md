@@ -102,16 +102,21 @@ rõ tác động lên tệp. Di chuyển cần quyền xóa nguồn và tạo đ
 tác động từ trước. Runner offline trả `BLOCKED` cho đầu vào này. Thiết lập
 cơ chế phù hợp trước khi tiếp tục.
 
-Mở đầu bản nháp bằng trạng thái đã duyệt, sau đó đặt `Original: <request digest>`
-và `Authorization: <approval digest>` trên hai dòng riêng. Nêu rõ thao tác, đối
-tượng và phép biến đổi. Giữ thứ tự gốc, dùng nguyên văn từng dòng hoặc `Task#N`
-cho các dòng khác có nội dung mà Work có thể mở lại. Với ví dụ trên, thêm
-`Verify Task#3: test: node --test` và `Source: label.js`. Tham chiếu bản cấp
-quyền xác định giới hạn. Dòng thao tác tùy chọn như `write: label.js` còn phải khớp
-với thao tác, phép kiểm hoặc quyền đọc nguồn gắn với nhiệm vụ này. Giữ mỗi
-câu bắt buộc hoặc tham chiếu được phép trên một dòng hiển thị. Giữ nguyên văn
-thao tác, đối tượng và phép biến đổi. Rà độc lập phần diễn giải bổ sung.
-Tiêu đề của Candidate chỉ áp dụng cho fixture benchmark.
+Mở đầu bản nháp bằng trạng thái đã duyệt, rồi đặt `Original: <request digest>`
+và `Authorization: <approval digest>` trên hai dòng riêng. Với bàn giao có
+thể thực hiện, giữ nguyên văn các dòng đã ánh xạ về mục tiêu, kết quả mong đợi,
+phạm vi, ca âm và nghiệm thu theo thứ tự gốc. Chỉ dùng `Task#N` cho dòng
+bổ sung mà Work mở lại được và người rà độc lập đã kiểm tra. Ghi rõ
+`Owner: <approved repository root>`, từng tác động đã ánh xạ, phép kiểm và
+nguồn trên các dòng hiển thị. Với ví dụ trên, thêm `write: label.js`,
+`Verify Task#3: test: node --test` và `Source: label.js`. Dùng
+`Write scope: []` khi không có tác động ghi tệp. Thêm dòng báo cáo chung:
+
+`Report: deliverables, changed paths, actual verification, failures, and unresolved limitations.`
+
+Gom nhóm các dòng theo LIGHT, STANDARD hoặc DEEP. Rà độc lập phần diễn giải
+bổ sung và ý nghĩa của yêu cầu cùng quyền được cấp. Tiêu đề của Candidate
+chỉ áp dụng cho fixture benchmark.
 
 ```powershell
 ./scripts/validate-work-prompt.ps1 -OriginalTask request.txt -Authorization approval.json -AuthorizationSha256 $approvedPin -Prompt handoff.md -Repository $ownerRoot
@@ -129,17 +134,29 @@ qua `-ReviewedPromptSha256` để ghi nhận quyết định. Digest xác địn
 Người vận hành đánh giá tương đương ngữ nghĩa, cấp quyền công cụ và rà bằng
 chứng thực tế của Work.
 
-Để đối chiếu một worktree theo giới hạn, người vận hành phải duyệt việc kiểm kê
-và băm toàn worktree, gồm cả tệp bị bỏ qua, bằng `"scopeAudit": true` trong
-bản cấp quyền. Chạy cùng lệnh với `-CaptureScope` trước khi Work bắt đầu.
-Lưu JSON ở thư mục cục bộ tin cậy ngoài worktree
-của owner và giữ riêng SHA-256 của tệp. Sau khi Work chạy xong, xác thực lại với
-`-ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`. Đối chiếu các lỗi
-trước khi chấp nhận kết quả. Phép kiểm so sánh HEAD, nhánh, index, byte tệp được
-theo dõi và chưa theo dõi, cùng tối đa 1.024 tệp bị bỏ qua với tổng dung lượng
-32 MiB. Snapshot không được hỗ trợ sẽ chặn đối chiếu. Phép kiểm ghi nhận chênh
-lệch cuối cùng. Lệnh, tác động tạm thời, lượt đọc và repo khác cần cơ chế được
-cấp quyền và bằng chứng riêng.
+Dùng cùng đầu vào đã duyệt ở từng giai đoạn:
+
+1. Xác thực bàn giao và yêu cầu `handoffStatus = PASS`.
+2. Với tác động lên tệp hoặc lệnh có thể ghi như test/build, duyệt kiểm kê và
+   băm bằng `"scopeAudit": true`. Chạy `-CaptureScope` và yêu cầu
+   `baselineStatus = PASS`. Lưu nguyên JSON ngoài worktree của owner và giữ
+   riêng SHA-256 của tệp.
+3. Ngay trước khi chạy Work, dùng `-ExecutionPreflight -ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`
+   và yêu cầu `executionStatus = PASS`. Tác vụ chỉ đọc dùng
+   `-ExecutionPreflight`. Rà tác động thật của lệnh và liệt kê mọi đường dẫn
+   đầu ra được duyệt trong ánh xạ thao tác. Chụp lại baseline cũ hoặc hết hiệu
+   lực sau khi đối chiếu được phép.
+4. Sau khi Work chạy, dùng `-ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`
+   để đối chiếu và yêu cầu `scopeAuditStatus = PASS` khi phải audit. Rà độc lập
+   bằng chứng kiểm thử thực tế và sản phẩm bàn giao.
+
+CLI giữ `acceptanceStatus` ở `NOT_RUN`. Mỗi worktree của owner cần phê duyệt
+và bằng chứng riêng. Audit so sánh HEAD, nhánh, index, byte tệp được và chưa
+được theo dõi, cùng tối đa 1.024 tệp bị bỏ qua với tổng dung lượng 32 MiB.
+Đầu vào không có hoặc không được hỗ trợ sẽ chặn giai đoạn tương ứng. Audit
+ghi nhận chênh lệch cuối cùng. Khi cần giới hạn thực thi từ trước, dùng cơ chế
+tin cậy. Agent bên ngoài phải tuân thủ kết quả preflight và dùng các giới hạn
+công cụ được cấp quyền riêng. Validator không điều khiển việc thực thi đó.
 
 ## Vòng đời mô hình
 
@@ -164,4 +181,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 78bd4d38d97b139785cb675e1795ed4d2d429ae74cf2c8a71073022676351ece -->
+<!-- source-sha256: ec9362b811a80b1f5ecde773260afba535931e3f5531e63fd19edbfd0b3aa29e -->

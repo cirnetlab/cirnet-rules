@@ -22,6 +22,9 @@ action, target, transformation, outcome, constraints, negative cases and
 permissions. Restore any missing requirement before compressing. Keep this
 comparison internal. Before delivery and again at intake, apply the
 offline handoff check in `en/docs/context.md#offline-handoff-validation` to the exact draft.
+Keep the approved owner, action effects, acceptance and reporting instructions
+visible. Have Work pass the execution intake gate before acting. Include a
+pinned baseline and require reconciliation for potentially mutating Work.
 
 ### Choose detail by task
 

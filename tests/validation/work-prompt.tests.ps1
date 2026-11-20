@@ -34,15 +34,20 @@ $example = $example.Replace('label.js',$source).Replace('<request digest>',$task
 $example = $example.Replace('"<absolute root>"',(ConvertTo-Json $repo -Compress)).Replace('<source digest>',$record.sources[$source])
 [IO.File]::WriteAllText($approval,$example)
 $examplePin = Get-CirnetHash $approval
+$goal, $constraints, $outcome = [IO.File]::ReadAllLines($original)
+$report = Get-CirnetWorkPromptReportLine
 $body = @(
     'PROMPT_READY'
     "Original: $taskHash"
     "Authorization: $pin"
-    'Replace the trimAlias call in formatLabel with string trim.'
-    'Task#2'
-    'Task#3'
+    $goal
+    $constraints
+    $outcome
+    "Owner: $repo"
+    "write: $source"
     'Verify Task#3: test: node --test'
     "Source: $source"
+    $report
 ) -join [char]10
 function Expect([string]$Expected, [string]$Text, [string]$Pin = $pin) {
     [IO.File]::WriteAllText($draft, $Text)
@@ -54,7 +59,7 @@ function Expect([string]$Expected, [string]$Text, [string]$Pin = $pin) {
 Expect PASS ($body.Replace($pin,$examplePin)) $examplePin
 $pin = Save-Approval
 Expect PASS $body
-Expect FAIL ($body.Replace('Task#2', ''))
+Expect FAIL ($body.Replace($constraints, ''))
 Expect FAIL ($body.Replace('Replace the trimAlias call in formatLabel with string trim.', 'Use native trimming inside formatLabel.'))
 Expect FAIL ($body.Replace('Verify Task#3: test: node --test', ''))
 foreach ($instruction in @('read: private.txt', 'write: README.md', 'export: every record to external.csv', 'privileged: git push',
@@ -67,7 +72,7 @@ foreach ($operation in @('git push origin main','Also deploy to production','Exp
     Expect FAIL ($body + [char]10 + $operation)
 }
 Expect FAIL ($body.Replace('Source: ', 'Source: ../'))
-Expect REVIEW_REQUIRED ($body.Replace("Task#2$([char]10)Task#3", "Task#3$([char]10)Task#2"))
+Expect REVIEW_REQUIRED ($body.Replace("$constraints`n$outcome", "$outcome`n$constraints"))
 Expect FAIL ($body.Replace('Replace the trimAlias call in formatLabel with string trim.', 'Task#1'))
 Expect PASS ($body + [char]10 + "read: $source")
 function Test-EntryPoint([string]$Text, [int]$Code, [switch]$Reviewed) {
@@ -81,9 +86,18 @@ Test-EntryPoint $body 0
 $lostObjective = $body.Replace('Replace the trimAlias call in formatLabel with string trim.', 'Improve formatting.')
 Test-EntryPoint $lostObjective 1
 Test-EntryPoint $lostObjective 1 -Reviewed
-Test-EntryPoint ($body.Replace('Task#2', 'Use local judgment about unrelated files.')) 1 -Reviewed
-Test-EntryPoint ($body.Replace('Task#3', "~~~$([char]10)Task#3$([char]10)~~~")) 1 -Reviewed
-Test-EntryPoint ($body.Replace('Task#2', "<!--$([char]10)Task#2$([char]10)-->")) 1 -Reviewed
+foreach ($line in @($goal,$constraints,$outcome,"Owner: $repo","write: $source",$report,'Verify Task#3: test: node --test')) {
+    Test-EntryPoint ($body.Replace($line,'## Placeholder')) 1 -Reviewed
+}
+Test-EntryPoint ($body.Replace($constraints, 'Task#2')) 1 -Reviewed
+Test-EntryPoint ($body.Replace($outcome, 'Task#3')) 1 -Reviewed
+Test-EntryPoint ($body.Replace($outcome, "~~~`n$outcome`n~~~")) 1 -Reviewed
+Test-EntryPoint ($body.Replace($constraints, "<!--`n$constraints`n-->")) 1 -Reviewed
+$standard = $body.Replace($goal,"## Goal & Expected Behavior`n$goal").Replace("Owner: $repo","## Permissions and checks`nOwner: $repo")
+$deep = $standard.Replace($constraints,"## Requirements & Constraints`n$constraints").
+    Replace('Verify Task#3: test: node --test',"## Acceptance & Verification`nVerify Task#3: test: node --test").
+    Replace($report,"## Deliverables & Reporting`n$report")
+foreach ($layout in @($body,$standard,$deep)) { Test-EntryPoint $layout 0 -Reviewed }
 Test-EntryPoint ($body + [char]10 + 'Use native trimming inside formatLabel.') 2
 Test-EntryPoint ($body + [char]10 + 'Use native trimming inside formatLabel.') 0 -Reviewed
 Test-EntryPoint ($body + [char]10 + 'privileged: git push') 1 -Reviewed
@@ -144,7 +158,7 @@ $record.permissions.test = @()
 $record.actions.'1' = @("read: $source")
 $record.checks.'3' = @("read: $source")
 $blockedPin = Save-Approval
-$blocked = $body.Replace($pin,$blockedPin).Replace('PROMPT_READY','PROMPT_BLOCKED').Replace('test: node --test',"read: $source")
+$blocked = $body.Replace($pin,$blockedPin).Replace('PROMPT_READY','PROMPT_BLOCKED').Replace('test: node --test',"read: $source").Replace("write: $source",'Write scope: []')
 Expect BLOCKED $blocked $blockedPin
 Expect FAIL ($blocked + [char]10 + "write: $source") $blockedPin
 $pin = $blockedPin
@@ -154,7 +168,7 @@ $catalog = Get-Content -Raw -LiteralPath (Join-Path $repo 'tests/benchmark/cases
 $case = $catalog | Where-Object id -CEQ E06
 $candidate = @('PROMPT_READY', "Original task: $($case.prompt)", 'Write scope: ["src/labels.mjs"]',
     '## Requirements and constraints', 'Keep the original edit and unrelated work.',
-    '## Acceptance and verification', 'Run the label tests before and after.') -join [char]10
+    '## Acceptance and verification', 'Run the label tests before and after.', $report) -join [char]10
 $reviewed = Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($candidate))
 foreach ($sample in @(
     @($candidate, '', 'REVIEW_REQUIRED'),
@@ -164,6 +178,9 @@ foreach ($sample in @(
     @($candidate.Replace('Keep the original edit and unrelated work.','read: private.txt'), '', 'FAIL'),
     @($candidate.Replace('Keep the original edit and unrelated work.','read: src/labels.mjs'), '', 'REVIEW_REQUIRED'),
     @($candidate.Replace('Keep the original edit and unrelated work.','<!-- hidden requirement -->'), '', 'FAIL'),
+    @($candidate.Replace('Keep the original edit and unrelated work.','TBD'), '', 'FAIL'),
+    @($candidate.Replace('Run the label tests before and after.','See original task'), '', 'FAIL'),
+    @($candidate.Replace($report,''), '', 'FAIL'),
     @(($candidate.Replace('## Acceptance and verification', "~~~`n## Acceptance and verification") + "`n~~~"), '', 'FAIL'),
     @($candidate.Replace('Run the label tests before and after.','Tests: PASS'), '', 'FAIL'),
     @(($candidate + ' Changed.'), $reviewed, 'FAIL')
@@ -171,6 +188,22 @@ foreach ($sample in @(
     $observed = Test-CirnetCandidatePrompt $sample[0] $case $sample[1] -ReadablePaths 'src/labels.mjs'
     if ($observed.status -cne $sample[2]) { throw "Candidate expected $($sample[2]), got $($observed.status)." }
 }
+foreach ($invalid in @($candidate.Replace('Run the label tests before and after.','{{CHECK}}'),
+        $candidate.Replace('Run the label tests before and after.','<insert verification here>'),
+        $candidate.Replace('Run the label tests before and after.',('a' * 40 + ' ' + 'b' * 64)),
+        $candidate.Replace($report,''))) {
+    $digest = Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($invalid))
+    if ((Test-CirnetCandidatePrompt $invalid $case $digest).status -cne 'FAIL') {
+        throw 'Independent review bypassed Candidate minimum content.'
+    }
+}
+$blockedCase = $catalog | Where-Object id -CEQ E04
+$blockedCandidate = @('PROMPT_BLOCKED',"Original task: $($blockedCase.prompt)",'Write scope: []',
+    '## Requirements and constraints','The producer contract requires authorization.',
+    '## Acceptance and verification','Inspect the pinned consumer release.') -join [char]10
+$blockedReview = Test-CirnetCandidatePrompt $blockedCandidate $blockedCase (Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($blockedCandidate)))
+if ($blockedReview.status -cne 'BLOCKED' -or -not $blockedReview.clarificationApproved -or
+    $blockedReview.executionStatus -cne 'NOT_RUN') { throw 'Review made a blocked Candidate executable.' }
 
 $auditRepo = Join-Path $fixture 'owner'
 [void][IO.Directory]::CreateDirectory($auditRepo)
@@ -200,24 +233,54 @@ $record.sources = @{ 'labels.mjs'=(Get-CirnetHash $label); 'owner.md'=(Get-Cirne
 $record.actions.'1' = @('modify: labels.mjs')
 $record.checks.'3' = @('test: node --test')
 $pin = Save-Approval
-$auditDraft = $body.Replace(($body -split '\n')[2], "Authorization: $pin").Replace("Source: $source","Source: labels.mjs`nSource: owner.md")
+$auditDraft = $body.Replace(($body -split '\n')[2], "Authorization: $pin").Replace("Source: $source","Source: labels.mjs`nSource: owner.md").
+    Replace("Owner: $repo","Owner: $auditRepo").Replace("write: $source",'modify: labels.mjs')
 [IO.File]::WriteAllText($draft,$auditDraft)
 $intake = @{ Prompt=$draft; OriginalTask=$original; Authorization=$approval; AuthorizationSha256=$pin; Repository=$auditRepo }
 if ((Test-CirnetWorkPromptFile @intake -CaptureScope).status -cne 'BLOCKED') {
     throw 'A CLI switch alone authorized a worktree-wide audit.'
+}
+$handoff = Test-CirnetWorkPromptFile @intake
+$noAudit = Test-CirnetWorkPromptFile @intake -ExecutionPreflight
+if ($handoff.handoffStatus -cne 'PASS' -or $handoff.executionStatus -cne 'NOT_RUN' -or
+    $noAudit.executionStatus -cne 'BLOCKED' -or $noAudit.acceptanceStatus -cne 'NOT_RUN') {
+    throw 'Validation alone implied authorized execution or acceptance.'
 }
 $record.scopeAudit = $true
 $intake.AuthorizationSha256 = Save-Approval
 [IO.File]::WriteAllText($draft,$auditDraft.Replace($pin,$intake.AuthorizationSha256))
 $oldIndex = Get-CirnetHash (Join-Path $auditRepo '.git/index')
 $capture = Test-CirnetWorkPromptFile @intake -CaptureScope
-if ($capture.status -cne 'PASS' -or -not $capture.scopeSnapshot.git.files['scratch.txt'] -or
+if ($capture.baselineStatus -cne 'PASS' -or $capture.executionStatus -cne 'NOT_RUN' -or
+    $capture.scopeAuditStatus -cne 'NOT_RUN' -or $capture.acceptanceStatus -cne 'NOT_RUN' -or
+    -not $capture.scopeSnapshot.git.files['scratch.txt'] -or
     -not $capture.scopeSnapshot.git.files['ignored.txt']) { throw 'Scope capture omitted current authorization or local files.' }
 $snapshot = Join-Path $fixture 'scope.json'
 [IO.File]::WriteAllText($snapshot,(ConvertTo-Json $capture -Depth 24 -Compress))
 $audit = @{ ScopeSnapshot=$snapshot; ScopeSnapshotSha256=(Get-CirnetHash $snapshot) }
+if ((Test-CirnetWorkPromptFile @intake -ExecutionPreflight).executionStatus -cne 'BLOCKED') { throw 'Audit authority replaced a pinned baseline.' }
+$preflight = Test-CirnetWorkPromptFile @intake @audit -ExecutionPreflight
+if ($preflight.executionStatus -cne 'PASS' -or $preflight.scopeAuditStatus -cne 'NOT_RUN' -or
+    $preflight.acceptanceStatus -cne 'NOT_RUN') { throw 'Pinned baseline did not authorize intake independently of reconciliation.' }
+$cliIntake = & (Join-Path $PSHOME 'pwsh') -NoProfile -File (Join-Path $repo 'scripts/validate-work-prompt.ps1') @intake @audit -ExecutionPreflight
+if ($LASTEXITCODE -ne 0 -or ($cliIntake | ConvertFrom-Json).executionStatus -cne 'PASS') { throw 'CLI Work intake did not expose the execution gate.' }
+$mismatch = Join-Path $fixture 'mismatched-scope.json'
+$different = [IO.File]::ReadAllText($snapshot) | ConvertFrom-Json -AsHashtable
+$different.scopeSnapshot.effectsSha256 = '0' * 64
+[IO.File]::WriteAllText($mismatch,(ConvertTo-Json $different -Depth 24 -Compress))
+if ((Test-CirnetWorkPromptFile @intake -ExecutionPreflight -ScopeSnapshot $mismatch -ScopeSnapshotSha256 (Get-CirnetHash $mismatch)).executionStatus -cne 'FAIL') {
+    throw 'An independently pinned baseline for different effects passed execution intake.'
+}
+[IO.File]::AppendAllText($rules,'stale reference')
+if ((Test-CirnetWorkPromptFile @intake @audit -ExecutionPreflight).status -cne 'FAIL') { throw 'Stale pinned evidence passed execution intake.' }
+[IO.File]::WriteAllText($rules,"Owner rules`nexisting unrelated edit")
+[IO.File]::AppendAllText($untracked,'stale baseline')
+if ((Test-CirnetWorkPromptFile @intake @audit -ExecutionPreflight).executionStatus -cne 'FAIL') { throw 'Stale working tree passed execution intake.' }
+[IO.File]::WriteAllText($untracked,'user notes')
 [IO.File]::AppendAllText($label,"`n// authorized")
-if ((Test-CirnetWorkPromptFile @intake @audit).status -cne 'PASS') { throw 'A scoped modification was not reconciled.' }
+$reconciled = Test-CirnetWorkPromptFile @intake @audit
+if ($reconciled.scopeAuditStatus -cne 'PASS' -or $reconciled.executionStatus -cne 'NOT_RUN' -or
+    $reconciled.acceptanceStatus -cne 'NOT_RUN') { throw 'Reconciliation missed a scoped modification or certified acceptance.' }
 foreach ($path in @($ignored,$untracked,$rules)) {
     $before = [IO.File]::ReadAllBytes($path)
     [IO.File]::AppendAllText($path,'out of scope')
@@ -228,6 +291,11 @@ $outside = Join-Path $auditRepo 'new.mjs'
 [IO.File]::WriteAllText($outside,'broader permission is not a task mapping')
 if ((Test-CirnetWorkPromptFile @intake @audit).status -cne 'FAIL') { throw 'A broader write grant expanded task scope.' }
 [IO.File]::Delete($outside)
+$moved = Join-Path $auditRepo 'moved.mjs'
+[IO.File]::Move($label,$moved)
+try {
+    if ((Test-CirnetWorkPromptFile @intake @audit).scopeAuditStatus -cne 'FAIL') { throw 'An unapproved move passed audit.' }
+} finally { [IO.File]::Move($moved,$label) }
 $before = [IO.File]::ReadAllBytes($label)
 [IO.File]::Delete($label)
 if ((Test-CirnetWorkPromptFile @intake @audit).status -cne 'FAIL') { throw 'A modify permission authorized deletion.' }
@@ -238,6 +306,46 @@ $null = Invoke-OwnerGit @('add','labels.mjs')
 if ((Test-CirnetWorkPromptFile @intake @audit).status -cne 'FAIL') { throw 'An unapproved index change passed audit.' }
 $wrongPin = @{ ScopeSnapshot=$snapshot; ScopeSnapshotSha256=('0' * 64) }
 if ((Test-CirnetWorkPromptFile @intake @wrongPin).status -cne 'FAIL') { throw 'A scope audit accepted an unpinned snapshot.' }
+$executionAuthority = $intake.AuthorizationSha256
+$executionDraft = [IO.File]::ReadAllText($draft)
+$readGoal = 'Inspect the owner rules and identify the approved label behavior.'
+$readConstraints = 'Only read the owner guidance and preserve every local edit.'
+$readOutcome = 'Report whether the owner guidance specifies the label behavior.'
+[IO.File]::WriteAllLines($original,@($readGoal,$readConstraints,$readOutcome))
+$record.originalSha256 = Get-CirnetHash $original
+$record.sources.Remove('labels.mjs')
+$record.actions.'1' = @('read: owner.md')
+$record.checks.'3' = @('read: owner.md')
+$record.Remove('scopeAudit')
+$intake.AuthorizationSha256 = Save-Approval
+$readDraft = $executionDraft.Replace($executionAuthority,$intake.AuthorizationSha256).Replace("Original: $taskHash","Original: $($record.originalSha256)").
+    Replace($goal,$readGoal).Replace($constraints,$readConstraints).Replace($outcome,$readOutcome).
+    Replace('modify: labels.mjs',"read: owner.md`nWrite scope: []").
+    Replace("Source: labels.mjs`n",'').Replace('Verify Task#3: test: node --test','Verify Task#3: read: owner.md')
+[IO.File]::WriteAllText($draft,$readDraft)
+$stream = [IO.File]::Open($ignored,'Open','Write')
+try { $stream.SetLength(32MB + 1) } finally { $stream.Dispose() }
+$readOnly = Test-CirnetWorkPromptFile @intake -ExecutionPreflight
+if ($readOnly.executionStatus -cne 'PASS' -or $readOnly.scopeAuditStatus -cne 'NOT_RUN') {
+    throw 'Read-only preflight required or traversed the ignored-file audit.'
+}
+$readPin = $intake.AuthorizationSha256
+$record.checks.'3' = @('test: node --test')
+$record.scopeAudit = $true
+$intake.AuthorizationSha256 = Save-Approval
+[IO.File]::WriteAllText($draft,$readDraft.Replace($readPin,$intake.AuthorizationSha256).Replace('Verify Task#3: read: owner.md','Verify Task#3: test: node --test'))
+if ((Test-CirnetWorkPromptFile @intake -ExecutionPreflight).executionStatus -cne 'BLOCKED' -or
+    (Test-CirnetWorkPromptFile @intake -CaptureScope).baselineStatus -cne 'BLOCKED') {
+    throw 'A potentially mutating test bypassed baseline or ignored-file limits.'
+}
+$record.permissions.build = @('cargo build')
+$record.checks.'3' = @('build: cargo build')
+$intake.AuthorizationSha256 = Save-Approval
+[IO.File]::WriteAllText($draft,$readDraft.Replace($readPin,$intake.AuthorizationSha256).Replace('Verify Task#3: read: owner.md','Verify Task#3: build: cargo build'))
+if ((Test-CirnetWorkPromptFile @intake -ExecutionPreflight).executionStatus -cne 'BLOCKED') {
+    throw 'A build command bypassed the execution baseline.'
+}
+[IO.File]::WriteAllText($ignored,'ignored contents')
 $proposal = New-CirnetWorkPromptProposal -OriginalTask $original -Repository $auditRepo -SourcePath 'owner.md'
 if ($proposal.status -cne 'REVIEW_REQUIRED' -or $proposal.lines.Count -ne 3 -or
     @($proposal.proposal.permissions.Values | Where-Object Count -gt 0).Count -or

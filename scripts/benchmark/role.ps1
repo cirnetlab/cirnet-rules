@@ -914,6 +914,8 @@ $($candidateHeader -join "`n")
 
 Follow with two nonempty sections, headed exactly '## Requirements and constraints' and '## Acceptance and verification'.
 Carry the functional requirements, negative cases, privacy boundaries and permitted preflight into those sections. For a blocked task, identify the missing authority and limit Work to read-only clarification.
+For an actionable handoff, include this exact reporting instruction in the verification section:
+$(Get-CirnetWorkPromptReportLine)
 "@
                 if ($id -ceq 'E06') {
                     $task += "`nIf source inspection refuses unsupported syntax, mark unread source NOT_INSPECTED and give Work a bounded local preflight. Reuse verified evidence and stop discovery when the original task and safe scope support handoff. Keep verification tied to the requested behavior and owner contract. Have Work run node --test before and after the edit."
@@ -947,15 +949,53 @@ $task
     }
 
     $run.handoffValidation = $gate
+    $run.executionScope = [ordered]@{
+        baselineSha256 = $null; preflightStatus = 'NOT_RUN'; auditStatus = 'NOT_RUN'; acceptanceStatus = 'NOT_RUN'
+    }
+    $scopeIntakeFailed = $false
+    $clarificationApproved = $Role -ceq 'Work' -and $readOnlyRole -and $gate.status -ceq 'BLOCKED' -and
+        $gate.PSObject.Properties['clarificationApproved']
+    if ($Execute -and $Role -ceq 'Work' -and -not $sharedBlock -and -not $missing.Count -and
+        ($client.kind -ceq 'test-shim' -or ($case.architecture -cnotcontains 'private-values' -and
+            ($gate.status -ceq 'PASS' -or $clarificationApproved)))) {
+        try {
+            # The harness owns the fixture, case and baseline. It verifies
+            # fresh bytes and Git state before dispatching either Work mode.
+            $scopeBaseline = [ordered]@{
+                fixture = $fixture; prompt = $ExpectedHandoffSha256; authority = Get-ContinuityValueHash $case
+                files = $before; owners = [ordered]@{}
+            }
+            $currentScope = [ordered]@{
+                fixture = $fixture; prompt = Get-CirnetHash $promptPath; authority = Get-ContinuityValueHash $case
+                files = Get-Snapshot $fixture ''; owners = [ordered]@{}
+            }
+            foreach ($relative in $gitRoots) {
+                $gitRoot = if ($relative -ceq '.') { $fixture } else { Join-Path $fixture $relative }
+                $scopeBaseline.owners[$relative] = $gitBefore[$relative].metadata
+                $currentScope.owners[$relative] = Get-GitEvidence $gitRoot
+                if (@($currentScope.owners[$relative].Values | Where-Object { $_ -in @('UNSAFE_OR_UNREADABLE','MISSING_OR_UNSAFE') }).Count) {
+                    throw 'Cannot verify Git metadata for the fixture owner.'
+                }
+            }
+            $run.executionScope.baselineSha256 = Get-ContinuityValueHash $scopeBaseline
+            $run.executionScope.preflightStatus = if ($run.executionScope.baselineSha256 -ceq (Get-ContinuityValueHash $currentScope)) { 'PASS' } else { 'FAIL' }
+        } catch { $run.executionScope.preflightStatus = 'BLOCKED' }
+        $scopeIntakeFailed = $run.executionScope.preflightStatus -cne 'PASS'
+    }
     if ($Execute -and $client.kind -ceq 'native-cli' -and $case.architecture -ccontains 'private-values') {
         $run.execution = 'BLOCKED'
         $run.verdict = 'BLOCKED'
         $run.reason = 'Sensitive fixture requires a preventive read boundary. The available shell can bypass the bounded inspector.'
     }
-    elseif ($Execute -and $Role -eq 'Work' -and $client.kind -ceq 'native-cli' -and $gate.status -cne 'PASS') {
+    elseif ($Execute -and $Role -eq 'Work' -and $client.kind -ceq 'native-cli' -and $gate.status -cne 'PASS' -and -not $clarificationApproved) {
         $run.execution = 'BLOCKED'
         $run.verdict = 'BLOCKED'
         $run.reason = $gate.diagnostics -join ' '
+    }
+    elseif ($scopeIntakeFailed) {
+        $run.execution = 'BLOCKED'
+        $run.verdict = $run.executionScope.preflightStatus
+        $run.reason = 'The approved fixture baseline could not be revalidated before Work.'
     }
     elseif ($Execute -and ($sharedBlock -or $missing.Count)) {
         $run.execution = 'BLOCKED'
@@ -1164,6 +1204,20 @@ $task
     if ($chainRole -and @($metadataChanges | Where-Object { $_ -cmatch '/\.git/index-entries$' }).Count) {
         $run.verdict = 'FAIL'
         $run.reason = 'Protected Git index entries changed.'
+    }
+    if ($Role -ceq 'Work' -and $run.process -and $run.executionScope.preflightStatus -ceq 'PASS') {
+        $ownerChanges = @($metadataChanges | Where-Object { $_ -cnotmatch '/\.git/index$' })
+        $scopeChecks = @(if ($run.objective) {
+            $run.objective['checks'] | Where-Object { $_.name -cin @('protected fixture paths','regular fixture files only') }
+        })
+        $run.executionScope.auditStatus = if ($ownerChanges.Count -or @($scopeChecks | Where-Object status -CEQ 'FAIL').Count) { 'FAIL' }
+            elseif ($null -eq $after -or $indexUnavailable -or $scopeChecks.Count -ne 2 -or @($scopeChecks | Where-Object status -CNE 'PASS').Count) { 'BLOCKED' }
+            else { 'PASS' }
+        if ($run.executionScope.auditStatus -ceq 'FAIL' -or
+            ($run.executionScope.auditStatus -ceq 'BLOCKED' -and $run.verdict -cne 'FAIL')) {
+            $run.verdict = $run.executionScope.auditStatus
+            $run.reason = "Work fixture scope audit returned $($run.executionScope.auditStatus). Review Git metadata and the objective scope checks."
+        }
     }
     if ($readOnlyRole -and ($changes.Count -or @($metadataChanges | Where-Object { $_ -notmatch '/\.git/index$' }).Count)) {
         $run.verdict = 'FAIL'

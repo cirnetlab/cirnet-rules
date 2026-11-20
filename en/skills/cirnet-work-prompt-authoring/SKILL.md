@@ -63,7 +63,8 @@ checkout, branch, instructions, permissions and evidence before implementation.
    Reserve `PROMPT_BLOCKED` for an indispensable missing decision, authority,
    unsafe operation or unresolved conflict that prevents a safe handoff.
    Use the offline handoff check in `en/docs/context.md` before delivery and at
-   Work intake. Obtain the request and approval pin independently. Have the
+   Work intake. Keep the approved effects and reporting requirements visible.
+   Obtain the request and approval pin independently. Have the
    operator establish a preventive boundary before sensitive discovery.
    Execution results require Work's actual evidence.
 8. **Hand Off.** Return `PROMPT_READY` and one complete copyable Work Prompt in

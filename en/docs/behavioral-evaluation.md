@@ -51,14 +51,16 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
   Exit 0 covers preview or objective success, exit 1 a failure, and exit 2 a
   blocked run. An objective result remains pending independent review.
 - The Author is read-only. Work gets a fresh fixture and the exact Author bytes.
-  The gate checks readiness, original task, write scope and visible review
+  The gate checks readiness, original task, write scope, reporting and substantive review
   sections before dispatch. For native Work, use `-ReviewHandoffs` and independently
   check the exact draft against the frozen case and source before entering its digest.
   Without that review, Work stays blocked. Synthetic offline shims exercise the
   transport while retaining `REVIEW_REQUIRED`. Native E01 stops before model access
   because the shell can bypass the inspector. E04 permits reviewed read-only
   clarification. E07 can run read-only checks and must report
-  the missing partner integration input separately. Changes to staged Git
+  the missing partner integration input separately. Work rechecks its owned
+  fixture baseline before dispatch and records scope audit separately from
+  acceptance. Changes to staged Git
   entries fail the fixture audit even if the edited file is within scope.
 - Find each role's `run.json`, `events.jsonl`, `final.md` and diff under
   `trials/<case-id>/<role>/`. Inspect them and the sealed evidence index

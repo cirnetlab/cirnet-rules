@@ -50,14 +50,15 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
   objective. Mã thoát 0 cho preview hoặc objective đạt, 1 cho lỗi và 2 cho lượt
   bị chặn. Kết quả objective vẫn cần rà soát độc lập.
 - Author chỉ đọc. Work nhận bản sao fixture mới và đúng byte từ Author. Gate
-  kiểm trạng thái, nhiệm vụ gốc, phạm vi ghi và nội dung các mục rà trước khi
+  kiểm trạng thái, nhiệm vụ gốc, phạm vi ghi, yêu cầu báo cáo và nội dung các mục rà trước khi
   gọi Work. Với Work native, dùng `-ReviewHandoffs` và rà độc lập đúng bản nháp
   với ca đã cố định và nguồn trước khi nhập digest. Thiếu lần rà này thì Work
   bị chặn. Shim offline dùng dữ liệu giả để kiểm tra đường truyền và giữ
   `REVIEW_REQUIRED`. E01 native dừng trước khi model truy cập vì shell có thể
   bỏ qua inspector. E04 cho phép làm rõ ở chế độ chỉ đọc sau khi rà. E07 có thể
   chạy kiểm tra chỉ đọc và cần báo riêng đầu vào tích hợp
-  đối tác còn thiếu. Thay đổi các entry đã stage làm phép kiểm fixture thất
+  đối tác còn thiếu. Trước khi gọi Work, runner kiểm tra lại baseline của
+  fixture và ghi kết quả đối chiếu phạm vi riêng với nghiệm thu. Thay đổi các entry đã stage làm phép kiểm fixture thất
   bại kể cả khi tệp được sửa nằm trong phạm vi ghi.
 - Tìm `run.json`, `events.jsonl`, `final.md` và diff của từng vai trò trong
   `trials/<case-id>/<role>/`. Đối chiếu các tệp này và chỉ mục bằng chứng đã
@@ -123,4 +124,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 6f3bdd38d93b9d344b757489f332f9c46be0166c90a8d8d159d3b17e5d59d9ef -->
+<!-- source-sha256: 755b0ad69abcf264b943e63ed1b532020502ebe7f2b8b8408ef64089855f5fe6 -->

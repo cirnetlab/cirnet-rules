@@ -7,10 +7,16 @@ Import-Module (Join-Path $PSScriptRoot '../continuity/Checkpoint.psm1')
 
 $permissionKinds = @('read','write','test','build','export','privileged')
 $requirementFields = @('action','target','transformation','outcome','scope','negative','acceptance')
+$reportLine = 'Report: deliverables, changed paths, actual verification, failures, and unresolved limitations.'
 
 function New-PromptResult([string]$Status, [string[]]$Diagnostics) {
-    [pscustomobject]@{ status=$Status; diagnostics=$Diagnostics }
+    [pscustomobject]@{
+        status=$Status; diagnostics=$Diagnostics; handoffStatus=$Status
+        baselineStatus='NOT_RUN'; executionStatus='NOT_RUN'; scopeAuditStatus='NOT_RUN'; acceptanceStatus='NOT_RUN'
+    }
 }
+
+function Get-CirnetWorkPromptReportLine { $reportLine }
 
 function Read-PromptBytes([string]$Path) {
     $path = Resolve-CirnetRoot ([IO.Path]::GetFullPath($Path, $PWD.ProviderPath))
@@ -79,6 +85,13 @@ function Get-PromptProse([string[]]$Lines) {
     }
 }
 
+function Test-MinimumStatement([string]$Line) {
+    $statement = ($Line.Trim() -replace '^(?:[-*+] |\d+[.)] )', '').Trim(' ', '*', '_', [char]96)
+    $statement -notmatch '(?i)^(?:#|(?:source|original|authorization|owner|write scope|verify task#\d+|report)\s*:|Task#\d+\b|lorem ipsum\b)|\{\{|^(?:[^:]+:\s*)?(?:TBD|TODO|placeholder|n/?a|none|see (?:above|below|original task)|all good|fill in later)[.!]?\s*$' -and
+        $statement -notmatch '^(?:<[^<>]+>|\[[^\[\]]+\]|[a-fA-F0-9]{40,64}(?:\s+[a-fA-F0-9]{40,64})*)$' -and
+        [regex]::Matches($statement, '[\p{L}][\p{L}\p{N}_-]*').Count -ge 2
+}
+
 # Unknown prose can change the meaning of adjacent approved lines. Never
 # ignore decorations, comments or fences. Nothing in the draft is executed.
 function Test-PromptContent([string[]]$Lines, $Requirements, [string[]]$Allowed, [string]$Readiness) {
@@ -86,6 +99,9 @@ function Test-PromptContent([string[]]$Lines, $Requirements, [string[]]$Allowed,
     $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $missing = [Collections.Generic.List[string]]::new()
     $locations = [Collections.Generic.Dictionary[string,int]]::new([StringComparer]::Ordinal)
+    if ($Readiness -ceq 'PROMPT_READY') {
+        $Requirements = @($Requirements | ForEach-Object { $_ }) + (New-PromptRequirement 'reporting instructions' @($reportLine))
+    }
     foreach ($line in $Allowed) { [void]$known.Add($line) }
     foreach ($item in $Requirements) {
         foreach ($form in $item.forms) { [void]$known.Add($form) }
@@ -103,13 +119,14 @@ function Test-PromptContent([string[]]$Lines, $Requirements, [string[]]$Allowed,
         if ($seen.Add($line)) { $locations.Add($line,$number) }
         else { $repeated = $true }
         if ($known.Contains($line)) { continue }
-        if ($line -match '^\s*(?:[-*]\s*)?(?:(?:read|write|create|modify|delete|move|test|build|export|privileged|source|authorization|original(?: task)?|write scope)\s*:|Verify Task#|Task#[0-9])') {
+        if ($line -match '^\s*(?:[-*]\s*)?(?:(?:read|write|create|modify|delete|move|test|build|export|privileged|source|authorization|original(?: task)?|owner|write scope|report)\s*:|Verify Task#|Task#[0-9])') {
             return New-PromptResult FAIL "Body line $number changes an approved action, reference or verification mapping."
         }
         $extra++
     }
     $previous = 0
     $reordered = $false
+    $referenced = $false
     foreach ($item in $Requirements) {
         if (-not $seen.Overlaps([string[]]$item.forms)) {
             $missing.Add($item.label)
@@ -117,15 +134,17 @@ function Test-PromptContent([string[]]$Lines, $Requirements, [string[]]$Allowed,
             $positions = @($item.forms | Where-Object { $seen.Contains($_) } | ForEach-Object { $locations[$_] })
             if ($positions.Count -ne 1 -or $positions[0] -le $previous) { $reordered = $true }
             $previous = $positions[0]
+            if ($Readiness -ceq 'PROMPT_READY' -and $seen.Contains("Task#$($item.taskLine)")) { $referenced = $true }
         }
     }
     $diagnostics = @(
         if ($missing.Count) { 'Missing exact coverage for ' + (($missing | Select-Object -First 8) -join ', ') + '.' }
         if ($extra) { "$extra unrecognized line(s). Independently review their meaning, scope and claims before dispatch." }
         if ($reordered -or $repeated) { 'Review repeated or reordered lines in their original context.' }
+        if ($referenced) { 'Independently review referenced supplemental task lines before dispatch.' }
     )
     if ($missing.Count) { return New-PromptResult FAIL $diagnostics }
-    if ($extra -or $reordered -or $repeated) { return New-PromptResult REVIEW_REQUIRED $diagnostics }
+    if ($extra -or $reordered -or $repeated -or $referenced) { return New-PromptResult REVIEW_REQUIRED $diagnostics }
     if ($Readiness -ceq 'PROMPT_BLOCKED') { return New-PromptResult BLOCKED 'Only authorized clarification is available. Implementation is blocked.' }
     New-PromptResult PASS 'Required statements, permissions and check mappings match the supplied authority.'
 }
@@ -151,19 +170,25 @@ function Test-CirnetCandidatePrompt([string]$Text, $Case, [string]$ReviewedSha25
         foreach ($path in $scope) { "write: $path" }
         foreach ($path in $ReadablePaths) { "read: $path" }
     )
-    foreach ($group in @('requirements','verification')) {
-        $section = $body.Groups[$group].Value -split '\r?\n'
-        if (-not @($section | Where-Object { $_.Trim() -and $_ -notmatch '^\s*#{1,6}(?:\s|$)' }).Count) {
-            return New-PromptResult FAIL 'Restore visible Candidate requirements and verification content.'
-        }
-    }
-    $part = Test-PromptContent $bodyLines @() $allowed $state
+    # The envelope and owned fixture establish the goal and scope. The two
+    # sections carry real text for review against the frozen rubric.
+    $requirements = @(foreach ($group in @('requirements','verification')) {
+        $forms = @($body.Groups[$group].Value -split '\n' | Where-Object { Test-MinimumStatement $_ })
+        New-PromptRequirement "Candidate $group" $forms
+    })
+    if ($state -ceq 'PROMPT_BLOCKED') { $allowed += $reportLine }
+    $part = Test-PromptContent $bodyLines $requirements $allowed $state
     if ($part.status -ceq 'FAIL') { return $part }
     if (-not $ReviewedSha256) {
         return New-PromptResult REVIEW_REQUIRED 'Compare the two sections to the frozen rubric, negative cases, permissions and verification before native Work.'
     }
     if ((Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($Text))) -cne $ReviewedSha256) {
         return New-PromptResult FAIL 'Reviewed Candidate bytes differ. Repeat independent review.'
+    }
+    if ($state -ceq 'PROMPT_BLOCKED') {
+        $blocked = New-PromptResult BLOCKED 'Reviewed Candidate clarification is read-only. Implementation remains blocked.'
+        $blocked | Add-Member -NotePropertyName clarificationApproved -NotePropertyValue $true
+        return $blocked
     }
     New-PromptResult PASS 'Candidate envelope matches the frozen case. The operator attested independent review of these exact bytes.'
 }
@@ -244,6 +269,13 @@ function Test-WorkPromptScopeChanges($Baseline, $Current, [string[]]$Effects) {
     New-PromptResult PASS 'Observed worktree changes match the approved task effects. This comparison is post-execution evidence.'
 }
 
+function Set-PromptPhase($Result, [string]$Field, [string]$Status, [string[]]$Diagnostics) {
+    $Result.status = $Status
+    $Result.$Field = $Status
+    $Result.diagnostics = $Diagnostics
+    $Result
+}
+
 function Test-CirnetWorkPromptFile {
     [CmdletBinding()]
     param(
@@ -254,12 +286,17 @@ function Test-CirnetWorkPromptFile {
         [Parameter(Mandatory)][string]$Repository,
         [ValidatePattern('^[0-9a-f]{64}\z')][string]$ReviewedPromptSha256,
         [switch]$RequirePreventiveScope,
+        [switch]$ExecutionPreflight,
         [switch]$CaptureScope,
         [string]$ScopeSnapshot,
         [ValidatePattern('^[0-9a-f]{64}\z')][string]$ScopeSnapshotSha256
     )
     $utf8 = [Text.UTF8Encoding]::new($false,$true)
     $stage = 'approved authorization record'
+    $phase = if ($CaptureScope) { 'baselineStatus' } elseif ($ExecutionPreflight) { 'executionStatus' }
+        elseif ($ScopeSnapshot -or $ScopeSnapshotSha256) { 'scopeAuditStatus' }
+    $postExecution = $phase -ceq 'scopeAuditStatus'
+    $result = $null
     try {
         $bytes = Read-PromptBytes $Authorization
         if (-not (Get-CirnetPayloadHash $bytes).Equals($AuthorizationSha256)) {
@@ -283,13 +320,6 @@ function Test-CirnetWorkPromptFile {
         if ($RequirePreventiveScope -or $record['preventiveScope']) {
             return New-PromptResult BLOCKED 'The offline validator cannot enforce a preventive execution boundary.'
         }
-        if (($CaptureScope -and $ScopeSnapshot) -or [bool]$ScopeSnapshot -ne [bool]$ScopeSnapshotSha256) {
-            return New-PromptResult BLOCKED 'Capture scope first and supply its independently retained snapshot digest for audit.'
-        }
-        if (($CaptureScope -or $ScopeSnapshot) -and -not $record['scopeAudit']) {
-            return New-PromptResult BLOCKED 'Worktree-wide inventory and hashing require independent approval in the authorization record.'
-        }
-
         $stage = 'original task bytes'
         $bytes = Read-PromptBytes $OriginalTask
         if ((Get-CirnetPayloadHash $bytes) -cne $record.originalSha256) { return New-PromptResult FAIL 'The original request differs from its approved digest.' }
@@ -315,7 +345,7 @@ function Test-CirnetWorkPromptFile {
                 }
                 if ($kind -cin @('read','write')) {
                     if (-not $resolvedPaths.ContainsKey($value)) { $resolvedPaths.Add($value, (Resolve-PromptPath $root $value)) }
-                    if ($kind -ceq 'read' -and -not $ScopeSnapshot -and -not $resolvedPaths[$value].Exists) { throw 'Missing read target.' }
+                    if ($kind -ceq 'read' -and -not $postExecution -and -not $resolvedPaths[$value].Exists) { throw 'Missing read target.' }
                 }
                 $allowed.Add(('{0}: {1}' -f $kind,$value))
             }
@@ -326,7 +356,7 @@ function Test-CirnetWorkPromptFile {
         $required.Add((New-PromptRequirement 'authorization pin' @("Authorization: $AuthorizationSha256")))
         foreach ($path in $record.sources.Keys) {
             if (-not $allowed.Contains("read: $path") -or $record.sources[$path] -isnot [string] -or $record.sources[$path] -cnotmatch '^[0-9a-f]{64}\z') { throw 'Unapproved source.' }
-            if (-not $ScopeSnapshot -and (Get-CirnetHash $resolvedPaths[$path].FullName) -cne $record.sources[$path]) {
+            if (-not $postExecution -and (Get-CirnetHash $resolvedPaths[$path].FullName) -cne $record.sources[$path]) {
                 return New-PromptResult FAIL 'Pinned source bytes changed. Reinspect before citing evidence.'
             }
             $taskEffects.Add("read: $path")
@@ -336,12 +366,13 @@ function Test-CirnetWorkPromptFile {
         $stage = 'approved requirement lines and acceptance mappings'
         if (-not (Test-PromptMap $record.fields $requirementFields) -or $record.checks -isnot [Collections.IDictionary]) { throw 'Invalid coverage.' }
         $labels = @{}
-        $explicit = @($record.fields.action) + @($record.fields.target) + @($record.fields.transformation)
+        $goalLines = @($record.fields.action) + @($record.fields.target) + @($record.fields.transformation)
         foreach ($field in $requirementFields) {
             $numbers = $record.fields[$field]
             if ($numbers -isnot [array] -or (-not $numbers.Count -and $field -cne 'negative')) { throw 'Missing field.' }
             foreach ($n in $numbers) {
-                if (($n -isnot [int] -and $n -isnot [long]) -or $n -lt 1 -or $n -gt $task.Count -or -not $task[$n-1].Trim()) { throw 'Invalid task line.' }
+                if (($n -isnot [int] -and $n -isnot [long]) -or $n -lt 1 -or $n -gt $task.Count -or
+                    -not (Test-MinimumStatement $task[$n-1])) { throw 'Invalid task statement.' }
                 $labels[[int]$n] = @($labels[[int]$n] | Where-Object { $_ }) + $field
             }
         }
@@ -349,7 +380,8 @@ function Test-CirnetWorkPromptFile {
             if ($task[$n-1].Trim()) {
                 $name = "Task#$n"
                 $originalLine = $task[$n-1]
-                $forms = @($originalLine; if ($n -notin $explicit) { $name })
+                $forms = @($originalLine; if (-not $labels.ContainsKey($n) -or
+                    ($record.readiness -ceq 'PROMPT_BLOCKED' -and $n -notin $goalLines)) { $name })
                 $item = New-PromptRequirement "$name $($labels[$n] -join '/')" $forms
                 $item.taskLine = $n
                 $required.Add($item)
@@ -370,6 +402,8 @@ function Test-CirnetWorkPromptFile {
                     if ($field -ceq 'acceptance') {
                         if ($effect -cnotmatch '^(read|test|build): ') { throw 'Invalid check permission.' }
                         $required.Add((New-PromptRequirement "verification for Task#$number" @("Verify Task#$($number): $effect")))
+                    } elseif ($record.readiness -ceq 'PROMPT_READY') {
+                        $required.Add((New-PromptRequirement "approved effect for Task#$number" @($effect)))
                     }
                 }
             }
@@ -385,8 +419,14 @@ function Test-CirnetWorkPromptFile {
         $lines = $utf8.GetString($bytes) -split '\r?\n'
         if (-not $lines[0].Equals($record.readiness)) { return New-PromptResult FAIL 'Restore the approved readiness on the first line.' }
         $headings = @('Goal & Expected Behavior','Owner & Permissions','References & Evidence','Requirements & Constraints','Acceptance & Verification','Deliverables & Reporting')
-        foreach ($heading in $headings) { $taskEffects.Add("## $heading") }
-        $result = Test-PromptContent ($lines | Select-Object -Skip 1) $required $taskEffects $record.readiness
+        $bodyAllowed = @($taskEffects | ForEach-Object { $_ }) + @($headings | ForEach-Object { "## $_" })
+        if ($record.readiness -ceq 'PROMPT_READY') {
+            $required.Add((New-PromptRequirement 'repository owner' @("Owner: $root")))
+            if (-not @($taskEffects | Where-Object { $_ -cmatch '^(write|create|modify|delete): ' }).Count) {
+                $required.Add((New-PromptRequirement 'read-only file scope' @('Write scope: []')))
+            }
+        } else { $bodyAllowed += @($reportLine, "Owner: $root", 'Write scope: []') }
+        $result = Test-PromptContent ($lines | Select-Object -Skip 1) $required $bodyAllowed $record.readiness
         $digest = Get-CirnetPayloadHash $bytes
         if ($ReviewedPromptSha256 -and $ReviewedPromptSha256 -cne $digest) { return New-PromptResult FAIL 'Reviewed draft bytes differ. Repeat independent review.' }
         if ($ReviewedPromptSha256 -and $result.status -ceq 'REVIEW_REQUIRED') {
@@ -394,44 +434,78 @@ function Test-CirnetWorkPromptFile {
             else { $result = New-PromptResult PASS 'Pins and explicit boundaries checked. The operator attested independent review of the remaining prose.' }
         }
         $result | Add-Member -NotePropertyName promptSha256 -NotePropertyValue $digest
-        if ($result.status -ceq 'PASS' -and ($CaptureScope -or $ScopeSnapshot)) {
+        if ($result.status -ceq 'PASS' -and $phase) {
             $stage = 'scope snapshot and reconciliation'
+            if (($CaptureScope -and ($ScopeSnapshot -or $ExecutionPreflight)) -or [bool]$ScopeSnapshot -ne [bool]$ScopeSnapshotSha256) {
+                return Set-PromptPhase $result $phase BLOCKED 'Use one scope stage and supply the independently retained snapshot digest with its file.'
+            }
             if (@($taskEffects | Where-Object { $_ -cmatch '^(export|privileged): ' }).Count) {
-                return New-PromptResult BLOCKED 'Export or privileged effects need separate enforcement and evidence.'
+                return Set-PromptPhase $result $phase BLOCKED 'Export or privileged effects need separate enforcement and evidence.'
+            }
+            # A build or test may write even when its approved command name
+            # sounds read-only. A read-only intake uses only read effects.
+            if ($ExecutionPreflight -and -not $ScopeSnapshot -and
+                -not @($taskEffects | Where-Object { $_ -cnotmatch '^read: ' }).Count) {
+                if ((Get-ContinuityIndexEntries $root).Text -cmatch '(?:\A|\x00)[0-7]{6} [a-f0-9]+ [123]\t' -or
+                    (Get-ContinuityHead $owner) -cne $record.revision) {
+                    return Set-PromptPhase $result $phase FAIL 'HEAD or an unmerged index blocks read-only intake.'
+                }
+                return Set-PromptPhase $result $phase PASS 'Read-only execution intake verified against current approval.'
+            }
+            if (-not $record['scopeAudit'] -or (-not $CaptureScope -and -not $ScopeSnapshot)) {
+                return Set-PromptPhase $result $phase BLOCKED 'Worktree-wide audit requires scopeAudit approval and a pinned baseline before execution or reconciliation.'
             }
             $expected = $null
+            $effectsSha256 = Get-ContinuityValueHash @($taskEffects | Sort-Object -CaseSensitive -Unique)
             if ($ScopeSnapshot) {
                 $snapshotBytes = Read-PromptBytes $ScopeSnapshot
                 if ((Get-CirnetPayloadHash $snapshotBytes) -cne $ScopeSnapshotSha256) {
-                    return New-PromptResult FAIL 'Scope snapshot differs from the independently retained digest.'
+                    return Set-PromptPhase $result $phase FAIL 'Scope snapshot differs from the independently retained digest.'
                 }
                 $saved = ConvertFrom-ContinuityJson $snapshotBytes -UniqueProperties
                 $expected = $saved.scopeSnapshot
-                if (-not (Test-PromptMap $expected @('authorizationSha256','promptSha256','git')) -or
-                    $expected.authorizationSha256 -cne $AuthorizationSha256 -or $expected.promptSha256 -cne $digest) {
-                    return New-PromptResult FAIL 'Scope snapshot belongs to a different handoff or approval.'
+                if (-not (Test-PromptMap $expected @('authorizationSha256','promptSha256','effectsSha256','git')) -or
+                    $expected.authorizationSha256 -cne $AuthorizationSha256 -or $expected.promptSha256 -cne $digest -or
+                    $expected.effectsSha256 -cne $effectsSha256 -or -not (Test-ContinuityWorktree $owner $expected.git) -or
+                    $expected.git.head -cne $record.revision) {
+                    return Set-PromptPhase $result $phase FAIL 'Scope snapshot belongs to a different handoff, approval, worktree or effects. Capture it again.'
                 }
             }
             $git = Get-ContinuityGitSnapshot $owner -IncludeIgnored
             if ($git.head -cne $record.revision -or $git.Contains('unmerged')) {
-                return New-PromptResult FAIL 'HEAD or conflict state prevents scope reconciliation.'
+                return Set-PromptPhase $result $phase FAIL 'HEAD or conflict state prevents scope reconciliation.'
             }
-            if ($expected) { return Test-WorkPromptScopeChanges $expected.git $git $taskEffects }
+            if ($postExecution) {
+                $audit = Test-WorkPromptScopeChanges $expected.git $git $taskEffects
+                return Set-PromptPhase $result $phase $audit.status $audit.diagnostics
+            }
             foreach ($path in $record.sources.Keys) {
                 if ($git.files[$path] -cne "file:$($record.sources[$path])") {
-                    return New-PromptResult FAIL 'Pinned source bytes changed during scope capture.'
+                    return Set-PromptPhase $result $phase FAIL 'Pinned source bytes changed during scope preflight.'
                 }
             }
-            $result | Add-Member -NotePropertyName scopeSnapshot -NotePropertyValue @{
-                authorizationSha256 = $AuthorizationSha256; promptSha256 = $digest; git = $git
+            if ($ExecutionPreflight) {
+                if (-not (Compare-ContinuityGit $expected.git $git).Matches) {
+                    return Set-PromptPhase $result $phase FAIL 'Scope baseline changed since capture. Reconcile before execution.'
+                }
+                return Set-PromptPhase $result $phase PASS 'Execution intake verified against the independently pinned baseline.'
             }
-            if ((ConvertTo-ContinuityBytes $result).Length -gt 1MB) { return New-PromptResult BLOCKED 'Scope snapshot exceeds the portable audit size limit.' }
+            $result | Add-Member -NotePropertyName scopeSnapshot -NotePropertyValue @{
+                authorizationSha256 = $AuthorizationSha256; promptSha256 = $digest; effectsSha256 = $effectsSha256; git = $git
+            }
+            if ((ConvertTo-ContinuityBytes $result).Length -gt 1MB) {
+                $result.PSObject.Properties.Remove('scopeSnapshot')
+                return Set-PromptPhase $result $phase BLOCKED 'Scope snapshot exceeds the portable audit size limit.'
+            }
+            return Set-PromptPhase $result $phase PASS 'Scope baseline captured. Verify it at execution intake.'
         }
         return $result
     } catch {
         # Inputs may contain sensitive strings. Report the stage, never their values.
-        New-PromptResult BLOCKED "Cannot verify $stage. Check the approved format, paths and access."
+        $message = "Cannot verify $stage. Check the approved format, paths, access and audit limits."
+        if ($result -and $phase) { return Set-PromptPhase $result $phase BLOCKED $message }
+        New-PromptResult BLOCKED $message
     }
 }
 
-Export-ModuleMember -Function Test-CirnetWorkPromptFile, Test-CirnetCandidatePrompt, New-CirnetWorkPromptProposal
+Export-ModuleMember -Function Test-CirnetWorkPromptFile, Test-CirnetCandidatePrompt, New-CirnetWorkPromptProposal, Get-CirnetWorkPromptReportLine

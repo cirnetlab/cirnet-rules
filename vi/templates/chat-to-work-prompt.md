@@ -3,7 +3,9 @@
 ## Hướng dẫn biên soạn dành cho Chat
 
 Trước khi giao và khi tiếp nhận, áp dụng phép kiểm bàn giao offline trong `en/docs/context.md#offline-handoff-validation`
-cho đúng bản nháp.
+để kiểm tra bản nháp. Nêu rõ owner, tác động được duyệt, nghiệm thu và yêu cầu
+báo cáo. Work phải qua bước kiểm tra trước thực thi. Với Work có thể ghi,
+yêu cầu baseline đã xác minh và đối chiếu sau khi chạy.
 
 Dùng một mẫu này cho nhiệm vụ Work có phạm vi rõ. Chat khảo sát chỉ đọc và biên
 soạn. Work phụ trách kiểm tra local trước, triển khai, build/test được phép và
@@ -168,4 +170,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: 75cfa8ff5eaa9c73dc06cfd76b32c841508441bbfb2ee5f95fca60351a51fac8 -->
+<!-- source-sha256: a47eedeab9ff906fae189ee67681e1592006f1df224b1b0bc38409c2924095c8 -->
