@@ -18,6 +18,9 @@ quy trình checkpoint A/B trước khi chuyển sang một phiên Candidate.
 
 The [native reliability report for `671abff`](native-quality-reliability-671abff.md)
 records the single-Candidate run and the reviewed Windows bundle smoke.
+The [native handoff correction at `a3ff51e`](native-handoff-correction-a3ff51e.md)
+records the byte-exact E02 handoff and the provider usage limit that stopped
+the four-case session.
 
 ## Adaptive Work Prompt — Gemini 3.8 Flash (High) evaluation / Đánh giá
 
