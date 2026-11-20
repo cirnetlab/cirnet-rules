@@ -188,7 +188,8 @@ $ErrorActionPreference = 'Stop'
 ) -TimeoutSeconds 45
 exit $LASTEXITCODE
 '@)
-    $info = [Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -CommandType Application).Path)
+    # Relaunch the current shell even when PATH exposes several pwsh executables.
+    $info = [Diagnostics.ProcessStartInfo]::new((Get-Process -Id $PID).Path)
     $info.WorkingDirectory = $worktree
     $info.UseShellExecute = $false
     $info.RedirectStandardOutput = $info.RedirectStandardError = $true
