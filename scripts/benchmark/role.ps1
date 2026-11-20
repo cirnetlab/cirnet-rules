@@ -876,6 +876,12 @@ foreach ($case in $cases) {
             $copied = Get-Snapshot (Resolve-CirnetPath -Root $rules -Relative $relative) $to
             foreach ($name in $copied.Keys) { $instructions["toolkit/$relative/$name"] = $copied[$name].sha256 }
         }
+        if ($Role -eq 'Work') {
+            $context = Join-Path $toolkit 'en/docs/context.md'
+            $null = [IO.Directory]::CreateDirectory((Split-Path -Parent $context))
+            [IO.File]::Copy((Resolve-CirnetPath -Root $rules -Relative 'en/docs/context.md'), $context)
+            $instructions['toolkit/en/docs/context.md'] = Get-CirnetHash -Path $context
+        }
         $skillIndex = Join-Path $toolkit 'en/skills'
         $null = [IO.Directory]::CreateDirectory($skillIndex)
         [IO.File]::Copy((Join-Path $skillSource 'README.md'), (Join-Path $skillIndex 'README.md'))
@@ -936,6 +942,18 @@ foreach ($case in $cases) {
         }
         'AGENTS.md'
     })
+    if ($Role -eq 'Author') {
+        # Validate the handoff against Work's references, not Author's extra guides.
+        $readablePaths += @(foreach ($path in $instructions.Keys) {
+            if ($path -ceq 'toolkit/en/docs/context.md' -or
+                $path -cnotmatch '^(?:toolkit/en/(?:docs|templates)/|\.agents/skills/cirnet-work-prompt-authoring/)') {
+                $path
+            }
+        })
+        if ($case['rtl']) { $readablePaths += 'toolkit/rtl-observer.mjs' }
+    } elseif ($Role -eq 'Work') {
+        $readablePaths += @($instructions.Keys)
+    }
     if ($Role -eq 'Work') {
         $inputBytes = Read-ContinuityBytes $HandoffPath 1MB
         if ((Get-CirnetPayloadHash -Bytes $inputBytes) -cne $ExpectedHandoffSha256) {
@@ -948,7 +966,7 @@ foreach ($case in $cases) {
         }
         $gate = Test-CirnetCandidatePrompt $inputText $case -ReviewedSha256 $ReviewedHandoffSha256 -ReadablePaths $readablePaths
         if ($gate.status -ceq 'FAIL') {
-            throw 'Work input failed Candidate handoff integrity or format validation.'
+            throw ('Work input failed Candidate handoff validation. ' + ($gate.diagnostics -join ' '))
         }
         [IO.File]::WriteAllBytes($promptPath, $inputBytes)
     } else {
@@ -965,6 +983,7 @@ $($candidateHeader -join "`n")
 
 Follow with two nonempty sections, headed exactly '## Requirements and constraints' and '## Acceptance and verification'.
 Carry the functional requirements, negative cases, privacy boundaries and permitted preflight into those sections. For a blocked task, identify the missing authority and limit Work to read-only clarification.
+Cite only sources available to Work. Work gets toolkit/en/docs/context.md, the shared policies, rules, references and architecture snapshots, and the selected execution Skills. The authoring template is staged for Author only. Other toolkit/en/docs guides and the authoring Skill are also Author-only.
 For an actionable handoff, include this exact reporting instruction in the verification section:
 $(Get-CirnetWorkPromptReportLine)
 "@
@@ -972,7 +991,10 @@ $(Get-CirnetWorkPromptReportLine)
                     $task += "`nIf source inspection refuses unsupported syntax, mark unread source NOT_INSPECTED and give Work a bounded local preflight. Reuse verified evidence and stop discovery when the original task and safe scope support handoff. Keep verification tied to the requested behavior and owner contract. Have Work run node --test before and after the edit."
                 }
                 if ($id -cin @('E05', 'python-retry-count-refactor')) {
-                    $task += "`nIn the requirements section, record the prompt level you chose from LIGHT, STANDARD or DEEP and the reason. Cite only sources available to Work. The authoring template is staged for Author only. Derive the verification command and acceptance evidence from the owner's sources and the applicable Skills."
+                    $task += "`nIn the requirements section, record the prompt level you chose from LIGHT, STANDARD or DEEP and the reason. Derive the verification command and acceptance evidence from the owner's sources and the applicable Skills."
+                }
+                if ($case['rtl']) {
+                    $task += "`nFor Work verification use node --import ./toolkit/rtl-observer.mjs simulate.mjs from the fixture root. Work receives this observer to capture the actual compile and simulation child exits."
                 }
             }
             $inputText = @"

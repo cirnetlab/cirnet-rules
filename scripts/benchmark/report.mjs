@@ -140,7 +140,8 @@ function reportSession(mode, root, suppliedReview) {
     for (const [name, hash] of Object.entries(manifest.rules)) {
       if (selectedSkills.some(skill => name.startsWith('en/skills/' + skill + '/'))) {
         if (staged[name.replace(/^en\//, '.agents/')] !== hash) throw new Error('Staged Skill hash mismatch.');
-      } else if (references.some(reference => name.startsWith(reference)) && staged['toolkit/' + name] !== hash) {
+      } else if ((name === 'en/docs/context.md' || references.some(reference => name.startsWith(reference))) &&
+          staged['toolkit/' + name] !== hash) {
         throw new Error('Staged reference hash mismatch.');
       }
     }

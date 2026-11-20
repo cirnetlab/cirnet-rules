@@ -164,6 +164,16 @@ function Test-CirnetCandidatePrompt([string]$Text, $Case, [string]$ReviewedSha25
         $lines[3] -match '(?m)^[ \t]*(?:\*\*)?PROMPT_(?:READY|BLOCKED)(?:\*\*)?[ \t]*\r?$') {
         return New-PromptResult FAIL 'Restore the two nonempty Candidate review sections and a single readiness declaration.'
     }
+    # A reviewed digest cannot grant access to a file absent from Work.
+    $references = [regex]::Matches($lines[3],
+        '(?<![\w:/\\.-])(?<path>(?:\.{1,2}[/\\])*(?:toolkit[/\\]|\.agents[/\\]skills[/\\])[\p{L}\p{N}@_./\\-]+)')
+    foreach ($reference in $references) {
+        $path = $reference.Groups['path'].Value.Replace('\','/').TrimEnd('.')
+        if ($path.StartsWith('./', [StringComparison]::Ordinal)) { $path = $path.Substring(2) }
+        if ([IO.Path]::GetExtension($path) -and $path -cnotin $ReadablePaths) {
+            return New-PromptResult FAIL "Candidate Work reference is not staged: $path."
+        }
+    }
     # File reads come from the assigned fixture, writes from the frozen case.
     # Legacy prose and criterion-to-check mappings need independent review.
     $allowed = @(

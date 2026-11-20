@@ -197,6 +197,17 @@ foreach ($invalid in @($candidate.Replace('Run the label tests before and after.
         throw 'Independent review bypassed Candidate minimum content.'
     }
 }
+$sharedContext = 'toolkit/en/docs/context.md'
+$sharedCandidate = $candidate.Replace('Keep the original edit and unrelated work.',
+    'Use [the intake guide](./toolkit/en/docs/context.md#offline-handoff-validation). Keep unrelated work.')
+$sharedDigest = Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($sharedCandidate))
+if ((Test-CirnetCandidatePrompt $sharedCandidate $case $sharedDigest -ReadablePaths $sharedContext).status -cne 'PASS') {
+    throw 'A staged Work reference with a fragment must pass the reviewed Candidate gate.'
+}
+$missing = Test-CirnetCandidatePrompt $sharedCandidate $case $sharedDigest -ReadablePaths 'src/labels.mjs'
+if ($missing.status -cne 'FAIL' -or $missing.diagnostics[0] -cnotmatch 'context\.md') {
+    throw 'Reviewed Candidate bytes must not authorize an unstaged Work reference.'
+}
 $blockedCase = $catalog | Where-Object id -CEQ E04
 $blockedCandidate = @('PROMPT_BLOCKED',"Original task: $($blockedCase.prompt)",'Write scope: []',
     '## Requirements and constraints','The producer contract requires authorization.',
@@ -204,6 +215,13 @@ $blockedCandidate = @('PROMPT_BLOCKED',"Original task: $($blockedCase.prompt)",'
 $blockedReview = Test-CirnetCandidatePrompt $blockedCandidate $blockedCase (Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($blockedCandidate)))
 if ($blockedReview.status -cne 'BLOCKED' -or -not $blockedReview.clarificationApproved -or
     $blockedReview.executionStatus -cne 'NOT_RUN') { throw 'Review made a blocked Candidate executable.' }
+$readOnlyReference = $blockedCandidate.Replace('Inspect the pinned consumer release.',
+    'Inspect the pinned consumer release using toolkit/en/docs/model-compatibility.md.')
+$readOnlyDigest = Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($readOnlyReference))
+$rejectedReadOnly = Test-CirnetCandidatePrompt $readOnlyReference $blockedCase $readOnlyDigest -ReadablePaths $sharedContext
+if ($rejectedReadOnly.status -cne 'FAIL' -or $rejectedReadOnly.PSObject.Properties['clarificationApproved']) {
+    throw 'Read-only clarification must reject an unstaged Author-only reference.'
+}
 
 $auditRepo = Join-Path $fixture 'owner'
 [void][IO.Directory]::CreateDirectory($auditRepo)

@@ -59,9 +59,14 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
   Exit 0 covers preview or objective success, exit 1 a failure, and exit 2 a
   blocked run. An objective result remains pending independent review.
 - The Author is read-only. Work gets a fresh fixture and the exact Author bytes.
-  The gate checks readiness, original task, write scope, reporting and substantive review
-  sections before dispatch. For native Work, use `-ReviewHandoffs` and independently
-  check the exact draft against the frozen case and source before entering its digest.
+  Both roles get the pinned `toolkit/en/docs/context.md` intake guide.
+  The other `en/docs` guides, authoring template and authoring Skill belong to
+  Author. The gate checks readiness, original task, write scope, reporting and
+  both review sections. It checks literal toolkit and Skill file references
+  against Work's planned inventory at Author output and the staged inventory
+  at Work intake. An unstaged reference blocks dispatch even with a reviewed
+  digest. For native Work, use `-ReviewHandoffs` and independently check the
+  exact draft against the frozen case and source before entering its digest.
   Without that review, Work stays blocked. Synthetic offline shims exercise the
   transport while retaining `REVIEW_REQUIRED`. Native E01 stops before model access
   because the shell can bypass the inspector. E04 permits reviewed read-only

@@ -30,7 +30,7 @@ if ($mode -eq 'mock-read-only') {
     if ($author) {
         $header = [regex]::Match($task, '(?m)^PROMPT_(?:READY|BLOCKED)\r?\nOriginal task: [^\r\n]+\r?\nWrite scope: \[\]\r?$').Value
         if (-not $header) { exit 19 }
-        $answer = "$header`n## Requirements and constraints`nInspect the scoped fixture and preserve the owner boundary.`n## Acceptance and verification`nRecord the missing dependency or authority.`n$report`n"
+        $answer = "$header`n## Requirements and constraints`nFollow toolkit/en/docs/context.md for intake and preserve the owner boundary.`n## Acceptance and verification`nRecord the missing dependency or authority.`n$report`n"
     } else { $answer = 'Synthetic read-only Work evidence.' }
 } elseif ($author) {
     $goal = [regex]::Match($task, '(?m)^Original (?:user task:\r?\n|task: )([^\r\n]+)').Groups[1].Value
@@ -45,11 +45,14 @@ if ($mode -eq 'mock-read-only') {
         if ($task -notmatch 'mark unread source NOT_INSPECTED') { exit 13 }
         $inspection = & node toolkit/inspect-source.mjs src/labels.mjs --symbol formatLabel 2>&1
         if ($LASTEXITCODE -ne 2 -or $inspection -notmatch 'SOURCE_INSPECTION_BLOCKED') { exit 10 }
-        $requirements += ' NOT_INSPECTED: Verify the target under the existing read scope before editing.'
+        $requirements += ' NOT_INSPECTED: Use toolkit/en/docs/context.md#offline-handoff-validation before inspecting the target.'
     }
     if ($mode -eq 'mock-invalid-handoff') {
         if ($e01) { $scope = '["accounts.mjs"]' }
         else { $goal = 'Improve label formatting.' }
+    }
+    if ($mode -eq 'mock-missing-work-reference') {
+        $requirements += ' Use toolkit/en/docs/model-compatibility.md as required Work intake guidance.'
     }
     $answer = "$status`r`nOriginal task: $goal`r`nWrite scope: $scope`r`n`r`n## Requirements and constraints`r`n$requirements`r`n`r`n## Acceptance and verification`r`n$verification`r`n$report`r`n"
     if ($mode -eq 'mock-guards' -and -not $e01) { $answer = 'PROMPT_BLOCKED' }
@@ -228,6 +231,13 @@ if (-not ($e06Input -split '\r?\n' -ccontains "Original task: $($e06.prompt)") -
 }
 $e01Work = Read-Evidence 'success/trials/E01/Work/run.json'
 $e06Work = Read-Evidence 'success/trials/E06/Work/run.json'
+$manifest = Read-Evidence 'success/manifest.json'
+$workContext = Join-Path $output 'success/trials/E06/Work/fixture/toolkit/en/docs/context.md'
+if ($e06Work.manifest.rules['toolkit/en/docs/context.md'] -cne $manifest.rules['en/docs/context.md'] -or
+    (Get-FileHash -LiteralPath $workContext).Hash.ToLowerInvariant() -cne $manifest.rules['en/docs/context.md'] -or
+    $e06Work.manifest.rules.Contains('toolkit/en/docs/model-compatibility.md')) {
+    throw 'Work must receive the pinned intake guide without Author-only documentation.'
+}
 if ($e01Work.command[[array]::IndexOf($e01Work.command, '--sandbox') + 1] -cne 'read-only' -or
     $e06Work.command[[array]::IndexOf($e06Work.command, '--sandbox') + 1] -cne 'workspace-write') {
     throw 'Blocked E01 Work must be read-only while ready E06 uses the existing write sandbox.'
@@ -339,15 +349,31 @@ $invalidHash = (Get-FileHash -LiteralPath $invalidFile).Hash.ToLowerInvariant()
 $hiddenFile = Join-Path $successRoot 'hidden-handoff.md'
 [IO.File]::WriteAllText($hiddenFile, ($e06Input -replace '(?s)## Acceptance and verification.*\z', "## Acceptance and verification`n<!-- hidden check -->"))
 $hiddenHash = (Get-FileHash -LiteralPath $hiddenFile).Hash.ToLowerInvariant()
+$missingReferenceFile = Join-Path $successRoot 'missing-work-reference.md'
+[IO.File]::WriteAllText($missingReferenceFile, ($e06Input.Replace('context.md','model-compatibility.md')))
+$missingReferenceHash = (Get-FileHash -LiteralPath $missingReferenceFile).Hash.ToLowerInvariant()
 foreach ($entry in @(
     @{ Session='wrong-digest'; HandoffPath=(Join-Path $successRoot 'trials/E06/Author/final.md'); ExpectedHandoffSha256=('0' * 64) }
     @{ Session='empty-verification'; HandoffPath=$invalidFile; ExpectedHandoffSha256=$invalidHash }
     @{ Session='hidden-verification'; HandoffPath=$hiddenFile; ExpectedHandoffSha256=$hiddenHash; ReviewedHandoffSha256=$hiddenHash }
+    @{ Session='missing-work-reference'; HandoffPath=$missingReferenceFile; ExpectedHandoffSha256=$missingReferenceHash; ReviewedHandoffSha256=$missingReferenceHash }
 )) {
     $rejected = $false
     try { & (Join-Path $repo 'scripts/eval-codex.ps1') @workArguments @entry | Out-Null }
     catch { if ($_.Exception.Message -notmatch 'Work input failed Candidate handoff') { throw }; $rejected = $true }
     if (-not $rejected) { throw "Work intake must stop the $($entry.Session) handoff." }
+}
+
+$referenceArgs = $execute.Clone()
+$referenceArgs.MaxNativeCalls = 2
+& $smoke @referenceArgs -Session missing-reference -CaseId E06 -Model mock-missing-work-reference
+$missingReferenceExit = $LASTEXITCODE
+$referenceSummary = Read-Evidence 'missing-reference/compatibility-summary.json'
+$referenceAuthor = Read-Evidence 'missing-reference/trials/E06/Author/run.json'
+if ($missingReferenceExit -ne 1 -or $referenceSummary.cases[0].work.execution -ne 'NOT_RUN' -or
+    $referenceAuthor.handoffValidation.diagnostics[0] -notmatch 'model-compatibility\.md' -or
+    (Test-Path -LiteralPath (Join-Path $output 'missing-reference/trials/E06/Work'))) {
+    throw 'Author-only references in a valid envelope must fail before Work dispatch.'
 }
 
 & $smoke @execute -Session guards -Model mock-guards

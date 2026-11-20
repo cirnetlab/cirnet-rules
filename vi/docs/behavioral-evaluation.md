@@ -57,10 +57,15 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
 - Xem `compatibility-summary.json` để biết kết quả thực thi và phép kiểm
   objective. Mã thoát 0 cho preview hoặc objective đạt, 1 cho lỗi và 2 cho lượt
   bị chặn. Kết quả objective vẫn cần rà soát độc lập.
-- Author chỉ đọc. Work nhận bản sao fixture mới và đúng byte từ Author. Gate
-  kiểm trạng thái, nhiệm vụ gốc, phạm vi ghi, yêu cầu báo cáo và nội dung các mục rà trước khi
-  gọi Work. Với Work native, dùng `-ReviewHandoffs` và rà độc lập đúng bản nháp
-  với ca đã cố định và nguồn trước khi nhập digest. Thiếu lần rà này thì Work
+- Author chỉ đọc. Work nhận bản sao fixture mới và đúng byte từ Author. Cả hai
+  vai trò nhận hướng dẫn intake `toolkit/en/docs/context.md` đã ghim. Các
+  hướng dẫn `en/docs` khác, mẫu soạn thảo và Skill soạn thảo dành cho Author.
+  Cổng kiểm trạng thái, nhiệm vụ gốc, phạm vi ghi, yêu cầu báo cáo và hai mục
+  rà soát. Cổng đối chiếu đường dẫn tệp toolkit và Skill được nêu trực tiếp
+  với danh mục dự kiến của Work khi Author trả handoff, rồi đối chiếu với
+  danh mục đã cấp khi Work tiếp nhận. Tham chiếu chưa được cấp sẽ chặn thực
+  thi dù digest đã được rà. Với Work native, dùng `-ReviewHandoffs` và rà độc
+  lập đúng bản nháp với ca đã cố định và nguồn trước khi nhập digest. Thiếu lần rà này thì Work
   bị chặn. Shim offline dùng dữ liệu giả để kiểm tra đường truyền và giữ
   `REVIEW_REQUIRED`. E01 native dừng trước khi model truy cập vì shell có thể
   bỏ qua inspector. E04 cho phép làm rõ ở chế độ chỉ đọc sau khi rà. E07 có thể
@@ -132,4 +137,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: b9504b26980ee59bdd90267d1b01381e735832e7a2ce50b731c4f9ee9321db61 -->
+<!-- source-sha256: 0a038b0556d434e694bd8df631c0508d3942dabc9c7aa1f57298f39a75184c59 -->
