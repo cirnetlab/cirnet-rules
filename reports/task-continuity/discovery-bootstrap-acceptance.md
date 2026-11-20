@@ -61,7 +61,7 @@ and evidence reconciliation. The fix leaves the checkpoint formats and
 publication scheme intact. The focused regression also tests implicit
 discovery and the revalidation boundary.
 
-## Native Codex and quota recovery
+## Earlier Native Codex and quota-recovery attempts
 
 | Criterion | Result | Evidence |
 | --- | --- | --- |
@@ -71,7 +71,59 @@ discovery and the revalidation boundary.
 | Actual quota-exhaustion recovery | NOT_RUN | The fixture session encountered an execution policy block. |
 | Native Claude Code account handoff | NOT_RUN | Outside this acceptance scope. |
 
-**Recommendation.** Proceed to human review of the exercised Windows offline
+**Recommendation at the time.** Proceed to human review of the exercised Windows offline
 scope. Keep cross-platform acceptance open for Ubuntu and the Windows symlink
 cases. Keep Native recovery and account handoff open pending evidence from an
 authorized receiving session. Final acceptance remains with the user.
+
+## Final Native Codex-to-Codex Bootstrap acceptance
+
+**PASS — user-attested Native Codex-to-Codex acceptance.** The user confirmed
+signing out of Codex account 1 and signing in with a different Codex account 2,
+and explicitly approved Native acceptance. The Task Continuity Manager reports
+`AgentIdentityVerified = false` and `AgentIdentitySource = caller-declaration`.
+The account switch is supported by the user's attestation.
+
+Task `native-bootstrap-label-c41e389b` ran in the disposable linked worktree
+`target/continuity-native-phase1-c41e389b/` at detached HEAD
+`b67d93b785094e06b7343f1478046f60e099fc98`. The central Engine was unchanged.
+
+| Milestone | Checkpoint ID | Verification |
+| --- | --- | --- |
+| Original handoff | `ebbc54c80d054909bf6adc3eec4a65d9` | Manifest and all three payload hashes matched. The blank-label test had the intended failure. |
+| Phase 2 completion | `c00b0b6500474d66879fd6bc620ac049` | `current.json` matched the manifest before review. All payload hashes matched and both recorded tests passed. |
+| Human Review | `3e07fdefcc7f4bf6a141ecb0051ea629` | Both criteria and Completed Work passed with origin `declared-human-review`. |
+| Closed | `fd168b76e3c949b9aae975805348a9b3` | `Lifecycle = closed`, `IntegrityStatus = PASS`, `CompletionStatus = PASS`, and `Git.Matches = true`. Both `status` and `verify` exited 0. |
+
+Before closure, read-only `bootstrap -Compact` selected the unique task without
+a Task ID or session key. It returned the exact sealed task and progress notes,
+including the Original Task, acceptance criteria, prior decisions and Next
+Action. The original task text, criterion mapping and five pinned references
+matched across both snapshots. Live reference hashes matched the recorded
+revision. After closure, discovery returned `NONE`, and `current.json` and
+`previous.json` matched the closed and Human Review manifests, respectively.
+Their payload hashes also matched.
+
+The Git index SHA-256 and untracked test SHA-256 matched the handoff checkpoint.
+The staged trim implementation remained at blob
+`96efaaabd535ba82b719d256d5af8db0801b415d`. Only the working copy of
+`continuity-acceptance/label.mjs` changed between handoff and Phase 2 completion.
+After closure Git still reported `AM continuity-acceptance/label.mjs` and
+`?? continuity-acceptance/label.test.mjs`.
+
+| Check | Original handoff | Phase 2 record | Independent rerun |
+| --- | --- | --- | --- |
+| `normalizes-label` | PASS (exit 0) | PASS (exit 0) | PASS (exit 0) |
+| `rejects-blank-label` | FAIL (exit 1, missing `RangeError`) | PASS (exit 0) | PASS (exit 0) |
+
+The independent reruns used `node --test --test-reporter=tap` with each test's
+name filter against `continuity-acceptance/label.test.mjs`. The two TAP logs,
+payload and Git hashes, and user attestation are in the Human Review evidence
+file `target/continuity-inputs/native-bootstrap-final-evidence.json`, relative
+to the disposable worktree. Its SHA-256 is
+`ac907c7fefd05fc8ee2905fbc432c2eefdb6334277662b69c21f408368c488cb`.
+
+| Additional acceptance case | Result |
+| --- | --- |
+| Actual quota-exhaustion recovery | `NOT_RUN` |
+| Native Claude Code-to-Claude Code handoff | `NOT_RUN` |
