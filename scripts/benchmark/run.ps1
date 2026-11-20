@@ -14,6 +14,7 @@ param(
     [Parameter(ParameterSetName='Run')][switch]$UseApiKey,
     [Parameter(ParameterSetName='Run')][switch]$Execute,
     [Parameter(ParameterSetName='Run')][switch]$ReviewHandoffs,
+    [Parameter(ParameterSetName='Run')][switch]$MeasureInitialInput,
     [Parameter(ParameterSetName='Run')][Alias('ApprovedRoleCalls')][ValidateRange(1, 20)][int]$MaxNativeCalls
 )
 
@@ -51,6 +52,9 @@ if (-not $cases.Count) { throw 'Select at least one benchmark scenario.' }
 $plannedCalls = 2 * $cases.Count
 $isShim = $CodexPath -and [IO.Path]::GetExtension($CodexPath) -ieq '.ps1'
 if ($ReviewHandoffs -and (-not $Execute -or $isShim)) { throw 'Interactive independent review applies only to authorized native sessions.' }
+if ($MeasureInitialInput -and (-not $Execute -or $isShim -or $relativeOutput -eq '.')) {
+    throw 'Initial input measurement requires authorized native execution and a dedicated OutputRoot.'
+}
 
 if ($Execute -and $MaxNativeCalls -ne $plannedCalls) {
     throw "Authorize up to $plannedCalls role calls with -MaxNativeCalls $plannedCalls."
@@ -74,6 +78,19 @@ function Invoke-SourceGit([string[]]$GitArgs) {
 
 function Save-Record([string]$Path, $Record) {
     [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject $Record -Depth 12) + [char]10, $utf8)
+}
+
+function Reserve-InitialInputMeasurement([string]$Path, [string]$ManifestSha256) {
+    try {
+        $receipt = [IO.File]::Open($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    } catch [IO.IOException] {
+        throw 'Cannot reserve the initial input measurement. Keep the original reservation and run corrections without measurement.'
+    }
+    try {
+        $bytes = $utf8.GetBytes($ManifestSha256)
+        $receipt.Write($bytes, 0, $bytes.Length)
+        $receipt.Flush($true)
+    } finally { $receipt.Dispose() }
 }
 
 function Get-InputHash([string]$Root, [string]$Relative) {
@@ -186,12 +203,18 @@ $ruleHashes = Copy-Snapshot $repo $rules $rulesPaths
 $suiteHashes = Copy-Snapshot (Join-Path $repo $suiteSource) $suite $suitePaths
 Assert-FrozenInputs
 $mode = if (-not $Execute) { 'PREVIEW' } elseif ($isShim) { 'TEST_SHIM' } else { 'NATIVE_COMPATIBILITY' }
-Save-Record (Join-Path $root 'manifest.json') ([ordered]@{
+$manifestPath = Join-Path $root 'manifest.json'
+Save-Record $manifestPath ([ordered]@{
     schema=2; mode=$mode; cohort='Candidate'; sourceRevision=$revision; sourceKind='WORKTREE'
-    modelRequested=$Model; effortRequested=$Effort
+    session=$Session; modelRequested=$Model; effortRequested=$Effort
     cases=$cases; maximumRoleCalls=$plannedCalls; timeoutSecondsPerRole=$TimeoutSeconds
+    inputMeasurement=if ($MeasureInitialInput) { 'INITIAL' } else { 'DISABLED' }
     rules=$ruleHashes; evaluator=$suiteHashes; runner=$runnerHashes
 })
+if ($MeasureInitialInput) {
+    $reservation = Resolve-CirnetPath -Root $output -Relative 'native-input-baseline.sha256'
+    Reserve-InitialInputMeasurement $reservation (Get-CirnetHash -Path $manifestPath)
+}
 Write-Host "Candidate-only evidence root: $root"
 if (-not $Execute) { exit 0 }
 
@@ -199,7 +222,7 @@ $common = @{
     Attempt=2; RulesRoot=$rules; BenchmarkRoot=$root; SuiteRoot=$suite; Execute=$true
     TimeoutSeconds=$TimeoutSeconds; Model=$Model; Effort=$Effort; SourceRevision=$revision
 }
-foreach ($arg in @('AuthHome', 'UseApiKey', 'CodexPath', 'ToolPath')) {
+foreach ($arg in @('AuthHome', 'UseApiKey', 'CodexPath', 'ToolPath', 'MeasureInitialInput')) {
     if ($PSBoundParameters.ContainsKey($arg)) { $common[$arg] = $PSBoundParameters[$arg] }
 }
 

@@ -21,10 +21,10 @@ dấu phẩy để chọn phạm vi khác. `-MaxNativeCalls` phải bằng hai l
 chọn. Dùng tên session mới và thư mục đầu ra hiện có dưới OS temp, ngoài checkout.
 
 ```powershell
-$root = [IO.Path]::GetTempPath()
+$root = (New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) "cirnet-native-$([guid]::NewGuid())")).FullName
 ./scripts/benchmark/run.ps1 -Session candidate-preview -Model '<model-id-được-hỗ-trợ>' -Effort high -OutputRoot $root
-# Chỉ chạy sau khi được cấp quyền riêng, bằng hồ sơ đăng nhập đã duyệt.
-./scripts/benchmark/run.ps1 -Session candidate-run -Model '<model-id-được-hỗ-trợ>' -Effort high -OutputRoot $root -Execute -MaxNativeCalls 4 -AuthHome $authHome
+# Dùng hồ sơ đăng nhập và giới hạn lượt gọi đã duyệt, đồng thời rà handoff độc lập.
+./scripts/benchmark/run.ps1 -Session candidate-run -Model '<model-id-được-hỗ-trợ>' -Effort high -OutputRoot $root -Execute -MaxNativeCalls 4 -AuthHome $authHome -ReviewHandoffs -MeasureInitialInput
 ```
 
 Preview gọi 0 vai trò. Đối chiếu revision và hash tệp trong preview với manifest
@@ -33,6 +33,14 @@ tree, thiết lập vai trò và giới hạn lượt gọi. Snapshot của Auth
 chính thức cùng hướng dẫn context, phân phối và model. Thiếu công cụ sẽ chặn ca liên
 quan. Lỗi xác thực, quota, mạng hoặc sandbox dùng chung sẽ dừng việc gọi thêm
 vai trò. `-TimeoutSeconds` đặt giới hạn cho từng vai trò.
+
+Chỉ dùng `-MeasureInitialInput` cho lần đánh giá đầu tiên đã được cấp quyền.
+Runner giữ chỗ trong thư mục đầu ra riêng trước khi gọi vai trò và gắn dấu
+giữ chỗ với manifest đã khóa. Giữ dấu này và bộ bằng chứng ban đầu đã niêm
+phong. Khi kiểm tra lại các ca bị ảnh hưởng bởi bản sửa, dùng cùng thư mục,
+tên session mới và bỏ cờ đo, kể cả khi lần đầu bị gián đoạn. Bản tổng hợp
+ghi số token đầu vào do nhà cung cấp trả về cho lần đầu nếu có. Khi thiếu
+số liệu hoặc khi lượt chạy không đo, kết quả là `NOT_AVAILABLE`.
 
 Dùng hồ sơ Codex xác thực qua file dành riêng dưới OS temp với `-AuthHome`,
 hoặc `-UseApiKey` khi được cấp quyền. Với đăng nhập ChatGPT, chạy
@@ -84,14 +92,14 @@ $review = Join-Path $root 'candidate-run/review.json'
 ```
 
 Reporter kiểm đầu vào đã đóng băng, nguồn gốc vai trò, hash handoff và các
-artifact đã lập chỉ mục. Công cụ ghi một `quality-report.json` gồm Task
+artifact đã lập chỉ mục. Objective chỉ đạt khi các vai trò hoàn tất và phép
+kiểm phạm vi fixture đạt. Công cụ ghi một `quality-report.json` gồm Task
 Success, Architecture Compliance, Verification Coverage và Privacy theo từng
 ca. PASS áp dụng cho phạm vi đã chọn. BLOCKED hoặc NOT_RUN vẫn được ghi rõ
 khi thiếu bằng chứng. Shim kiểm tra bộ khung chạy và các điều kiện review.
-Chấm chất lượng Native PASS cần bằng chứng model thực sự chạy. So sánh tổng
-token, lượt gọi công cụ và thời lượng của Author và Work giữa các ca đã được
-xác minh thành công với cùng ca, model, effort và toolchain. Ghi riêng các lần
-chạy thất bại và bị chặn.
+Chấm chất lượng Native PASS cần bằng chứng model thực sự chạy. Rà lượt gọi
+công cụ, thời lượng, lỗi và bằng chứng kiểm chứng của từng vai trò trong
+session đã khóa. Ghi riêng các lần chạy thất bại và bị chặn.
 
 [Kho lưu trữ benchmark](../../reports/work-prompt-benchmark-history.md) dẫn
 đến các phép so sánh lịch sử và revision gốc. Runner hiện tại dùng cùng Rules
@@ -124,4 +132,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 755b0ad69abcf264b943e63ed1b532020502ebe7f2b8b8408ef64089855f5fe6 -->
+<!-- source-sha256: b9504b26980ee59bdd90267d1b01381e735832e7a2ce50b731c4f9ee9321db61 -->

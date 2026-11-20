@@ -14,6 +14,7 @@ param(
     [switch]$UseApiKey,
     [switch]$Execute,
     [switch]$ReviewHandoffs,
+    [switch]$MeasureInitialInput,
     [Alias('ApprovedRoleCalls')][int]$MaxNativeCalls
 )
 

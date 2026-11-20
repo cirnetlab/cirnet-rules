@@ -22,10 +22,10 @@ comma-separated `-CaseId` values to select a different scope. The exact
 name and an existing output directory under OS temp outside the checkout.
 
 ```powershell
-$root = [IO.Path]::GetTempPath()
+$root = (New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) "cirnet-native-$([guid]::NewGuid())")).FullName
 ./scripts/benchmark/run.ps1 -Session candidate-preview -Model '<supported-model-id>' -Effort high -OutputRoot $root
-# Run only after separate approval, with the approved evaluation login.
-./scripts/benchmark/run.ps1 -Session candidate-run -Model '<supported-model-id>' -Effort high -OutputRoot $root -Execute -MaxNativeCalls 4 -AuthHome $authHome
+# Use the approved evaluation login, call cap and independent handoff review.
+./scripts/benchmark/run.ps1 -Session candidate-run -Model '<supported-model-id>' -Effort high -OutputRoot $root -Execute -MaxNativeCalls 4 -AuthHome $authHome -ReviewHandoffs -MeasureInitialInput
 ```
 
 Preview makes zero role calls. Compare its source and file hashes with the
@@ -34,6 +34,14 @@ working-tree bytes, role settings and the role cap. The Author snapshot uses
 the canonical template and its context, distribution and model guides. Missing tools block the
 affected scenario. A shared authentication, quota, network or sandbox blocker
 stops further dispatch. `-TimeoutSeconds` sets the per-role limit.
+
+Use `-MeasureInitialInput` only for the initial authorized evaluation. It
+reserves the dedicated output root before dispatch and ties the reservation to
+the frozen manifest. Keep that reservation and the sealed initial evidence.
+Use the same root with a fresh session name for affected correction cases and
+omit the switch, even if the initial run was interrupted. The session summary
+records provider input usage for that initial run when available. Missing
+usage and unmeasured runs show `NOT_AVAILABLE`.
 
 Use a dedicated file-backed Codex login under OS temp with `-AuthHome`, or an
 authorized `-UseApiKey`. For a ChatGPT login, run
@@ -86,13 +94,14 @@ $review = Join-Path $root 'candidate-run/review.json'
 ```
 
 The reporter checks the frozen inputs, role provenance, handoff hashes and
-indexed artifacts. It writes one `quality-report.json` with Task Success,
+indexed artifacts. Objective success requires completed roles and a passing
+fixture scope audit. The reporter writes one `quality-report.json` with Task Success,
 Architecture Compliance, Verification Coverage and Privacy for each scenario.
 PASS applies to the selected scope. BLOCKED or NOT_RUN remains explicit where
 evidence is missing. A shim can exercise the harness and review controls.
-Native quality PASS requires actual model evidence. Compare combined Author
-and Work tokens, tool calls and duration across verified successes with matched
-case, model, effort and toolchain. Record failures and blocked runs separately.
+Native quality PASS requires actual model evidence. Review per-role tool
+calls, duration, errors and verification evidence for the pinned session.
+Record failures and blocked runs separately.
 
 The [benchmark archive](../../reports/work-prompt-benchmark-history.md) links
 historical comparisons and their original revisions. The current runner uses

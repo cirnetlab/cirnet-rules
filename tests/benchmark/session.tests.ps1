@@ -181,6 +181,8 @@ Assert-Rejected wrong-cap @{ Execute=$true; CodexPath=$shim; MaxNativeCalls=3 } 
 Assert-Rejected no-authorization @{ Execute=$true; MaxNativeCalls=4 } 'explicit authentication'
 Assert-Rejected missing-shim @{ Execute=$true; MaxNativeCalls=4; CodexPath=(Join-Path $output 'absent.ps1') } 'existing script'
 Assert-Rejected preview-credentials @{ UseApiKey=$true } 'Preview uses neither'
+Assert-Rejected preview-measurement @{ MeasureInitialInput=$true } 'authorized native execution'
+Assert-Rejected shim-measurement @{ MeasureInitialInput=$true; Execute=$true; MaxNativeCalls=4; CodexPath=$shim } 'authorized native execution'
 
 $execute = @{ OutputRoot=$output; CodexPath=$shim; Execute=$true; MaxNativeCalls=4; TimeoutSeconds=30 }
 & $smoke @execute -Session invalid-handoff -Model mock-invalid-handoff
@@ -208,9 +210,12 @@ foreach ($trial in $passed.cases) {
         throw "Mock $($trial.id) did not record a byte-exact passing chain."
     }
     foreach ($role in @($trial.author, $trial.work)) {
-        if (-not $role.invoked -or $role.verdict -ne 'NOT_RUN' -or $role.usage.source -ne 'TEST_SHIM' -or
-            $role.usage.input -ne 7 -or $role.usage.cached -ne 2 -or $role.usage.output -ne 3) {
-            throw 'Role summary must retain the runner verdict and normalized shim usage.'
+        if (-not $role.invoked -or $role.verdict -ne 'NOT_RUN' -or $role.usage -ne 'NOT_AVAILABLE') {
+            throw 'Unmeasured roles must retain the runner verdict without provider usage.'
+        }
+        $traceFile = (Join-Path $output "success/$($role.record)").Replace('run.json', 'events.jsonl')
+        if ([IO.File]::ReadAllText($traceFile) -match '"usage"\s*:|_tokens"\s*:') {
+            throw 'Unmeasured evidence must omit provider usage before writing JSONL.'
         }
     }
 }
@@ -251,6 +256,22 @@ try {
 } finally { Pop-Location }
 
 $successRoot = Join-Path $output 'success'
+$conflictRoot = (New-Item -ItemType Directory -Path (Join-Path $output 'scope-conflict')).FullName
+$frozen = Read-Evidence 'success/manifest.json'
+$index = Read-Evidence 'success/evidence-index.json'
+foreach ($name in @($index.files.Keys; $frozen.rules.Keys | ForEach-Object { "rules/$_" }; $frozen.evaluator.Keys | ForEach-Object { "evaluator/$_" })) {
+    $destination = Join-Path $conflictRoot $name
+    $null = [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination))
+    [IO.File]::Copy((Join-Path $successRoot $name), $destination)
+}
+$conflict = Read-Evidence 'success/trials/E06/Work/run.json'
+$conflict.executionScope.auditStatus = 'FAIL'
+$conflict | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath (Join-Path $conflictRoot 'trials/E06/Work/run.json') -Encoding utf8NoBOM
+$seal = & node (Join-Path $repo 'scripts/benchmark/report.mjs') seal $conflictRoot 2>&1
+if ($LASTEXITCODE -ne 1 -or ($seal -join "`n") -notmatch 'Objective success conflicts with role evidence' -or
+    (Test-Path -LiteralPath (Join-Path $conflictRoot 'evidence-index.json'))) {
+    throw 'The reporter must refuse to seal objective success when the fixture audit failed.'
+}
 $review = Read-Evidence 'success/review-template.json'
 $review.reviewer = 'Offline review fixture'
 foreach ($id in $review.cases.Keys) {

@@ -22,6 +22,7 @@ param(
     [string]$AuthHome,
     [string]$ToolPath,
     [switch]$UseApiKey,
+    [switch]$MeasureInitialInput,
     [switch]$Execute
 )
 
@@ -203,10 +204,36 @@ function Test-ProtectedPathInEvent([string]$Line) {
     return $false
 }
 
+function Get-EvalInputUsage($Event) {
+    if ($Event['type'] -ceq 'turn.completed' -and $Event['usage'] -is [System.Collections.IDictionary]) {
+        $count = $Event['usage']['input_tokens']
+        if (($count -is [int] -or $count -is [long]) -and $count -ge 0) {
+            [ordered]@{ input_tokens = $count }
+        }
+    }
+}
+
+function ConvertTo-EvalEvidenceLine([string]$Line, [ref]$InputRecorded) {
+    if ([string]::IsNullOrWhiteSpace($Line)) { return '' }
+    if ($Line.Length -gt 16MB) { return '{' }
+    try { $event = ConvertFrom-Json -AsHashtable -InputObject $Line }
+    catch { return '{' }
+    if ($event -isnot [System.Collections.IDictionary] -or $event['type'] -isnot [string]) { return '{' }
+    $usage = if ($InputRecorded -and -not $InputRecorded.Value) { Get-EvalInputUsage $event }
+    $excluded = @($event.Keys | Where-Object { $_ -ieq 'usage' -or $_ -ilike '*_tokens' })
+    if (-not $excluded.Count) { return $Line }
+    foreach ($key in $excluded) { $null = $event.Remove($key) }
+    if ($usage) {
+        $event['usage'] = $usage
+        $InputRecorded.Value = $true
+    }
+    ConvertTo-Json -InputObject $event -Depth 100 -Compress -WarningAction Stop
+}
+
 function Invoke-EvalProcess(
     [string]$Path, [string[]]$Arguments, [string]$Directory, [hashtable]$Environment,
     [int]$Limit, [string]$InputText, [string]$ApiKey, [switch]$WatchToolScope,
-    [byte[]]$InputBytes, [string[]]$Canaries = @(), [string[]]$Secrets = @()
+    [byte[]]$InputBytes, [string[]]$Canaries = @(), [string[]]$Secrets = @(), [switch]$MeasureInput
 ) {
     $info = [Diagnostics.ProcessStartInfo]::new($Path)
     $info.UseShellExecute = $false
@@ -237,6 +264,7 @@ function Invoke-EvalProcess(
     $errorKind = $null
     $privacyHits = 0
     $credentialHits = 0
+    $inputRecorded = -not $MeasureInput
     try {
         $started = $process.Start()
         $errorReader = $process.StandardError.ReadToEndAsync()
@@ -279,7 +307,8 @@ function Invoke-EvalProcess(
                 $scopeStop = $true
                 break
             }
-            $null = $stdout.Append($line).Append("`n")
+            $evidenceLine = if ($WatchToolScope) { ConvertTo-EvalEvidenceLine $line ([ref]$inputRecorded) } else { $line }
+            $null = $stdout.Append($evidenceLine).Append("`n")
             if ($stdout.Length -gt 16MB) {
                 $stdout.Length = 16MB
                 $errorKind = 'StdoutLimitExceeded'
@@ -346,7 +375,7 @@ function Get-GitEvidence([string]$Directory) {
     return $evidence
 }
 
-function Get-Trace($Process, [string]$LastMessage) {
+function Get-Trace($Process, [string]$LastMessage, [switch]$MeasureInput) {
     $trace = [ordered]@{
         lines = 0; invalidLines = 0; threadStarted = 0; turnStarted = 0; turnCompleted = 0; turnFailed = 0
         terminalEvent = $null; usage = $null; model = $null; finalMatchesEvent = $false; invalidOrder = $false
@@ -380,7 +409,8 @@ function Get-Trace($Process, [string]$LastMessage) {
             }
             'turn.completed' {
                 if ($phase -ne 'turn') { $trace.invalidOrder = $true }
-                $phase = 'completed'; $trace.turnCompleted++; $trace.usage = $event['usage']
+                $phase = 'completed'; $trace.turnCompleted++
+                if ($MeasureInput) { $trace.usage = Get-EvalInputUsage $event }
             }
             'turn.failed' { $trace.turnFailed++ }
             'item.completed' {
@@ -414,17 +444,12 @@ function Get-Trace($Process, [string]$LastMessage) {
     $trace.commands = @($commandEvents.ToArray())
     $trace.uniqueTools = @($tools.Keys | ForEach-Object { [ordered]@{ id = $_; type = $tools[$_] } })
     if ($trace.model) { $trace.serverModel = $trace.model }
-    if ($trace.turnCompleted -eq 1 -and $trace.usage -is [System.Collections.IDictionary]) {
-        $usage = $trace.usage
-        $inputTokens = $usage['input_tokens']
-        $cached = $usage['cached_input_tokens']
+    if ($trace.turnCompleted -eq 1 -and $trace.turnFailed -eq 0 -and -not $trace.invalidOrder -and
+        -not $trace.invalidLines -and $trace.terminalEvent -ceq 'turn.completed' -and $trace.usage) {
         $trace.normalizedUsage = [ordered]@{
-            input = $inputTokens; cached = $cached; output = $usage['output_tokens']
-            uncached = if ($null -ne $inputTokens -and $null -ne $cached -and $cached -ge 0 -and $inputTokens -ge $cached) { $inputTokens - $cached }
-            reasoningOutput = $usage['reasoning_output_tokens']; cacheWriteInput = $usage['cache_write_input_tokens']
-            source = if ($client.kind -eq 'native-cli') { 'ACTUAL' } else { 'TEST_SHIM' }
+            input = $trace.usage['input_tokens']; source = 'ACTUAL'
         }
-    }
+    } else { $trace.usage = $null }
     if ($LastMessage -and $lastAgentText -is [string]) {
         $trace.finalMatchesEvent = $LastMessage.TrimEnd().Replace("`r`n", "`n") -ceq $lastAgentText.TrimEnd().Replace("`r`n", "`n")
     }
@@ -484,6 +509,10 @@ if ($chainRole -and (-not $CaseId -or $CaseId.Contains(',') -or -not $BenchmarkR
     throw 'Chain roles require one scenario, a benchmark root, frozen suite and explicit model and effort.'
 }
 if (-not $chainRole -and ($SuiteRoot -or $BenchmarkRoot)) { throw 'Direct mode uses the canonical suite.' }
+if ($MeasureInitialInput -and (-not $chainRole -or -not $Execute -or (-not $AuthHome -and -not $UseApiKey) -or
+    [IO.Path]::GetExtension($CodexPath) -ieq '.ps1')) {
+    throw 'Initial input measurement requires a reserved native Author or Work role.'
+}
 if (-not $chainRole -and $Execute -and ($AuthHome -or $UseApiKey) -and [IO.Path]::GetExtension($CodexPath) -ine '.ps1') {
     throw 'Run authenticated native evaluations through the bounded benchmark session.'
 }
@@ -505,6 +534,26 @@ if ($chainRole) {
         -not (Test-Beneath $BenchmarkRoot $sessionRoot) -or -not (Test-Beneath $BenchmarkRoot $rules) -or
         -not (Test-Beneath $BenchmarkRoot $suite) -or (Test-Beneath $sessionRoot $suite)) {
         throw 'Snapshots, hidden suite and role sessions must be isolated inside the owned benchmark root.'
+    }
+    if ($MeasureInitialInput) {
+        $manifestPath = Resolve-CirnetPath -Root $BenchmarkRoot -Relative 'manifest.json'
+        $manifestFile = [IO.FileInfo]::new($manifestPath)
+        $parent = [IO.Directory]::GetParent($BenchmarkRoot).FullName
+        $receiptPath = Resolve-CirnetPath -Root $parent -Relative 'native-input-baseline.sha256'
+        $receipt = [IO.FileInfo]::new($receiptPath)
+        if (-not $manifestFile.Exists -or $manifestFile.Length -gt 1MB -or $manifestFile.LinkType -eq 'HardLink' -or
+            -not $receipt.Exists -or $receipt.Length -ne 64 -or $receipt.LinkType -eq 'HardLink' -or
+            [IO.File]::ReadAllText($receiptPath) -cne (Get-CirnetHash -Path $manifestPath)) {
+            throw 'The native input measurement reservation does not match the frozen manifest.'
+        }
+        $manifest = ConvertFrom-Json -AsHashtable -InputObject ([IO.File]::ReadAllText($manifestPath))
+        $rolePath = [IO.Path]::GetRelativePath($BenchmarkRoot, $sessionRoot).Replace('\', '/')
+        if ($manifest['inputMeasurement'] -cne 'INITIAL' -or $manifest['mode'] -cne 'NATIVE_COMPATIBILITY' -or
+            $manifest['session'] -cne [IO.Path]::GetFileName($BenchmarkRoot) -or
+            $manifest['sourceRevision'] -cne $SourceRevision -or $CaseId -cnotin $manifest['cases'] -or
+            $rolePath -cne "trials/$CaseId/$Role") {
+            throw 'The reserved native input measurement does not apply to this role.'
+        }
     }
     if ($Role -eq 'Work') {
         $HandoffPath = [IO.Path]::GetFullPath($HandoffPath, $PWD.ProviderPath)
@@ -1044,7 +1093,8 @@ $task
         Save-Json (Join-Path $caseRoot 'run.json') $run
         try {
             $secretValues = @($authSecrets) + @($apiKey | Where-Object { $_ })
-            $process = Invoke-EvalProcess $program ($programPrefix + $cliArgs) $working $codexEnvironment $TimeoutSeconds $inputText $apiKey -WatchToolScope -InputBytes $inputBytes -Canaries $canaries -Secrets $secretValues
+            $process = Invoke-EvalProcess $program ($programPrefix + $cliArgs) $working $codexEnvironment $TimeoutSeconds $inputText $apiKey `
+                -WatchToolScope -InputBytes $inputBytes -Canaries $canaries -Secrets $secretValues -MeasureInput:$MeasureInitialInput
         } finally { if ($temporaryAuth) { [IO.File]::Delete($temporaryAuth) } }
         $run.finishUtc = [DateTimeOffset]::UtcNow.ToString('o')
         $run.process = [ordered]@{
@@ -1078,7 +1128,7 @@ $task
             }
         }
         if ($Role -ne 'Direct' -and $lastFile.Exists) { [IO.File]::Delete($nativeLast) }
-        $trace = Get-Trace $process $lastMessage
+        $trace = Get-Trace $process $lastMessage -MeasureInput:$MeasureInitialInput
         $run.trace = $trace
         $trace.selectedSkillReadSignals = @($trace.commands | Where-Object { $_.command -match '\.agents[/\\]skills[/\\].*SKILL\.md' })
         $trace.scopeSignals = @($trace.commands | Where-Object { $_.command -match '(?i)\bgit(?:\.exe)?\s+(?:reset|clean|stash)\b|\bproducer[/\\]' })

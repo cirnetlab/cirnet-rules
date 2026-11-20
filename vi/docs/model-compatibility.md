@@ -43,11 +43,12 @@ objective và test thực tế trước khi nghiệm thu hành vi áp dụng.
 Báo mức hoàn thành tác vụ, tuân thủ kiến trúc, độ bao phủ kiểm chứng và quyền
 riêng tư cho các ca đã chạy. Ghi snapshot, model và effort yêu cầu, cùng thiết
 lập thực tế khi runtime có báo. Kết quả shim bao phủ bộ khung chạy kiểm tra.
-Tương thích Native cần bằng chứng chạy thật và rà độc lập. Số liệu sử dụng và
-thời gian trên host của từng vai trò có thể hỗ trợ chẩn đoán lỗi.
+Tương thích Native cần bằng chứng chạy thật và rà độc lập. Rà lượt gọi công
+cụ, thời gian trên host và lỗi của từng vai trò. Đo đầu vào lần đầu theo
+[quy trình đánh giá](behavioral-evaluation.md).
 
 Giữ bằng chứng A/B/B2 lịch sử với cách chấm, model, effort, revision và hash
 fixture gốc trong [kho lưu trữ benchmark](../../reports/work-prompt-benchmark-history.md).
 
 <!-- source: en/docs/model-compatibility.md -->
-<!-- source-sha256: 4f88a7b62202822d4b8f2484952ccc4513f25b88373f427f521ae42d2476e87a -->
+<!-- source-sha256: 60cf4fe9e8f2752fa0067f492090bb86fb98a63503eb593a02298c3434e476cd -->

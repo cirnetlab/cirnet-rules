@@ -35,21 +35,69 @@ if (Test-EvidenceValue 'readPreferences recoveryCode identifiers only' $values) 
 if ($issues.Count) { throw ('Protected-value boundary regression: ' + ($issues -join '; ')) }
 Write-Host 'PASS: both-role plain/escaped output, error, handoff and export audit fixtures (not native execution).'
 
-$traceFunction = $ast.Find({ param($node)
-    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Get-Trace'
-}, $false)
-. ([scriptblock]::Create($traceFunction.Extent.Text))
-$client = @{ kind = 'test-shim' }
+foreach ($name in @('Get-EvalInputUsage', 'ConvertTo-EvalEvidenceLine', 'Get-Trace')) {
+    $definition = $ast.Find({ param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+    }, $false)
+    . ([scriptblock]::Create($definition.Extent.Text))
+}
 $process = @{ privacyHits = 0; credentialHits = 0; stdout = @'
 {"type":"thread.started"}
 {"type":"turn.started"}
 {"type":"item.completed","item":{"id":"result","type":"agent_message","text":"safe result"}}
 {"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":7,"output_tokens":4,"reasoning_output_tokens":2}}
 '@ }
-$usage = (Get-Trace $process 'safe result').normalizedUsage
-if ($usage.input -ne 10 -or $usage.cached -ne 7 -or $usage.uncached -ne 3 -or $usage.output -ne 4 -or $usage.reasoningOutput -ne 2 -or $usage.source -ne 'TEST_SHIM') {
-    throw 'Cache must remain an input subset and reasoning must remain separate from output.'
+$trace = Get-Trace $process 'safe result'
+if ($null -ne $trace.usage -or $null -ne $trace.normalizedUsage) {
+    throw 'A run without initial measurement authorization must retain no provider usage.'
 }
-$process.stdout = $process.stdout.Replace('"cached_input_tokens":7', '"cached_input_tokens":11')
-if ($null -ne (Get-Trace $process 'safe result').normalizedUsage.uncached) { throw 'Invalid provider cache arithmetic must stay unavailable.' }
-Write-Host 'PASS: telemetry cache arithmetic, separate reasoning fields and shim provenance.'
+$terminal = ($process.stdout -split '\r?\n')[-1]
+$unmeasured = ConvertTo-EvalEvidenceLine $terminal
+if ($unmeasured -cne '{"type":"turn.completed"}') { throw 'Unmeasured JSONL must keep only the terminal event.' }
+$inputRecorded = $false
+$measured = ConvertTo-EvalEvidenceLine $terminal ([ref]$inputRecorded)
+if ($measured -cne '{"type":"turn.completed","usage":{"input_tokens":10}}') {
+    throw 'Authorized initial JSONL may retain only provider input usage.'
+}
+if ((ConvertTo-EvalEvidenceLine $terminal ([ref]$inputRecorded)) -cne $unmeasured) {
+    throw 'A second terminal event must not yield a second measurement.'
+}
+$inputRecorded = $false
+if ((ConvertTo-EvalEvidenceLine '{"type":"turn.failed","usage":{"input_tokens":10}}' ([ref]$inputRecorded)) -cne '{"type":"turn.failed"}' -or
+    (ConvertTo-EvalEvidenceLine '{"type":"turn.completed","usage":{"input_tokens":-1}}' ([ref]$inputRecorded)) -cne $unmeasured -or
+    (ConvertTo-EvalEvidenceLine '{"type":"turn.completed","usage":{"input_tokens":"10"}}' ([ref]$inputRecorded)) -cne $unmeasured -or
+    (ConvertTo-EvalEvidenceLine '{"type":"turn.completed","usage":' ([ref]$inputRecorded)) -cne '{' -or $inputRecorded) {
+    throw 'Failed, invalid or missing provider input telemetry must remain unavailable.'
+}
+$process.stdout = $process.stdout.Replace($terminal, $measured)
+$usage = (Get-Trace $process 'safe result' -MeasureInput).normalizedUsage
+if ($usage.input -ne 10 -or $usage.source -cne 'ACTUAL' -or $usage.Count -ne 2) {
+    throw 'The authorized input receipt must preserve the provider count and provenance.'
+}
+$process.stdout += "`n$measured"
+if ($null -ne (Get-Trace $process 'safe result' -MeasureInput).normalizedUsage) {
+    throw 'A repeated terminal event cannot establish a valid measurement.'
+}
+
+$runnerAst = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/benchmark/run.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'Session runner parsing failed.' }
+$reserveFunction = $runnerAst.Find({ param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Reserve-InitialInputMeasurement'
+}, $false)
+. ([scriptblock]::Create($reserveFunction.Extent.Text))
+$utf8 = [Text.UTF8Encoding]::new($false, $true)
+$root = New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) "cirnet-input-reservation-$([guid]::NewGuid())")
+$receipt = Join-Path $root.FullName 'native-input-baseline.sha256'
+try {
+    Reserve-InitialInputMeasurement $receipt ('a' * 64)
+    $rejected = $false
+    try { Reserve-InitialInputMeasurement $receipt ('b' * 64) }
+    catch { $rejected = $_.Exception.Message -match 'Cannot reserve the initial input measurement' }
+    if (-not $rejected -or [IO.File]::ReadAllText($receipt) -cne ('a' * 64)) {
+        throw 'Measurement reservations are single-use and preserve their original manifest hash.'
+    }
+} finally {
+    [IO.File]::Delete($receipt)
+    $root.Delete()
+}
+Write-Host 'PASS: synthetic privacy audit, opt-in input-only telemetry and single-use reservation.'

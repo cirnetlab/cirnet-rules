@@ -45,7 +45,8 @@ Report task success, architecture compliance, verification coverage and privacy
 for the cases exercised. Record the snapshot and the requested model and
 effort, with effective settings when the runtime reports them. A shim result
 covers the harness. Native compatibility requires actual run evidence and
-independent review. Role usage and host duration can help diagnose a failure.
+independent review. Review tool calls, host duration and errors for each role.
+Follow the [evaluation procedure](behavioral-evaluation.md) for initial input measurement.
 
 Keep historical A/B/B2 evidence with its original scoring, model, effort,
 revision and fixture hashes in the [benchmark archive](../../reports/work-prompt-benchmark-history.md).

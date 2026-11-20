@@ -167,6 +167,18 @@ function reportSession(mode, root, suppliedReview) {
     const workInput = files[prefix + 'Work/prompt.txt']?.sha256;
     const byteExact = Boolean(handoff && handoff === workInput && handoff === author?.finalSha256 && handoff === work?.manifest?.promptSha256);
     if (result.handoffShaMatches !== byteExact) throw new Error('Handoff receipt does not match the role input bytes.');
+    if (['OBJECTIVE_PASS_REVIEW_REQUIRED', 'TEST_SHIM_OBJECTIVE_PASS'].includes(result.status)) {
+      const completed = role => role?.execution === 'COMPLETED' && role.startUtc && role.finishUtc &&
+        ['PASS', 'NOT_RUN'].includes(role.verdict) && role.process?.exitCode === 0 &&
+        !role.process.error && !role.process.timedOut && !role.process.scopeStop &&
+        role.trace?.finalMatchesEvent === true && !role.trace.privacyHits && !role.trace.credentialHits;
+      if (result.status !== (manifest.mode === 'TEST_SHIM' ? 'TEST_SHIM_OBJECTIVE_PASS' : 'OBJECTIVE_PASS_REVIEW_REQUIRED') ||
+          !byteExact || !completed(author) || !completed(work) || work.objective?.status !== 'PASS' ||
+          work.objectiveProcess?.exitCode !== 0 || work.executionScope?.preflightStatus !== 'PASS' ||
+          work.executionScope?.auditStatus !== 'PASS') {
+        throw new Error('Objective success conflicts with role evidence.');
+      }
+    }
     const checks = {
       taskSuccess: scenario.rubric,
       architectureCompliance: scenario.architecture,
@@ -244,8 +256,7 @@ function reportSession(mode, root, suppliedReview) {
     if (scopeFailure) quality.architectureCompliance.status = 'FAIL';
     const execution = result.status === 'FAIL' || privacyFailure || scopeFailure ? 'FAIL' :
       result.status === 'BLOCKED' ? 'BLOCKED' :
-      manifest.mode !== 'NATIVE_COMPATIBILITY' || result.status !== 'OBJECTIVE_PASS_REVIEW_REQUIRED' ? 'NOT_RUN' :
-      author?.execution === 'COMPLETED' && work?.execution === 'COMPLETED' && work.objective?.status === 'PASS' && byteExact ? 'PASS' : 'BLOCKED';
+      manifest.mode !== 'NATIVE_COMPATIBILITY' || result.status !== 'OBJECTIVE_PASS_REVIEW_REQUIRED' ? 'NOT_RUN' : 'PASS';
     return { id: scenario.id, language: scenario.language, status: aggregate([execution, ...Object.values(quality).map(item => item.status)]),
       execution: result.status, handoffShaMatches: byteExact, quality };
   });
