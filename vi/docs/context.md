@@ -151,11 +151,14 @@ Dùng cùng đầu vào đã duyệt ở từng giai đoạn:
    bằng chứng kiểm thử thực tế và sản phẩm bàn giao.
 
 CLI giữ `acceptanceStatus` ở `NOT_RUN`. Mỗi worktree của owner cần phê duyệt
-và bằng chứng riêng. Audit so sánh HEAD, nhánh, index, byte tệp được và chưa
-được theo dõi, cùng tối đa 1.024 tệp bị bỏ qua với tổng dung lượng 32 MiB.
+và bằng chứng riêng. Audit so sánh HEAD, nhánh, index, cấu hình Git cục bộ
+và cấu hình worktree, các ref của repo, tệp exclude và attributes cục bộ,
+byte tệp được và chưa được theo dõi, cùng tối đa 1.024 tệp bị bỏ qua với tổng
+dung lượng 32 MiB. Chụp lại baseline được tạo trước khi có bằng chứng metadata Git.
 Đầu vào không có hoặc không được hỗ trợ sẽ chặn giai đoạn tương ứng. Audit
-ghi nhận chênh lệch cuối cùng. Khi cần giới hạn thực thi từ trước, dùng cơ chế
-tin cậy. Agent bên ngoài phải tuân thủ kết quả preflight và dùng các giới hạn
+ghi nhận chênh lệch cuối cùng. Bảo vệ vùng quản trị Git bằng quyền ở runtime.
+Git hook, thiết lập toàn cục và repo khác cần cơ chế riêng. Agent bên ngoài
+phải tuân thủ kết quả preflight và dùng các giới hạn
 công cụ được cấp quyền riêng. Validator không điều khiển việc thực thi đó.
 
 ## Vòng đời mô hình
@@ -181,4 +184,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: ec9362b811a80b1f5ecde773260afba535931e3f5531e63fd19edbfd0b3aa29e -->
+<!-- source-sha256: fd0e33a9352f372bcc5b3635bcc293b8c256d12ae1bfcf195c351087dab21822 -->

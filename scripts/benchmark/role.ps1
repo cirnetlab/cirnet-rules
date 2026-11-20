@@ -341,6 +341,8 @@ function Get-GitEvidence([string]$Directory) {
     }
     try { $evidence['index-entries'] = Get-ContinuityTextHash (Get-ContinuityIndexEntries $Directory).Text }
     catch { $evidence['index-entries'] = 'UNSAFE_OR_UNREADABLE' }
+    try { $evidence['metadata'] = Get-ContinuityGitMetadataHash (Get-ContinuityRepository $Directory) }
+    catch { $evidence['metadata'] = 'UNSAFE_OR_UNREADABLE' }
     return $evidence
 }
 

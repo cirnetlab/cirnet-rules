@@ -179,6 +179,34 @@ function Get-ContinuityFileDigest([string]$Path) {
     Get-CirnetHash -Path $Path
 }
 
+function Get-ContinuityGitMetadataHash($Repository) {
+    # Record local Git administration by hash, without exporting config or ref names.
+    $metadata = [ordered]@{}
+    foreach ($location in @(
+        @{ Root = $Repository.commonDirectory; Prefix = 'common'; Names = @('config', 'info/exclude', 'info/attributes', 'packed-refs') }
+        @{ Root = $Repository.gitDirectory; Prefix = 'worktree'; Names = @('HEAD', 'config.worktree') }
+    )) {
+        $directory = Resolve-CirnetRoot $location.Root
+        foreach ($name in $location.Names) {
+            $path = Resolve-ContinuityFile $directory $name
+            $key = "$($location.Prefix)/$name"
+            if ($null -eq (Get-ContinuityAttributes $path)) {
+                $metadata[$key] = 'absent'
+                continue
+            }
+            $file = [IO.FileInfo]::new($path)
+            if (-not $file.Exists -or $file.LinkType -eq 'HardLink' -or $file.Length -gt 1MB) {
+                throw 'An audited Git metadata file is unsafe or exceeds the size limit.'
+            }
+            $metadata[$key] = Get-ContinuityFileDigest $path
+        }
+    }
+    $refs = Invoke-ContinuityGit $Repository.root @('for-each-ref', '--sort=refname', '--format=%(refname)%00%(objectname)%00%(symref)')
+    if ($utf8.GetByteCount($refs.Text) -gt 1MB) { throw 'The audited Git ref inventory exceeds the size limit.' }
+    $metadata.refs = Get-ContinuityTextHash $refs.Text
+    Get-ContinuityValueHash $metadata
+}
+
 function Assert-NoGitFilters([string]$Root, [string[]]$Tracked, [string[]]$Untracked) {
     $keys = @(Get-GitRecords (Invoke-ContinuityGit $Root @('config', '--null', '--name-only', '--get-regexp', '^filter\..*\.(clean|process)$') @(0, 1)))
     if ($keys.Count -eq 0 -or ($Tracked.Count + $Untracked.Count) -eq 0) { return }
@@ -276,6 +304,7 @@ function Read-GitSnapshot($Repository, [switch]$IncludeIgnored) {
     }
     # Keep conflict-free fingerprints compatible with existing checkpoints.
     if ($unmerged.Count) { $snapshot.unmerged = @($unmerged) }
+    if ($IncludeIgnored) { $snapshot.gitMetadataSha256 = Get-ContinuityGitMetadataHash $Repository }
     $snapshot
 }
 
@@ -294,7 +323,7 @@ function Get-ContinuityGitSnapshot($Repository, [switch]$IncludeIgnored) {
 
 function Compare-ContinuityGit($Saved, $Current) {
     $fields = @(
-        foreach ($field in @('worktree', 'gitDirectory', 'repository', 'branch', 'head', 'indexSha256', 'entriesSha256')) {
+        foreach ($field in @('worktree', 'gitDirectory', 'repository', 'branch', 'head', 'indexSha256', 'entriesSha256', 'gitMetadataSha256')) {
             if ($Saved[$field] -cne $Current[$field]) { $field }
         }
     )
@@ -317,4 +346,4 @@ function Compare-ContinuityGit($Saved, $Current) {
 Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityValueHash, Test-ContinuityWorktree,
     Test-ContinuityReferenceConflict, Get-ContinuityIndexEntries, Get-ContinuityTextHash,
     Assert-ContinuityDestination, Test-ContinuityInside, Resolve-ContinuityFile, Get-ContinuityFileDigest,
-    Get-ContinuityGitFingerprint, Get-ContinuityGitSnapshot, Compare-ContinuityGit
+    Get-ContinuityGitFingerprint, Get-ContinuityGitSnapshot, Get-ContinuityGitMetadataHash, Compare-ContinuityGit

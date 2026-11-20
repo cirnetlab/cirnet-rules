@@ -258,10 +258,34 @@ if ($capture.baselineStatus -cne 'PASS' -or $capture.executionStatus -cne 'NOT_R
 $snapshot = Join-Path $fixture 'scope.json'
 [IO.File]::WriteAllText($snapshot,(ConvertTo-Json $capture -Depth 24 -Compress))
 $audit = @{ ScopeSnapshot=$snapshot; ScopeSnapshotSha256=(Get-CirnetHash $snapshot) }
+$legacySnapshot = Join-Path $fixture 'scope-without-git-metadata.json'
+$legacy = [IO.File]::ReadAllText($snapshot) | ConvertFrom-Json -AsHashtable
+$legacy.scopeSnapshot.git.Remove('gitMetadataSha256')
+[IO.File]::WriteAllText($legacySnapshot,(ConvertTo-Json $legacy -Depth 24 -Compress))
+if ((Test-CirnetWorkPromptFile @intake -ExecutionPreflight -ScopeSnapshot $legacySnapshot -ScopeSnapshotSha256 (Get-CirnetHash $legacySnapshot)).executionStatus -cne 'BLOCKED') {
+    throw 'A scope baseline without Git metadata evidence authorized execution.'
+}
 if ((Test-CirnetWorkPromptFile @intake -ExecutionPreflight).executionStatus -cne 'BLOCKED') { throw 'Audit authority replaced a pinned baseline.' }
 $preflight = Test-CirnetWorkPromptFile @intake @audit -ExecutionPreflight
 if ($preflight.executionStatus -cne 'PASS' -or $preflight.scopeAuditStatus -cne 'NOT_RUN' -or
     $preflight.acceptanceStatus -cne 'NOT_RUN') { throw 'Pinned baseline did not authorize intake independently of reconciliation.' }
+$gitConfig = Join-Path $auditRepo '.git/config'
+$originalConfig = [IO.File]::ReadAllBytes($gitConfig)
+try {
+    $null = Invoke-OwnerGit @('config','--local','cirnet-fixture.marker','local-only')
+    $metadataIntake = Test-CirnetWorkPromptFile @intake @audit -ExecutionPreflight
+    $metadataAudit = Test-CirnetWorkPromptFile @intake @audit
+    if ($metadataIntake.executionStatus -cne 'FAIL' -or $metadataAudit.scopeAuditStatus -cne 'FAIL') {
+        throw 'Unauthorized Git config drift passed Work intake or scope reconciliation.'
+    }
+} finally { [IO.File]::WriteAllBytes($gitConfig,$originalConfig) }
+$extraRef = 'refs/tags/cirnet-audit-probe'
+try {
+    $null = Invoke-OwnerGit @('update-ref',$extraRef,'HEAD')
+    if ((Test-CirnetWorkPromptFile @intake @audit).scopeAuditStatus -cne 'FAIL') {
+        throw 'A new Git ref passed scope reconciliation without a change to HEAD.'
+    }
+} finally { $null = Invoke-OwnerGit @('update-ref','-d',$extraRef) }
 $cliIntake = & (Join-Path $PSHOME 'pwsh') -NoProfile -File (Join-Path $repo 'scripts/validate-work-prompt.ps1') @intake @audit -ExecutionPreflight
 if ($LASTEXITCODE -ne 0 -or ($cliIntake | ConvertFrom-Json).executionStatus -cne 'PASS') { throw 'CLI Work intake did not expose the execution gate.' }
 $mismatch = Join-Path $fixture 'mismatched-scope.json'

@@ -470,6 +470,12 @@ function Test-CirnetWorkPromptFile {
                     $expected.git.head -cne $record.revision) {
                     return Set-PromptPhase $result $phase FAIL 'Scope snapshot belongs to a different handoff, approval, worktree or effects. Capture it again.'
                 }
+                if ($expected.git['gitMetadataSha256'] -cnotmatch '^[0-9a-f]{64}\z') {
+                    return Set-PromptPhase $result $phase BLOCKED 'Scope snapshot lacks Git metadata evidence. Capture a new baseline.'
+                }
+                if ((Get-ContinuityGitMetadataHash $owner) -cne $expected.git.gitMetadataSha256) {
+                    return Set-PromptPhase $result $phase FAIL 'Git administrative metadata changed since baseline capture.'
+                }
             }
             $git = Get-ContinuityGitSnapshot $owner -IncludeIgnored
             if ($git.head -cne $record.revision -or $git.Contains('unmerged')) {
