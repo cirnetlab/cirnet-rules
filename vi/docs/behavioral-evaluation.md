@@ -60,7 +60,10 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
 - Author chỉ đọc. Work nhận bản sao fixture mới và đúng byte từ Author. Các
   tệp riêng của từng vai trò khiến commit Git giả lập khác nhau. Dùng đường
   dẫn tương đối và mã băm tệp đã kiểm tra làm bằng chứng cho mã nguồn chung.
-  Work kiểm tra trạng thái Git của fixture mình trước khi sửa. Cả hai
+  Work kiểm tra trạng thái Git của fixture mình trước khi sửa. E02 lấy mã băm
+  dùng chung của tệp định dạng, tệp kiểm thử và README từ fixture đã cố định.
+  Cổng kiểm đầu ra của Author từ chối mã băm `AGENTS.md` riêng của vai trò này.
+  Work đọc `AGENTS.md` cục bộ. Cả hai
   vai trò nhận hướng dẫn intake `toolkit/en/docs/context.md` đã ghim. Các
   hướng dẫn `en/docs` khác, mẫu soạn thảo và Skill soạn thảo dành cho Author.
   Cổng kiểm trạng thái, nhiệm vụ gốc, phạm vi ghi, yêu cầu báo cáo và hai mục
@@ -142,4 +145,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: f3f3e4b16758483397eb613f2ef1442e97af63cc8b15aef629975c9ad32ace19 -->
+<!-- source-sha256: ce3d9f49c1f1cc1033cfcdaf3d1b3016ca0497c200fbe2838650bfad12d0f5cb -->

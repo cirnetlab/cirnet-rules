@@ -149,7 +149,7 @@ function Test-PromptContent([string[]]$Lines, $Requirements, [string[]]$Allowed,
     New-PromptResult PASS 'Required statements, permissions and check mappings match the supplied authority.'
 }
 
-function Test-CirnetCandidatePrompt([string]$Text, $Case, [string]$ReviewedSha256, [string[]]$ReadablePaths) {
+function Test-CirnetCandidatePrompt([string]$Text, $Case, [string]$ReviewedSha256, [string[]]$ReadablePaths, [string]$AuthorRulesSha256) {
     $state = $Case['readiness'] ?? 'PROMPT_READY'
     $scope = @(if ($state -ceq 'PROMPT_READY') { $Case.writable })
     $lines = $Text -split '\r?\n', 4
@@ -163,6 +163,9 @@ function Test-CirnetCandidatePrompt([string]$Text, $Case, [string]$ReviewedSha25
     if (-not $body.Success -or
         $lines[3] -match '(?m)^[ \t]*(?:\*\*)?PROMPT_(?:READY|BLOCKED)(?:\*\*)?[ \t]*\r?$') {
         return New-PromptResult FAIL 'Restore the two nonempty Candidate review sections and a single readiness declaration.'
+    }
+    if ($AuthorRulesSha256 -and $lines[3].Contains($AuthorRulesSha256, [StringComparison]::OrdinalIgnoreCase)) {
+        return New-PromptResult FAIL 'Author AGENTS.md is role-specific. Remove its hash and direct Work to its local AGENTS.md.'
     }
     # A reviewed digest cannot grant access to a file absent from Work.
     $references = [regex]::Matches($lines[3],

@@ -208,6 +208,22 @@ $missing = Test-CirnetCandidatePrompt $sharedCandidate $case $sharedDigest -Read
 if ($missing.status -cne 'FAIL' -or $missing.diagnostics[0] -cnotmatch 'context\.md') {
     throw 'Reviewed Candidate bytes must not authorize an unstaged Work reference.'
 }
+$durationCase = $catalog | Where-Object id -CEQ E02
+$authorRulesSha256 = 'aa8c5b33ea2fdbad76e121e17cfd34e067b934764ca0c8d07f21bd04351e3b05'
+$durationSha256 = Get-CirnetHash -Path (Join-Path $repo 'tests/benchmark/fixtures/E02/duration.mjs')
+$durationCandidate = @('PROMPT_READY', "Original task: $($durationCase.prompt)", 'Write scope: ["duration.mjs"]',
+    '## Requirements and constraints', 'Follow local AGENTS.md and check the local Git state.',
+    ('- `duration.mjs` — `{0}`' -f $durationSha256),
+    '## Acceptance and verification', 'Run the duration assertions before and after the scoped edit.', $report) -join [char]10
+$durationGate = @{ Case=$durationCase; AuthorRulesSha256=$authorRulesSha256; ReadablePaths=@('AGENTS.md','duration.mjs') }
+if ((Test-CirnetCandidatePrompt -Text $durationCandidate @durationGate).status -cne 'REVIEW_REQUIRED') {
+    throw 'A local AGENTS reference and a genuine shared fixture hash must remain reviewable.'
+}
+$wrongRolePin = $durationCandidate.Replace('## Acceptance and verification', ('- `AGENTS.md` — `{0}`' -f $authorRulesSha256.ToUpperInvariant()) + "`n## Acceptance and verification")
+$badPin = Test-CirnetCandidatePrompt -Text $wrongRolePin @durationGate -ReviewedSha256 (Get-CirnetPayloadHash ([Text.Encoding]::UTF8.GetBytes($wrongRolePin)))
+if ($badPin.status -cne 'FAIL' -or $badPin.diagnostics[0] -cnotmatch 'Author AGENTS\.md') {
+    throw 'The exact role-specific Author Rules hash must never pass as transferable E02 evidence.'
+}
 $blockedCase = $catalog | Where-Object id -CEQ E04
 $blockedCandidate = @('PROMPT_BLOCKED',"Original task: $($blockedCase.prompt)",'Write scope: []',
     '## Requirements and constraints','The producer contract requires authorization.',

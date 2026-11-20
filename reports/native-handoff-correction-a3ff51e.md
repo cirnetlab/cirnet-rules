@@ -116,3 +116,35 @@ runner and independent reporter each exited `2` with overall `BLOCKED`.
 
 E02 remains open. A fresh Author handoff needs to keep role-generated files
 out of shared baseline pins. Its Author allowance for this session was used.
+
+## E02 acceptance at df5f32e
+
+On 21 November 2026, session `e02-df5f32e` ran on Windows against
+`df5f32e74ec51ffaccb93a2365f6b4f363f31d71` plus the pre-run patch with SHA-256
+`7614069aeff847fa8e0b7d06f1a970ec3d4f388ac13cc491d0d2497d72c01693`.
+The session used one native Author and one native Work with the dedicated
+evaluation profile. Token measurement was disabled. The initial reservation
+and evidence hashes still match.
+
+The E02 runner now supplies the shared hashes of `README.md`, `duration.mjs`
+and `duration.test.mjs` from the frozen fixture. The Author output gate rejects
+the generated Author `AGENTS.md` hash. The old sealed handoff reproduced the
+failure before the fix and was rejected by the corrected gate on replay. Build,
+Cargo tests, EN/VI documentation, Work Prompt, benchmark session and benchmark
+privacy checks passed on Windows. Cargo tests had 61 passes and one ignored test.
+
+**E02 native verdict `PASS`.** Work received the exact reviewed handoff and
+confirmed its local Git state and the three shared hashes. `Work/item_10` ran
+the unchanged test before the edit and exited `1` on `0:0` versus `00:00`.
+`Work/item_13` edited only `duration.mjs`. `Work/item_14` ran the same test and
+exited `0` with all four required assertions and no skips. `Work/item_15`
+exited `0` after comparing every one of the 3,600 supported inputs to the
+expected `MM:SS` output. Fixture scope and Git metadata audits passed. The
+runner and independent reporter each exited `0`.
+
+| Local evidence | SHA-256 |
+| --- | --- |
+| `manifest.json` | `80c53aba18db0fc9c92e449c48e22e456510985f1693e0a7fdc3d1dc7676184a` |
+| `evidence-index.json` | `45d0b0f4b88198477d4b70ea5ad632a5e0541602fa119228948e6bd1b2b4c5aa` |
+| `review.json` | `1006c05c7e0f8bb2a1bd3d87988982b856a0ab62df56c2962dcb26b028c0d929` |
+| `quality-report.json` | `08249fc52f06847466b5469c09f18d2e06efce3aa5d627f4d9da7c2d3b9a9c89` |

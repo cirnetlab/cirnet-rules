@@ -61,7 +61,9 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
 - The Author is read-only. Work gets a fresh fixture and the exact Author bytes.
   Role-specific files make the synthetic Git commits differ. Use relative paths
   and verified file hashes for shared source evidence. Work checks its own Git
-  state before editing.
+  state before editing. E02 takes shared pins for the formatter, test and README
+  from the frozen fixture. Its Author output gate rejects the role-specific
+  `AGENTS.md` hash. Work reads its own `AGENTS.md`.
   Both roles get the pinned `toolkit/en/docs/context.md` intake guide.
   The other `en/docs` guides, authoring template and authoring Skill belong to
   Author. The gate checks readiness, original task, write scope, reporting and

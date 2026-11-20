@@ -181,8 +181,18 @@ foreach ($id in @('E02', 'python-retry-count-refactor', 'rust-timeout-bound')) {
         $authorPrompt = [IO.File]::ReadAllText((Join-Path $trial 'Author/prompt.txt'))
         if ($authorPrompt -cnotmatch 'Do not use Author HEAD as a Work prerequisite' -or
             $authorPrompt -cnotmatch 'shared fixture files by relative path and verified SHA-256' -or
-            $authorPrompt -cnotmatch 'Work must inspect its own Git status') {
+            $authorPrompt -cnotmatch 'Work must inspect its own Git status' -or
+            $authorPrompt -cnotmatch 'Never pin AGENTS\.md') {
             throw 'E02 must transfer shared file identity while retaining the local Git preflight.'
+        }
+        foreach ($file in 'README.md', 'duration.mjs', 'duration.test.mjs') {
+            $pin = '- `{0}` SHA-256 `{1}`' -f $file, $mixed.evaluator["fixtures/E02/$file"]
+            if (-not $authorPrompt.Contains($pin, [StringComparison]::Ordinal)) {
+                throw "E02 Author is missing the frozen shared pin for $file."
+            }
+        }
+        if ($authorPrompt.Contains($roleRecord.manifest.rules['AGENTS.md'], [StringComparison]::Ordinal)) {
+            throw 'E02 Author prompt leaked the role-specific Rules hash into the shared baseline.'
         }
     }
 }
