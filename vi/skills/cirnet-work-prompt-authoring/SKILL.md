@@ -40,9 +40,10 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    cấu trúc mà không thực thi source. Đưa đúng lệnh gọi và giới hạn cho Work.
    Dừng khảo sát khi đã có thể bàn giao an toàn. Theo quy trình khôi phục lần
    đọc của mẫu và chuyển các kiểm soát quyền riêng tư áp dụng sang preflight.
-5. **Draft Adaptive Prompt.** Đọc `en/templates/chat-to-work-prompt.md` từ
-   checkout được phép. Bundle đã cài cung cấp Skill này và cần quyền đọc
-   checkout riêng để lấy mẫu. Thiếu quyền đọc mẫu thì trả `PROMPT_BLOCKED`.
+5. **Draft Adaptive Prompt.** Mở `references/chat-to-work-prompt.md` cạnh
+   Skill sau khi xác minh bundle và bản cài, hoặc dùng
+   `en/templates/chat-to-work-prompt.md` từ checkout được phép. Thiếu nguồn
+   mẫu đã xác minh thì trả `PROMPT_BLOCKED`.
    Chọn `LIGHT`, `STANDARD` hoặc `DEEP` theo độ phức tạp, rủi ro, phụ thuộc,
    bất định và khả năng truy cập nguồn. Xét đủ 12 trường ngữ nghĩa, gom thông
    tin áp dụng vào các heading Markdown thông thường.
@@ -108,4 +109,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: bfd764783e20cebe981d7e7a4808179717ea8b4f8c0d128a5f4000e919150391 -->
+<!-- source-sha256: 62b40b14da2718e8c8ba31e754bc3eb0ca7b946fe44d7240fb44013b08eb6b93 -->

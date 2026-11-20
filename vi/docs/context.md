@@ -37,7 +37,7 @@ lần. Adapter managed chỉ nên đưa vào baseline.
 ## Chat-to-Work
 
 Khi được yêu cầu chuẩn bị Prompt cho Agent khác, chọn Skill biên soạn và mở
-mẫu tiếng Anh từ checkout đã được phép. Chọn Work Skills áp dụng từ metadata,
+mẫu tiếng Anh từ bản cài đã xác minh hoặc checkout đã được phép. Chọn Work Skills áp dụng từ metadata,
 chỉ đọc thân các Skill đó, kiến trúc, chỉ dẫn owner và bằng chứng liên quan.
 Chọn LIGHT, STANDARD hoặc DEEP theo độ phức tạp, rủi ro, phụ thuộc, bất định
 và quyền đọc source. Xét đủ 12 trường ngữ nghĩa, gom thông tin áp dụng vào
@@ -46,7 +46,6 @@ các heading nhiệm vụ cần.
 Tham chiếu nguồn Work đọc được và ghi trực tiếp ràng buộc riêng của nhiệm vụ.
 Nếu Work thiếu quyền đọc source, đưa dữ kiện đáng tin cậy thiết yếu, định danh
 nguồn, ràng buộc và nghiệm thu, hoặc chặn phần phụ thuộc khi thiếu thẩm quyền.
-Mẫu tiếng Anh vẫn cần quyền đọc checkout riêng như hướng dẫn bên dưới.
 Trả một bản bàn giao đúng phạm vi trong chat. Sửa source trực tiếp dùng Skills
 thực thi.
 Theo dõi Required / Conditional / Already-loaded riêng cho từng vai trò.
@@ -67,9 +66,13 @@ Runner hiện tại thiếu cơ chế cưỡng chế quyền đọc có giới h
 mở bản nháp, nhiệm vụ gốc hay nguồn. Tác vụ hẹp hơn chỉ được dùng bản dữ liệu
 đã lọc, cô lập và được phê duyệt độc lập.
 
-Yêu cầu gốc là văn bản UTF-8. Trước khi duyệt JSON dưới đây, người vận hành
-đối chiếu từng dòng đánh số với quyền và phép kiểm nghiệm thu. Thay các giá trị
-mẫu bằng đúng đường dẫn gốc, toàn bộ SHA của HEAD và digest tệp viết thường.
+Yêu cầu gốc là văn bản UTF-8. Với đầu vào không nhạy cảm và được phép đọc, dùng
+`validate-work-prompt.ps1 -Prepare -OriginalTask request.txt -Repository $ownerRoot -SourcePath label.js`
+để lấy các dòng được đánh số và `proposal` chứa pin của yêu cầu, HEAD và nguồn.
+Mã thoát 2 cho biết đang chờ duyệt. Giữ đầu ra cục bộ. Rà từng ánh xạ, điền
+quyền và phép kiểm rõ ràng, rồi lưu đối tượng `proposal` đã được duyệt độc lập
+làm tệp phê duyệt. Nhận riêng SHA-256 từ người phê duyệt. Bước chuẩn bị để
+trống các quyền.
 Trong ví dụ, dòng 1 yêu cầu sửa `label.js`, dòng 2 giới hạn thay đổi và giữ các
 chỉnh sửa ngoài phạm vi, dòng 3 mô tả đầu ra cần quan sát.
 
@@ -91,14 +94,23 @@ không có ca âm. Ánh xạ từng dòng thao tác đến tác động được
 dòng nghiệm thu đến phép đọc, test hoặc build được duyệt.
 Hash nguồn xác định đúng byte đã khảo sát trong working tree tại HEAD đã nêu.
 
+Dùng `create:`, `modify:` hoặc `delete:` trong ánh xạ thao tác khi cần chỉ
+rõ tác động lên tệp. Di chuyển cần quyền xóa nguồn và tạo đích. Ánh xạ
+`write:` hiện có cho phép tạo mới hoặc sửa tệp tại đúng đường dẫn. Rà tác
+động phụ của lệnh và dùng đường dẫn tạm đã được duyệt. Đặt
+`"preventiveScope": true` trong bản phê duyệt khi tác vụ cần cơ chế giới hạn
+tác động từ trước. Runner offline trả `BLOCKED` cho đầu vào này. Thiết lập
+cơ chế phù hợp trước khi tiếp tục.
+
 Mở đầu bản nháp bằng trạng thái đã duyệt, sau đó đặt `Original: <request digest>`
 và `Authorization: <approval digest>` trên hai dòng riêng. Nêu rõ thao tác, đối
 tượng và phép biến đổi. Giữ thứ tự gốc, dùng nguyên văn từng dòng hoặc `Task#N`
 cho các dòng khác có nội dung mà Work có thể mở lại. Với ví dụ trên, thêm
 `Verify Task#3: test: node --test` và `Source: label.js`. Tham chiếu bản cấp
 quyền xác định giới hạn. Dòng thao tác tùy chọn như `write: label.js` còn phải khớp
-với thao tác, phép kiểm hoặc quyền đọc nguồn gắn với nhiệm vụ này. Markdown
-thông thường và cách diễn đạt lại có thể được rà độc lập.
+với thao tác, phép kiểm hoặc quyền đọc nguồn gắn với nhiệm vụ này. Giữ mỗi
+câu bắt buộc hoặc tham chiếu được phép trên một dòng hiển thị. Giữ nguyên văn
+thao tác, đối tượng và phép biến đổi. Rà độc lập phần diễn giải bổ sung.
 Tiêu đề của Candidate chỉ áp dụng cho fixture benchmark.
 
 ```powershell
@@ -112,9 +124,22 @@ và SHA-256 của bản nháp. Mã thoát 0 (`PASS`) áp dụng cho phần nội
 với yêu cầu gốc và quyền, 3 (`BLOCKED`) dừng triển khai. Giữ Work ở trạng thái
 `PROMPT_BLOCKED` trong khi còn thiếu lần rà thiết yếu. Sau khi người rà độc lập
 duyệt bản nháp theo cùng đầu vào, người vận hành có thể truyền digest của bản nháp
-qua `-ReviewedPromptSha256` để ghi nhận quyết định. Validator không xác thực danh tính người
-duyệt, diễn giải văn xuôi tùy ý, chạy các phép kiểm dự kiến hay cưỡng chế
-quyền hệ thống tệp của Work.
+qua `-ReviewedPromptSha256` để ghi nhận quyết định. Digest xác định đúng byte
+đã rà. Vẫn phải bổ sung nội dung còn thiếu hoặc sửa lỗi toàn vẹn và phạm vi.
+Người vận hành đánh giá tương đương ngữ nghĩa, cấp quyền công cụ và rà bằng
+chứng thực tế của Work.
+
+Để đối chiếu một worktree theo giới hạn, người vận hành phải duyệt việc kiểm kê
+và băm toàn worktree, gồm cả tệp bị bỏ qua, bằng `"scopeAudit": true` trong
+bản cấp quyền. Chạy cùng lệnh với `-CaptureScope` trước khi Work bắt đầu.
+Lưu JSON ở thư mục cục bộ tin cậy ngoài worktree
+của owner và giữ riêng SHA-256 của tệp. Sau khi Work chạy xong, xác thực lại với
+`-ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`. Đối chiếu các lỗi
+trước khi chấp nhận kết quả. Phép kiểm so sánh HEAD, nhánh, index, byte tệp được
+theo dõi và chưa theo dõi, cùng tối đa 1.024 tệp bị bỏ qua với tổng dung lượng
+32 MiB. Snapshot không được hỗ trợ sẽ chặn đối chiếu. Phép kiểm ghi nhận chênh
+lệch cuối cùng. Lệnh, tác động tạm thời, lượt đọc và repo khác cần cơ chế được
+cấp quyền và bằng chứng riêng.
 
 ## Vòng đời mô hình
 
@@ -139,4 +164,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: f5621992a6506c38b982041a47749aa6e576746edd6ea16d20c23d11593bf7ad -->
+<!-- source-sha256: 78bd4d38d97b139785cb675e1795ed4d2d429ae74cf2c8a71073022676351ece -->

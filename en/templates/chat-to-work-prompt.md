@@ -21,7 +21,7 @@ Compare the draft goal, scope and acceptance against the user's requested
 action, target, transformation, outcome, constraints, negative cases and
 permissions. Restore any missing requirement before compressing. Keep this
 comparison internal. Before delivery and again at intake, apply the
-[offline handoff check](../docs/context.md#offline-handoff-validation) to the exact draft.
+offline handoff check in `en/docs/context.md#offline-handoff-validation` to the exact draft.
 
 ### Choose detail by task
 
@@ -30,7 +30,7 @@ required tool capabilities and verified commands. Record explicitly requested
 evaluation model and effort as runtime metadata. Work maps capabilities to its
 available tools and marks steps `BLOCKED` when required capabilities are
 unavailable. Preserve applicable safety checks and follow the
-[model compatibility procedure](../docs/model-compatibility.md) for runtime changes.
+model compatibility procedure in `en/docs/model-compatibility.md` for runtime changes.
 
 | Mode | Selection | Suggested presentation |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ matching evidence. For references Work cannot reopen, include essential trusted
 facts, source identity/version, constraints and acceptance. Use this fallback
 when reliable evidence establishes safe scope. Mark steps that lack essential
 authority or evidence `BLOCKED`. The approved English template itself must be
-accessible to Chat as described in the [authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md).
+accessible to Chat as described in the authoring Skill.
 
 Carry the evidence needed for transient failures, difficult reproduction,
 security, safety or compatibility. Preserve architecture authority,

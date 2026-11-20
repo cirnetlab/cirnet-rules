@@ -29,7 +29,8 @@ $root = [IO.Path]::GetTempPath()
 
 Preview gọi 0 vai trò. Đối chiếu revision và hash tệp trong preview với manifest
 thực thi khi kiểm tra một phạm vi đã khóa. Manifest ghi HEAD, byte của working
-tree, thiết lập vai trò và giới hạn lượt gọi. Thiếu công cụ sẽ chặn ca liên
+tree, thiết lập vai trò và giới hạn lượt gọi. Snapshot của Author dùng mẫu
+chính thức cùng hướng dẫn context, phân phối và model. Thiếu công cụ sẽ chặn ca liên
 quan. Lỗi xác thực, quota, mạng hoặc sandbox dùng chung sẽ dừng việc gọi thêm
 vai trò. `-TimeoutSeconds` đặt giới hạn cho từng vai trò.
 
@@ -56,7 +57,8 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
   `REVIEW_REQUIRED`. E01 native dừng trước khi model truy cập vì shell có thể
   bỏ qua inspector. E04 cho phép làm rõ ở chế độ chỉ đọc sau khi rà. E07 có thể
   chạy kiểm tra chỉ đọc và cần báo riêng đầu vào tích hợp
-  đối tác còn thiếu.
+  đối tác còn thiếu. Thay đổi các entry đã stage làm phép kiểm fixture thất
+  bại kể cả khi tệp được sửa nằm trong phạm vi ghi.
 - Tìm `run.json`, `events.jsonl`, `final.md` và diff của từng vai trò trong
   `trials/<case-id>/<role>/`. Đối chiếu các tệp này và chỉ mục bằng chứng đã
   niêm phong với rubric cố định. Giữ thứ tự E05 thất bại trước rồi đạt sau,
@@ -85,8 +87,10 @@ artifact đã lập chỉ mục. Công cụ ghi một `quality-report.json` gồ
 Success, Architecture Compliance, Verification Coverage và Privacy theo từng
 ca. PASS áp dụng cho phạm vi đã chọn. BLOCKED hoặc NOT_RUN vẫn được ghi rõ
 khi thiếu bằng chứng. Shim kiểm tra bộ khung chạy và các điều kiện review.
-Chấm chất lượng Native PASS cần bằng chứng model thực sự chạy. Số liệu sử dụng
-và thời gian thô theo vai trò phục vụ chẩn đoán lỗi runtime.
+Chấm chất lượng Native PASS cần bằng chứng model thực sự chạy. So sánh tổng
+token, lượt gọi công cụ và thời lượng của Author và Work giữa các ca đã được
+xác minh thành công với cùng ca, model, effort và toolchain. Ghi riêng các lần
+chạy thất bại và bị chặn.
 
 [Kho lưu trữ benchmark](../../reports/work-prompt-benchmark-history.md) dẫn
 đến các phép so sánh lịch sử và revision gốc. Runner hiện tại dùng cùng Rules
@@ -119,4 +123,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 92074d9bae93fa245e2fc1a351a74df6cfa31d9d50acb3f14f650c57989b1a69 -->
+<!-- source-sha256: 6f3bdd38d93b9d344b757489f332f9c46be0166c90a8d8d159d3b17e5d59d9ef -->

@@ -44,11 +44,12 @@ before making architecture decisions.
 
 ## Work Prompt authoring
 
-Select the bundled Skill with `-Skills 'cirnet-work-prompt-authoring'` when
-installing and verifying, along with any other selected Skills. For a requested
-handoff, open the [English template](../templates/chat-to-work-prompt.md) in an
-approved checkout. The template stays outside the bundle, so an installed
-Skill needs separate read access. Without it, the Skill reports `PROMPT_BLOCKED`.
+Select `-Skills 'cirnet-work-prompt-authoring'` when installing and verifying,
+along with any other selected Skills. The bundle includes the exact
+[canonical English template](../templates/chat-to-work-prompt.md) under the
+Skill's `references/` directory. Bundle and installation verification check
+its bytes. An approved checkout also supplies the template for older installs.
+Without verified template access, the Skill reports `PROMPT_BLOCKED`.
 
 ## Task Continuity
 

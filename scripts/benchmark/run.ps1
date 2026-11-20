@@ -160,8 +160,9 @@ function Get-RoleSummary($Run, [string]$Path) {
 $sourceRoot = (Invoke-SourceGit @('rev-parse', '--show-toplevel')).Trim()
 if ([IO.Path]::GetRelativePath($repo, $sourceRoot) -ne '.') { throw 'Expected the CIRNET rules checkout.' }
 $revision = (Invoke-SourceGit @('rev-parse', 'HEAD')).Trim()
-$rulesPaths = @(Invoke-SourceGit @('ls-files', '--cached', '--others', '--exclude-standard', '--deduplicate', '--', 'AGENTS.md', 'en/skills', 'en/templates',
-    'en/docs', 'en/policies', 'en/rules', 'en/references', 'docs'))
+$rulesPaths = @(Invoke-SourceGit @('ls-files', '--cached', '--others', '--exclude-standard', '--deduplicate', '--', 'AGENTS.md', 'en/skills',
+    'en/templates/chat-to-work-prompt.md', 'en/docs/context.md', 'en/docs/model-compatibility.md', 'en/docs/distribution.md',
+    'en/policies', 'en/rules', 'en/references', 'docs'))
 $suitePaths = @('cases.json', 'checks.mjs', 'fixtures/E01/accounts.mjs')
 foreach ($id in $cases) {
     $prefix = "$suiteSource/fixtures/$id/"

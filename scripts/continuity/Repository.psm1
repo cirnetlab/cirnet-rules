@@ -102,6 +102,10 @@ function Get-ContinuityHead($Repository) {
     Get-GitLine (Invoke-ContinuityGit $Repository.root @('rev-parse', '--verify', '--quiet', 'HEAD^{commit}') @(0, 1))
 }
 
+function Get-ContinuityIndexEntries([string]$Root) {
+    Invoke-ContinuityGit $Root @('ls-files', '--stage', '-z', '--')
+}
+
 function Test-ContinuityWorktree($Repository, $RecordedGit) {
     $Repository.root -ceq $RecordedGit.worktree -and $Repository.gitDirectory -ceq $RecordedGit.gitDirectory -and
         $Repository.commonDirectory -ceq $RecordedGit.repository
@@ -207,12 +211,12 @@ function Get-WorktreeDigest([string]$Root, [string]$Relative) {
     'file:' + (Get-ContinuityFileDigest $path)
 }
 
-function Read-GitSnapshot($Repository) {
+function Read-GitSnapshot($Repository, [switch]$IncludeIgnored) {
     $root = $Repository.root
     $head = Get-ContinuityHead $Repository
     $branch = Get-GitLine (Invoke-ContinuityGit $root @('symbolic-ref', '--quiet', 'HEAD') @(0, 1))
     $indexHash = if ([IO.File]::Exists($Repository.index)) { Get-ContinuityFileDigest $Repository.index } else { '' }
-    $entries = Invoke-ContinuityGit $root @('ls-files', '--stage', '-z', '--')
+    $entries = Get-ContinuityIndexEntries $root
     $unmerged = [Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
     $tracked = @(
         foreach ($entry in (Get-GitRecords $entries)) {
@@ -244,6 +248,19 @@ function Read-GitSnapshot($Repository) {
     }
     $files = [Collections.Specialized.OrderedDictionary]::new([StringComparer]::Ordinal)
     foreach ($path in $paths) { $files.Add($path, (Get-WorktreeDigest $root $path)) }
+    if ($IncludeIgnored) {
+        $ignored = @(Get-GitRecords (Invoke-ContinuityGit $root @('ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--')))
+        if ($ignored.Count -gt 1024) { throw 'Ignored file inventory exceeds the audit limit.' }
+        $remaining = 32MB
+        foreach ($path in $ignored) {
+            $file = [IO.FileInfo]::new((Resolve-ContinuityFile $root $path))
+            if (-not $file.Exists -or $file.LinkType -or $file.Length -gt $remaining) {
+                throw 'An ignored file is unsafe or exceeds the audit content budget.'
+            }
+            $remaining -= $file.Length
+            $files.Add($path, (Get-WorktreeDigest $root $path))
+        }
+    }
     $snapshot = [ordered]@{
         worktree = $root
         gitDirectory = $Repository.gitDirectory
@@ -266,9 +283,9 @@ function Get-ContinuityGitFingerprint($Snapshot) {
     Get-ContinuityValueHash $Snapshot
 }
 
-function Get-ContinuityGitSnapshot($Repository) {
-    $first = Read-GitSnapshot $Repository
-    $second = Read-GitSnapshot $Repository
+function Get-ContinuityGitSnapshot($Repository, [switch]$IncludeIgnored) {
+    $first = Read-GitSnapshot $Repository -IncludeIgnored:$IncludeIgnored
+    $second = Read-GitSnapshot $Repository -IncludeIgnored:$IncludeIgnored
     if ((Get-ContinuityGitFingerprint $first) -cne (Get-ContinuityGitFingerprint $second)) {
         throw 'Git or worktree state changed during capture. Retry after it is stable.'
     }
@@ -298,6 +315,6 @@ function Compare-ContinuityGit($Saved, $Current) {
 }
 
 Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityValueHash, Test-ContinuityWorktree,
-    Test-ContinuityReferenceConflict,
+    Test-ContinuityReferenceConflict, Get-ContinuityIndexEntries, Get-ContinuityTextHash,
     Assert-ContinuityDestination, Test-ContinuityInside, Resolve-ContinuityFile, Get-ContinuityFileDigest,
     Get-ContinuityGitFingerprint, Get-ContinuityGitSnapshot, Compare-ContinuityGit

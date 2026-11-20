@@ -2,7 +2,7 @@
 
 ## Hướng dẫn biên soạn dành cho Chat
 
-Trước khi giao và khi tiếp nhận, áp dụng [phép kiểm bàn giao offline](../docs/context.md#chat-to-work)
+Trước khi giao và khi tiếp nhận, áp dụng phép kiểm bàn giao offline trong `en/docs/context.md#offline-handoff-validation`
 cho đúng bản nháp.
 
 Dùng một mẫu này cho nhiệm vụ Work có phạm vi rõ. Chat khảo sát chỉ đọc và biên
@@ -29,7 +29,7 @@ Giữ bản bàn giao độc lập model. Nêu kết quả quan sát được, q
 công cụ bắt buộc và lệnh đã xác minh. Ghi model và effort được yêu cầu rõ ràng
 cho đợt đánh giá dưới dạng metadata runtime. Work ánh xạ các khả năng sang
 công cụ sẵn có và đánh dấu bước `BLOCKED` khi thiếu khả năng bắt buộc. Giữ các
-kiểm tra an toàn áp dụng và theo [quy trình tương thích model](../docs/model-compatibility.md)
+kiểm tra an toàn áp dụng và theo quy trình tương thích model trong `en/docs/model-compatibility.md`
 khi thay đổi runtime.
 
 | Mode | Cách chọn | Cách trình bày gợi ý |
@@ -113,7 +113,7 @@ chứng khớp. Với tham chiếu Work không mở lại được, đưa trực
 tin cậy thiết yếu, định danh/phiên bản nguồn, ràng buộc và nghiệm thu. Dùng cách
 này khi bằng chứng đáng tin cậy xác lập phạm vi an toàn. Đánh dấu `BLOCKED` cho
 bước thiếu thẩm quyền hoặc bằng chứng thiết yếu. Chat phải đọc được chính mẫu
-tiếng Anh được phép theo [Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md).
+tiếng Anh được phép theo Skill biên soạn.
 
 Đưa bằng chứng cần thiết cho lỗi tạm thời, ca khó tái hiện, security, safety
 hoặc compatibility. Giữ thẩm quyền kiến trúc,
@@ -168,4 +168,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: f6f5b9915552baa955a9c652f928185f98f22801ba1b599081c3dbfe7eb34a3b -->
+<!-- source-sha256: 75cfa8ff5eaa9c73dc06cfd76b32c841508441bbfb2ee5f95fca60351a51fac8 -->

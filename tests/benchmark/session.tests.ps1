@@ -68,6 +68,10 @@ if ($mode -eq 'mock-read-only') {
         $edited = $source -replace "(?m)^import \{ trimAlias \} from '\./text\.mjs';\r?\n(?:\r?\n)?", ''
         if ($mode -eq 'mock-objective-fail') { $edited = "`n" + $edited }
         [IO.File]::WriteAllText($path, $edited.Replace('trimAlias(name)', 'name.trim()'))
+        if ($mode -eq 'mock-stage') {
+            & git -c core.longpaths=true add -- src/labels.mjs
+            if ($LASTEXITCODE -ne 0) { exit 20 }
+        }
     }
     $answer = 'Synthetic Work evidence.'
     if ($recovery) {
@@ -108,6 +112,10 @@ function Assert-Rejected([string]$Session, [hashtable]$Arguments, [string]$Patte
 & $smoke -Session preview -Model mock -OutputRoot $output
 $previewCode = $LASTEXITCODE
 $preview = Read-Evidence 'preview/manifest.json'
+if (-not $preview.rules['en/templates/chat-to-work-prompt.md'] -or
+    @($preview.rules.Keys | Where-Object { $_ -clike 'en/templates/*' }).Count -ne 1) {
+    throw 'Author preview should pin only the canonical authoring template.'
+}
 if ($previewCode -ne 0 -or $preview.mode -ne 'PREVIEW' -or $preview.cohort -ne 'Candidate' -or
     ($preview.cases -join ',') -cne 'E01,E06' -or $preview.maximumRoleCalls -ne 4 -or
     @(Get-ChildItem -LiteralPath (Join-Path $output 'preview/trials')).Count -or
@@ -301,9 +309,13 @@ $workArguments = @{
 $invalidFile = Join-Path $successRoot 'invalid-handoff.md'
 [IO.File]::WriteAllText($invalidFile, ($e06Input -replace '(?s)## Acceptance and verification.*\z', '## Acceptance and verification'))
 $invalidHash = (Get-FileHash -LiteralPath $invalidFile).Hash.ToLowerInvariant()
+$hiddenFile = Join-Path $successRoot 'hidden-handoff.md'
+[IO.File]::WriteAllText($hiddenFile, ($e06Input -replace '(?s)## Acceptance and verification.*\z', "## Acceptance and verification`n<!-- hidden check -->"))
+$hiddenHash = (Get-FileHash -LiteralPath $hiddenFile).Hash.ToLowerInvariant()
 foreach ($entry in @(
     @{ Session='wrong-digest'; HandoffPath=(Join-Path $successRoot 'trials/E06/Author/final.md'); ExpectedHandoffSha256=('0' * 64) }
     @{ Session='empty-verification'; HandoffPath=$invalidFile; ExpectedHandoffSha256=$invalidHash }
+    @{ Session='hidden-verification'; HandoffPath=$hiddenFile; ExpectedHandoffSha256=$hiddenHash; ReviewedHandoffSha256=$hiddenHash }
 )) {
     $rejected = $false
     try { & (Join-Path $repo 'scripts/eval-codex.ps1') @workArguments @entry | Out-Null }
@@ -368,6 +380,15 @@ foreach ($id in 'E04','E07') {
 }
 
 $singleArgs = $execute.Clone()
+$stageArgs = $execute.Clone()
+$stageArgs.MaxNativeCalls = 2
+& $smoke @stageArgs -Session staged-change -Model mock-stage -CaseId E06
+$stageCode = $LASTEXITCODE
+$stageRun = Read-Evidence 'staged-change/trials/E06/Work/run.json'
+if ($stageCode -ne 1 -or $stageRun.verdict -cne 'FAIL' -or
+    './.git/index-entries' -cnotin $stageRun.manifest.fixtureGitChanges -or $stageRun.objective.status -cne 'PASS') {
+    throw 'A correct fixture edit must still fail when the Candidate stages it without authorization.'
+}
 $singleArgs.MaxNativeCalls = 2
 & $smoke @singleArgs -CaseId E05 -Session blocked-single -Model mock-blocked
 $singleCode = $LASTEXITCODE

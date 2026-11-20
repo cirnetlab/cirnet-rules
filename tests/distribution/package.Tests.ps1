@@ -176,7 +176,11 @@ Read [Checklist][check].
     Assert-BundleTest (-not ($paths | Where-Object { $_ -cnotmatch '^(?:AGENTS\.md|LICENSE|THIRD_PARTY_NOTICES\.md|skills/cirnet-.+)$' })) 'Payload escaped the allowlist.'
     Assert-BundleTest ($extractedBundle.Manifest.revision -ceq $revision -and $extractedBundle.Manifest.dirty -eq [bool]$status) 'Invalid bundle provenance.'
     $examples = 'skills/cirnet-implementation/references/engineering-examples.md'
+    $authoringTemplate = 'skills/cirnet-work-prompt-authoring/references/chat-to-work-prompt.md'
     Assert-BundleTest ($paths -ccontains $examples) 'Implementation examples are missing from the extracted bundle.'
+    Assert-BundleTest ($paths -ccontains $authoringTemplate) 'The canonical Work Prompt template is missing from the bundle.'
+    $templateHash = Get-CirnetHash (Join-Path $repo 'en/templates/chat-to-work-prompt.md')
+    Assert-BundleTest ((Get-CirnetHash (Join-Path $extracted $authoringTemplate)) -ceq $templateHash) 'Packaged Work Prompt template differs from its canonical source.'
     $sourceExample = Join-Path $repo ('en/' + $examples)
     Assert-BundleTest ((Get-CirnetHash (Join-Path $extracted $examples)) -ceq (Get-CirnetHash $sourceExample)) 'Packaged examples differ from the reviewed source.'
     Assert-BundleTest (-not ($paths | Where-Object { $_ -match '^vi/|^tests/|^scripts/|(?i)cases\.json|\.jsonl$' })) 'Evaluator or translation material escaped the bundle boundary.'
@@ -186,11 +190,18 @@ Read [Checklist][check].
     $verify = Join-Path $repo 'scripts/verify-install.ps1'
     $restore = Join-Path $repo 'scripts/restore.ps1'
     $destination = @{ Agent = 'Codex'; HomeRoot = $fakeClientHome }
+    $selectedSkills = @('cirnet-implementation','cirnet-work-prompt-authoring')
     & $install -Source $extracted @destination -Apply -WhatIf | Out-Null
     Assert-BundleTest (-not (Test-Path -LiteralPath $fakeClientHome)) 'WhatIf wrote into the fake home.'
-    & $install -Source $extracted @destination -Apply | Out-Null
-    & $verify -Source $extracted @destination | Out-Null
+    & $install -Source $extracted @destination -Skills $selectedSkills -Apply | Out-Null
+    & $verify -Source $extracted @destination -Skills $selectedSkills | Out-Null
     $installed = Join-Path $fakeClientHome ('.agents/' + $examples)
+    $installedTemplate = Join-Path $fakeClientHome ('.agents/' + $authoringTemplate)
+    Assert-BundleTest ((Get-CirnetHash $installedTemplate) -ceq $templateHash) 'Installed Work Prompt template differs from its canonical source.'
+    $templateBytes = [IO.File]::ReadAllBytes($installedTemplate)
+    [IO.File]::AppendAllText($installedTemplate, 'Unexpected bytes.')
+    Assert-BundleRejected { & $verify -Source $extracted @destination -Skills $selectedSkills } 'validation|differ|conflict|verify|drift'
+    [IO.File]::WriteAllBytes($installedTemplate, $templateBytes)
     Assert-BundleTest ((Get-CirnetHash $installed) -ceq (Get-CirnetHash $sourceExample)) 'Installed examples differ from the reviewed source.'
     $receipts = @(Get-ChildItem -LiteralPath (Join-Path $fakeClientHome '.cirnet-toolkit/codex/backups') -Filter receipt.json -File -Recurse)
     Assert-BundleTest ($receipts.Count -eq 1) 'Expected a single fake-home receipt.'

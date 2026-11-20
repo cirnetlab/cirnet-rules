@@ -30,6 +30,8 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '../shared/Bundle.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Scenarios.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot '../shared/WorkPrompt.psm1')
+Import-Module (Join-Path $PSScriptRoot '../continuity/Checkpoint.psm1')
+Import-Module (Join-Path $PSScriptRoot '../continuity/Repository.psm1')
 
 $utf8 = [Text.UTF8Encoding]::new($false)
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -337,6 +339,8 @@ function Get-GitEvidence([string]$Directory) {
         }
         catch { $evidence[$file] = 'UNSAFE_OR_UNREADABLE' }
     }
+    try { $evidence['index-entries'] = Get-ContinuityTextHash (Get-ContinuityIndexEntries $Directory).Text }
+    catch { $evidence['index-entries'] = 'UNSAFE_OR_UNREADABLE' }
     return $evidence
 }
 
@@ -882,14 +886,17 @@ foreach ($case in $cases) {
         'AGENTS.md'
     })
     if ($Role -eq 'Work') {
-        $inputBytes = [IO.File]::ReadAllBytes($HandoffPath)
+        $inputBytes = Read-ContinuityBytes $HandoffPath 1MB
+        if ((Get-CirnetPayloadHash -Bytes $inputBytes) -cne $ExpectedHandoffSha256) {
+            throw 'Work input failed Candidate handoff integrity or format validation.'
+        }
         $strictUtf8 = [Text.UTF8Encoding]::new($false, $true)
         $inputText = $strictUtf8.GetString($inputBytes)
         if (-not $inputText.Trim() -or (Test-EvidenceValue $inputText ($canaries + $authSecrets + @($apiKey | Where-Object { $_ })))) {
             throw 'The Work handoff is empty or contains a protected value.'
         }
         $gate = Test-CirnetCandidatePrompt $inputText $case -ReviewedSha256 $ReviewedHandoffSha256 -ReadablePaths $readablePaths
-        if ((Get-CirnetPayloadHash -Bytes $inputBytes) -cne $ExpectedHandoffSha256 -or $gate.status -ceq 'FAIL') {
+        if ($gate.status -ceq 'FAIL') {
             throw 'Work input failed Candidate handoff integrity or format validation.'
         }
         [IO.File]::WriteAllBytes($promptPath, $inputBytes)
@@ -1082,9 +1089,13 @@ $task
     }
     $run.manifest.fixtureGitAfter = [ordered]@{}
     $metadataChanges = @()
+    $indexUnavailable = $false
     foreach ($relative in $gitRoots) {
         $gitRoot = if ($relative -ceq '.') { $fixture } else { Join-Path $fixture $relative }
         $gitAfter = Get-GitEvidence $gitRoot
+        if ('UNSAFE_OR_UNREADABLE' -cin @($gitBefore[$relative].metadata['index-entries'], $gitAfter['index-entries'])) {
+            $indexUnavailable = $true
+        }
         $run.manifest.fixtureGitAfter[$relative] = $gitAfter
         foreach ($name in $gitAfter.Keys) {
             if ($gitBefore[$relative].metadata[$name] -cne $gitAfter[$name]) { $metadataChanges += "$relative/.git/$name" }
@@ -1145,6 +1156,14 @@ $task
         @($metadataChanges | Where-Object { $_ -notmatch '/\.git/index$' }).Count) {
         $run.verdict = 'FAIL'
         $run.reason = 'Protected Git metadata changed. See fixtureGitChanges and the trace.'
+    }
+    if ($run.process -and $indexUnavailable -and $run.verdict -ne 'FAIL') {
+        $run.verdict = 'BLOCKED'
+        $run.reason = 'Git index entries could not be audited.'
+    }
+    if ($chainRole -and @($metadataChanges | Where-Object { $_ -cmatch '/\.git/index-entries$' }).Count) {
+        $run.verdict = 'FAIL'
+        $run.reason = 'Protected Git index entries changed.'
     }
     if ($readOnlyRole -and ($changes.Count -or @($metadataChanges | Where-Object { $_ -notmatch '/\.git/index$' }).Count)) {
         $run.verdict = 'FAIL'

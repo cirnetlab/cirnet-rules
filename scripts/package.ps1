@@ -81,9 +81,7 @@ if (-not $dirty) {
     }
     $tracked = @{ VERSION = $versionBytes }
     foreach ($path in $paths) {
-        $relative = $path
-        if ($path.StartsWith('skills/', [StringComparison]::Ordinal)) { $relative = "en/$path" }
-        $tracked[$relative] = $payload[$path]
+        $tracked[(Get-CirnetPayloadSourcePath $path)] = $payload[$path]
     }
     foreach ($relative in $tracked.Keys) {
         $expected = Invoke-SourceGit @('rev-parse', '--verify', '--quiet', '--end-of-options', "$head`:$relative")

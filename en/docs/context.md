@@ -37,7 +37,7 @@ loads that baseline once. A managed adapter should never import the library.
 ## Chat-to-Work
 
 When asked to prepare a prompt for another agent, select the authoring Skill
-and open the English template in an approved checkout. Select applicable Work
+and open the English template from a verified installation or approved checkout. Select applicable Work
 Skills from metadata and read only their bodies, relevant architecture, owner
 instructions and evidence. Choose LIGHT, STANDARD or DEEP by complexity, risk,
 dependencies, uncertainty and source access. Consider all 12 semantic fields
@@ -46,7 +46,6 @@ and group the applicable content into the headings the task needs.
 Reference sources Work can read and retain task-specific constraints directly.
 When Work lacks source access, include essential trusted facts, source identity,
 constraints and acceptance, or block the dependent work if authority is missing.
-The English template still needs separate checkout access as described below.
 Return one scoped handoff in chat. Direct source changes use execution Skills.
 Track Required / Conditional / Already-loaded independently in each role.
 Author's inspected facts can be cited; its in-memory context is not Work's cache.
@@ -65,9 +64,13 @@ The supplied runner has no restricted-read backend and blocks such inputs before
 opening the draft, original task or source. Use only an independently approved,
 isolated projection for a narrower task.
 
-The original is UTF-8 text. The operator reviews its numbered lines against the
-grants and the acceptance checks before approving the JSON below. Replace the
-placeholders with the exact local root, full HEAD and lowercase file digests.
+The original is UTF-8 text. For authorized non-sensitive inputs, use
+`validate-work-prompt.ps1 -Prepare -OriginalTask request.txt -Repository $ownerRoot -SourcePath label.js`
+to get numbered lines and a `proposal` with the request, HEAD and source pins.
+Exit 2 means approval is pending. Keep the output local. Review every mapping,
+fill the explicit grants and checks, and save the independently approved
+`proposal` object as the approval file. Obtain its SHA-256 separately from the
+approving operator. Preparation leaves grants empty.
 For this example, line 1 requests an edit to `label.js`, line 2 limits the change
 and preserves unrelated work, and line 3 specifies observable output.
 
@@ -89,6 +92,14 @@ original has no negative case. Map each action line to its approved effects and
 each acceptance line to an approved read, test or build check. Source hashes
 pin inspected working-tree bytes at the named HEAD.
 
+Use `create:`, `modify:` or `delete:` in action mappings when an operation
+needs an explicit file effect. A move requires both the source deletion and
+the destination creation. An existing `write:` mapping covers a new or
+modified file at that path. Review command side effects and use approved
+scratch paths. Set `"preventiveScope": true` in the approved record when the
+task requires preventive execution controls. The offline runner returns
+`BLOCKED` for this input. Establish a suitable boundary before proceeding.
+
 Start the draft with the approved readiness, then `Original: <request digest>`
 and `Authorization: <approval digest>` on separate lines. Keep action, target
 and transformation explicit. In original order, use the exact lines or
@@ -96,8 +107,9 @@ and transformation explicit. In original order, use the exact lines or
 `Verify Task#3: test: node --test` and `Source: label.js` for the example.
 The authorization reference carries the ceiling. Each optional action line, such
 as `write: label.js`, must also match this task's actions, checks or source reads.
-Ordinary Markdown and paraphrases can be
-independently reviewed. Candidate headings apply only to benchmark fixtures.
+Include each mandatory statement or permitted reference as a visible line.
+Keep action, target and transformation verbatim. Independent review covers
+additional prose. Candidate headings apply only to benchmark fixtures.
 
 ```powershell
 ./scripts/validate-work-prompt.ps1 -OriginalTask request.txt -Authorization approval.json -AuthorizationSha256 $approvedPin -Prompt handoff.md -Repository $ownerRoot
@@ -111,8 +123,21 @@ review against the original and grants, and 3 (`BLOCKED`) stops implementation.
 Keep Work at `PROMPT_BLOCKED` while an essential review is outstanding.
 After an independent reviewer approves the draft against the same inputs, the
 operator may pass its digest with `-ReviewedPromptSha256` to record that review.
-Machine validation cannot authenticate the approver, interpret arbitrary prose, run the planned
-checks or enforce the worker's filesystem permissions.
+The digest pins the reviewed bytes. Missing coverage and integrity or scope
+failures still require correction. The operator assesses semantic equivalence,
+authorizes tools and reviews actual Work evidence.
+
+For a bounded one-worktree audit, the operator must approve worktree-wide
+inventory and hashing, including ignored files, with `"scopeAudit": true` in
+the authorization record. Run the same invocation with `-CaptureScope` before
+Work starts. Save its JSON output in a trusted local directory outside
+the owner worktree and retain the file's SHA-256 independently. After Work,
+repeat validation with `-ScopeSnapshot $snapshot -ScopeSnapshotSha256 $snapshotPin`.
+Reconcile any failures before accepting the result. The audit compares HEAD,
+branch, index, tracked and untracked bytes, and up to 1,024 ignored files
+totaling 32 MiB. An unsupported snapshot blocks reconciliation. The audit
+measures net changes. Commands, transient effects, reads and other
+repositories require their own authorized controls and evidence.
 
 ## Model lifecycle
 

@@ -40,11 +40,12 @@ Nếu không có nguồn tham chiếu được phép, báo giới hạn trước
 
 ## Soạn Work Prompt
 
-Khi cài và xác minh, chọn Skill trong bundle bằng
-`-Skills 'cirnet-work-prompt-authoring'` cùng các Skill khác cần dùng. Khi được
-yêu cầu bàn giao, mở [mẫu tiếng Anh](../../en/templates/chat-to-work-prompt.md)
-trong checkout được phép. Mẫu nằm ngoài bundle nên Skill đã cài cần quyền đọc
-riêng. Nếu thiếu quyền này, Skill báo `PROMPT_BLOCKED`.
+Khi cài và xác minh, chọn `-Skills 'cirnet-work-prompt-authoring'` cùng các Skill
+khác cần dùng. Bundle giữ nguyên byte của
+[mẫu tiếng Anh chính thức](../../en/templates/chat-to-work-prompt.md) trong
+thư mục `references/` của Skill. Bước xác minh bundle và bản cài kiểm tra
+các byte này. Bản cài cũ có thể lấy mẫu từ checkout được phép. Nếu không có
+nguồn mẫu đã xác minh, Skill báo `PROMPT_BLOCKED`.
 
 ## Task Continuity
 
@@ -297,4 +298,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: c98958f09f69c69295fcae4d4397f3b0ddbb460bb35bfa180c7ffdfe910876b7 -->
+<!-- source-sha256: 674f7b676c7c563650221736cbe1767c03c33b953da759216375765e0cfb37f7 -->

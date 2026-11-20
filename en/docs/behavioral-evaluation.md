@@ -30,7 +30,8 @@ $root = [IO.Path]::GetTempPath()
 
 Preview makes zero role calls. Compare its source and file hashes with the
 execution manifest when validating a frozen scope. The manifest records HEAD,
-working-tree bytes, role settings and the role cap. Missing tools block the
+working-tree bytes, role settings and the role cap. The Author snapshot uses
+the canonical template and its context, distribution and model guides. Missing tools block the
 affected scenario. A shared authentication, quota, network or sandbox blocker
 stops further dispatch. `-TimeoutSeconds` sets the per-role limit.
 
@@ -50,14 +51,15 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
   Exit 0 covers preview or objective success, exit 1 a failure, and exit 2 a
   blocked run. An objective result remains pending independent review.
 - The Author is read-only. Work gets a fresh fixture and the exact Author bytes.
-  The gate checks readiness, original task, write scope and nonempty review
+  The gate checks readiness, original task, write scope and visible review
   sections before dispatch. For native Work, use `-ReviewHandoffs` and independently
   check the exact draft against the frozen case and source before entering its digest.
   Without that review, Work stays blocked. Synthetic offline shims exercise the
   transport while retaining `REVIEW_REQUIRED`. Native E01 stops before model access
   because the shell can bypass the inspector. E04 permits reviewed read-only
   clarification. E07 can run read-only checks and must report
-  the missing partner integration input separately.
+  the missing partner integration input separately. Changes to staged Git
+  entries fail the fixture audit even if the edited file is within scope.
 - Find each role's `run.json`, `events.jsonl`, `final.md` and diff under
   `trials/<case-id>/<role>/`. Inspect them and the sealed evidence index
   against the frozen rubric. Keep E05's actual red-before-green order and the
@@ -86,8 +88,9 @@ indexed artifacts. It writes one `quality-report.json` with Task Success,
 Architecture Compliance, Verification Coverage and Privacy for each scenario.
 PASS applies to the selected scope. BLOCKED or NOT_RUN remains explicit where
 evidence is missing. A shim can exercise the harness and review controls.
-Native quality PASS requires actual model evidence. Raw role usage and timing
-are available for diagnosing runtime failures.
+Native quality PASS requires actual model evidence. Compare combined Author
+and Work tokens, tool calls and duration across verified successes with matched
+case, model, effort and toolchain. Record failures and blocked runs separately.
 
 The [benchmark archive](../../reports/work-prompt-benchmark-history.md) links
 historical comparisons and their original revisions. The current runner uses

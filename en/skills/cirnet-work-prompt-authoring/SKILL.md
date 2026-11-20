@@ -40,12 +40,13 @@ checkout, branch, instructions, permissions and evidence before implementation.
    metadata without evaluating source. Give Work its exact invocation and limits.
    Stop discovery once you can hand off safely. Follow the template's read
    recovery procedure and carry the applicable privacy controls into preflight.
-5. **Draft Adaptive Prompt.** Read `en/templates/chat-to-work-prompt.md` from an
-   approved checkout. The installed bundle supplies this Skill and needs separate
-   checkout access for that template. Missing template access yields
-   `PROMPT_BLOCKED`. Choose `LIGHT`, `STANDARD` or `DEEP` by complexity, risk,
-   dependencies, uncertainty and source accessibility. Consider all 12 semantic
+5. **Draft Adaptive Prompt.** Open `references/chat-to-work-prompt.md` beside the
+   installed Skill after bundle and installation verification, or use
+   `en/templates/chat-to-work-prompt.md` from an approved checkout. Missing verified
+   access yields `PROMPT_BLOCKED`. Choose `LIGHT`, `STANDARD` or `DEEP` by risk,
+   complexity, dependencies and evidence. Consider all 12 semantic
    fields, grouping the applicable information into ordinary Markdown headings.
+
 6. **Deduplicate.** Use Required, Conditional and Already-loaded context from
    `en/docs/context.md`. Reuse matching evidence. Keep facts, requirements and
    checks in one place with exact locators, applicable safety and permissions.
@@ -107,3 +108,5 @@ commit/push/merge, publication and deployment. `PROMPT_READY` describes handoff
 readiness. `IMPLEMENTATION_VERIFIED` requires fresh Work evidence. User-deferred
 checks remain `NOT_RUN` with the reason, including `DEFERRED_BY_USER_PHASE_1`
 where applicable.
+
+<!-- bundle-resource: references/chat-to-work-prompt.md -->
