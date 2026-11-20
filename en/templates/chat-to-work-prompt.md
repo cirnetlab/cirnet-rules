@@ -20,7 +20,8 @@ handoff. Each fact, constraint and criterion belongs in one place.
 Compare the draft goal, scope and acceptance against the user's requested
 action, target, transformation, outcome, constraints, negative cases and
 permissions. Restore any missing requirement before compressing. Keep this
-comparison internal.
+comparison internal. Before delivery and again at intake, apply the
+[offline handoff check](../docs/context.md#offline-handoff-validation) to the exact draft.
 
 ### Choose detail by task
 

@@ -15,6 +15,7 @@ param(
     [string]$HandoffPath,
     [switch]$ValidateCandidateHandoff,
     [ValidatePattern('^[0-9a-f]{64}\z')][string]$ExpectedHandoffSha256,
+    [ValidatePattern('^[0-9a-f]{64}\z')][string]$ReviewedHandoffSha256,
     [Alias('ComparisonRoot')][string]$BenchmarkRoot,
     [string]$SuiteRoot,
     [string]$CodexPath,
@@ -28,6 +29,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '../shared/Bundle.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Scenarios.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot '../shared/WorkPrompt.psm1')
 
 $utf8 = [Text.UTF8Encoding]::new($false)
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -69,16 +71,6 @@ function Assert-NoProfileInputs([string]$Root, [string[]]$Names) {
 
 function Save-Json([string]$Path, $Value) {
     [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject $Value -Depth 30) + "`n", $utf8)
-}
-
-function Test-CandidateHandoff([string]$Text, [string[]]$Header) {
-    $lines = $Text -split '\r?\n', 4
-    if ($lines.Count -ne 4 -or $lines[0] -cne $Header[0] -or $lines[1] -cne $Header[1] -or $lines[2] -cne $Header[2]) {
-        return $false
-    }
-    $body = [regex]::Match($lines[3], '(?ms)\A\s*## Requirements and constraints[ \t]*\r?\n(?<requirements>.*?)^## Acceptance and verification[ \t]*\r?\n(?<verification>.*)\z')
-    return $body.Success -and $body.Groups['requirements'].Value.Trim() -and $body.Groups['verification'].Value.Trim() -and
-        $lines[3] -cnotmatch '(?m)^[ \t]*(?:\*\*)?PROMPT_(?:READY|BLOCKED)(?:\*\*)?[ \t]*\r?$'
 }
 
 function Test-EvidenceValue([string]$Text, [string[]]$Values) {
@@ -477,6 +469,7 @@ $chainRole = $Role -ne 'Direct'
 if ($UseApiKey -and -not $Execute) { throw '-UseApiKey requires -Execute.' }
 if ($AuthHome -and (-not $Execute -or $UseApiKey)) { throw '-AuthHome requires -Execute and cannot be combined with -UseApiKey.' }
 if (($Role -eq 'Work') -ne [bool]$HandoffPath) { throw 'Exactly the Work role requires -HandoffPath.' }
+if ($ReviewedHandoffSha256 -and $Role -ne 'Work') { throw 'Independent acceptance applies only at Work intake.' }
 if ($ValidateCandidateHandoff -and -not $chainRole) { throw 'Candidate handoff validation requires a chain role.' }
 if ([bool]$ExpectedHandoffSha256 -ne ($Role -eq 'Work')) {
     throw 'Exactly the Work role requires the expected Author SHA-256.'
@@ -879,6 +872,15 @@ foreach ($case in $cases) {
     Save-Json (Join-Path $caseRoot 'before.json') $before
     $promptPath = Join-Path $caseRoot 'prompt.txt'
     $inputBytes = $null
+    $gate = $null
+    $readablePaths = @(if ($chainRole -and $case.architecture -cnotcontains 'private-values') {
+        foreach ($entry in $source.GetEnumerator()) {
+            if ($entry.Value.kind -ceq 'file') {
+                [IO.Path]::GetRelativePath($working,(Join-Path $fixture $entry.Key)).Replace('\','/')
+            }
+        }
+        'AGENTS.md'
+    })
     if ($Role -eq 'Work') {
         $inputBytes = [IO.File]::ReadAllBytes($HandoffPath)
         $strictUtf8 = [Text.UTF8Encoding]::new($false, $true)
@@ -886,8 +888,8 @@ foreach ($case in $cases) {
         if (-not $inputText.Trim() -or (Test-EvidenceValue $inputText ($canaries + $authSecrets + @($apiKey | Where-Object { $_ })))) {
             throw 'The Work handoff is empty or contains a protected value.'
         }
-        if ((Get-CirnetPayloadHash -Bytes $inputBytes) -cne $ExpectedHandoffSha256 -or
-            -not (Test-CandidateHandoff $inputText $candidateHeader)) {
+        $gate = Test-CirnetCandidatePrompt $inputText $case -ReviewedSha256 $ReviewedHandoffSha256 -ReadablePaths $readablePaths
+        if ((Get-CirnetPayloadHash -Bytes $inputBytes) -cne $ExpectedHandoffSha256 -or $gate.status -ceq 'FAIL') {
             throw 'Work input failed Candidate handoff integrity or format validation.'
         }
         [IO.File]::WriteAllBytes($promptPath, $inputBytes)
@@ -937,7 +939,18 @@ $task
         }
     }
 
-    if ($Execute -and ($sharedBlock -or $missing.Count)) {
+    $run.handoffValidation = $gate
+    if ($Execute -and $client.kind -ceq 'native-cli' -and $case.architecture -ccontains 'private-values') {
+        $run.execution = 'BLOCKED'
+        $run.verdict = 'BLOCKED'
+        $run.reason = 'Sensitive fixture requires a preventive read boundary. The available shell can bypass the bounded inspector.'
+    }
+    elseif ($Execute -and $Role -eq 'Work' -and $client.kind -ceq 'native-cli' -and $gate.status -cne 'PASS') {
+        $run.execution = 'BLOCKED'
+        $run.verdict = 'BLOCKED'
+        $run.reason = $gate.diagnostics -join ' '
+    }
+    elseif ($Execute -and ($sharedBlock -or $missing.Count)) {
         $run.execution = 'BLOCKED'
         $run.verdict = 'BLOCKED'
         $reasons = @($sharedBlock; if ($missing.Count) { 'Missing tool: ' + ($missing -join ', ') })
@@ -1141,10 +1154,12 @@ $task
         $run.verdict = 'FAIL'
         $run.reason = 'Protected synthetic recovery value detected and withheld.'
     }
-    if ($Role -eq 'Author' -and $run.execution -eq 'COMPLETED' -and $run.verdict -ne 'FAIL' -and
-        -not (Test-CandidateHandoff $lastMessage $candidateHeader)) {
-        $run.verdict = 'FAIL'
-        $run.reason = 'Author handoff did not match the Candidate task, write scope, readiness or review sections.'
+    if ($Role -eq 'Author' -and $run.execution -eq 'COMPLETED' -and $run.verdict -ne 'FAIL') {
+        $run.handoffValidation = Test-CirnetCandidatePrompt $lastMessage $case -ReadablePaths $readablePaths
+        if ($run.handoffValidation.status -ceq 'FAIL') {
+            $run.verdict = 'FAIL'
+            $run.reason = 'Author handoff failed Candidate validation. ' + ($run.handoffValidation.diagnostics -join ' ')
+        }
     }
     Save-Json (Join-Path $caseRoot 'run.json') $run
     $sessionRecord.cases += [ordered]@{

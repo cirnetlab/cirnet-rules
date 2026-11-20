@@ -2,6 +2,9 @@
 
 ## Hướng dẫn biên soạn dành cho Chat
 
+Trước khi giao và khi tiếp nhận, áp dụng [phép kiểm bàn giao offline](../docs/context.md#chat-to-work)
+cho đúng bản nháp.
+
 Dùng một mẫu này cho nhiệm vụ Work có phạm vi rõ. Chat khảo sát chỉ đọc và biên
 soạn. Work phụ trách kiểm tra local trước, triển khai, build/test được phép và
 báo cáo. Trình bày một bản bàn giao hoàn chỉnh bằng Markdown thông thường theo
@@ -165,4 +168,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: 608c5a24a300b7b44471b0d299b1255f38b82e52d8778c6d806d907d26a3c863 -->
+<!-- source-sha256: f6f5b9915552baa955a9c652f928185f98f22801ba1b599081c3dbfe7eb34a3b -->

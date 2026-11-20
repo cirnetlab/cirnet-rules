@@ -50,8 +50,12 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
   bị chặn. Kết quả objective vẫn cần rà soát độc lập.
 - Author chỉ đọc. Work nhận bản sao fixture mới và đúng byte từ Author. Gate
   kiểm trạng thái, nhiệm vụ gốc, phạm vi ghi và nội dung các mục rà trước khi
-  gọi Work. E01 và E04 làm rõ thẩm quyền hoặc phụ thuộc đang chặn trong sandbox
-  chỉ đọc. E07 có thể chạy kiểm tra chỉ đọc và cần báo riêng đầu vào tích hợp
+  gọi Work. Với Work native, dùng `-ReviewHandoffs` và rà độc lập đúng bản nháp
+  với ca đã cố định và nguồn trước khi nhập digest. Thiếu lần rà này thì Work
+  bị chặn. Shim offline dùng dữ liệu giả để kiểm tra đường truyền và giữ
+  `REVIEW_REQUIRED`. E01 native dừng trước khi model truy cập vì shell có thể
+  bỏ qua inspector. E04 cho phép làm rõ ở chế độ chỉ đọc sau khi rà. E07 có thể
+  chạy kiểm tra chỉ đọc và cần báo riêng đầu vào tích hợp
   đối tác còn thiếu.
 - Tìm `run.json`, `events.jsonl`, `final.md` và diff của từng vai trò trong
   `trials/<case-id>/<role>/`. Đối chiếu các tệp này và chỉ mục bằng chứng đã
@@ -115,4 +119,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: b9c22f2893a1d93dbad718aa2d3566eb8098b38eb186e3950617d5abf5ed8d1c -->
+<!-- source-sha256: 92074d9bae93fa245e2fc1a351a74df6cfa31d9d50acb3f14f650c57989b1a69 -->

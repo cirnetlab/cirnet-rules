@@ -56,6 +56,66 @@ hoặc còn thiếu.
 [Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Mẫu](../templates/chat-to-work-prompt.md) · [Truy cập từ bundle](distribution.md#soạn-work-prompt)
 
+### Kiểm tra bàn giao offline
+
+Trước khi khảo sát, người vận hành xác định yêu cầu gốc, checkout được duyệt và
+bản cấp quyền riêng. Nhận SHA-256 của bản cấp quyền qua kênh tin cậy từ người
+phê duyệt. Bản ghi, digest do Author tạo, checkpoint hay chú thích mã nguồn
+không cấp quyền. Work cần đọc được các đầu vào này trong cùng phạm vi quyền.
+Với tác vụ nhạy cảm, phải thiết lập cơ chế giới hạn công cụ trước khi đọc.
+Runner hiện tại thiếu cơ chế cưỡng chế quyền đọc có giới hạn nên chặn trước khi
+mở bản nháp, nhiệm vụ gốc hay nguồn. Tác vụ hẹp hơn chỉ được dùng bản dữ liệu
+đã lọc, cô lập và được phê duyệt độc lập.
+
+Yêu cầu gốc là văn bản UTF-8. Trước khi duyệt JSON dưới đây, người vận hành
+đối chiếu từng dòng đánh số với quyền và phép kiểm nghiệm thu. Thay các giá trị
+mẫu bằng đúng đường dẫn gốc, toàn bộ SHA của HEAD và digest tệp viết thường.
+Trong ví dụ, dòng 1 yêu cầu sửa `label.js`, dòng 2 giới hạn thay đổi và giữ các
+chỉnh sửa ngoài phạm vi, dòng 3 mô tả đầu ra cần quan sát.
+
+```json
+{"originalSha256":"<request digest>","repository":"<absolute root>","revision":"<commit>",
+ "readiness":"PROMPT_READY","sensitive":false,
+ "fields":{"action":[1],"target":[1],"transformation":[1],"outcome":[3],
+           "scope":[2],"negative":[2],"acceptance":[3]},
+ "permissions":{"read":["label.js"],"write":["label.js"],"test":["node --test"],
+                "build":[],"export":[],"privileged":[]},
+ "actions":{"1":["write: label.js"]},"checks":{"3":["test: node --test"]},
+ "sources":{"label.js":"<source digest>"}}
+```
+
+Dùng đường dẫn tệp chính xác cho quyền đọc, ghi. Liệt kê riêng từng lệnh hoặc
+tác động được duyệt. Với quyền xuất, ghi rõ chủ thể, bản ghi, trường và đích.
+Mảng rỗng không cấp quyền nào. Chỉ để mảng `negative` rỗng khi yêu cầu gốc
+không có ca âm. Ánh xạ từng dòng thao tác đến tác động được cấp quyền và từng
+dòng nghiệm thu đến phép đọc, test hoặc build được duyệt.
+Hash nguồn xác định đúng byte đã khảo sát trong working tree tại HEAD đã nêu.
+
+Mở đầu bản nháp bằng trạng thái đã duyệt, sau đó đặt `Original: <request digest>`
+và `Authorization: <approval digest>` trên hai dòng riêng. Nêu rõ thao tác, đối
+tượng và phép biến đổi. Giữ thứ tự gốc, dùng nguyên văn từng dòng hoặc `Task#N`
+cho các dòng khác có nội dung mà Work có thể mở lại. Với ví dụ trên, thêm
+`Verify Task#3: test: node --test` và `Source: label.js`. Tham chiếu bản cấp
+quyền xác định giới hạn. Dòng thao tác tùy chọn như `write: label.js` còn phải khớp
+với thao tác, phép kiểm hoặc quyền đọc nguồn gắn với nhiệm vụ này. Markdown
+thông thường và cách diễn đạt lại có thể được rà độc lập.
+Tiêu đề của Candidate chỉ áp dụng cho fixture benchmark.
+
+```powershell
+./scripts/validate-work-prompt.ps1 -OriginalTask request.txt -Authorization approval.json -AuthorizationSha256 $approvedPin -Prompt handoff.md -Repository $ownerRoot
+```
+
+Chạy validator từ checkout toolkit được duyệt trước khi giao và lúc Work tiếp nhận,
+đối chiếu cùng đầu vào đã duyệt
+và SHA-256 của bản nháp. Mã thoát 0 (`PASS`) áp dụng cho phần nội dung và pin
+đã kiểm. Mã 1 (`FAIL`) yêu cầu sửa, 2 (`REVIEW_REQUIRED`) yêu cầu rà độc lập
+với yêu cầu gốc và quyền, 3 (`BLOCKED`) dừng triển khai. Giữ Work ở trạng thái
+`PROMPT_BLOCKED` trong khi còn thiếu lần rà thiết yếu. Sau khi người rà độc lập
+duyệt bản nháp theo cùng đầu vào, người vận hành có thể truyền digest của bản nháp
+qua `-ReviewedPromptSha256` để ghi nhận quyết định. Validator không xác thực danh tính người
+duyệt, diễn giải văn xuôi tùy ý, chạy các phép kiểm dự kiến hay cưỡng chế
+quyền hệ thống tệp của Work.
+
 ## Vòng đời mô hình
 
 Giao ước Work Prompt độc lập với các lần phát hành model. Chọn model và effort
@@ -79,4 +139,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 69f19356ec564ee055621ec9ea7f3e739985a71c472115013b01d7f67c449427 -->
+<!-- source-sha256: f5621992a6506c38b982041a47749aa6e576746edd6ea16d20c23d11593bf7ad -->

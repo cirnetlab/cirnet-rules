@@ -64,6 +64,13 @@ if ($scenario -match '/denied/') {
     $sourceRevision = (& git --no-optional-locks -C $repo rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect toolkit revision.' }
     $common = @{ Cohort='Candidate'; RulesRoot=$repo; OutputRoot=$output; SourceRevision=$sourceRevision; CodexPath=$fake; CaseId='E01' }
+    $noClient = $common.Clone()
+    $noClient.CodexPath = Join-Path $output 'deliberately-absent-client'
+    & $runner @noClient -Session sensitive-before-dispatch -Execute | Out-Null
+    $blockedRead = Read-Evidence sensitive-before-dispatch E01
+    if ($blockedRead.verdict -cne 'BLOCKED' -or $blockedRead.process -or $blockedRead.reason -notmatch 'preventive read boundary') {
+        throw 'Sensitive native input must be blocked before role execution.'
+    }
     $baselineArgs = $common.Clone()
     $baselineArgs.Cohort = 'Baseline'
     $rejectedBaseline = $false

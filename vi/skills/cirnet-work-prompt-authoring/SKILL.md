@@ -60,8 +60,10 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    ghi `NOT_INSPECTED` và giao Work kiểm tra trước đối với source chưa đọc,
    chi tiết triển khai và lệnh kiểm thử chưa biết. Chỉ dùng `PROMPT_BLOCKED`
    khi thiếu quyết định hoặc thẩm quyền thiết yếu, thao tác không an toàn hay
-   xung đột chưa giải quyết cản trở bàn giao an toàn. Đây là rà soát
-   biên tập. Kết quả thực thi cần bằng chứng thực tế từ Work.
+   xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng phép kiểm bàn giao
+   offline trong `en/docs/context.md` trước khi giao và khi Work tiếp nhận.
+   Lấy yêu cầu và pin cấp quyền độc lập. Người vận hành phải thiết lập ranh giới
+   ngăn truy cập trước khi khảo sát dữ liệu nhạy cảm. Kết quả thực thi cần bằng chứng từ Work.
 8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
    chép theo định dạng được yêu cầu. Loại chỉ dẫn dùng mẫu và placeholder thừa.
    Báo `PROMPT_BLOCKED` cùng đầu vào, quyền hoặc quyết định còn thiếu nếu chưa
@@ -106,4 +108,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 40ab123c6976d78684a56b2ef55f6a8a599a73514b6e09e68ed99bdd089cdd05 -->
+<!-- source-sha256: bfd764783e20cebe981d7e7a4808179717ea8b4f8c0d128a5f4000e919150391 -->

@@ -13,6 +13,7 @@ param(
     [string]$ToolPath,
     [switch]$UseApiKey,
     [switch]$Execute,
+    [switch]$ReviewHandoffs,
     [Alias('ApprovedRoleCalls')][int]$MaxNativeCalls
 )
 

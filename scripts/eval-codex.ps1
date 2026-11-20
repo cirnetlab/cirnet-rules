@@ -15,6 +15,7 @@ param(
     [string]$HandoffPath,
     [switch]$ValidateCandidateHandoff,
     [string]$ExpectedHandoffSha256,
+    [string]$ReviewedHandoffSha256,
     [Alias('BenchmarkRoot')][string]$ComparisonRoot,
     [string]$SuiteRoot,
     [string]$CodexPath,

@@ -13,6 +13,7 @@ param(
     [Parameter(ParameterSetName='Run')][string]$ToolPath,
     [Parameter(ParameterSetName='Run')][switch]$UseApiKey,
     [Parameter(ParameterSetName='Run')][switch]$Execute,
+    [Parameter(ParameterSetName='Run')][switch]$ReviewHandoffs,
     [Parameter(ParameterSetName='Run')][Alias('ApprovedRoleCalls')][ValidateRange(1, 20)][int]$MaxNativeCalls
 )
 
@@ -49,6 +50,7 @@ $cases = @(Select-BenchmarkScenarios @(Get-BenchmarkScenarios $catalog) $CaseId 
 if (-not $cases.Count) { throw 'Select at least one benchmark scenario.' }
 $plannedCalls = 2 * $cases.Count
 $isShim = $CodexPath -and [IO.Path]::GetExtension($CodexPath) -ieq '.ps1'
+if ($ReviewHandoffs -and (-not $Execute -or $isShim)) { throw 'Interactive independent review applies only to authorized native sessions.' }
 
 if ($Execute -and $MaxNativeCalls -ne $plannedCalls) {
     throw "Authorize up to $plannedCalls role calls with -MaxNativeCalls $plannedCalls."
@@ -169,7 +171,8 @@ foreach ($id in $cases) {
 }
 $runnerHashes = [ordered]@{}
 foreach ($relative in @('scripts/benchmark/run.ps1', 'scripts/benchmark/role.ps1', 'scripts/benchmark/report.mjs',
-    'scripts/benchmark/Scenarios.psm1', 'scripts/benchmark/inspect-source.mjs', 'scripts/benchmark/rtl-observer.mjs', 'scripts/shared/Bundle.psm1')) {
+    'scripts/benchmark/Scenarios.psm1', 'scripts/benchmark/inspect-source.mjs', 'scripts/benchmark/rtl-observer.mjs',
+    'scripts/shared/WorkPrompt.psm1', 'scripts/continuity/Repository.psm1', 'scripts/continuity/Checkpoint.psm1', 'scripts/shared/Bundle.psm1')) {
     $runnerHashes[$relative] = Get-InputHash $repo $relative
 }
 
@@ -231,8 +234,18 @@ $results = foreach ($id in $cases) {
             if ((Get-InputHash $root $handoff) -cne $author['finalSha256']) {
                 $status = 'FAIL'
                 $reason = 'Author handoff hash mismatch. Work was skipped.'
+            } elseif (-not $isShim -and $author.handoffValidation.status -eq 'REVIEW_REQUIRED' -and -not $ReviewHandoffs) {
+                $reason = 'Independent pre-dispatch review is required. Use -ReviewHandoffs in an authorized native session.'
             } else {
-                & $runner @common -OutputRoot $trial -CaseId $id -Role Work -Session Work `
+                $reviewed = @{}
+                if ($ReviewHandoffs -and $author.handoffValidation.status -eq 'REVIEW_REQUIRED') {
+                    Write-Host "Review $handoff against frozen evaluator/cases.json ($id), source, permissions and verification in $root."
+                    $digest = Read-Host 'Enter the SHA-256 of the independently approved handoff, or press Enter to block Work'
+                    if ($digest -cne $author.finalSha256) { throw 'Independent handoff review was not confirmed.' }
+                    Assert-FrozenInputs
+                    $reviewed.ReviewedHandoffSha256 = $digest
+                }
+                & $runner @common @reviewed -OutputRoot $trial -CaseId $id -Role Work -Session Work `
                     -HandoffPath (Join-Path $root $handoff) -ExpectedHandoffSha256 $author['finalSha256'] | Out-Null
                 $work = Read-Role $workPath
                 $consistent = $author['finalSha256'] -ceq $work['manifest']['promptSha256'] -and
@@ -256,7 +269,7 @@ $results = foreach ($id in $cases) {
         }
         if ($status -eq 'BLOCKED') {
             if ($work) { $reason = $work['reason'] }
-            elseif ($author) { $reason = $author['reason'] }
+            elseif ($author -and $reason -eq 'Required role evidence was unavailable.') { $reason = $author['reason'] }
             if ((Test-SessionBlocker $author) -or (Test-SessionBlocker $work)) {
                 $stopReason = 'An earlier scenario hit a shared runtime blocker. No further roles were dispatched.'
             }
