@@ -98,29 +98,62 @@ Review the latest evidence.
     Assert-Rejected { & $manager bootstrap @scope -ConfirmContinuation } 'ExpectedCheckpointId'
     $ready = & $manager bootstrap @scope -ConfirmContinuation -ExpectedCheckpointId $recovered.CheckpointId
     Assert-True ($ready.CanContinue -and $ready.CheckpointId -ceq $first.CheckpointId) 'Confirmed unique resume failed.'
+    $unknown = & $manager bootstrap @scope -SessionKey unseen-conversation -ConfirmContinuation -ExpectedCheckpointId $first.CheckpointId
+    Assert-True (-not $unknown.ContextRecovered -and -not $unknown.CanContinue -and $unknown.Candidates.Count -eq 1) 'An unknown session recovered the only worktree task.'
+    $null = & $manager bind @scope -TaskId first
+    Assert-True ((& $manager bootstrap @scope).TaskId -ceq 'first') 'Verified worktree binding lost the sole eligible task.'
+    $defaultStore = Join-Path $worktree '.cirnet/tasks'
+    $damagedStore = Join-Path $defaultStore 'Damaged'
+    [void][IO.Directory]::CreateDirectory($damagedStore)
+    $damagedPointer = Join-Path $damagedStore 'current.json'
+    [IO.File]::WriteAllText($damagedPointer, '{')
+    $blocked = & $manager bootstrap @scope -ConfirmContinuation -ExpectedCheckpointId $first.CheckpointId
+    Assert-True ($blocked.Status -ceq 'BLOCKED' -and $blocked.RejectedCheckpoints -eq 1 -and
+        $blocked.Candidates.Count -eq 1 -and -not $blocked.ContextRecovered -and -not $blocked.CanContinue) 'An unreadable or malformed candidate was silently excluded.'
+    Assert-True ((& $manager bootstrap @scope -TaskId first).ContextRecovered) 'Unrelated damage prevented verified explicit recovery.'
+    [IO.File]::Delete($damagedPointer)
+    [IO.Directory]::Delete($damagedStore)
 
     $otherFamily = $scope.Clone()
     $otherFamily.AgentFamily = 'claude-code'
     Assert-True ((& $manager discover @otherFamily).Status -ceq 'NONE') 'Another agent family saw the Codex task.'
     $null = & $manager save @otherFamily @seed -TaskId claude
     Assert-True ((& $manager bootstrap @otherFamily).TaskId -ceq 'claude') 'Claude family selection failed.'
-    $null = & $manager save @scope @seed -TaskId second
+    Import-Module (Join-Path $repo 'scripts/continuity/Repository.psm1')
+    Import-Module (Join-Path $repo 'scripts/continuity/Checkpoint.psm1')
+    Import-Module (Join-Path $repo 'scripts/continuity/Discovery.psm1')
+    $checkout = Get-ContinuityRepository $worktree
+    $remaining = 8
+    Assert-Rejected { Read-ContinuityCheckpoint (Join-Path $defaultStore 'first') first -RemainingBytes ([ref]$remaining) } 'scan payload budget'
+    $beforePublication = Get-ContinuitySelection $checkout $defaultStore codex '' ''
+    Assert-True (Test-ContinuitySelectionCurrent $checkout $defaultStore codex '' $beforePublication) 'Stable implicit selection failed revalidation.'
+    # Publish between selection and revalidation to exercise the bootstrap race boundary deterministically.
+    $second = & $manager save @scope @seed -TaskId second -SessionKey initialized-lane
+    Assert-True (-not (Test-ContinuitySelectionCurrent $checkout $defaultStore codex '' $beforePublication)) 'Concurrent task creation passed implicit selection revalidation.'
+    Assert-True ((& $manager bootstrap @scope -SessionKey initialized-lane -ConfirmContinuation -ExpectedCheckpointId $second.CheckpointId).CanContinue) 'The first save did not publish a durable session binding.'
+    Assert-Rejected { & $manager save -Repository $worktree -AgentFamily codex @seed -TaskId unconfirmed -SessionKey unconfirmed } 'ConfirmScope'
+    Assert-Rejected { & $manager save @scope -TaskId second -SessionKey unexpected } 'only at initialization'
+    Assert-Rejected { & $manager save @scope @seed -TaskId conflicting -SessionKey initialized-lane } 'already bound'
+    Assert-True (-not [IO.File]::Exists((Join-Path $defaultStore 'conflicting/current.json'))) 'Conflicting initialization published an unbound task.'
     $ambiguous = & $manager bootstrap @scope
     Assert-True ($ambiguous.Status -ceq 'AMBIGUOUS' -and $ambiguous.Candidates.Count -eq 2 -and
         -not $ambiguous.PSObject.Properties['Progress']) 'More than one task should require selection without loading notes.'
     Assert-True ((& $manager bootstrap @scope -TaskId second).TaskId -ceq 'second') 'Explicit selection failed.'
 
-    $null = & $manager bind @scope -TaskId first
-    Assert-True ((& $manager bootstrap @scope -SessionKey missing).TaskId -ceq 'first') 'Worktree binding fallback failed.'
+    $unknown = & $manager bootstrap @scope -SessionKey missing
+    Assert-True ($unknown.Status -ceq 'AMBIGUOUS' -and $unknown.Candidates.Count -eq 2 -and -not $unknown.ContextRecovered) 'Unknown session fell back to the worktree binding.'
     $null = & $manager bind @scope -TaskId second -SessionKey local-lane
     Assert-True ((& $manager bootstrap @scope -SessionKey local-lane).TaskId -ceq 'second') 'Specific session binding did not take precedence.'
     Assert-Rejected { & $manager bind @scope -TaskId first -SessionKey local-lane } 'already bound'
     $null = & $manager bind @scope -TaskId first -SessionKey local-lane -ReplaceBinding
     Assert-True ((& $manager discover @scope -SessionKey local-lane).TaskId -ceq 'first') 'Explicit binding replacement did not take effect.'
 
-    $defaultStore = Join-Path $worktree '.cirnet/tasks'
     $bindingPath = (& $manager bind @scope -TaskId first -SessionKey local-lane).BindingPath
     $bindingBytes = [IO.File]::ReadAllBytes($bindingPath)
+    $otherBinding = (& $manager bind @scope -TaskId second -SessionKey initialized-lane).BindingPath
+    [IO.File]::WriteAllBytes($bindingPath,[IO.File]::ReadAllBytes($otherBinding))
+    Assert-True ((& $manager bootstrap @scope -SessionKey local-lane).Status -ceq 'BLOCKED') 'A binding copied from another session was accepted.'
+    [IO.File]::WriteAllBytes($bindingPath,$bindingBytes)
     $lockPath = Join-Path (Split-Path -Parent $bindingPath) '.lock'
     $bindingLock = [IO.File]::Open($lockPath, 'Open', 'ReadWrite', 'None')
     try {
@@ -137,6 +170,12 @@ Review the latest evidence.
     [IO.File]::WriteAllBytes($bindingPath,$bindingBytes)
 
     $secondPointer = Join-Path $defaultStore 'second/current.json'
+    $pointerLock = [IO.File]::Open($secondPointer, 'Open', 'ReadWrite', 'None')
+    try {
+        $locked = & $manager bootstrap @scope
+        Assert-True ($locked.Status -ceq 'BLOCKED' -and -not $locked.ContextRecovered) 'An unreadable checkpoint allowed implicit recovery.'
+    }
+    finally { $pointerLock.Dispose() }
     $pointerBytes = [IO.File]::ReadAllBytes($secondPointer)
     [IO.File]::WriteAllText($secondPointer,'{')
     Assert-True ((& $manager bootstrap @scope -TaskId second).Status -ceq 'BLOCKED') 'Corrupt checkpoint was recovered.'
@@ -155,6 +194,11 @@ Review the latest evidence.
     Assert-True ((& $manager bootstrap @alternate -Repository $linked).TaskId -ceq 'linked') 'Shared root mixed separate worktrees.'
     $null = & $manager save @scope @seed -TaskId custom -CheckpointRoot '.local/tasks'
     Assert-True ((& $manager bootstrap @scope -CheckpointRoot '.local/tasks').TaskId -ceq 'custom') 'Configured relative storage was ignored.'
+    $customStore = Join-Path $worktree '.local/tasks'
+    for ($i = 1; $i -le 128; $i++) { [IO.File]::WriteAllText((Join-Path $customStore "entry-$i"), '') }
+    $overLimit = & $manager bootstrap @scope -CheckpointRoot '.local/tasks'
+    Assert-True ($overLimit.Status -ceq 'BLOCKED' -and -not $overLimit.ContextRecovered) 'An oversized root allowed automatic selection.'
+    Assert-True ((& $manager bootstrap @scope -CheckpointRoot '.local/tasks' -TaskId custom).ContextRecovered) 'Scan bounds prevented explicit recovery.'
     $linkPath = Join-Path $worktree '.local/redirected'
     $linkCreated = $false
     try {
@@ -170,6 +214,7 @@ Review the latest evidence.
     }
 
     $runArgs = @{ Repository=$worktree; TaskId='first'; AgentFamily='codex'; ConfirmScope=$true }
+    $boundScope = @{ Repository=$worktree; AgentFamily='codex'; ConfirmScope=$true; SessionKey='local-lane' }
     $runningFile = Join-Path $worktree '.local/running'
     $releaseFile = Join-Path $worktree '.local/release'
     [void][IO.Directory]::CreateDirectory((Split-Path -Parent $runningFile))
@@ -207,32 +252,36 @@ exit $LASTEXITCODE
         if (-not $publisher.HasExited) { throw 'Concurrent check did not start before the deadline.' }
         throw "Concurrent check did not start (exit $($publisher.ExitCode)). $($publisherError.GetAwaiter().GetResult()) $($publisherOutput.GetAwaiter().GetResult())"
     }
-    $during = & $manager bootstrap @scope
+    $during = & $manager bootstrap @boundScope
     Assert-True ($during.ContextRecovered -and $during.Checks[0].Phase -ceq 'running' -and
         -not $during.Ready -and -not $during.CorrectiveReady) 'Running milestone did not block bootstrap.'
     Assert-Rejected { & $manager bind @scope -TaskId first -SessionKey busy } 'busy'
     [IO.File]::WriteAllText($releaseFile,'release')
     if (-not $publisher.WaitForExit(30000)) { throw 'Concurrent publication timed out.' }
     if ($publisher.ExitCode -ne 0) { throw "Concurrent publication failed. $($publisherError.GetAwaiter().GetResult()) $($publisherOutput.GetAwaiter().GetResult())" }
-    $driftedSelection = & $manager bootstrap @scope -ConfirmContinuation -ExpectedCheckpointId $during.CheckpointId
+    $driftedSelection = & $manager bootstrap @boundScope -ConfirmContinuation -ExpectedCheckpointId $during.CheckpointId
     Assert-True ($driftedSelection.Status -ceq 'BLOCKED' -and -not $driftedSelection.PSObject.Properties['Task']) 'Bootstrap used a superseded checkpoint.'
-    $latest = & $manager bootstrap @scope
+    $latest = & $manager bootstrap @boundScope
     Assert-True ($latest.Ready -and $latest.Checks[0].Status -ceq 'PASS') 'Latest checkpoint was not recovered.'
+    $compactReport = & $manager bootstrap @boundScope -Compact
+    Assert-True ($compactReport.Task -ceq $latest.Task -and $compactReport.Progress -ceq $latest.Progress -and
+        $compactReport.Acceptance[0].Criterion -ceq $latest.Acceptance[0].Criterion -and
+        $compactReport.Checks[0].Status -ceq 'PASS' -and -not $compactReport.Checks[0].PSObject.Properties['Evidence']) 'Compact recovery lost authoritative context or included raw evidence.'
     [IO.File]::WriteAllText((Join-Path $worktree 'untracked.txt'),'user edit')
-    $changed = & $manager bootstrap @scope -ConfirmContinuation -ExpectedCheckpointId $latest.CheckpointId
+    $changed = & $manager bootstrap @boundScope -ConfirmContinuation -ExpectedCheckpointId $latest.CheckpointId
     Assert-True (-not $changed.CanContinue -and $changed.Git.Changes.Files['untracked.txt'] -ceq 'added' -and
         $changed.Checks[0].Status -ceq 'NOT_RUN') 'Untracked Git drift or stale evidence was missed.'
     $savedDrift = & $manager save @runArgs -AcceptGitDrift
-    $corrective = & $manager bootstrap @scope -ConfirmContinuation -ExpectedCheckpointId $savedDrift.CheckpointId
+    $corrective = & $manager bootstrap @boundScope -ConfirmContinuation -ExpectedCheckpointId $savedDrift.CheckpointId
     Assert-True (-not $corrective.CanContinue -and $corrective.CanCorrect) 'Reconciled stale evidence lost authorized corrective mode.'
     $null = & $manager run @runArgs -Kind test -EvidenceId fixture-test -Executable pwsh -Arguments @(
         '-NoProfile','-Command','Start-Sleep -Seconds 20'
     ) -TimeoutSeconds 1
-    $interrupted = & $manager bootstrap @scope
+    $interrupted = & $manager bootstrap @boundScope
     Assert-True (-not $interrupted.Ready -and $interrupted.Checks[0].Phase -ceq 'interrupted') 'Interrupted milestone was accepted.'
     $file = Join-Path $worktree 'AGENTS.md'
     [IO.File]::AppendAllText($file,' instructions updated')
-    $changedRules = & $manager bootstrap @scope
+    $changedRules = & $manager bootstrap @boundScope
     Assert-True ($changedRules.ReferenceProblems.Count -gt 0 -and -not $changedRules.Ready) 'Changed pinned rules did not block bootstrap.'
 
     Write-Host 'PASS offline Task Continuity discovery, binding and bootstrap.'

@@ -37,7 +37,8 @@ param(
     [string]$HandoffFile,
     [string]$ExpectedSha256,
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z')][string]$SessionKey,
-    [switch]$ReplaceBinding
+    [switch]$ReplaceBinding,
+    [switch]$Compact
 )
 
 Set-StrictMode -Version Latest
@@ -56,8 +57,11 @@ if ($RecoverPrevious -and ($Action -cne 'resume' -or $HandoffFile -or $ConfirmCo
 if ($ConfirmContinuation -and ($Action -cnotin @('resume', 'bootstrap') -or $HandoffFile)) {
     throw 'Confirm continuation only when resuming from the original local checkpoint and worktree.'
 }
-if (($SessionKey -and $Action -cnotin @('discover', 'bootstrap', 'bind')) -or ($ReplaceBinding -and $Action -cne 'bind')) {
-    throw 'Use -SessionKey with discover, bootstrap or bind and -ReplaceBinding only with bind.'
+if (($SessionKey -and $Action -cnotin @('discover', 'bootstrap', 'bind', 'save')) -or ($ReplaceBinding -and $Action -cne 'bind')) {
+    throw 'Use -SessionKey with discover, bootstrap, bind or the first save and -ReplaceBinding only with bind.'
+}
+if ($Compact -and $Action -cne 'bootstrap') {
+    throw 'Use -Compact with bootstrap.'
 }
 if ($Action -ceq 'bootstrap' -and $ConfirmContinuation -and -not $ExpectedCheckpointId) {
     throw 'Supply the reviewed -ExpectedCheckpointId with -ConfirmContinuation for bootstrap.'
@@ -70,7 +74,9 @@ if ($HandoffFile) {
     return Read-ContinuityHandoff $HandoffFile $ExpectedSha256 $AgentFamily
 }
 if ($Action -cnotin @('status', 'verify') -and -not $AgentFamily) { throw 'Supply -AgentFamily.' }
-if (($Action -cin @('resume', 'review', 'close', 'export', 'run', 'discover', 'bootstrap', 'bind') -or $AcceptGitDrift -or $AcceptanceFile -or $ConfirmStopped) -and -not $ConfirmScope) {
+$initializeBinding = $Action -ceq 'save' -and $SessionKey
+if (($Action -cin @('resume', 'review', 'close', 'export', 'run', 'discover', 'bootstrap', 'bind') -or
+        $initializeBinding -or $AcceptGitDrift -or $AcceptanceFile -or $ConfirmStopped) -and -not $ConfirmScope) {
     throw 'Use -ConfirmScope after reviewing current authorization for this operation.'
 }
 if ($Action -ceq 'export' -and (-not $ConfirmExport -or -not $OutputFile)) {
@@ -84,14 +90,16 @@ if ($Corrective -and ($Action -cne 'run' -or $Kind -cne 'edit')) {
 }
 
 $usesDiscovery = $Action -cin @('discover', 'bootstrap', 'bind')
-if ($usesDiscovery -and $IsWindows -and ($Repository -match '^[\\/]{2}' -or $CheckpointRoot -match '^[\\/]{2}')) {
+if (($usesDiscovery -or $initializeBinding) -and $IsWindows -and ($Repository -match '^[\\/]{2}' -or $CheckpointRoot -match '^[\\/]{2}')) {
     throw 'Discovery and bindings require local worktree and checkpoint paths.'
 }
 $checkout = Get-ContinuityRepository (Get-ContinuityInputPath $Repository)
 $selection = $null
-if ($usesDiscovery) {
+if ($usesDiscovery -or $initializeBinding) {
     Import-Module (Join-Path $PSScriptRoot 'continuity/Discovery.psm1')
     Assert-NoCredential $SessionKey
+}
+if ($usesDiscovery) {
     $storage = Get-ContinuityStorageRoot $checkout $CheckpointRoot
     if ([IO.File]::Exists($storage)) { throw 'CheckpointRoot must be a directory.' }
     if ($Action -ceq 'bind') {
@@ -222,7 +230,7 @@ if ($Action -cin @('status', 'verify', 'resume', 'bootstrap')) {
     if ($Action -cin @('resume', 'bootstrap')) {
         if ($selection) {
             if (-not (Test-ContinuitySelectionCurrent $checkout $storage $AgentFamily $SessionKey $selection)) {
-                New-ContinuitySelection BLOCKED 'The checkpoint or binding changed during recovery. Run bootstrap again.'
+                New-ContinuitySelection BLOCKED 'Task selection changed during recovery. Run bootstrap again.'
                 exit 0
             }
             # Keep revision identity and classified drift without both full inventories.
@@ -234,6 +242,11 @@ if ($Action -cin @('status', 'verify', 'resume', 'bootstrap')) {
                 Current = if ($git) { @{ head = $git.head; branch = $git.branch } }
             }
             Add-Member -InputObject $report -NotePropertyName SelectedBy -NotePropertyValue $selection.Result.SelectedBy
+            if ($Compact) {
+                $report.Checks = @($report.Checks | Select-Object Id, Kind, Status, Phase, ExitCode, Reason)
+                $report.Acceptance = @($report.Acceptance | Select-Object Id, Criterion, Checks, Status, ReviewStatus, Reason)
+                $report.CompletedWork = $report.CompletedWork | Select-Object Status, ReviewOrigin, Reason, NotesOrigin
+            }
         }
         $canContinue = $ConfirmContinuation -and $report.Ready -and $report.Lifecycle -ceq 'open'
         if ($report.Lifecycle -ceq 'closed') { $report.Blockers += 'The task was recorded as closed.' }
@@ -280,6 +293,9 @@ try {
     $git = Get-ContinuityGitSnapshot $checkout
 
     if ($Action -ceq 'save') {
+        if ($initializeBinding -and $null -ne $checkpoint) {
+            throw 'Use -SessionKey with save only at initialization. Use bind for an existing task.'
+        }
         if ($null -eq $checkpoint) {
             if (-not ($TaskFile -and $ProgressFile -and $ReferencesFile)) {
                 throw 'The first save requires -TaskFile, -ProgressFile and -ReferencesFile.'
@@ -334,6 +350,11 @@ try {
         Enable-TraceableReviews $state
         if ($null -ne $checkpoint) { $progress = Get-UpdatedProgress $checkpoint $state }
         Resolve-InterruptedMeasurements $state
+        if ($initializeBinding) {
+            $saved = Publish-ContinuityBinding $checkout ([IO.Path]::GetDirectoryName($store)) $SessionKey $state `
+                -InitialStore $store -Task $task -Progress $progress
+            return Get-SavedResult $saved
+        }
         return Get-SavedResult (Save-ContinuityCheckpoint $store $state $task $progress)
     }
 

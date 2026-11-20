@@ -113,12 +113,17 @@ function Assert-ContinuityCriteria($Criteria, [string[]]$Text, [string[]]$Requir
     }
 }
 
-function Read-ContinuityBytes([string]$Path, [int]$MaxBytes = 67108864) {
+function Read-ContinuityBytes([string]$Path, [int]$MaxBytes = 67108864, [ref]$RemainingBytes) {
     $share = [IO.FileShare]::Read -bor [IO.FileShare]::Delete
     $file = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, $share)
     try {
-        if ($file.Length -gt $MaxBytes) { throw 'A continuity file exceeds its size limit.' }
-        $bytes = [byte[]]::new([int]$file.Length)
+        $length = $file.Length
+        if ($length -gt $MaxBytes) { throw 'A continuity file exceeds its size limit.' }
+        if ($null -ne $RemainingBytes) {
+            if ($length -gt $RemainingBytes.Value) { throw 'A continuity file exceeds the remaining scan payload budget.' }
+            $RemainingBytes.Value -= $length
+        }
+        $bytes = [byte[]]::new([int]$length)
         $offset = 0
         while ($offset -lt $bytes.Length) {
             $read = $file.Read($bytes, $offset, $bytes.Length - $offset)
@@ -415,7 +420,7 @@ function Enter-ContinuityLock([string]$Store, [switch]$Create) {
     catch [IO.IOException] { throw 'The checkpoint is busy or its lock is unavailable.' }
 }
 
-function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId) {
+function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId, [ref]$RemainingBytes) {
     Assert-Record $Pointer @('schemaVersion', 'checkpointId', 'files')
     if (-not (Test-Integer $Pointer.schemaVersion) -or $Pointer.schemaVersion -ne 1 -or $Pointer.checkpointId -cnotmatch $guidPattern) {
         throw 'Invalid checkpoint pointer or unsupported schema.'
@@ -427,9 +432,11 @@ function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId) {
     $seal = Get-ContinuityValueHash $Pointer
     if ($seal -cne (Get-ContinuityValueHash $manifest)) { throw 'Checkpoint pointer and manifest disagree.' }
     $contents = @{}
+    $budget = @{}
+    if ($null -ne $RemainingBytes) { $budget.RemainingBytes = $RemainingBytes }
     foreach ($name in $payloadNames) {
         $path = Resolve-CirnetPath -Root $directory -Relative $name
-        $contents[$name] = Read-ContinuityBytes $path
+        $contents[$name] = Read-ContinuityBytes $path @budget
         if ($Pointer.files[$name] -cne (Get-CirnetPayloadHash -Bytes $contents[$name])) {
             throw "Checkpoint hash mismatch for $name."
         }
@@ -443,11 +450,13 @@ function Read-CheckpointPayload([string]$Store, $Pointer, [string]$TaskId) {
     @{ State = $state; Task = $task; Progress = $progress; Directory = $directory; Seal = $seal }
 }
 
-function Read-ContinuityCheckpoint([string]$Store, [string]$TaskId, [switch]$Previous) {
+function Read-ContinuityCheckpoint([string]$Store, [string]$TaskId, [switch]$Previous, [ref]$RemainingBytes) {
     $name = if ($Previous) { 'previous.json' } else { 'current.json' }
     $current = Resolve-CirnetPath -Root $Store -Relative $name
     if (-not [IO.File]::Exists($current)) { throw 'No confirmed checkpoint exists for this task.' }
-    Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson (Read-ContinuityBytes $current 4096)) $TaskId
+    $budget = @{}
+    if ($null -ne $RemainingBytes) { $budget.RemainingBytes = $RemainingBytes }
+    Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson (Read-ContinuityBytes $current 4096)) $TaskId @budget
 }
 
 function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [string]$Progress) {

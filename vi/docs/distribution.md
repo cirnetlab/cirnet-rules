@@ -132,7 +132,7 @@ checkpoint đã duyệt. Khi có quyền đọc, chạy lệnh từ checkout too
 ```powershell
 $manager = './scripts/task-continuity.ps1'
 $scope = @{ Repository = $repo; AgentFamily = 'codex'; ConfirmScope = $true }
-$recovery = & $manager bootstrap @scope
+$recovery = & $manager bootstrap @scope -Compact
 ```
 
 Dùng `claude-code` cho Claude Code. Thêm `CheckpointRoot` vào `$scope` nếu
@@ -140,31 +140,43 @@ dùng kho khác mặc định đã duyệt. Đường dẫn tương đối tính
 Discovery chỉ xét thư mục task ngay dưới kho đó. Công cụ kiểm tra snapshot
 đã công bố, repo và worktree sở hữu, cùng loại agent. `discover @scope` trả
 ID và trạng thái chọn task, không trả ghi chú hay toàn bộ dữ liệu Git.
-`bootstrap` chọn và khôi phục task trong một lần gọi. Khi không có binding
-áp dụng, chỉ tự chọn nếu có đúng một task hợp lệ. Với `AMBIGUOUS`, yêu cầu
-người vận hành chọn trong `Candidates` rồi gọi `bootstrap @scope -TaskId <id>`.
-Với `NONE`, kiểm tra worktree, loại agent và vị trí kho. Với `BLOCKED` ở bước
-chọn task, giải quyết các mục trong `Blockers` trước khi khôi phục.
+`bootstrap` chọn và khôi phục task trong một lần gọi. Khi không truyền nhãn
+phiên, chỉ tự chọn nếu quét đủ kho và có đúng một task hợp lệ trong worktree
+và loại agent đã duyệt. Nếu có binding worktree, binding phải khớp task đó.
+Khi truyền nhãn phiên, chỉ tự chọn nếu có binding chính xác cho nhãn, kể cả
+khi chỉ có một ứng viên. Với `AMBIGUOUS`, yêu cầu người vận hành chọn trong
+`Candidates` rồi gọi `bootstrap @scope -TaskId <id>`. Với `NONE`, kiểm tra
+worktree, loại agent và vị trí kho.
 
-Dùng `bind @scope -TaskId <id>` để ghi lựa chọn đã được duyệt cho các phiên
-sau. Lệnh tạo binding theo worktree và loại agent trong
-`<CheckpointRoot>/.bindings/`. Có thể thêm `-SessionKey <local-label>` khi
-gọi `bind`, `discover` và `bootstrap` để dùng binding theo nhãn cục bộ ổn
-định do người vận hành chọn, không chứa bí mật. Binding khớp phiên được ưu
-tiên trước binding worktree. Binding phải trỏ đến task đang mở có cùng khóa
-task ổn định. Để xử lý binding cũ hoặc hỏng, chọn Task ID tường minh rồi dùng
-`bind -ReplaceBinding` khi đã được cấp quyền. Giữ kho và binding cục bộ,
-giới hạn truy cập. Phiên sử dụng quy trình này cần nạp baseline và có quyền
-truy cập toolkit đã duyệt.
+Mỗi lượt quét tự động xét tối đa 128 mục trực tiếp và 16 MiB dữ liệu snapshot.
+Ứng viên hỏng, không đọc được hoặc vượt giới hạn dẫn đến `BLOCKED`. Task ID
+tường minh đã xác minh hoặc binding phiên chính xác cho phép khôi phục một
+task mà không quét các ứng viên khác.
+
+Để tạo binding phiên ổn định đã được cấp quyền, thêm `-SessionKey <local-label>`
+vào lần `save` đầu tiên hoặc dùng `bind @scope -TaskId <id> -SessionKey <local-label>`
+cho task đã tồn tại. Dùng cùng nhãn không chứa bí mật đã được người vận hành
+duyệt khi gọi `discover` và `bootstrap`. Bỏ tham số nếu phiên chưa có nhãn đáng
+tin cậy. Lệnh `bind @scope -TaskId <id>` ghi binding worktree cho luồng không
+có nhãn phiên. Binding được chọn phải trỏ đến task đang mở có cùng khóa task
+ổn định. Xử lý binding cũ hoặc hỏng bằng Task ID đã duyệt và lệnh
+`bind -ReplaceBinding` đã được cấp quyền. Nếu đã lưu checkpoint khi khởi tạo
+nhưng công bố binding lỗi, khôi phục theo Task ID rồi tạo binding riêng.
+Binding nằm trong `<CheckpointRoot>/.bindings/`, lưu cục bộ và giới hạn truy
+cập. Phiên dùng quy trình này cần nạp baseline và có quyền vào toolkit đã duyệt.
 
 Dùng `Task`, `Progress`, `References`, `Git.Changes` và tóm tắt kiểm tra để
 chỉ đọc ngữ cảnh cần cho bước tiếp theo. Tóm tắt Git gồm worktree, nhánh và
 HEAD đã ghi nhận và hiện tại. Rà Rules cục bộ hiện tại, Plans/Specs
-đã ghim có liên quan và kết quả đối chiếu. Sau khi xử lý vướng mắc và xác lập
+đã ghim có liên quan và kết quả đối chiếu. `-Compact` giữ yêu cầu gốc, tiến độ,
+tham chiếu, tiêu chí nghiệm thu và kết quả kiểm tra còn hiệu lực. Dùng
+`bootstrap` thông thường để xem đầy đủ bằng chứng tiến trình và rà soát.
+Sau khi xử lý vướng mắc và xác lập
 độc lập quyền hiện tại, gọi lại `bootstrap` với `-ConfirmContinuation
 -ExpectedCheckpointId $recovery.CheckpointId`, cùng phạm vi và Task ID tường
-minh nếu đã chọn. Chỉ sửa thông thường khi `CanContinue` cho phép. Nếu checkpoint
-hoặc binding đổi trong lúc khôi phục, đọc lại. Có thể dùng lại nhãn phiên cục
+minh nếu đã chọn. Chỉ sửa thông thường khi `CanContinue` cho phép. Bootstrap
+kiểm tra lại lựa chọn ngầm định sau khi đối chiếu Git và bằng chứng. Nếu tập
+ứng viên, checkpoint hoặc binding đổi, đọc lại. Có thể dùng lại nhãn phiên cục
 bộ khi đổi tài khoản nếu truy cập được kho đã duyệt. Nhãn xác định binding
 cục bộ. Phiên đang hoạt động xác lập danh tính runtime và quyền của agent.
 
@@ -285,4 +297,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 33998ecb6d1f93b121e500951126f9a89bf4044a6794e938c079c626e0d615a7 -->
+<!-- source-sha256: c98958f09f69c69295fcae4d4397f3b0ddbb460bb35bfa180c7ffdfe910876b7 -->

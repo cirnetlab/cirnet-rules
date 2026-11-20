@@ -136,7 +136,7 @@ reviewed toolkit checkout:
 ```powershell
 $manager = './scripts/task-continuity.ps1'
 $scope = @{ Repository = $repo; AgentFamily = 'codex'; ConfirmScope = $true }
-$recovery = & $manager bootstrap @scope
+$recovery = & $manager bootstrap @scope -Compact
 ```
 
 Use `claude-code` for Claude Code. Add `CheckpointRoot` to `$scope` for an
@@ -145,32 +145,44 @@ Discovery examines direct task directories in that root. It checks the
 published snapshot, owning repository and worktree, and agent family.
 `discover @scope` returns IDs and selection status without task notes or a
 live Git inventory. `bootstrap` selects and recovers the task in one call.
-When no binding applies, exactly one eligible task supports automatic selection.
-For `AMBIGUOUS`, ask the operator to select from `Candidates` and call
-`bootstrap @scope -TaskId <id>`. For `NONE`, verify the worktree, family and
-storage location. For a selection-level `BLOCKED` result, resolve `Blockers`
-before recovering context.
+Without a session key, automatic selection requires a complete scan with
+exactly one eligible task in the approved worktree and agent family. If a
+worktree binding exists, it must match that task. A supplied session key
+requires an exact session binding for automatic selection, even with one
+candidate. For `AMBIGUOUS`, ask the operator to select from `Candidates` and
+call `bootstrap @scope -TaskId <id>`. For `NONE`, verify the worktree, family
+and storage location.
 
-To record an operator-approved choice for future sessions, use
-`bind @scope -TaskId <id>`. It creates a worktree and agent-family binding in
-`<CheckpointRoot>/.bindings/`. An optional `-SessionKey <local-label>` on
-`bind`, `discover` and `bootstrap` makes the binding specific to a durable,
-nonsecret operator-chosen label. A matching session binding takes precedence
-over the worktree binding. The binding resolves to an open task with the same
-stable task key. Resolve stale or damaged bindings with an explicitly selected
-Task ID and an authorized `bind -ReplaceBinding`. Treat the root and bindings
-as local, access-controlled data. Availability of this workflow depends on the
-session loading the baseline and having access to the approved toolkit.
+Each automatic scan allows up to 128 direct entries and 16 MiB of snapshot
+payload. An unreadable or damaged candidate or an exceeded limit gives
+`BLOCKED`. A verified explicit Task ID or exact session binding lets the
+operator recover one task without scanning unrelated candidates.
+
+For an authorized, durable session binding, add `-SessionKey <local-label>`
+to the first `save` or use `bind @scope -TaskId <id> -SessionKey <local-label>`
+for an existing task. Use the same nonsecret operator-approved label with
+`discover` and `bootstrap`. Omit the key if the session has no reliable
+label. `bind @scope -TaskId <id>` records a worktree binding for keyless
+recovery. The selected binding must resolve to an open task with the same
+stable task key. Resolve stale or damaged bindings with an approved Task ID
+and an authorized `bind -ReplaceBinding`. If initialization saves a checkpoint
+but binding publication fails, recover by Task ID and bind separately.
+Bindings live under `<CheckpointRoot>/.bindings/` as local, access-controlled
+data. The workflow requires the baseline and access to the approved toolkit.
 
 Use the recovered `Task`, `Progress`, `References`, `Git.Changes` and check
 summaries to read only what's needed for the next action. The Git summary
 includes the worktree and the recorded and current branch and HEAD. Review
 current local Rules, applicable pinned Plans/Specs and live reconciliation.
+`-Compact` retains the original task and progress, references, acceptance
+criteria and effective check results. Use ordinary `bootstrap` to inspect full
+process and review evidence.
 After resolving blockers and independently establishing current authorization,
 repeat `bootstrap` with `-ConfirmContinuation -ExpectedCheckpointId
 $recovery.CheckpointId`, using the same scope and explicit Task ID if one was
-selected. Require `CanContinue` before ordinary edits. A checkpoint or binding
-change during recovery requires a fresh read. A local session label can be
+selected. Require `CanContinue` before ordinary edits. Bootstrap rechecks
+implicit selection after Git and evidence checks. Changes to the candidate set,
+checkpoint or binding require a fresh read. A local session label can be
 reused across accounts when its authorized storage is available. The label
 identifies a local binding. The agent's runtime identity and permissions still
 come from the active session.
