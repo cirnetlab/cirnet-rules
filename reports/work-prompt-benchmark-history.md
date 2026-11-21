@@ -410,3 +410,16 @@ with the reviewer and retain the [execution gates](../en/docs/context.md#offline
 / Các lượt ghi trên repo owner thật, benchmark native đầy đủ, mô phỏng RTL và
 kiểm chứng vật lý chưa chạy trong đợt này. Audit Git đối chiếu chênh lệch ròng
 trong phạm vi đã ghi. Người rà chịu trách nhiệm nghiệm thu triển khai.
+
+## Native acceptance, 21 November 2026 / Nghiệm thu native
+
+Independent Candidate reviews confirmed behavioral `PASS` for E01 and E07
+at `d9b66af` and the E03 Work continuation at `88de3ab`. Partner integration
+for E07 remains `BLOCKED`. The [English matrix and evidence pins](../en/docs/e01-e08-followup.md#native-acceptance-addendum)
+and [Vietnamese matrix](../vi/docs/e01-e08-followup.md#bổ-sung-nghiệm-thu-native)
+retain the other five case verdicts at their historical revisions.
+
+Rà soát Candidate độc lập xác nhận hành vi `PASS` cho E01 và E07 tại
+`d9b66af` và phiên tiếp nối Work của E03 tại `88de3ab`. Tích hợp đối tác
+của E07 vẫn `BLOCKED`. Hai bản trên giữ kết luận năm ca còn lại tại các
+revision lịch sử tương ứng.
