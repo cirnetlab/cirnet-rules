@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Add [owner-check preview, pinned stage evidence and bounded correction](distribution.md#verification-evidence)
+  for the existing verification workflow.
+
 - Add the [proposed repository and module organization standard](../rules/repository-organization.md)
   and reference it from the existing repository structure Skill.
 

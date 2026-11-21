@@ -14,6 +14,8 @@ requirements are defined in the standalone [baseline](../AGENTS.md).
 Read test scripts before execution when their side effects are unclear. Use the
 repo's allocator/output directory; determine whether a command downloads tools,
 changes locks, starts services or needs fixtures before running it.
+Use [verification evidence](../docs/distribution.md#verification-evidence)
+when previewing owner checks, assessing required stages or bounding retries.
 
 Record command, working directory, exit code, result and scope of evidence. Name
 missing prerequisites. A skipped case is not covered by an overall green exit.

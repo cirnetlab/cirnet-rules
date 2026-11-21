@@ -18,4 +18,5 @@ Task records: [initial rebuild](cirnet-rules/rules-common/plan.md) (historical),
 [toolkit upgrade](cirnet-rules/toolkit-upgrade/plan.md),
 [engineering behavior](cirnet-rules/engineering-behavior/plan.md),
 [Adaptive Stable integration](cirnet-rules/adaptive-stable/plan.md) (historical),
-[Task Continuity](cirnet-rules/task-continuity/plan.md).
+[Task Continuity](cirnet-rules/task-continuity/plan.md),
+[Reliability evidence](cirnet-rules/reliability-evidence/plan.md).

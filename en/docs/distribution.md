@@ -272,6 +272,101 @@ and evidence freshness require the original worktree and its local checkpoint.
 For native interruption recovery and handoffs between authorized accounts in
 both families, see the [acceptance criteria](../specs/cirnet-rules/task-continuity/spec.md#11-verification--acceptance-criteria).
 
+## Verification evidence
+
+Use the owner's instructions and the approved worktree to identify required
+checks. Inspect dependencies, side effects, command identity, working directory
+and output allocation before execution. The following tools run from an
+approved `cirnet-rules` checkout and produce local summaries. Owner commands
+still run through their own workflow or the existing Task Continuity runner.
+
+### Preview owner checks
+
+```powershell
+node scripts/preview-owner-checks.mjs --root $approvedRoot --manifest package.json --select npm:test
+```
+
+Select exact relative manifest paths. Supported inputs are npm scripts in
+`package.json`, explicit named Cargo targets in `Cargo.toml`, local visible
+presets in `CMakePresets.json`, and an owner-nominated script via
+`--rtl scripts/check-rtl.ps1`. The preview records source hashes, candidate IDs,
+selection and potential effects. It leaves execution `NOT_RUN`, prerequisites
+`NOT_CHECKED` and authorization `NOT_GRANTED_BY_PREVIEW`. Review lifecycle
+hooks, includes, inherited settings, dependencies and actual effects with the
+owner. Undeclared targets and workflows outside these formats need owner
+discovery. Choose tests because they cover changed requirements or dependencies.
+
+### Assess required stages
+
+Use PowerShell 7.2 or later with an independently pinned expectation and an
+owner observation document.
+Paths must be relative to the named Git worktree. Both JSON files use schema
+version 1. The expectation declares the reviewed revision, relevant input
+hashes and required or optional stages with assertion floors. Example shapes
+with placeholder hashes follow.
+
+```json
+{
+  "schemaVersion": 1,
+  "revision": "<Git HEAD>",
+  "inputs": {"tests/example.test.mjs": "<reviewed SHA-256>"},
+  "stages": [{"id": "unit", "required": true, "minAssertions": 2}]
+}
+```
+
+```json
+{
+  "schemaVersion": 1,
+  "expectationSha256": "<expectation SHA-256>",
+  "stages": [
+    {"id": "unit", "status": "PASS", "exitCode": 0, "assertions": 2, "failedAssertions": 0, "reason": ""}
+  ]
+}
+```
+
+```powershell
+./scripts/verify-claim.ps1 -Repository $approvedRoot `
+    -ExpectationPath $plan -ExpectationSha256 $planPin `
+    -ObservationPath $observation -ObservationSha256 $observationPin
+```
+
+The validator checks both pins, current HEAD, declared input bytes, unique
+stages, actual recorded exit codes and assertion counts. It reports JSON and
+exits 0 for `PASS`, 1 for `FAIL`, 2 for `NOT_RUN` and 3 for `BLOCKED`.
+An absent or skipped mandatory stage leaves the claim `NOT_RUN` unless a
+required failure or blocker takes precedence. Optional outcomes remain in the
+summary. For `BLOCKED`, `NOT_RUN` or `SKIPPED` stage observations, use a null
+exit, zero assertion counts and a reason code such as `tool-unavailable`,
+`authorization-required`, `owner-policy`, `timeout`, or `not-executed`.
+
+The operator or independent reviewer establishes who produced the evidence and
+what the observed assertions prove. Digests establish identity for the
+declared scope. Keep raw evidence in the owner's approved output location and
+pass only bounded, reviewed summaries to the verifier. For a Task Continuity
+criterion, declare the verifier as a required test check and pin the verifier
+script, the two JSON files and relevant local inputs with `-InputPath`. Preserve
+the JSON in the review evidence. Task Continuity records its direct process
+exit and maps a nonzero exit to `FAIL`. The verifier's JSON retains stage-level
+statuses. Review criteria separately before closing the task.
+
+### Bound correction
+
+Use `assessCorrection` from `scripts/verification/retry-policy.mjs` with an
+approved failure cluster, ordered observed attempts and a proposed action.
+Each attempt records `id`, `clusterId`, `kind` (`check` or `repair`),
+`identity` (a SHA-256 of command, tool, working directory and applicable
+inputs), `launched`, `status`, `exitCode` and the hypothesis for a repair.
+Set the request's `kind` to `repair` or `retry` and provide the current
+`checkDigest`, `approved`, `safe` and `progress` decisions, plus a repair
+`hypothesis` or a documented `transientReason` for an unchanged retry.
+
+The advisory allows up to two launched repairs per cluster and one unchanged
+retry for a documented transient reason. Stop on missing evidence, uncertain
+scope or safety, exhausted budget or lack of progress. Record the reason and
+preserve the failed observation. Use distinct attempt identifiers. The policy
+module returns a decision and counts without launching commands or granting
+authority.
+
 ## Update and restore
 
 Keep the previous reviewed bundle and the receipt returned by apply.

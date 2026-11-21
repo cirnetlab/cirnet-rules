@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Thêm [xem trước phép kiểm, bằng chứng từng bước được ghim và giới hạn lần sửa](distribution.md#bằng-chứng-kiểm-chứng)
+  cho quy trình kiểm chứng hiện có.
+
 - Thêm [đề xuất tiêu chuẩn tổ chức repository và module](../rules/repository-organization.md)
   và tham chiếu từ Skill cấu trúc repository hiện có.
 
@@ -63,4 +66,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: c18d7494014a19cf052f99ec80117834f0eba104e93e26a13f36d755a833b8ee -->
+<!-- source-sha256: 96a6e4629e86df9f9c26e7249a09b435c5af509a963123da8874bb0b8e8ca9ca -->

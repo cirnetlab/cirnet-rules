@@ -268,6 +268,103 @@ bằng chứng cần worktree gốc và checkpoint cục bộ. Việc khôi ph�
 Native và bàn giao giữa các tài khoản được cấp quyền của cả hai loại agent được
 quy định trong [tiêu chí nghiệm thu](../specs/cirnet-rules/task-continuity/spec.md#11-kiểm-chứng-và-tiêu-chí-nghiệm-thu).
 
+## Bằng chứng kiểm chứng
+
+Dùng chỉ dẫn của chủ sở hữu và worktree đã duyệt để xác định phép kiểm bắt
+buộc. Xem phụ thuộc, tác dụng phụ, định danh lệnh, thư mục làm việc và nơi
+cấp phát đầu ra trước khi chạy. Các công cụ dưới đây chạy từ checkout
+`cirnet-rules` đã duyệt và tạo bản tóm tắt cục bộ. Lệnh của chủ sở hữu vẫn
+chạy theo quy trình của họ hoặc qua runner Task Continuity hiện có.
+
+### Xem trước phép kiểm của chủ sở hữu
+
+```powershell
+node scripts/preview-owner-checks.mjs --root $approvedRoot --manifest package.json --select npm:test
+```
+
+Chọn chính xác đường dẫn manifest tương đối. Đầu vào hỗ trợ gồm script npm
+trong `package.json`, target Cargo có tên khai báo rõ trong `Cargo.toml`,
+preset cục bộ hiển thị trong `CMakePresets.json`, và script RTL do chủ sở
+hữu chỉ định qua `--rtl scripts/check-rtl.ps1`. Bản xem trước ghi hash nguồn,
+ID ứng viên, lựa chọn và tác dụng có thể có. Trạng thái thực thi là
+`NOT_RUN`, điều kiện tiên quyết là `NOT_CHECKED` và quyền là
+`NOT_GRANTED_BY_PREVIEW`. Cùng chủ sở hữu kiểm tra lifecycle hook, include,
+cấu hình kế thừa, phụ thuộc và tác dụng thực tế. Với target chưa khai báo
+và quy trình ngoài các định dạng này, dùng cách khám phá của chủ sở hữu.
+Chọn test dựa trên yêu cầu hoặc phụ thuộc bị thay đổi.
+
+### Đánh giá các bước bắt buộc
+
+Dùng PowerShell 7.2 trở lên với bản kỳ vọng được ghim độc lập và tài liệu
+quan sát do chủ sở hữu cung cấp. Đường dẫn phải tương đối so với worktree
+Git được chỉ định.
+Cả hai tệp JSON dùng schema phiên bản 1. Bản kỳ vọng khai báo revision đã
+duyệt, hash đầu vào liên quan và các bước bắt buộc hoặc tùy chọn cùng số
+assertion tối thiểu. Ví dụ dưới đây dùng hash giữ chỗ.
+
+```json
+{
+  "schemaVersion": 1,
+  "revision": "<Git HEAD>",
+  "inputs": {"tests/example.test.mjs": "<reviewed SHA-256>"},
+  "stages": [{"id": "unit", "required": true, "minAssertions": 2}]
+}
+```
+
+```json
+{
+  "schemaVersion": 1,
+  "expectationSha256": "<expectation SHA-256>",
+  "stages": [
+    {"id": "unit", "status": "PASS", "exitCode": 0, "assertions": 2, "failedAssertions": 0, "reason": ""}
+  ]
+}
+```
+
+```powershell
+./scripts/verify-claim.ps1 -Repository $approvedRoot `
+    -ExpectationPath $plan -ExpectationSha256 $planPin `
+    -ObservationPath $observation -ObservationSha256 $observationPin
+```
+
+Bộ xác minh kiểm tra hai pin, HEAD hiện tại, byte đầu vào đã khai báo,
+ID bước duy nhất, mã thoát đã ghi nhận và số assertion. Công cụ báo JSON
+và thoát 0 cho `PASS`, 1 cho `FAIL`, 2 cho `NOT_RUN` và 3 cho `BLOCKED`.
+Bước bắt buộc vắng mặt hoặc bị bỏ qua giữ kết luận ở `NOT_RUN` trừ khi có
+lỗi hoặc điều kiện chặn ưu tiên hơn ở bước bắt buộc. Kết quả tùy chọn vẫn
+hiện trong bản tóm tắt. Với quan sát `BLOCKED`, `NOT_RUN` hoặc `SKIPPED`,
+dùng mã thoát null, số assertion bằng 0 và mã lý do như `tool-unavailable`,
+`authorization-required`, `owner-policy`, `timeout` hoặc `not-executed`.
+
+Người vận hành hoặc người rà soát độc lập xác định ai tạo bằng chứng và
+assertion quan sát được chứng minh điều gì. Hash xác lập danh tính trong
+phạm vi đã khai báo. Giữ bằng chứng thô trong nơi đầu ra đã duyệt của chủ
+sở hữu và chỉ đưa bản tóm tắt có giới hạn, đã rà soát vào bộ xác minh.
+Với tiêu chí Task Continuity, khai báo bộ xác minh là phép test bắt buộc
+và ghim script, hai tệp JSON và đầu vào cục bộ liên quan qua `-InputPath`.
+Giữ JSON trong bằng chứng rà soát. Task Continuity ghi mã thoát tiến trình
+trực tiếp và ánh xạ mã khác 0 thành `FAIL`. JSON của bộ xác minh giữ trạng
+thái từng bước. Rà soát tiêu chí riêng trước khi đóng nhiệm vụ.
+
+### Giới hạn các lần sửa
+
+Dùng `assessCorrection` từ `scripts/verification/retry-policy.mjs` với
+nhóm lỗi đã duyệt, các lần chạy theo thứ tự và hành động đề xuất. Mỗi lần
+ghi `id`, `clusterId`, `kind` (`check` hoặc `repair`), `identity`
+(SHA-256 của lệnh, công cụ, thư mục làm việc và đầu vào áp dụng),
+`launched`, `status`, `exitCode` và giả thuyết nếu là lần sửa. Đặt
+`kind` của đề xuất thành `repair` hoặc `retry` và cung cấp
+`checkDigest` hiện tại, các quyết định `approved`, `safe`, `progress`,
+cùng `hypothesis` khi sửa hoặc `transientReason` đã ghi khi chạy lại
+lệnh giữ nguyên.
+
+Cơ chế tư vấn cho phép tối đa hai lần sửa đã khởi chạy mỗi nhóm lỗi và
+một lần chạy lại lệnh giữ nguyên khi có lý do nhất thời đã ghi. Dừng khi
+thiếu bằng chứng, phạm vi hoặc an toàn chưa rõ, hết ngân sách hoặc không
+có tiến triển. Ghi lý do và giữ quan sát thất bại. Dùng ID riêng cho mỗi
+lần. Module trả quyết định và số lần dùng, với thao tác chạy và cấp quyền
+do chủ sở hữu quyết định.
+
 ## Cập nhật và restore
 
 Giữ bundle đã review trước đó và receipt trả về khi apply. Dùng cùng lệnh
@@ -298,4 +395,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 674f7b676c7c563650221736cbe1767c03c33b953da759216375765e0cfb37f7 -->
+<!-- source-sha256: 65c02e382aece5776e3faf44b2910d07e762aa0a7232704e4445b04fcdbe3e04 -->

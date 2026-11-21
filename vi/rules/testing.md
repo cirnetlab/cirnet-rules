@@ -14,6 +14,8 @@ yêu cầu báo cáo được định nghĩa trong [bộ quy tắc nền tảng]
 Đọc script kiểm thử trước khi chạy nếu chưa rõ tác dụng phụ. Dùng cơ chế cấp phát/
 thư mục đầu ra của repo; xác định lệnh có tải công cụ, thay đổi tệp khóa, khởi động
 dịch vụ hoặc cần fixture hay không trước khi chạy.
+Dùng [bằng chứng kiểm chứng](../docs/distribution.md#bằng-chứng-kiểm-chứng)
+khi xem trước phép kiểm của chủ sở hữu, đánh giá bước bắt buộc hoặc giới hạn lần thử lại.
 
 Ghi lại lệnh, thư mục làm việc, mã thoát, kết quả và phạm vi bằng chứng. Nêu điều
 kiện tiên quyết còn thiếu. Trường hợp bị bỏ qua không được xem là đã kiểm tra chỉ
@@ -34,4 +36,4 @@ mềm với kiểm chứng vật lý. [Skill kiểm chứng](../skills/cirnet-ve
 định nghĩa các trường báo cáo FPGA/RTL và giữ sự phân biệt này khi được cài riêng.
 
 <!-- source: en/rules/testing.md -->
-<!-- source-sha256: e55c93e01170b4c1b4be46be7275f9d96e16290b7bcbd17d0906e9c82ec13ccd -->
+<!-- source-sha256: 438569e7b7d294c7e48019a975f7b3d3c281939ee36303cd253cfac0f1acedb0 -->
