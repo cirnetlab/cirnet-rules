@@ -76,8 +76,9 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
   transport while retaining `REVIEW_REQUIRED`. Native E01 stops before model access
   because the shell can bypass the inspector. E04 permits reviewed read-only
   clarification. E07 can run read-only checks and must report
-  the missing partner integration input separately. Work rechecks its owned
-  fixture baseline before dispatch and records scope audit separately from
+  the missing partner integration input separately. The reporter rejects
+  integration PASS when the frozen fixture lacks the partner input. Work rechecks
+  its owned fixture baseline before dispatch and records scope audit separately from
   acceptance. Changes to staged Git
   entries fail the fixture audit even if the edited file is within scope.
 - Find each role's `run.json`, `events.jsonl`, `final.md` and diff under

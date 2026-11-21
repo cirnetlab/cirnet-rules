@@ -31,6 +31,12 @@ if ($mode -eq 'mock-read-only') {
         $header = [regex]::Match($task, '(?m)^PROMPT_(?:READY|BLOCKED)\r?\nOriginal task: [^\r\n]+\r?\nWrite scope: \[\]\r?$').Value
         if (-not $header) { exit 19 }
         $answer = "$header`n## Requirements and constraints`nFollow toolkit/en/docs/context.md for intake and preserve the owner boundary.`n## Acceptance and verification`nRecord the missing dependency or authority.`n$report`n"
+    } elseif (Test-Path -LiteralPath 'verify.mjs') {
+        $output = & node verify.mjs
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0 -or 'unit PASS (2 assertions)' -cnotin $output -or
+            'integration SKIP (1 check; inputs/partner-batch.json unavailable)' -cnotin $output) { exit 21 }
+        $answer = 'Unit PASS. Partner integration is BLOCKED. Completion remains open.'
     } else { $answer = 'Synthetic read-only Work evidence.' }
 } elseif ($author) {
     $goal = [regex]::Match($task, '(?m)^Original (?:user task:\r?\n|task: )([^\r\n]+)').Groups[1].Value
@@ -86,6 +92,10 @@ if ($mode -eq 'mock-read-only') {
 }
 '{"type":"thread.started","thread_id":"model-smoke-shim"}'
 '{"type":"turn.started"}'
+if ($mode -eq 'mock-read-only' -and -not $author -and (Test-Path -LiteralPath 'verify.mjs')) {
+    @{type='item.completed'; item=@{type='command_execution'; id='shim-verify'; command='node verify.mjs'; aggregated_output=$output -join "`n"; exit_code=$exitCode}} |
+        ConvertTo-Json -Depth 4 -Compress
+}
 if (-not $author -and $recovery) {
     foreach ($item in 'shim-before','shim-after') {
         @{type='item.completed'; item=@{type='command_execution'; id=$item; command='node --test'; aggregated_output='# pass 1'; exit_code=0}} |
@@ -448,6 +458,38 @@ foreach ($id in 'E04','E07') {
         (Get-Content -LiteralPath $inputPath -TotalCount 1) -cne $expected) {
         throw "Unexpected read-only readiness for $id."
     }
+}
+$e07Root = Join-Path $output 'read-only'
+$review = Read-Evidence 'read-only/review-template.json'
+$review.reviewer = 'Offline E07 evidence gate'
+foreach ($entry in $review.cases.Values) {
+    foreach ($dimension in $entry.Values) {
+        foreach ($check in $dimension) { $check.reason = 'Not evaluated in this focused reporter regression.' }
+    }
+}
+$verification = $review.cases.E07.verificationCoverage
+foreach ($check in $verification) {
+    $check.status = 'PASS'
+    $check.reason = 'The verifier returned exit zero.'
+    $check.evidence = @('Work/shim-verify')
+}
+$badReview = Join-Path $e07Root 'unsupported-review.json'
+$review | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $badReview -Encoding utf8NoBOM
+$rejected = & $smoke -Session read-only -OutputRoot $output -ReviewFile $badReview 2>&1
+if ($LASTEXITCODE -ne 1 -or ($rejected -join "`n") -notmatch 'Partner integration cannot pass' -or
+    (Test-Path -LiteralPath (Join-Path $e07Root 'quality-report.json'))) {
+    throw 'E07 verifier exit zero must not allow integration PASS without partner input.'
+}
+$verification[1].status = 'BLOCKED'
+$verification[1].reason = 'The verifier reported integration SKIP because the partner input was missing.'
+$validReview = Join-Path $e07Root 'review.json'
+$review | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $validReview -Encoding utf8NoBOM
+& $smoke -Session read-only -OutputRoot $output -ReviewFile $validReview | Out-Null
+if ($LASTEXITCODE -ne 2) { throw 'Honest E07 review must be recorded by the shim without claiming native PASS.' }
+$quality = (Read-Evidence 'read-only/quality-report.json').cases | Where-Object id -CEQ E07
+if ($quality.quality.verificationCoverage.checks[0].status -cne 'PASS' -or
+    $quality.quality.verificationCoverage.checks[1].status -cne 'BLOCKED') {
+    throw 'E07 review must preserve unit PASS and integration BLOCKED separately.'
 }
 
 $singleArgs = $execute.Clone()

@@ -234,6 +234,10 @@ function reportSession(mode, root, suppliedReview) {
           throw new Error('Each criterion needs a verdict, reason and valid case-relative evidence.');
         }
         if (key === 'verificationCoverage' && check.status === 'PASS') {
+          if (scenario.id === 'E07' && criterion === 'partner-integration' &&
+              !Object.hasOwn(manifest.evaluator, 'fixtures/E07/inputs/partner-batch.json')) {
+            throw new Error('Partner integration cannot pass without the pinned E07 partner input.');
+          }
           if (!check.evidence.some(locator => commands.has(locator) &&
               (criterion === 'actual-red' ? commands.get(locator) !== 0 :
                 criterion === 'pin-decoder-release-inspection' || commands.get(locator) === 0))) {

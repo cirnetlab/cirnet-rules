@@ -148,3 +148,34 @@ runner and independent reporter each exited `0`.
 | `evidence-index.json` | `45d0b0f4b88198477d4b70ea5ad632a5e0541602fa119228948e6bd1b2b4c5aa` |
 | `review.json` | `1006c05c7e0f8bb2a1bd3d87988982b856a0ab62df56c2962dcb26b028c0d929` |
 | `quality-report.json` | `08249fc52f06847466b5469c09f18d2e06efce3aa5d627f4d9da7c2d3b9a9c89` |
+
+## E01, E03 and E07 offline acceptance at 338bac1
+
+On 21 November 2026, Windows offline checks used clean base revision
+`338bac14417300ea77098a4c4cf6da161c5bee63` and Node `v26.12.1`. The code,
+test and guide patch has SHA-256
+`70b1ba9218b0dd4076107a901d066ad10d7ac06efc82b610a6d86db7ac405376`.
+The frozen scenario catalog and tracked fixtures retain their original bytes.
+
+| Case | Outcome | Command and evidence |
+| --- | --- | --- |
+| E01 | `BLOCKED` before dispatch | `run.ps1 -CaseId E01` preview exited `0`. Offline `role.ps1 -Execute` checks for Author and independently reviewed Work used a deliberately absent client and each exited `0` after recording `BLOCKED`. Neither role had a process, command, start time or model trace. The inspector limits its own output, while the runtime lacks an approved preventive read boundary for this fixture. Native behavior on export actor, records and fields is `NOT_RUN`. |
+| E03 | TypeScript model `PASS` offline | In a disposable copy, `node --test tests/*.test.mjs` exited `0` for the original success test, `1` after adding a regression, and `0` after the fix. The red test observed `failed` before it failed on `loading === true`. The green run passed both tests with zero skips. Only `save-panel.ts` and `tests/save-panel.test.mjs` changed in that copy. The Vue component, its public interface, template and style, and graph preview were byte-identical. Browser and end-to-end checks were `NOT_RUN`. |
+| E07 | Unit `PASS`, partner integration `BLOCKED` | `node verify.mjs` exited `0` with `NODE_OPTIONS` set to `--permission --allow-fs-read=.`. Node permitted fixture reads and denied writes. Output was `unit PASS (2 assertions)` and `integration SKIP (1 check; inputs/partner-batch.json unavailable)`. The verifier and fixture hashes matched before and after. Completion stays open. |
+
+The previous reporter accepted `partner-integration PASS` based on a completed
+zero-exit command even when the sealed E07 fixture lacked the partner input.
+The corrected reporter rejects that review before writing `quality-report.json`.
+The regression submits both the invalid review and a valid review that keeps
+`unit PASS` and `partner-integration BLOCKED`. The rubric and optional coverage
+classification are unchanged.
+
+| Local evidence under `target/native-quality-reliability/` | SHA-256 |
+| --- | --- |
+| `338bac1-e01-chain-offline.json` | `489ab8e35f6c4b8b2dde640e618614f39e7a928bf486cf4e1ffaf18080bb5f87` |
+| `338bac1-e03-offline.json` | `c9fc67f7cc2986debffb0f4f0eed76a7aa3a92a203ea653b115838ed730e6734` |
+| `338bac1-e07-offline.json` | `803b3c3b8d7b189edf02a0331522930e5c01e5e655958b2a1bdc1626fcd2dd96` |
+| `338bac1-e07-reporter-red-confirmed.log` | `8924281766bdcb308b3f49ad57bd36e994b8c75fd78d49554b1bf4ee7b2d7e75` |
+
+Native E03 and E07 are `NOT_RUN` in this offline record. They require separate
+budget approval, the approved evaluation profile and independent handoff review.

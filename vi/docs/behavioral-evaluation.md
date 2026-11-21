@@ -75,8 +75,9 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
   bị chặn. Shim offline dùng dữ liệu giả để kiểm tra đường truyền và giữ
   `REVIEW_REQUIRED`. E01 native dừng trước khi model truy cập vì shell có thể
   bỏ qua inspector. E04 cho phép làm rõ ở chế độ chỉ đọc sau khi rà. E07 có thể
-  chạy kiểm tra chỉ đọc và cần báo riêng đầu vào tích hợp
-  đối tác còn thiếu. Trước khi gọi Work, runner kiểm tra lại baseline của
+  chạy kiểm tra chỉ đọc và cần báo riêng đầu vào tích hợp đối tác còn thiếu.
+  Reporter từ chối kết quả tích hợp PASS khi fixture đã cố định thiếu đầu vào
+  của đối tác. Trước khi gọi Work, runner kiểm tra lại baseline của
   fixture và ghi kết quả đối chiếu phạm vi riêng với nghiệm thu. Thay đổi các entry đã stage làm phép kiểm fixture thất
   bại kể cả khi tệp được sửa nằm trong phạm vi ghi.
 - Tìm `run.json`, `events.jsonl`, `final.md` và diff của từng vai trò trong
@@ -145,4 +146,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: ce3d9f49c1f1cc1033cfcdaf3d1b3016ca0497c200fbe2838650bfad12d0f5cb -->
+<!-- source-sha256: 98da346f42dfcf0750d7ec57936bb99db4a41679f8fa5433b5b3a0be0baebf2b -->
