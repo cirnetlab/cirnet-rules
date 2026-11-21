@@ -19,6 +19,11 @@ Bổ sung repository đích, phạm vi đã cấp và đường dẫn lưu promp
 
 Trả `PROMPT_READY` khi handoff đủ điều kiện, lưu Work Prompt vào một tệp Markdown ở đích được phép và gửi liên kết kèm tóm tắt tiếng Việt. Trả `PROMPT_BLOCKED` khi thiếu quyết định, thẩm quyền hoặc điều kiện thiết yếu, kèm thông tin cần bổ sung. Với nguồn chưa đọc mà phạm vi an toàn đã rõ, ghi `NOT_INSPECTED` và chỉ định bước xác minh cho Codex.
 
+
+## Prompt phụ giao nhiệm vụ cho AI Agent Chat
+
+Hãy biên soạn Prompt Tiếng Anh build mã nguồn cirnet-rules sao cho tối ưu nhất. Tôi muốn Prompt được biên soạn theo hướng tối ưu hiệu quả thực thi, rõ ràng, chính xác và tiết kiệm token: xác định mục tiêu cụ thể, đặt ra các ràng buộc nghiêm ngặt, yêu cầu Codex chủ động đọc và đối chiếu tài liệu có thẩm quyền trước khi triển khai. Prompt cần đủ thông tin để AI hiểu đúng yêu cầu và thực hiện chính xác ngay từ đầu, tránh viết quá dài, lặp ý, dư thừa nội dung gây lãng phí token, nhưng cũng không quá ngắn đến mức thiếu bối cảnh, dữ kiện hoặc ràng buộc quan trọng dẫn đến hiểu sai và phải thực hiện lại.
+
 ## Prompt tiếp tục tác vụ khi hết quota hoặc đổi tài khoản
 
 ```text
