@@ -13,15 +13,33 @@ const newSkills = [
   'cirnet-plan-spec-authoring',
   'cirnet-candidate-evaluation',
 ];
+const requiredSkills = [
+  'cirnet-api-compatibility',
+  'cirnet-code-review',
+  'cirnet-contract-change',
+  'cirnet-cross-repo-compatibility',
+  'cirnet-debugging',
+  'cirnet-documentation-sync',
+  'cirnet-implementation',
+  'cirnet-refactoring',
+  'cirnet-regression-testing',
+  'cirnet-release-changelog',
+  'cirnet-repository-structure',
+  'cirnet-verification',
+  'cirnet-work-prompt-authoring',
+  ...newSkills,
+];
 const pairs = [
   authoring,
   refactoring,
   template,
   ...newSkills.map(name => `skills/${name}/SKILL.md`),
   'skills/README.md',
+  'docs/changelog.md',
   'docs/context.md',
   'docs/behavioral-evaluation.md',
   'docs/model-compatibility.md',
+  'docs/setup.md',
   'plans/cirnet-rules/adaptive-stable/plan.md',
   'specs/cirnet-rules/adaptive-stable/spec.md',
 ];
@@ -35,17 +53,37 @@ test('Vietnamese footer identifies the exact English source bytes', () => {
   }
 });
 
-test('both languages expose the same 16 Skills through the fallback index', () => {
+test('both languages expose the required Skills through matching fallback indexes', () => {
   const skillNames = lang => readdirSync(source(`${lang}/skills`), { withFileTypes: true })
     .filter(entry => entry.isDirectory() && existsSync(source(`${lang}/skills/${entry.name}/SKILL.md`)))
     .map(entry => entry.name).sort();
   const skills = skillNames('en');
-  assert.equal(skills.length, 16);
-  for (const name of newSkills) assert.ok(skills.includes(name), `Missing Skill: ${name}`);
+  for (const name of requiredSkills) assert.ok(skills.includes(name), `Missing Skill: ${name}`);
   assert.deepEqual(skillNames('vi'), skills);
   for (const lang of ['en', 'vi']) {
-    const links = read(`${lang}/skills/README.md`).matchAll(/\]\((cirnet-[a-z0-9-]+)\/SKILL\.md\)/g);
+    const links = read(`${lang}/skills/README.md`).matchAll(/\]\((?:\.\/)?([^/\s)]+)\/SKILL\.md\)/g);
     assert.deepEqual(Array.from(links, match => match[1]).sort(), skills, `${lang} fallback index`);
+  }
+});
+
+test('the three focused Skills have distinct selection metadata in both languages', () => {
+  for (const lang of ['en', 'vi']) {
+    const descriptions = new Set();
+    for (const name of newSkills) {
+      const path = `${lang}/skills/${name}/SKILL.md`;
+      const frontmatter = read(path).match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
+      assert.ok(frontmatter, `${path}: missing frontmatter`);
+      const field = key => {
+        const values = [...frontmatter[1].matchAll(new RegExp(`^${key}:[ \\t]*(.*)$`, 'gm'))];
+        assert.equal(values.length, 1, `${path}: expected one ${key} field`);
+        return values[0][1].trim().replace(/^'(.*)'$/, '$1').trim();
+      };
+      assert.equal(field('name'), name, path);
+      const description = field('description');
+      assert.ok(description && [...description].length <= 1024, `${path}: invalid description`);
+      assert.ok(!descriptions.has(description), `${path}: duplicate selection description`);
+      descriptions.add(description);
+    }
   }
 });
 

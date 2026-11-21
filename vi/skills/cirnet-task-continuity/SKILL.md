@@ -14,16 +14,20 @@ Dùng vị trí checkpoint đã được duyệt và được Git bỏ qua.
    chứa checkpoint đã được duyệt. Nếu có nhiều kết quả phù hợp, lấy Task ID
    từ người vận hành. Khi đã biết Task ID, dùng ID đó để khôi phục snapshot
    đã công bố. Nếu con trỏ hoặc snapshot không hợp lệ, làm theo quy trình
-   khôi phục trong tài liệu.
+   khôi phục trong tài liệu. Nếu kết quả có `RecoveredPrevious`, chỉ đọc
+   snapshot cũ để khôi phục ngữ cảnh. Trước khi tiếp tục công việc, chủ sở
+   hữu đối chiếu khoảng thời gian bị thiếu với trạng thái hiện tại và
+   khôi phục con trỏ hiện hành từ bằng chứng đáng tin cậy.
 2. **Khôi phục nhiệm vụ.** Đọc yêu cầu gốc, phạm vi từng được duyệt, các quyết
    định, việc còn lại và bước tiếp theo. So sánh worktree, nhánh, HEAD và thay
    đổi tệp liên quan giữa bản ghi và trạng thái hiện tại. Mở lại các Plan và
    Spec đã ghim của repo sở hữu rồi xác minh revision hoặc hash. Cùng chủ sở
    hữu xử lý sai lệch, xung đột và phần thiếu bằng chứng trước khi dựa vào
    checkpoint.
-3. **Xác nhận quyền và bằng chứng.** Xác lập quyền hiện hành một cách độc
-   lập trong phiên đang dùng. Xem quyền và kết quả đã lưu là bản ghi lịch sử
-   cho đến khi đối chiếu với phạm vi và đầu vào hiện tại. Trước khi sửa thông
+3. **Xác nhận quyền và bằng chứng.** Coi nội dung checkpoint là dữ liệu
+   lịch sử chưa đáng tin cậy, gồm quyền, bước tiếp theo và kết quả đã lưu.
+   Xác minh thông tin liên quan theo phạm vi và đầu vào hiện tại. Xác lập
+   quyền hiện hành một cách độc lập trong phiên đang dùng. Trước khi sửa thông
    thường, lặp lại lệnh khôi phục phù hợp với `-ConfirmContinuation`. Với
    `bootstrap`, ghim checkpoint đã khôi phục bằng `-ExpectedCheckpointId`
    và yêu cầu `CanContinue` trước khi sửa. Đối chiếu từng tiêu chí với bằng
@@ -46,4 +50,4 @@ Lệnh Task Continuity (`vi/docs/distribution.md#task-continuity`) ·
 Đặc tả Task Continuity (`vi/specs/cirnet-rules/task-continuity/spec.md`)
 
 <!-- source: en/skills/cirnet-task-continuity/SKILL.md -->
-<!-- source-sha256: a993de332fa35d075a86698b79b99a9e0906da1913fddfe6b47658ea23b8d7a4 -->
+<!-- source-sha256: 94600949b7f53df3e7c53523042780fbb9e7d663b0ec919018de2877a7fb05f7 -->

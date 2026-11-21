@@ -25,6 +25,20 @@ preview and `-Apply -WhatIf` leave the destination untouched. For tests or custo
 locations, pass `-HomeRoot` explicitly, plus `-CodexHome` when needed.
 Use `-Skills @()` in PowerShell to select only the baseline and adapter.
 
+`-Skills` sets the full selection. To keep the defaults and add Task Continuity,
+Plan/Spec authoring and Single Candidate evaluation, preview, install and verify
+with the same list.
+
+```powershell
+$skills = @(
+    'cirnet-implementation', 'cirnet-debugging', 'cirnet-verification',
+    'cirnet-task-continuity', 'cirnet-plan-spec-authoring', 'cirnet-candidate-evaluation'
+)
+./scripts/install.ps1 -Source $bundle -Agent $agent -Skills $skills
+./scripts/install.ps1 -Source $bundle -Agent $agent -Skills $skills -Apply
+./scripts/verify-install.ps1 -Source $bundle -Agent $agent -Skills $skills
+```
+
 | Client | User baseline destination | User skill directory |
 | --- | --- | --- |
 | Codex | `$CODEX_HOME/AGENTS.md` or `~/.codex/AGENTS.md` | `~/.agents/skills/` |

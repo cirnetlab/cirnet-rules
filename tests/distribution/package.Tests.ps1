@@ -191,7 +191,6 @@ Read [Checklist][check].
     $restore = Join-Path $repo 'scripts/restore.ps1'
     $destination = @{ Agent = 'Codex'; HomeRoot = $fakeClientHome }
     $optionalSkills = @('cirnet-task-continuity', 'cirnet-plan-spec-authoring', 'cirnet-candidate-evaluation')
-    $selectedSkills = @('cirnet-implementation', 'cirnet-work-prompt-authoring') + $optionalSkills
     & $install -Source $extracted @destination -Apply -WhatIf | Out-Null
     Assert-BundleTest (-not (Test-Path -LiteralPath $fakeClientHome)) 'WhatIf wrote into the fake home.'
 
@@ -204,6 +203,7 @@ Read [Checklist][check].
     foreach ($skill in $optionalSkills) {
         Assert-BundleTest ($paths -ccontains "skills/$skill/SKILL.md") "Opt-in Skill '$skill' is missing from the bundle."
     }
+    $selectedSkills = $defaults + $optionalSkills + 'cirnet-work-prompt-authoring'
     & $install -Source $extracted @destination -Skills $selectedSkills -Apply | Out-Null
     & $verify -Source $extracted @destination -Skills $selectedSkills | Out-Null
     foreach ($skill in $optionalSkills) {

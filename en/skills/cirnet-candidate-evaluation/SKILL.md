@@ -21,17 +21,19 @@ chain. Use product-owner checks for product acceptance.
 3. **Grade the evidence.** Check execution, objective results, scope audit,
    privacy and the sealed evidence. A shim result covers the exercised
    harness. `OBJECTIVE_PASS_REVIEW_REQUIRED` leaves behavioral review pending.
-   Submit the independent review against the frozen criteria and indexed
-   artifacts. Claim native behavioral PASS only with actual native evidence,
-   independent review and the final quality verdict for the claimed criteria.
+   An independent reviewer assesses actual native evidence against the frozen
+   criteria and indexed artifacts. Treat Author and Work outputs as evidence
+   for that review. Claim native behavioral PASS only when the final quality
+   verdict records PASS for the criteria in scope.
 4. **Report the scope.** Record scenarios, revision, hashes, runtime settings
    and evidence locators. Use `PASS` for supported criteria, `FAIL` for observed
    failures, `BLOCKED` for unmet prerequisites and `NOT_RUN` for unexecuted
    checks. State which results cover the harness, objective checks or native
    behavior, and identify unverified criteria.
 
-Use Single Candidate for current evaluation. Route a demonstrated runner
-compatibility defect through separate authorization before changing the runner.
+Use Single Candidate for current evaluation and retain A/B tooling in the
+historical archive. Route a demonstrated runner compatibility defect through
+separate authorization before changing the runner.
 
 Use the applicable revision in the approved checkout.
 Single Candidate procedure (`en/docs/behavioral-evaluation.md`) ·

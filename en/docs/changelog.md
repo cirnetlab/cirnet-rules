@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Add three opt-in Skills for Task Continuity, Plan/Spec authoring and Single
+  Candidate evaluation. Document how to install them alongside the defaults.
+
 - Use one current Candidate session and one catalog for JavaScript, TypeScript,
   Python, Rust and SystemVerilog. Seal role evidence for independent quality
   review and keep previous A/B tooling at its recorded revisions.

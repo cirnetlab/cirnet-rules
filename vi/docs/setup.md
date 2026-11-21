@@ -25,6 +25,20 @@ một lựa chọn khác. Ghi rõ tên bổ sung. Preview và `-Apply -WhatIf` g
 `-CodexHome` nếu cần.
 Dùng `-Skills @()` trong PowerShell để chỉ chọn baseline và adapter.
 
+`-Skills` xác định toàn bộ danh sách được chọn. Để giữ các Skill mặc định
+và thêm Task Continuity, soạn Plan/Spec và đánh giá Single Candidate, dùng
+cùng danh sách khi xem trước, cài đặt và xác minh.
+
+```powershell
+$skills = @(
+    'cirnet-implementation', 'cirnet-debugging', 'cirnet-verification',
+    'cirnet-task-continuity', 'cirnet-plan-spec-authoring', 'cirnet-candidate-evaluation'
+)
+./scripts/install.ps1 -Source $bundle -Agent $agent -Skills $skills
+./scripts/install.ps1 -Source $bundle -Agent $agent -Skills $skills -Apply
+./scripts/verify-install.ps1 -Source $bundle -Agent $agent -Skills $skills
+```
+
 | Client | Đích baseline user | Thư mục skill user |
 | --- | --- | --- |
 | Codex | `$CODEX_HOME/AGENTS.md` hoặc `~/.codex/AGENTS.md` | `~/.agents/skills/` |
@@ -83,4 +97,4 @@ Discovery và hành vi native là NOT_RUN. Xem [phân phối](distribution.md)
 để cập nhật và restore.
 
 <!-- source: en/docs/setup.md -->
-<!-- source-sha256: 6bd5cbeac39ae16d53857c89d4149a0ed92bb2d1fa72f4f27e7b53322ba63139 -->
+<!-- source-sha256: 4f719da09207aef070a4c768705b26104a139d0d19da7bbf19078a6b9d9cfd00 -->

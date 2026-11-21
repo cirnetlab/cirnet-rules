@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Thêm ba Skill có thể chọn cài cho Task Continuity, soạn Plan/Spec và
+  đánh giá Single Candidate. Hướng dẫn cài cùng các Skill mặc định.
+
 - Dùng một phiên Candidate hiện tại và một danh mục cho JavaScript, TypeScript,
   Python, Rust và SystemVerilog. Niêm phong bằng chứng vai trò để rà chất lượng
   độc lập và giữ công cụ A/B cũ tại các revision đã ghi.
@@ -53,4 +56,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 33bfa1c3d8caf6e5faedaf7d57a984e3bab78b4c2c7b93b38add440d41454b31 -->
+<!-- source-sha256: 382ae418f3ea20415c3e14a263ea7b6f0b902235f4325a52b19f1791f2c7e04b -->
