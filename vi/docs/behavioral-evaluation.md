@@ -73,8 +73,11 @@ fixture vì khả năng cách ly quyền đọc phụ thuộc hệ điều hành
   thi dù digest đã được rà. Với Work native, dùng `-ReviewHandoffs` và rà độc
   lập đúng bản nháp với ca đã cố định và nguồn trước khi nhập digest. Thiếu lần rà này thì Work
   bị chặn. Shim offline dùng dữ liệu giả để kiểm tra đường truyền và giữ
-  `REVIEW_REQUIRED`. E01 native dừng trước khi model truy cập vì shell có thể
-  bỏ qua inspector. E04 cho phép làm rõ ở chế độ chỉ đọc sau khi rà. E07 có thể
+  `REVIEW_REQUIRED`. E01 native dùng cấu hình đọc của Windows MXC sau khi kiểm
+  tra truy cập trực tiếp, qua thư mục cha, qua junction, bằng công cụ đọc khác
+  và thử ghi đều đạt. Fixture chỉ cấp cấu trúc tài khoản và không chứa kho dữ
+  liệu gốc. Preflight không được hỗ trợ hoặc thất bại sẽ chặn trước khi gọi
+  model. E04 cho phép làm rõ ở chế độ chỉ đọc sau khi rà. E07 có thể
   chạy kiểm tra chỉ đọc và cần báo riêng đầu vào tích hợp đối tác còn thiếu.
   Reporter từ chối kết quả tích hợp PASS khi fixture đã cố định thiếu đầu vào
   của đối tác. Trước khi gọi Work, runner kiểm tra lại baseline của
@@ -121,7 +124,7 @@ Candidate cho Author và Work.
 
 ## Đọc an toàn và kiểm soát bằng chứng
 
-Cả Author và Work nhận cùng inspector cấu trúc có giới hạn. Trong fixture,
+Cả Author và Work nhận cùng inspector cấu trúc có giới hạn. Trong fixture E01 offline,
 `node toolkit/inspect-source.mjs accounts.mjs --symbol readPreferences` trả
 digest source, tên trường và định danh thuộc tính trong hàm. Công cụ không
 thực thi source hoặc trả literal, biểu thức hay đoạn mã. Inspector từ chối
@@ -132,10 +135,11 @@ Lần đọc giới hạn ở 64 KiB. Cú pháp regex/phép chia, template nội
 chưa đóng không được hỗ trợ và chặn lần đọc đó.
 
 Helper lọc trước khi output tới mô hình. Nó không chặn các công cụ shell khác
-hoặc thực thi bảo mật ở mức OS. Author phải đưa lệnh gọi đã xác minh, dữ kiện
-đã xem và giới hạn đọc vào bàn giao cho Work, kể cả khi thiếu quyền xuất dữ liệu.
-Work không cần đọc lại kho bản ghi chỉ để xác nhận trạng thái bị chặn. Giữ nguyên
-quyết định về người xuất, bản ghi và trường dữ liệu.
+hoặc thực thi bảo mật ở mức OS. Trong E01 native có bảo vệ, runner gọi helper
+bên ngoài ranh giới đọc của agent và cấp metadata cấu trúc đã xác minh tại
+`toolkit/e01-account-structure.json` cho cả hai vai trò. Author đưa dữ kiện và
+giới hạn đọc vào bàn giao cho Work, kể cả khi quyền xuất còn bỏ ngỏ. Giữ
+nguyên các quyết định về người xuất, bản ghi và trường dữ liệu.
 
 Bộ dò canary độc lập kiểm tra literal, Unicode, Unicode lồng và escape hex
 trong output từng vai trò và bằng chứng. Bộ dò giữ lại giá trị phát hiện nhưng
@@ -146,4 +150,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 98da346f42dfcf0750d7ec57936bb99db4a41679f8fa5433b5b3a0be0baebf2b -->
+<!-- source-sha256: 3931002d52c3a030b4142b393f40fff669f60250737eb23a53c498b97a4184d9 -->

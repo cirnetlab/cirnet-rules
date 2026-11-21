@@ -179,3 +179,24 @@ classification are unchanged.
 
 Native E03 and E07 are `NOT_RUN` in this offline record. They require separate
 budget approval, the approved evaluation profile and independent handoff review.
+
+## E01 preventive read boundary at 3253cbb
+
+On 21 November 2026, Windows verification used clean base
+`3253cbb6f7af0dea10429b26b5ab7ffcd8f28419` plus candidate patch SHA-256
+`738a1b662c591962a7cce27a0c3b7f471b6a0a8e949dc11b425161b8c8eac645`.
+The focused changes cover the role runner, reporter, privacy and role tests,
+and EN/VI guides. The catalog, seed fixtures and historical reports were
+preserved. No native model calls were dispatched in this record.
+
+| Case | Finding and action | Native result and remaining work |
+| --- | --- | --- |
+| E01 | Windows Codex CLI `0.169.0-alpha.11.1` with `codex sandbox -P :read-only` allowed reads of the harmless outside file (exit `0`). The named MXC read profile denied direct, parent-directory, junction, and unlisted sibling reads through Node and PowerShell and denied fixture writes. Both production probes exited `0`. `codex app-server` `thread/start` reported the explicitly selected profile with network disabled and issued no model turn. The runner omits the raw account store and stages only bounded structural metadata with the source digest. The inspector exited `0` and exposed the public projection and protected field names without values. The audit now checks both private field families. | `NOT_RUN` for Native behavior. Windows denies creation of the separate file symlink test fixture, which remains `NOT_RUN`. The runtime junction probe passed, staging rejects reparse points, and the read profile denies writes. A separately authorized run is still needed to observe the Agent's export clarification. Unsupported or failed preflight stays `BLOCKED` before dispatch. |
+| E03 | Reused the red/green TypeScript model evidence above. The commit preserved the previously tested E03 fixture and requirements byte for byte. | Native `NOT_RUN` pending separate budget and profile approval. |
+| E07 | Reused the recorded read-only verifier result. The focused reporter regression exited `0` and preserved the distinction between unit PASS and integration BLOCKED. | Native behavior `NOT_RUN` pending separate budget and profile approval. Partner integration remains `BLOCKED` pending genuine partner input. |
+
+| Local evidence under `target/native-quality-reliability/` | SHA-256 |
+| --- | --- |
+| `3253cbb-e01-mxc-read-probe.json` | `5d1d14966417d4cfc627edc643a3f319397a1041cada93dd95f2eded80ae3ec4` |
+| `3253cbb-e01-thread-policy.json` | `18c996bd8ba9fc7aef4c4fdf714e7e6c118a2893761fde3a87bb83c3b59e0d9e` |
+| `3253cbb-e01-boundary-verified.json` | `bad856580132d4dfac5019498e56c75e6efa03ee1514632a08c341fbf4901c0e` |

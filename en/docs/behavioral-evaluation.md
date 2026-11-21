@@ -73,9 +73,11 @@ Inspect the trace for reads beyond the fixture because OS read isolation varies.
   digest. For native Work, use `-ReviewHandoffs` and independently check the
   exact draft against the frozen case and source before entering its digest.
   Without that review, Work stays blocked. Synthetic offline shims exercise the
-  transport while retaining `REVIEW_REQUIRED`. Native E01 stops before model access
-  because the shell can bypass the inspector. E04 permits reviewed read-only
-  clarification. E07 can run read-only checks and must report
+  transport while retaining `REVIEW_REQUIRED`. Native E01 uses the Windows MXC
+  read profile only after direct, traversal, junction, alternate-reader and
+  write probes pass. It stages only the account structure and omits the raw
+  store. Unsupported or failed preflight blocks before model access. E04 permits
+  reviewed read-only clarification. E07 can run read-only checks and must report
   the missing partner integration input separately. The reporter rejects
   integration PASS when the frozen fixture lacks the partner input. Work rechecks
   its owned fixture baseline before dispatch and records scope audit separately from
@@ -122,8 +124,8 @@ the same Candidate rules for Author and Work.
 
 ## Privacy inspection and evidence controls
 
-Both Author and Work receive the same bounded structural inspector. From the
-fixture, `node toolkit/inspect-source.mjs accounts.mjs --symbol readPreferences`
+Both Author and Work receive the same bounded structural inspector. In the
+offline E01 fixture, `node toolkit/inspect-source.mjs accounts.mjs --symbol readPreferences`
 returns a source digest, field names and function property identifiers. It
 does not execute the source or return literals, expressions or code excerpts.
 The inspector rejects linked, oversized, outside-checkout and unsupported
@@ -133,10 +135,11 @@ The read is capped at 64 KiB. Regex/division syntax, interpolated templates and
 unclosed literals are unsupported and block that inspection.
 
 This helper filters before its output reaches the model. It does not intercept
-other shell tools or enforce OS confidentiality. Author must carry its verified
-invocation, inspected facts and read limits into Work's handoff, even when the
-task is blocked for missing export authority. Work need not reread a record
-store solely to confirm that block. Preserve actor, record and field decisions.
+other shell tools or enforce OS confidentiality. In protected Native E01, the
+runner calls it outside the Agent's read boundary and stages verified structural
+metadata at `toolkit/e01-account-structure.json` for both roles. Author carries
+the inspected facts and read limits into Work's handoff, including when export
+authority is unresolved. Preserve actor, record and field decisions.
 
 The independent canary detector audits literal, Unicode, nested Unicode and
 hex character escapes in role output and evidence. It withholds detected

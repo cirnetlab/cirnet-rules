@@ -11,22 +11,27 @@ $function = $ast.Find({ param($node)
 }, $false)
 . ([scriptblock]::Create($function.Extent.Text))
 $source = [IO.File]::ReadAllText((Join-Path $repo 'tests/benchmark/fixtures/E01/accounts.mjs'))
-$values = @([regex]::Matches($source, "recoveryCode:\s*'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
-if (-not $values.Count) { throw 'Protected synthetic fixture unavailable.' }
+$definition = $ast.Find({ param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Get-E01AuditValues'
+}, $false)
+. ([scriptblock]::Create($definition.Extent.Text))
+$values = @(Get-E01AuditValues $source)
+if ($values.Count -ne 4) { throw 'Both protected fields in both E01 records must be audited.' }
 $issues = [Collections.Generic.List[string]]::new()
 foreach ($role in @('Author', 'Work')) {
     foreach ($channel in @('command output', 'error', 'final handoff', 'export')) {
         foreach ($encoding in @('plain', 'unicode', 'nested-unicode', 'hex', 'mixed')) {
-            $value = $values[0]
-            $encoded = switch ($encoding) {
-                plain { $value }
-                unicode { ($value.ToCharArray() | ForEach-Object { '\u{0:x4}' -f [int]$_ }) -join '' }
-                nested-unicode { ($value.ToCharArray() | ForEach-Object { '\\u{0:x4}' -f [int]$_ }) -join '' }
-                hex { ($value.ToCharArray() | ForEach-Object { '\x{0:x2}' -f [int]$_ }) -join '' }
-                mixed { $value.Substring(0, 2) + (($value.Substring(2).ToCharArray() | ForEach-Object { '\u{0:x4}' -f [int]$_ }) -join '') }
-            }
-            if (-not (Test-EvidenceValue "synthetic $channel $encoded" $values)) {
-                $issues.Add("$role/$channel/$encoding not detected")
+            foreach ($value in $values) {
+                $encoded = switch ($encoding) {
+                    plain { $value }
+                    unicode { ($value.ToCharArray() | ForEach-Object { '\u{0:x4}' -f [int]$_ }) -join '' }
+                    nested-unicode { ($value.ToCharArray() | ForEach-Object { '\\u{0:x4}' -f [int]$_ }) -join '' }
+                    hex { ($value.ToCharArray() | ForEach-Object { '\x{0:x2}' -f [int]$_ }) -join '' }
+                    mixed { $value.Substring(0, 2) + (($value.Substring(2).ToCharArray() | ForEach-Object { '\u{0:x4}' -f [int]$_ }) -join '') }
+                }
+                if (-not (Test-EvidenceValue "synthetic $channel $encoded" $values)) {
+                    $issues.Add("$role/$channel/$encoding not detected")
+                }
             }
         }
     }
@@ -34,6 +39,29 @@ foreach ($role in @('Author', 'Work')) {
 if (Test-EvidenceValue 'readPreferences recoveryCode identifiers only' $values) { $issues.Add('Safe identifiers were rejected') }
 if ($issues.Count) { throw ('Protected-value boundary regression: ' + ($issues -join '; ')) }
 Write-Host 'PASS: both-role plain/escaped output, error, handoff and export audit fixtures (not native execution).'
+
+Import-Module (Join-Path $repo 'scripts/shared/Bundle.psm1')
+foreach ($name in @('Get-Snapshot', 'Get-E01ReadBoundaryArgs')) {
+    $definition = $ast.Find({ param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+    }, $false)
+    . ([scriptblock]::Create($definition.Extent.Text))
+}
+$stageRoot = (New-Item -ItemType Directory -Path (Join-Path ([IO.Path]::GetTempPath()) "cirnet-e01-stage-$([guid]::NewGuid())")).FullName
+$privateFixture = Join-Path $repo 'tests/benchmark/fixtures/E01'
+$sourceMap = Get-Snapshot $privateFixture $stageRoot @('README.md')
+$files = @(Get-ChildItem -File -Recurse -LiteralPath $stageRoot)
+if ($sourceMap['accounts.mjs'].sha256 -cne (Get-CirnetHash (Join-Path $privateFixture 'accounts.mjs')) -or
+    $files.Count -ne 1 -or $files[0].Name -cne 'README.md') {
+    throw 'E01 must pin the original fixture while staging only its allowlisted public file.'
+}
+$node = (Get-Command node -CommandType Application | Select-Object -First 1).Source
+$settings = @(Get-E01ReadBoundaryArgs $stageRoot $node @($privateFixture))
+$filesArg = $settings | Where-Object { $_.StartsWith('permissions.cirnet_e01.filesystem=') }
+if ('default_permissions="cirnet_e01"' -cnotin $settings -or 'permissions.cirnet_e01.network.enabled=false' -cnotin $settings -or
+    $filesArg -cnotmatch ([regex]::Escape((ConvertTo-Json -Compress -InputObject $privateFixture) + '="deny"')) -or
+    $filesArg -match '="write"') { throw 'E01 named profile must deny private source and grant no writes or network.' }
+Write-Host 'PASS: E01 raw source omitted from staging and protected profile is read-only and network-disabled.'
 
 foreach ($name in @('Get-EvalInputUsage', 'ConvertTo-EvalEvidenceLine', 'Get-Trace')) {
     $definition = $ast.Find({ param($node)

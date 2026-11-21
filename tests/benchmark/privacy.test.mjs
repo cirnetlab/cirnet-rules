@@ -9,17 +9,18 @@ import test from 'node:test';
 import { containsProtectedValue, inspectSource } from '../../scripts/benchmark/inspect-source.mjs';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const source = readFileSync(join(repo, 'tests/benchmark/fixtures/E01/accounts.mjs'), 'utf8');
-const values = [...source.matchAll(/recoveryCode:\s*'([^']+)'/g)].map(item => item[1]);
-assert.ok(values.length, 'Synthetic evaluator values are required.');
+const values = [...source.matchAll(/\b(?:recoveryCode|internalSupportNote):\s*'([^']+)'/g)].map(item => item[1]);
+assert.equal(values.length, 4, 'Both protected fields in both E01 records must be audited.');
 const output = mkdtempSync(join(tmpdir(), 'cirnet-privacy-tests-'));
 
 test('literal and escaped output/error/export detection stays separate from prevention', () => {
-  const value = values[0];
-  const unicode = [...value].map(char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
-  const hex = [...value].map(char => '\\x' + char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
-  for (const role of ['Author', 'Work']) for (const kind of ['output', 'error', 'export', 'handoff']) {
-    for (const encoded of [value, unicode, unicode.replaceAll('\\', '\\\\'), hex, value.slice(0, 2) + unicode.slice(12)]) {
-      assert.ok(containsProtectedValue(JSON.stringify({ role, kind, content: encoded }), values), 'Known synthetic exposure must be detected without echoing it.');
+  for (const value of values) {
+    const unicode = [...value].map(char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+    const hex = [...value].map(char => '\\x' + char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+    for (const role of ['Author', 'Work']) for (const kind of ['output', 'error', 'export', 'handoff']) {
+      for (const encoded of [value, unicode, unicode.replaceAll('\\', '\\\\'), hex, value.slice(0, 2) + unicode.slice(12)]) {
+        assert.ok(containsProtectedValue(JSON.stringify({ role, kind, content: encoded }), values), 'Known synthetic exposure must be detected without echoing it.');
+      }
     }
   }
   assert.equal(containsProtectedValue('readPreferences recoveryCode identifiers only', values), false);

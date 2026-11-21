@@ -68,7 +68,9 @@ if ($scenario -match '/denied/') {
     $noClient.CodexPath = Join-Path $output 'deliberately-absent-client'
     & $runner @noClient -Session sensitive-before-dispatch -Execute | Out-Null
     $blockedRead = Read-Evidence sensitive-before-dispatch E01
-    if ($blockedRead.verdict -cne 'BLOCKED' -or $blockedRead.process -or $blockedRead.reason -notmatch 'preventive read boundary') {
+    if ($blockedRead.verdict -cne 'BLOCKED' -or $blockedRead.process -or $blockedRead.startUtc -or
+        $blockedRead.manifest.privacyBoundary.status -cne 'BLOCKED' -or $blockedRead.reason -notmatch 'preventive read boundary' -or
+        (Test-Path -LiteralPath (Join-Path $output 'sensitive-before-dispatch/E01/fixture/accounts.mjs'))) {
         throw 'Sensitive native input must be blocked before role execution.'
     }
     $baselineArgs = $common.Clone()
