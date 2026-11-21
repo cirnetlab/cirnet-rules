@@ -12,7 +12,7 @@ Read the relevant owner source, rule and [Skill](skills/README.md) for the task.
 | Implement, debug, refactor and verify the scoped change | [Execution Skills](skills/README.md) · [Testing](rules/testing.md) |
 | Check authorization and specific constraints | [Permissions](policies/permissions.md) · [Coding](rules/coding.md) · [Security](rules/security.md) · [Cross-repo](rules/cross-repo.md) |
 | Compare versions, contracts and selected artifacts | [Compatibility evidence](docs/compatibility.md) |
-| Identify file ownership and check a move | [Repository map template](templates/repository-map.md) |
+| Identify file ownership and check a move | [Proposed organization standard](rules/repository-organization.md) · [Repository map template](templates/repository-map.md) |
 | Set up a client, package or restore a local bundle | [Setup](docs/setup.md) · [Distribution](docs/distribution.md) |
 | Maintain bilingual documents and run checks | [Documentation policy](policies/documentation.md) · [Checks](hooks/README.md) |
 | Adapt local instructions or record task work | [Local AGENTS](templates/AGENTS.md) · [Plans](plans/README.md) · [Specs](specs/README.md) |

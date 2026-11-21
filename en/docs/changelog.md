@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Add the [proposed repository and module organization standard](../rules/repository-organization.md)
+  and reference it from the existing repository structure Skill.
+
 - Add an [engineering workspace UI Rule](../rules/engineering-workspace-ui.md)
   and [opt-in Skill](../skills/cirnet-engineering-workspace-ui/SKILL.md) for
   artifact-centered editors and workbenches.

@@ -2,6 +2,9 @@
 
 ## 0.2.0 (candidate)
 
+- Thêm [đề xuất tiêu chuẩn tổ chức repository và module](../rules/repository-organization.md)
+  và tham chiếu từ Skill cấu trúc repository hiện có.
+
 - Thêm [Rule giao diện không gian làm việc kỹ thuật](../rules/engineering-workspace-ui.md)
   và [Skill có thể chọn cài](../skills/cirnet-engineering-workspace-ui/SKILL.md)
   cho editor và workbench lấy đối tượng kỹ thuật làm trung tâm.
@@ -60,4 +63,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 1da2a61f743e660063a5d3ee3a818a2bafc719e14e55ce79c5ced9407fd97083 -->
+<!-- source-sha256: c18d7494014a19cf052f99ec80117834f0eba104e93e26a13f36d755a833b8ee -->
