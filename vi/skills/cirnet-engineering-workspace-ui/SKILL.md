@@ -5,9 +5,12 @@ description: Dùng khi thiết kế, triển khai hoặc rà soát editor tươn
 
 # Xây dựng giao diện không gian làm việc kỹ thuật
 
-Đọc `vi/rules/engineering-workspace-ui.md` từ checkout `cirnet-rules` đã duyệt.
-Áp dụng chỉ dẫn, mã nguồn và contract của repo sở hữu trong phạm vi ràng buộc
-áp dụng tại `vi/policies/architecture.md`.
+Với tác vụ phù hợp, đọc Rule chuẩn `en/rules/engineering-workspace-ui.md` từ
+checkout `cirnet-rules` đã duyệt. Khi dùng Skill đã cài, lấy đường dẫn checkout
+và quyền đọc từ người vận hành. Rule nằm trong checkout đó. Nếu không đọc
+được Rule tại đó, báo quy trình này là `BLOCKED` và nêu checkout hoặc quyền
+đọc đang thiếu. Áp dụng chỉ dẫn, mã nguồn và contract của repo sở hữu trong
+phạm vi ràng buộc áp dụng tại `en/policies/architecture.md`.
 
 1. **Phân loại tác vụ.** Xác định chủ sở hữu, vai trò người dùng, đối tượng
    kỹ thuật đang xử lý và các tác vụ chính. Với màn hình đăng nhập, tài khoản,
@@ -33,11 +36,13 @@ description: Dùng khi thiết kế, triển khai hoặc rà soát editor tươn
 5. **Kiểm chứng tương tác.** Dùng phép kiểm chức năng của chủ sở hữu và
    tương tác trên trình duyệt thật khi có quyền và điều kiện. Thử chọn,
    chỉnh sửa, hủy hoặc hoàn tác, lưu, focus, đổi kích thước và các trạng thái
-   không khả dụng hoặc lỗi liên quan đến thay đổi. Kiểm tra thao tác bằng
-   bàn phím và thiết bị trỏ, panel che khuất, viewport nhỏ, tính nhất quán
-   giữa tài liệu và scene, cùng phản hồi vận hành thực tế khi phù hợp. Báo kết quả rà soát
+   không khả dụng hoặc lỗi liên quan đến thay đổi. Dùng tiêu chí nghiệm thu
+   của Rule để kiểm tra cách trở lại vùng thao tác khi panel che khuất, tính
+   nhất quán giữa tài liệu và scene, và trạng thái đã lưu khi áp dụng.
+   Kiểm tra thao tác bằng bàn phím và thiết bị trỏ, viewport nhỏ và phản hồi
+   vận hành thực tế khi phù hợp. Báo kết quả rà soát
    giao diện, kiểm thử chức năng và tương tác trình duyệt đã quan sát kèm
    bằng chứng. Đánh dấu các phép kiểm chưa chạy là `NOT_RUN`.
 
 <!-- source: en/skills/cirnet-engineering-workspace-ui/SKILL.md -->
-<!-- source-sha256: 8aef884fbe1fa94441e514f18981c39dc9303a15cc0e1dfe75f29165ff79f685 -->
+<!-- source-sha256: e89a18dda94df243cbd7fa830665782d030387f42f89c26dee23502a16001aea -->

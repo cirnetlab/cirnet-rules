@@ -40,13 +40,20 @@ login, accounts, LMS, scheduling and administration.
 
 ## Acceptance boundary
 
-Exercise at least one representative task for an editor change. Locate and
-select an object, inspect or change a property, and verify the resulting state
-and applicable cancellation, undo or save behavior. Exercise supported keyboard
-and pointer paths, unavailable and failure states, and the work surface with
-panels present. Establish task success through observed interactions and use
-screenshots to review appearance. Use authorized native browser evidence when
-available. Preserve the owner's functional checks and safety boundaries.
+Exercise at least one representative task on the identified primary surface.
+Select an object, enter the relevant mode, and use a contextual command or
+property control. Verify that previews reflect the pending edit, cancellation
+keeps the prior document, and commit and undo/redo keep the document and
+scene consistent, where supported. For a save, verify the acknowledged
+revision and resulting persisted state through the owner's supported checks.
+
+Exercise relevant keyboard and pointer paths and verify focus can return to
+the work surface. With panels open, verify the surface stays usable or show
+how the user regains access. Exercise relevant failure and unavailable states
+and verify that the feedback matches the actual outcome. Use observed
+interactions to establish task success and screenshots to review appearance.
+Use authorized native browser evidence when available. Preserve the owner's
+functional checks and safety boundaries.
 
 Use the [engineering workspace UI Skill](../skills/cirnet-engineering-workspace-ui/SKILL.md)
 for the implementation and review workflow.

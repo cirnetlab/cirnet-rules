@@ -5,9 +5,13 @@ description: Use when designing, implementing, or reviewing an interactive edito
 
 # Build an engineering workspace UI
 
-Read `en/rules/engineering-workspace-ui.md` from an approved `cirnet-rules`
-checkout. Apply the owning repository's instructions, source and contracts
-within the applicable `en/policies/architecture.md` constraints.
+For an applicable task, read `en/rules/engineering-workspace-ui.md` from the
+approved `cirnet-rules` checkout. If using the installed Skill, obtain the
+checkout path and read access from the operator. The Rule lives in that
+checkout. If it cannot be read there, report this workflow as `BLOCKED` and
+identify the missing checkout or read access. Apply the owning repository's
+instructions, source and contracts within the applicable
+`en/policies/architecture.md` constraints.
 
 1. **Classify the task.** Identify the owner, user role, active artifact and
    primary tasks. Route ordinary login, account, LMS, scheduling and admin
@@ -29,8 +33,9 @@ within the applicable `en/policies/architecture.md` constraints.
 5. **Verify interaction.** Use the owner's functional tests and authorized
    native browser interactions when available. Exercise selection, edits,
    cancellation or undo, save, focus, resize, and unavailable or error states
-   relevant to the change. Check keyboard and pointer paths, panel occlusion,
-   small viewports, document/scene consistency and actual operation feedback
-   as applicable.
+   relevant to the change. Use the Rule's acceptance checks to verify panel
+   recovery, document and scene consistency, and persisted state where
+   applicable. Check keyboard and pointer paths, small viewports and actual
+   operation feedback as relevant.
    Report visual review, functional test results and observed browser
    interactions with their evidence. Mark unexecuted checks `NOT_RUN`.

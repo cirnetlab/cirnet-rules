@@ -39,6 +39,13 @@ $skills = @(
 ./scripts/verify-install.ps1 -Source $bundle -Agent $agent -Skills $skills
 ```
 
+Để cài Skill giao diện không gian làm việc kỹ thuật cùng bộ mặc định, đưa
+ba tên mặc định và `cirnet-engineering-workspace-ui` vào `$skills` rồi dùng
+cùng các lệnh trên. Cung cấp cho phiên client đường dẫn và quyền đọc một
+checkout `cirnet-rules` đã duyệt. Bundle cung cấp nội dung Skill. Rule UI
+chuẩn tại `en/rules/engineering-workspace-ui.md` nằm trong checkout, nên cần
+quyền đọc nguồn đó để áp dụng Skill.
+
 | Client | Đích baseline user | Thư mục skill user |
 | --- | --- | --- |
 | Codex | `$CODEX_HOME/AGENTS.md` hoặc `~/.codex/AGENTS.md` | `~/.agents/skills/` |
@@ -97,4 +104,4 @@ Discovery và hành vi native là NOT_RUN. Xem [phân phối](distribution.md)
 để cập nhật và restore.
 
 <!-- source: en/docs/setup.md -->
-<!-- source-sha256: 4f719da09207aef070a4c768705b26104a139d0d19da7bbf19078a6b9d9cfd00 -->
+<!-- source-sha256: 7cf89690d39ef71991e5552a2a6cc24b850ff08c61c8d3035a671d576d866855 -->

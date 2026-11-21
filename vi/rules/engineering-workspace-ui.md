@@ -41,17 +41,24 @@ khoản, LMS, lập lịch và quản trị.
 
 ## Phạm vi nghiệm thu
 
-Chạy ít nhất một tác vụ đại diện khi thay đổi editor. Tìm và chọn đối tượng,
-xem hoặc đổi thuộc tính, rồi xác minh trạng thái kết quả và thao tác hủy,
-hoàn tác hoặc lưu nếu áp dụng. Thử các cách thao tác bằng bàn phím và thiết
-bị trỏ được hỗ trợ, các trạng thái không khả dụng hoặc lỗi, và kiểm tra
-vùng làm việc khi có panel. Xác nhận tác vụ thành công qua tương tác quan
-sát được và dùng ảnh chụp để rà soát phần hiển thị. Dùng bằng chứng trên
-trình duyệt thật khi có quyền và điều kiện. Giữ các phép kiểm chức năng
-cùng ranh giới an toàn của chủ sở hữu.
+Thử ít nhất một tác vụ đại diện trên vùng làm việc chính đã xác định. Chọn
+đối tượng, vào chế độ tương ứng rồi dùng lệnh theo ngữ cảnh hoặc điều khiển
+thuộc tính. Với các thao tác được hỗ trợ, xác minh bản xem trước phản ánh
+chỉnh sửa đang chờ, thao tác hủy giữ trạng thái tài liệu trước đó, còn xác
+lập chỉnh sửa và hoàn tác/làm lại giữ tài liệu và scene nhất quán. Khi lưu,
+xác minh revision đã được xác nhận và trạng thái lưu qua các phép kiểm do
+chủ sở hữu hỗ trợ.
+
+Thử các thao tác liên quan bằng bàn phím và thiết bị trỏ, rồi xác minh có thể
+trả focus về vùng làm việc. Khi mở panel, xác minh vùng thao tác vẫn dùng
+được hoặc chỉ ra cách người dùng lấy lại quyền thao tác. Thử các trạng thái
+lỗi và không khả dụng liên quan, rồi kiểm tra phản hồi khớp kết quả thực tế.
+Xác nhận tác vụ thành công qua tương tác quan sát được và dùng ảnh chụp để
+rà soát phần hiển thị. Dùng bằng chứng trên trình duyệt thật khi có quyền
+và điều kiện. Giữ các phép kiểm chức năng cùng ranh giới an toàn của chủ sở hữu.
 
 Dùng [Skill giao diện không gian làm việc kỹ thuật](../skills/cirnet-engineering-workspace-ui/SKILL.md)
 cho quy trình triển khai và rà soát.
 
 <!-- source: en/rules/engineering-workspace-ui.md -->
-<!-- source-sha256: 82af979d4876b80aa64d44fc984d731de63f6506b50e8a111b6df32e4c2fa342 -->
+<!-- source-sha256: f7945abbd2d9f5f1df7ad7342531435a76de602fc67fdc0ea1dba45d3342b63a -->

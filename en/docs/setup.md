@@ -39,6 +39,13 @@ $skills = @(
 ./scripts/verify-install.ps1 -Source $bundle -Agent $agent -Skills $skills
 ```
 
+To install the Engineering Workspace UI Skill alongside the defaults, put
+the three default names and `cirnet-engineering-workspace-ui` in `$skills`
+and use the same commands. Give the client session the path and read access
+to an approved `cirnet-rules` checkout. The bundle supplies the Skill body.
+The [canonical UI Rule](../rules/engineering-workspace-ui.md) stays in the
+checkout, so applying the Skill requires access to that source.
+
 | Client | User baseline destination | User skill directory |
 | --- | --- | --- |
 | Codex | `$CODEX_HOME/AGENTS.md` or `~/.codex/AGENTS.md` | `~/.agents/skills/` |

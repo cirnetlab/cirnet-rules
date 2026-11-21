@@ -184,6 +184,10 @@ Read [Checklist][check].
     $sourceExample = Join-Path $repo ('en/' + $examples)
     Assert-BundleTest ((Get-CirnetHash (Join-Path $extracted $examples)) -ceq (Get-CirnetHash $sourceExample)) 'Packaged examples differ from the reviewed source.'
     Assert-BundleTest (-not ($paths | Where-Object { $_ -match '^vi/|^tests/|^scripts/|(?i)cases\.json|\.jsonl$' })) 'Evaluator or translation material escaped the bundle boundary.'
+    $uiRule = 'en/rules/engineering-workspace-ui.md'
+    $uiSkill = 'skills/cirnet-engineering-workspace-ui/SKILL.md'
+    Assert-BundleTest (Test-Path -LiteralPath (Resolve-CirnetPath -Root $repo -Relative $uiRule) -PathType Leaf) 'The canonical UI Rule is missing from the toolkit checkout.'
+    Assert-BundleTest (-not ($paths | Where-Object { $_ -clike '*/engineering-workspace-ui.md' })) 'The checkout-only UI Rule entered the bundle.'
 
     $fakeClientHome = Join-Path $session 'fake client home'
     $install = Join-Path $repo 'scripts/install.ps1'
@@ -211,6 +215,8 @@ Read [Checklist][check].
     $selectedSkills = $defaults + $optionalSkills + 'cirnet-work-prompt-authoring'
     & $install -Source $extracted @destination -Skills $selectedSkills -Apply | Out-Null
     & $verify -Source $extracted @destination -Skills $selectedSkills | Out-Null
+    $installedUiSkill = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $fakeClientHome ".agents/$uiSkill")
+    Assert-BundleTest ($installedUiSkill.Contains($uiRule, [StringComparison]::Ordinal)) 'The installed UI Skill lost its canonical checkout Rule reference.'
     foreach ($skill in $optionalSkills) {
         $relative = "skills/$skill/SKILL.md"
         $sourceHash = Get-CirnetHash (Join-Path $repo "en/$relative")
