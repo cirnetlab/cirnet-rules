@@ -12,13 +12,18 @@ Adopt structural changes through the owner's review and authorization.
 
 Use **Repository Owner → Domain → Feature → Module → File** as logical levels.
 Choose physical directories where they make ownership, dependencies or
-verification clearer. Give each file or artifact an identifiable owner and
-purpose. Justify new structure with an actual capability, ownership boundary,
-test need or maintainability problem.
+verification clearer. Give each relevant directory a discoverable
+responsibility and an owning domain or module. Identify the owner and purpose
+of modules, files, generated artifacts and evidence. Use existing source
+structure, module boundaries, documentation or the owner's repository map
+as evidence. Add a local README or ownership manifest only when it serves a
+specific repository need. Justify new structure with an actual capability,
+ownership boundary, test need or maintainability problem.
 
 - A **domain** owns behavior, data and invariants within a bounded context.
-  Confirm its authority in the [ownership routing table](../references/architecture-routing.md)
-  and the applicable owner source.
+  Use the [ownership routing table](../references/architecture-routing.md) for
+  target ownership. Verify current authority from the actual writer, published
+  contract or selected artifact and its consumers.
 - A **feature** delivers a coherent capability or workflow. Use consistent
   feature names or ownership maps to help people find its source, tests and docs.
 - A **module** has a cohesive responsibility and a testable boundary. Split
@@ -52,13 +57,16 @@ and regenerate derived outputs through their authoritative producer.
 2. Search paths, filenames, exported symbols, responsibilities, docs and
    tests within that scope. Inspect the current implementation and direct
    callers before choosing a placement.
-3. Extend the authoritative implementation where it fits. Justify a separate
-   module with a distinct responsibility and explain any overlap.
-4. Verify that the resulting structure has one authoritative owner.
+3. Reuse or extend the authoritative implementation where it fits. Justify a
+   separate module with a distinct responsibility and explain any overlap.
+4. Verify a single authoritative owner for the capability. If ownership is
+   unverified or contested, report the evidence gap and resolve it with the
+   owner before changing or creating paths that depend on it.
 
-Use shared directories for stable responsibilities with identifiable consumers
-and a testable public boundary. Keep feature-specific helpers with their domain
-even when several callers use them. Prefer names such as `capture/`,
+Use global `utils/`, `common/`, `shared/` or `helpers/` only for a stable
+shared responsibility with identifiable consumers and a testable boundary.
+Keep feature-specific helpers with their domain even when several callers
+use them. Prefer names such as `capture/`,
 `validation/` or `routing/` for domain responsibilities. Preserve existing
 shared directories with clear ownership and keep unrelated concerns in their
 own modules.

@@ -199,6 +199,7 @@ Read [Checklist][check].
         'cirnet-plan-spec-authoring'
         'cirnet-candidate-evaluation'
         'cirnet-engineering-workspace-ui'
+        'cirnet-repository-structure'
     )
     & $install -Source $extracted @destination -Apply -WhatIf | Out-Null
     Assert-BundleTest (-not (Test-Path -LiteralPath $fakeClientHome)) 'WhatIf wrote into the fake home.'

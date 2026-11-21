@@ -13,6 +13,7 @@ const focusedSkills = [
   'cirnet-plan-spec-authoring',
   'cirnet-candidate-evaluation',
   'cirnet-engineering-workspace-ui',
+  'cirnet-repository-structure',
 ];
 const requiredSkills = [
   'cirnet-api-compatibility',
@@ -25,7 +26,6 @@ const requiredSkills = [
   'cirnet-refactoring',
   'cirnet-regression-testing',
   'cirnet-release-changelog',
-  'cirnet-repository-structure',
   'cirnet-verification',
   'cirnet-work-prompt-authoring',
   ...focusedSkills,
@@ -36,6 +36,7 @@ const pairs = [
   template,
   ...focusedSkills.map(name => `skills/${name}/SKILL.md`),
   'rules/engineering-workspace-ui.md',
+  'rules/repository-organization.md',
   'skills/README.md',
   'docs/changelog.md',
   'docs/context.md',

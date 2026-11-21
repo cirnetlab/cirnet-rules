@@ -12,13 +12,18 @@ thay đổi cấu trúc qua quy trình rà soát và cấp quyền của chủ s
 
 Dùng **Chủ sở hữu repository → Miền → Tính năng → Module → Tệp** làm các
 cấp logic. Tạo thư mục khi việc đó làm rõ quyền sở hữu, phụ thuộc hoặc
-cách kiểm chứng. Mỗi tệp hoặc artifact cần có chủ sở hữu và mục đích xác
-định được. Chỉ bổ sung cấu trúc khi có nhu cầu thực tế về năng lực, ranh
-giới sở hữu, kiểm thử hoặc khả năng bảo trì.
+cách kiểm chứng. Mỗi thư mục liên quan cần có trách nhiệm và miền hoặc
+module sở hữu dễ tìm. Xác định chủ sở hữu và mục đích của module, tệp,
+artifact sinh tự động và bằng chứng. Dựa vào cấu trúc mã, ranh giới module,
+tài liệu hoặc bản đồ repository hiện có của chủ sở hữu. Chỉ thêm README
+cục bộ hoặc manifest chủ sở hữu khi repo có nhu cầu cụ thể. Chỉ bổ sung
+cấu trúc khi cần cho năng lực, ranh giới sở hữu, kiểm thử hoặc khả năng bảo trì.
 
 - **Miền** sở hữu hành vi, dữ liệu và bất biến của một phạm vi nghiệp vụ
-  hoặc kỹ thuật. Xác nhận thẩm quyền qua [bảng định tuyến chủ sở hữu](../references/architecture-routing.md)
-  và mã nguồn của bên sở hữu tương ứng.
+  hoặc kỹ thuật. Dùng [bảng định tuyến chủ sở hữu](../references/architecture-routing.md)
+  để tìm chủ sở hữu theo kiến trúc đích. Xác minh thẩm quyền hiện tại từ bên
+  thực sự ghi dữ liệu, contract đã phát hành hoặc artifact đang được chọn
+  cùng các bên sử dụng.
 - **Tính năng** cung cấp một khả năng hoặc quy trình hoàn chỉnh. Dùng tên
   tính năng nhất quán hoặc bản đồ chủ sở hữu để dễ tìm mã, test và tài liệu.
 - **Module** có một trách nhiệm gắn kết và ranh giới kiểm thử được. Tách
@@ -52,13 +57,16 @@ thẩm quyền để tạo lại đầu ra dẫn xuất.
 2. Tìm đường dẫn, tên tệp, symbol công khai, trách nhiệm, tài liệu và test
    trong phạm vi đó. Xem phần triển khai hiện tại và nơi gọi trực tiếp
    trước khi chọn vị trí.
-3. Mở rộng phần triển khai chuẩn khi phù hợp. Nêu trách nhiệm riêng nếu
-   cần module mới và giải thích mọi phần trùng lặp.
-4. Xác minh cấu trúc sau thay đổi chỉ có một chủ sở hữu có thẩm quyền.
+3. Dùng lại hoặc mở rộng phần triển khai chuẩn khi phù hợp. Nêu trách nhiệm
+   riêng nếu cần module mới và giải thích mọi phần trùng lặp.
+4. Xác minh khả năng đó có một chủ sở hữu có thẩm quyền. Nếu quyền sở hữu
+   còn chưa xác minh hoặc đang tranh chấp, báo phần thiếu bằng chứng và làm
+   rõ với chủ sở hữu trước khi tạo hoặc sửa các đường dẫn phụ thuộc vào đó.
 
-Dùng thư mục dùng chung cho trách nhiệm ổn định, có bên sử dụng xác định
-được và có ranh giới công khai kiểm thử được. Giữ helper riêng của tính
-năng trong miền của nó kể cả khi nhiều nơi gọi. Ưu tiên tên như
+Chỉ dùng `utils/`, `common/`, `shared/` hoặc `helpers/` ở phạm vi toàn repo
+khi có trách nhiệm dùng chung ổn định, bên sử dụng rõ và ranh giới kiểm thử
+được. Giữ helper riêng của tính năng trong miền của nó kể cả khi nhiều nơi gọi.
+Ưu tiên tên như
 `capture/`, `validation/` hoặc `routing/` cho trách nhiệm theo miền.
 Giữ các thư mục dùng chung có chủ sở hữu rõ và tách các trách nhiệm không
 liên quan thành module riêng.
@@ -133,4 +141,4 @@ Dùng [Skill cấu trúc repository](../skills/cirnet-repository-structure/SKILL
 cho quy trình rà soát và kiểm chứng.
 
 <!-- source: en/rules/repository-organization.md -->
-<!-- source-sha256: 26e61a37bcec38fed04ef8bde315039e6a00873e44853fd9d71bf87639df5b98 -->
+<!-- source-sha256: b7aa3b937d91fabc7e50db8c7193108f0729251b73f317809970272912d9128f -->
