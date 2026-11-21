@@ -34,6 +34,27 @@ chính thức cùng hướng dẫn context, phân phối và model. Thiếu côn
 quan. Lỗi xác thực, quota, mạng hoặc sandbox dùng chung sẽ dừng việc gọi thêm
 vai trò. `-TimeoutSeconds` đặt giới hạn cho từng vai trò.
 
+### Tiếp tục vai trò Work chưa chạy
+
+Dùng `-ResumeWork -Session <original>` cho phiên một ca đã niêm phong, có
+Author hoàn tất và chưa gọi Work. Giữ revision gốc tại HEAD và giữ nguyên các
+phụ thuộc của runner Work. Rà độc lập đúng nội dung Author với ca đã cố định
+trước khi cấp SHA-256 của handoff. Ghim riêng SHA-256 của chỉ mục bằng chứng
+gốc. Với một lượt Work native đã duyệt, thêm `-Execute -MaxNativeCalls 1
+-AuthHome $authHome`.
+
+```powershell
+./scripts/benchmark/run.ps1 -ResumeWork -Session candidate-run -OutputRoot $root -OriginalEvidenceSha256 $indexHash -ReviewedHandoffSha256 $handoffHash
+```
+
+Lệnh trên kiểm tra đầu vào mà không gọi Work. Khi thực thi, runner giữ chỗ
+thư mục cùng cấp `candidate-run-work` trước khi gọi Work. Runner chặn lần
+gọi mới nếu thư mục này đã có hoặc có bằng chứng Work đã được gọi trong phiên
+gốc. Metadata chuẩn bị vẫn nằm trong phiên gốc. Work dùng bản sao đầu vào đã
+cố định và đúng các byte handoff được duyệt, với chế độ đo tắt. Rà phiên mới
+bằng `-Session candidate-run-work`. Reporter kiểm tra lại niêm phong gốc và
+gắn phiên tiếp tục với niêm phong đó.
+
 Chỉ dùng `-MeasureInitialInput` cho lần đánh giá đầu tiên đã được cấp quyền.
 Runner giữ chỗ trong thư mục đầu ra riêng trước khi gọi vai trò và gắn dấu
 giữ chỗ với manifest đã khóa. Giữ dấu này và bộ bằng chứng ban đầu đã niêm
@@ -150,4 +171,4 @@ Chạy `tests/benchmark/privacy.tests.ps1` và
 Kiểm tra offline/shim xác lập hành vi harness, không xác lập chất lượng bàn giao native.
 
 <!-- source: en/docs/behavioral-evaluation.md -->
-<!-- source-sha256: 3931002d52c3a030b4142b393f40fff669f60250737eb23a53c498b97a4184d9 -->
+<!-- source-sha256: 22d9df9b8f06bd57474ba44f76979f6a1656bff3965f02974f71121647749f8b -->

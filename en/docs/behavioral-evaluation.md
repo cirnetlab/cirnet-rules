@@ -35,6 +35,27 @@ the canonical template and its context, distribution and model guides. Missing t
 affected scenario. A shared authentication, quota, network or sandbox blocker
 stops further dispatch. `-TimeoutSeconds` sets the per-role limit.
 
+### Resume a missing Work role
+
+Use `-ResumeWork -Session <original>` for a sealed single-case session with a
+completed Author and no Work dispatch. Keep the original source revision at
+HEAD and its Work runner dependencies unchanged. Independently review the
+exact Author draft against the frozen case before supplying its SHA-256. Pin
+the original evidence index separately. For an authorized Native Work call,
+add `-Execute -MaxNativeCalls 1 -AuthHome $authHome`.
+
+```powershell
+./scripts/benchmark/run.ps1 -ResumeWork -Session candidate-run -OutputRoot $root -OriginalEvidenceSha256 $indexHash -ReviewedHandoffSha256 $handoffHash
+```
+
+The command above verifies inputs without dispatch. Execution reserves the
+fixed sibling `candidate-run-work` before dispatch. An existing sibling or any
+evidence of an original Work launch blocks another dispatch. Setup metadata
+without a dispatch record remains in the original session. Work runs from
+copies of the frozen inputs and the exact reviewed handoff, with measurement
+disabled. Review the new session with `-Session candidate-run-work`. The
+reporter revalidates the original seal and binds the continuation to it.
+
 Use `-MeasureInitialInput` only for the initial authorized evaluation. It
 reserves the dedicated output root before dispatch and ties the reservation to
 the frozen manifest. Keep that reservation and the sealed initial evidence.

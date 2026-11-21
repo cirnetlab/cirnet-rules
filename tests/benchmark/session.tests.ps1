@@ -517,5 +517,7 @@ if (-not $authorPrompt.Contains('Cite only sources available to Work')) {
     throw 'Single-case Author must be told to avoid prerequisites that are available only to Author.'
 }
 Write-Host "PASS Candidate-only smoke preview and local shim checks. Evidence $output"
+& (Join-Path $PSScriptRoot 'resume.tests.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Work-only continuation regression failed.' }
 # The CI shell forwards $LASTEXITCODE. Return success only after every assertion passes.
 exit 0

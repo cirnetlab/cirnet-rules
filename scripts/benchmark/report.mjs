@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { containsProtectedValue } from './inspect-source.mjs';
 
@@ -8,6 +8,8 @@ const statuses = ['FAIL', 'BLOCKED', 'NOT_RUN', 'PASS'];
 const roleArtifacts = ['run.json', 'prompt.txt', 'final.md', 'events.jsonl', 'stderr.log',
   'before.json', 'after.json', 'changes.json', 'diff.patch', 'objective.stderr'];
 const caseIdPattern = /^(?:E[0-9]{2}|[a-z][a-z0-9]*(?:-[a-z0-9]+)+)$/u;
+const digestPattern = /^[a-f0-9]{64}$/u;
+const sessionPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/u;
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function json(bytes) {
@@ -25,7 +27,7 @@ function aggregate(values) {
 }
 
 function reportSession(mode, root, suppliedReview) {
-  if (!['seal', 'review'].includes(mode) || !lstatSync(root).isDirectory()) {
+  if (!['seal', 'review', 'inspect-original'].includes(mode) || !lstatSync(root).isDirectory()) {
     throw new Error('Select an owned benchmark session and a valid reporting mode.');
   }
 
@@ -49,9 +51,17 @@ function reportSession(mode, root, suppliedReview) {
 
   const manifest = json(bytesAt('manifest.json'));
   const summary = json(bytesAt('compatibility-summary.json'));
+  const continuation = manifest.continuation;
+  const originalMode = mode === 'inspect-original';
+  const indexBytes = mode === 'seal' ? null : bytesAt('evidence-index.json');
+  const sealed = indexBytes ? json(indexBytes) : null;
+  if (originalMode && (!digestPattern.test(suppliedReview) || sha256(indexBytes) !== suppliedReview)) {
+    throw new Error('Original evidence index does not match its approved digest.');
+  }
   if (manifest.schema !== 2 || manifest.cohort !== 'Candidate' || !/^[a-f0-9]{40}$/u.test(manifest.sourceRevision) ||
       !['TEST_SHIM', 'NATIVE_COMPATIBILITY'].includes(manifest.mode) || summary.mode !== manifest.mode ||
-      !Array.isArray(manifest.cases) || !manifest.cases.length || manifest.maximumRoleCalls !== manifest.cases.length * 2 ||
+      !Array.isArray(manifest.cases) || !manifest.cases.length ||
+      manifest.maximumRoleCalls !== (continuation ? 1 : manifest.cases.length * 2) ||
       manifest.maximumRoleCalls > 20 || new Set(manifest.cases).size !== manifest.cases.length || manifest.cases.some(id => !caseIdPattern.test(id)) ||
       JSON.stringify(summary.cases.map(item => item.id)) !== JSON.stringify(manifest.cases)) {
     throw new Error('Expected a single executed Candidate session with matching scenario records.');
@@ -61,8 +71,25 @@ function reportSession(mode, root, suppliedReview) {
       if (sha256(bytesAt(group + '/' + name)) !== digest) throw new Error('Frozen benchmark input changed.');
     }
   }
-  if (sha256(readFileSync(fileURLToPath(import.meta.url))) !== manifest.runner['scripts/benchmark/report.mjs']) {
+  if (!originalMode && sha256(readFileSync(fileURLToPath(import.meta.url))) !== manifest.runner['scripts/benchmark/report.mjs']) {
     throw new Error('Use the reporter from the original benchmark revision.');
+  }
+  let origin;
+  if (continuation) {
+    if (originalMode || manifest.cases.length !== 1 || summary.maximumRoleCalls !== 1 || manifest.inputMeasurement !== 'DISABLED' ||
+        !sessionPattern.test(continuation.originalSession) || manifest.session !== `${continuation.originalSession}-work` ||
+        basename(root) !== manifest.session || !digestPattern.test(continuation.reviewedHandoffSha256)) {
+      throw new Error('Invalid Work continuation provenance.');
+    }
+    origin = reportSession('inspect-original', join(dirname(root), continuation.originalSession), continuation.originalEvidenceSha256);
+    if (origin.manifestSha256 !== continuation.originalManifestSha256 || origin.handoffSha256 !== continuation.reviewedHandoffSha256 ||
+        ['sourceRevision', 'mode', 'modelRequested', 'effortRequested', 'timeoutSecondsPerRole', 'cases', 'rules', 'evaluator'].some(
+          key => JSON.stringify(manifest[key]) !== JSON.stringify(origin.manifest[key])) ||
+        Object.keys(manifest.runner).length !== Object.keys(origin.manifest.runner).length ||
+        Object.entries(origin.manifest.runner).some(([path, hash]) => !['scripts/benchmark/run.ps1', 'scripts/benchmark/report.mjs'].includes(path) &&
+          manifest.runner[path] !== hash)) {
+      throw new Error('Work continuation differs from the original frozen evidence.');
+    }
   }
   const scenarios = new Map(json(bytesAt('evaluator/cases.json')).map(entry => [entry.id, entry]));
   const accounts = bytesAt('evaluator/fixtures/E01/accounts.mjs').toString('utf8');
@@ -97,7 +124,10 @@ function reportSession(mode, root, suppliedReview) {
     for (const artifact of roleArtifacts) {
       if (indexFile(prefix + artifact, true)) eligible.add(role + '/' + artifact);
     }
-    const session = indexFile(prefix + 'session.json', true);
+    const sessionPath = prefix + 'session.json';
+    // A staging-only Work attempt can leave unsealed setup metadata. It is not evidence.
+    const session = originalMode && role === 'Work' && !Object.hasOwn(sealed.files, sessionPath)
+      ? null : indexFile(sessionPath, true);
     const runPath = prefix + 'run.json';
     if (!files[runPath]) {
       if (recorded.record) throw new Error('Required role evidence is missing.');
@@ -173,6 +203,10 @@ function reportSession(mode, root, suppliedReview) {
 
   indexFile('manifest.json');
   indexFile('compatibility-summary.json');
+  const completed = role => role?.execution === 'COMPLETED' && role.startUtc && role.finishUtc &&
+    ['PASS', 'NOT_RUN'].includes(role.verdict) && role.process?.exitCode === 0 &&
+    !role.process.error && !role.process.timedOut && !role.process.scopeStop &&
+    role.trace?.finalMatchesEvent === true && !role.trace.privacyHits && !role.trace.credentialHits;
   const records = summary.cases.map(result => {
     const scenario = scenarios.get(result.id);
     if (!scenario) throw new Error('Scenario is absent from the frozen catalog.');
@@ -184,11 +218,14 @@ function reportSession(mode, root, suppliedReview) {
     const workInput = files[prefix + 'Work/prompt.txt']?.sha256;
     const byteExact = Boolean(handoff && handoff === workInput && handoff === author?.finalSha256 && handoff === work?.manifest?.promptSha256);
     if (result.handoffShaMatches !== byteExact) throw new Error('Handoff receipt does not match the role input bytes.');
+    if (origin && (handoff !== origin.handoffSha256 ||
+        Object.keys(files).filter(name => name.startsWith(prefix + 'Author/')).length !== Object.keys(origin.authorFiles).length ||
+        Object.entries(origin.authorFiles).some(([name, entry]) => files[name]?.sha256 !== entry.sha256 || files[name]?.bytes !== entry.bytes) ||
+        (work?.startUtc && work.handoffValidation?.status !== (scenario.readiness === 'PROMPT_BLOCKED' ? 'BLOCKED' : 'PASS')) ||
+        (work?.startUtc && scenario.readiness === 'PROMPT_BLOCKED' && work.handoffValidation?.clarificationApproved !== true))) {
+      throw new Error('Work continuation lacks preserved Author evidence or reviewed Work intake.');
+    }
     if (['OBJECTIVE_PASS_REVIEW_REQUIRED', 'TEST_SHIM_OBJECTIVE_PASS'].includes(result.status)) {
-      const completed = role => role?.execution === 'COMPLETED' && role.startUtc && role.finishUtc &&
-        ['PASS', 'NOT_RUN'].includes(role.verdict) && role.process?.exitCode === 0 &&
-        !role.process.error && !role.process.timedOut && !role.process.scopeStop &&
-        role.trace?.finalMatchesEvent === true && !role.trace.privacyHits && !role.trace.credentialHits;
       if (result.status !== (manifest.mode === 'TEST_SHIM' ? 'TEST_SHIM_OBJECTIVE_PASS' : 'OBJECTIVE_PASS_REVIEW_REQUIRED') ||
           !byteExact || !completed(author) || !completed(work) || work.objective?.status !== 'PASS' ||
           work.objectiveProcess?.exitCode !== 0 || work.executionScope?.preflightStatus !== 'PASS' ||
@@ -218,11 +255,32 @@ function reportSession(mode, root, suppliedReview) {
     return 0;
   }
 
-  const indexBytes = bytesAt('evidence-index.json');
-  const sealed = json(indexBytes);
-  if (Object.keys(files).length !== Object.keys(sealed.files).length ||
+  if (sealed.schema !== 1 || Object.keys(files).length !== Object.keys(sealed.files).length ||
       Object.entries(files).some(([name, file]) => file.sha256 !== sealed.files[name]?.sha256 || file.bytes !== sealed.files[name]?.bytes)) {
     throw new Error('Reviewed artifacts differ from the sealed evidence index.');
+  }
+  if (originalMode) {
+    const record = records[0];
+    const prefix = `trials/${record.scenario.id}/`;
+    const originalWork = join(root, prefix, 'Work');
+    const workSetup = lstatSync(originalWork, { throwIfNoEntry: false });
+    const setupNames = new Set(['fixture', 'preflight', 'pristine', 'profile', 'tools', 'rtl-preflight', 'session.json']);
+    const setupBytes = bytesAt(prefix + 'Work/session.json', true);
+    const setup = setupBytes ? json(setupBytes) : null;
+    if (records.length !== 1 ||
+        manifest.session !== basename(root) || !['DISABLED', 'INITIAL'].includes(manifest.inputMeasurement) ||
+        record.result.status !== 'BLOCKED' || record.result.author.invoked !== true || record.result.work.invoked !== false ||
+        record.result.work.execution !== 'NOT_RUN' || record.work ||
+        (workSetup && (!workSetup.isDirectory() || readdirSync(originalWork).some(name => !setupNames.has(name)))) ||
+        (setup && (setup.role !== 'Work' || setup.finishUtc != null || !Array.isArray(setup.cases) || setup.cases.length)) ||
+        lstatSync(join(originalWork, 'profile', 'native-final.md'), { throwIfNoEntry: false }) ||
+        !completed(record.author) || record.author.handoffValidation?.status !== 'REVIEW_REQUIRED' ||
+        files[prefix + 'Author/final.md']?.sha256 !== record.author.finalSha256 ||
+        !files[prefix + 'Author/events.jsonl'] || !files[prefix + 'Author/prompt.txt']) {
+      throw new Error('Original evidence must prove a completed Author and undispatched Work.');
+    }
+    return { manifest, manifestSha256: files['manifest.json'].sha256, handoffSha256: record.author.finalSha256,
+      authorFiles: Object.fromEntries(Object.entries(files).filter(([name]) => name.startsWith(prefix + 'Author/'))) };
   }
   if (!suppliedReview) throw new Error('Provide a review file inside the owned session.');
   const reviewBytes = bytesAt(relative(root, resolve(suppliedReview)).replaceAll('\\', '/'));
@@ -287,6 +345,7 @@ function reportSession(mode, root, suppliedReview) {
     source: manifest.mode, sourceRevision: manifest.sourceRevision,
     manifestSha256: files['manifest.json'].sha256, evidenceIndexSha256, reviewSha256: sha256(reviewBytes),
     reviewer: review.reviewer, status, cases,
+    ...(continuation ? { continuation } : {}),
   });
   console.log('Candidate quality report: ' + status);
   return status === 'PASS' ? 0 : status === 'FAIL' ? 1 : 2;
@@ -295,7 +354,9 @@ function reportSession(mode, root, suppliedReview) {
 try {
   const [mode, directory, review] = process.argv.slice(2);
   if (!directory) throw new Error('Provide the benchmark session directory.');
-  process.exitCode = reportSession(mode, resolve(directory), review);
+  const result = reportSession(mode, resolve(directory), review);
+  if (mode === 'inspect-original') console.log(JSON.stringify(result));
+  else process.exitCode = result;
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;
