@@ -190,7 +190,12 @@ Read [Checklist][check].
     $verify = Join-Path $repo 'scripts/verify-install.ps1'
     $restore = Join-Path $repo 'scripts/restore.ps1'
     $destination = @{ Agent = 'Codex'; HomeRoot = $fakeClientHome }
-    $optionalSkills = @('cirnet-task-continuity', 'cirnet-plan-spec-authoring', 'cirnet-candidate-evaluation')
+    $optionalSkills = @(
+        'cirnet-task-continuity'
+        'cirnet-plan-spec-authoring'
+        'cirnet-candidate-evaluation'
+        'cirnet-engineering-workspace-ui'
+    )
     & $install -Source $extracted @destination -Apply -WhatIf | Out-Null
     Assert-BundleTest (-not (Test-Path -LiteralPath $fakeClientHome)) 'WhatIf wrote into the fake home.'
 

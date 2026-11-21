@@ -4,6 +4,7 @@ Use this fallback when client metadata is unavailable. Start with the role that
 matches the task and open another only when its trigger applies.
 
 - [Implementation](cirnet-implementation/SKILL.md)
+- [Engineering workspace UI](cirnet-engineering-workspace-ui/SKILL.md) for interactive circuit, CAD/3D, IDE or Analyze workbenches
 - [Debugging](cirnet-debugging/SKILL.md)
 - [Verification](cirnet-verification/SKILL.md)
 - [Work Prompt authoring](cirnet-work-prompt-authoring/SKILL.md) for a requested handoff

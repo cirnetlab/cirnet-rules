@@ -2,6 +2,10 @@
 
 ## 0.2.0 (candidate)
 
+- Add an [engineering workspace UI Rule](../rules/engineering-workspace-ui.md)
+  and [opt-in Skill](../skills/cirnet-engineering-workspace-ui/SKILL.md) for
+  artifact-centered editors and workbenches.
+
 - Add three opt-in Skills for Task Continuity, Plan/Spec authoring and Single
   Candidate evaluation. Document how to install them alongside the defaults.
 

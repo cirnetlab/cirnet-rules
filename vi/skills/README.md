@@ -4,6 +4,7 @@ Dùng danh mục này khi client không có metadata. Bắt đầu từ vai trò
 chỉ mở vai trò khác khi trigger áp dụng.
 
 - [Triển khai](cirnet-implementation/SKILL.md)
+- [Giao diện không gian làm việc kỹ thuật](cirnet-engineering-workspace-ui/SKILL.md) cho workbench tương tác về mạch, CAD/3D, IDE hoặc Analyze
 - [Chẩn đoán lỗi](cirnet-debugging/SKILL.md)
 - [Kiểm chứng](cirnet-verification/SKILL.md)
 - [Biên soạn Work Prompt](cirnet-work-prompt-authoring/SKILL.md) khi có yêu cầu bàn giao
@@ -24,4 +25,4 @@ Implementation, debugging và verification được cài mặc định. Các ski
 được chọn rõ ràng. Xem [nạp context](../docs/context.md).
 
 <!-- source: en/skills/README.md -->
-<!-- source-sha256: d9c59afbbf3071171c65a2cfeabf790b88e70785bc322ebfbc9ac0bd524aeafe -->
+<!-- source-sha256: 71f98bf8633b7acf87a4a7eeea878ebf292dad6678760af219fe3e4b4f4e598e -->

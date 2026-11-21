@@ -2,6 +2,10 @@
 
 ## 0.2.0 (candidate)
 
+- Thêm [Rule giao diện không gian làm việc kỹ thuật](../rules/engineering-workspace-ui.md)
+  và [Skill có thể chọn cài](../skills/cirnet-engineering-workspace-ui/SKILL.md)
+  cho editor và workbench lấy đối tượng kỹ thuật làm trung tâm.
+
 - Thêm ba Skill có thể chọn cài cho Task Continuity, soạn Plan/Spec và
   đánh giá Single Candidate. Hướng dẫn cài cùng các Skill mặc định.
 
@@ -56,4 +60,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 382ae418f3ea20415c3e14a263ea7b6f0b902235f4325a52b19f1791f2c7e04b -->
+<!-- source-sha256: 1da2a61f743e660063a5d3ee3a818a2bafc719e14e55ce79c5ced9407fd97083 -->

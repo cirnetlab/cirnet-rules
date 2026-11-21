@@ -8,10 +8,11 @@ const read = path => readFileSync(source(path), 'utf8');
 const authoring = 'skills/cirnet-work-prompt-authoring/SKILL.md';
 const refactoring = 'skills/cirnet-refactoring/SKILL.md';
 const template = 'templates/chat-to-work-prompt.md';
-const newSkills = [
+const focusedSkills = [
   'cirnet-task-continuity',
   'cirnet-plan-spec-authoring',
   'cirnet-candidate-evaluation',
+  'cirnet-engineering-workspace-ui',
 ];
 const requiredSkills = [
   'cirnet-api-compatibility',
@@ -27,13 +28,14 @@ const requiredSkills = [
   'cirnet-repository-structure',
   'cirnet-verification',
   'cirnet-work-prompt-authoring',
-  ...newSkills,
+  ...focusedSkills,
 ];
 const pairs = [
   authoring,
   refactoring,
   template,
-  ...newSkills.map(name => `skills/${name}/SKILL.md`),
+  ...focusedSkills.map(name => `skills/${name}/SKILL.md`),
+  'rules/engineering-workspace-ui.md',
   'skills/README.md',
   'docs/changelog.md',
   'docs/context.md',
@@ -66,10 +68,10 @@ test('both languages expose the required Skills through matching fallback indexe
   }
 });
 
-test('the three focused Skills have distinct selection metadata in both languages', () => {
+test('the focused Skills have distinct selection metadata in both languages', () => {
   for (const lang of ['en', 'vi']) {
     const descriptions = new Set();
-    for (const name of newSkills) {
+    for (const name of focusedSkills) {
       const path = `${lang}/skills/${name}/SKILL.md`;
       const frontmatter = read(path).match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
       assert.ok(frontmatter, `${path}: missing frontmatter`);
