@@ -61,7 +61,7 @@ Plans/Specs remain the authoritative documents of their owning repositories. Che
 Task Continuity integration must not break or modify the following beyond the approved scope:
 
 - Existing development and testing workflows.
-- Repository rules, `AGENTS.md`, and the current 13 Skills.
+- Repository rules, `AGENTS.md`, and the [current Skill inventory](../../../skills/README.md).
 - CIRNETLAB architecture, APIs, and cross-repository contracts.
 - Documentation systems and version management workflows.
 - User data and uncommitted source code changes.

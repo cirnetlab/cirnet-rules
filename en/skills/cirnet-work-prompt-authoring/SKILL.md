@@ -19,7 +19,7 @@ checkout, branch, instructions, permissions and evidence before implementation.
    when ownership, consumers, contracts or a safety boundary need resolution.
    Read their governing sections from the approved toolkit, once per role.
 3. **Select Authority/Skills.** Read the relevant English architecture sections
-   and Rules. Inspect the 13 Skills' metadata, using `en/skills/README.md` when
+   and Rules. Inspect the available Skills' metadata, using `en/skills/README.md` when
    client metadata is unavailable. Read only Work Skill bodies whose triggers
    apply. List those exact names under Applicable Work Skills with their task
    responsibilities. Refer to shared workflows and carry decisive invariants.

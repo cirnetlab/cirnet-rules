@@ -190,11 +190,28 @@ Read [Checklist][check].
     $verify = Join-Path $repo 'scripts/verify-install.ps1'
     $restore = Join-Path $repo 'scripts/restore.ps1'
     $destination = @{ Agent = 'Codex'; HomeRoot = $fakeClientHome }
-    $selectedSkills = @('cirnet-implementation','cirnet-work-prompt-authoring')
+    $optionalSkills = @('cirnet-task-continuity', 'cirnet-plan-spec-authoring', 'cirnet-candidate-evaluation')
+    $selectedSkills = @('cirnet-implementation', 'cirnet-work-prompt-authoring') + $optionalSkills
     & $install -Source $extracted @destination -Apply -WhatIf | Out-Null
     Assert-BundleTest (-not (Test-Path -LiteralPath $fakeClientHome)) 'WhatIf wrote into the fake home.'
+
+    $defaultHome = Join-Path $session 'default client home'
+    & $install -Source $extracted -Agent Codex -HomeRoot $defaultHome -Apply | Out-Null
+    & $verify -Source $extracted -Agent Codex -HomeRoot $defaultHome | Out-Null
+    $defaults = @(Get-ChildItem -LiteralPath (Join-Path $defaultHome '.agents/skills') -Directory | Sort-Object Name | ForEach-Object Name)
+    Assert-BundleTest (($defaults -join ',') -ceq 'cirnet-debugging,cirnet-implementation,cirnet-verification') 'Unexpected default Skill selection.'
+
+    foreach ($skill in $optionalSkills) {
+        Assert-BundleTest ($paths -ccontains "skills/$skill/SKILL.md") "Opt-in Skill '$skill' is missing from the bundle."
+    }
     & $install -Source $extracted @destination -Skills $selectedSkills -Apply | Out-Null
     & $verify -Source $extracted @destination -Skills $selectedSkills | Out-Null
+    foreach ($skill in $optionalSkills) {
+        $relative = "skills/$skill/SKILL.md"
+        $sourceHash = Get-CirnetHash (Join-Path $repo "en/$relative")
+        $installedHash = Get-CirnetHash (Join-Path $fakeClientHome ".agents/$relative")
+        Assert-BundleTest ($installedHash -ceq $sourceHash) "Installed opt-in Skill '$skill' differs from its canonical source."
+    }
     $installed = Join-Path $fakeClientHome ('.agents/' + $examples)
     $installedTemplate = Join-Path $fakeClientHome ('.agents/' + $authoringTemplate)
     Assert-BundleTest ((Get-CirnetHash $installedTemplate) -ceq $templateHash) 'Installed Work Prompt template differs from its canonical source.'

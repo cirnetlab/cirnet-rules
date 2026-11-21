@@ -19,7 +19,7 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    khi cần làm rõ chủ sở hữu, consumer, contract hoặc ranh giới an toàn.
    Đọc các mục chi phối trong toolkit được phép, một lần cho mỗi vai trò.
 3. **Select Authority/Skills.** Đọc các mục kiến trúc tiếng Anh và Rules liên
-   quan. Xem metadata của 13 Skills, dùng `en/skills/README.md` nếu client
+   quan. Xem metadata của các Skill hiện có, dùng `en/skills/README.md` nếu client
    không cung cấp metadata. Chỉ đọc thân Work Skills có trigger áp dụng. Liệt kê
    đúng tên trong Applicable Work Skills cùng trách nhiệm theo nhiệm vụ.
    Tham chiếu workflow chung và giữ invariant mang tính quyết định.
@@ -110,4 +110,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 0ac5878044c8f8d4272b19d92e9a12a84bd2fc6a00668c57dc0c7f46ae30feee -->
+<!-- source-sha256: fd18578cbdce397b44e0aaba84881c8cf3d11734689bad5ce21dfc0e5a029f5e -->

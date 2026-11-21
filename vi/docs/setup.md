@@ -1,7 +1,8 @@
 # Thiết lập một client
 
 Chọn bundle local đã review và một client. Giữ chỉ dẫn local áp dụng của repo
-sản phẩm. Baseline tiếng Anh độc lập và 13 thư mục skill cài được riêng.
+sản phẩm. Baseline tiếng Anh dùng được độc lập và có thể cài riêng từng
+[Skill](../skills/README.md).
 Bản Việt dành cho dịch và review. Xem [nạp context](context.md) để chọn phần đọc.
 
 ## Cài từ bundle local đã giải nén
@@ -82,4 +83,4 @@ Discovery và hành vi native là NOT_RUN. Xem [phân phối](distribution.md)
 để cập nhật và restore.
 
 <!-- source: en/docs/setup.md -->
-<!-- source-sha256: 2f976be112dcba7850f2ae0543eddfed8b23c6986ae814aae43aa29e3604dc93 -->
+<!-- source-sha256: 6bd5cbeac39ae16d53857c89d4149a0ed92bb2d1fa72f4f27e7b53322ba63139 -->

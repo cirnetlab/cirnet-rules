@@ -2,11 +2,11 @@
 
 [English](en/README.md) · [Tiếng Việt](vi/README.md) · [Changelog](CHANGELOG.md)
 
-Use one common [baseline](AGENTS.md) and 13 task-specific Skills to turn user
+Use one common [baseline](AGENTS.md) and task-specific Skills to turn user
 requirements into scoped Work Prompts and verified code changes. Start with the
 target repository’s applicable instructions and the CIRNET Lab-First architecture.
 
-Dùng một [baseline chung](AGENTS.md) và 13 Skill theo nhiệm vụ để chuyển yêu cầu
+Dùng một [baseline chung](AGENTS.md) và các Skill theo nhiệm vụ để chuyển yêu cầu
 người dùng thành Work Prompt có phạm vi và thay đổi mã đã kiểm chứng. Bắt đầu từ
 chỉ dẫn áp dụng của repo đích và kiến trúc CIRNET Lab-First.
 

@@ -77,7 +77,7 @@ Việc tích hợp Task Continuity không được làm hỏng hoặc thay đổ
 ngoài phạm vi đã duyệt:
 
 - Quy trình phát triển và kiểm thử hiện có.
-- Quy tắc của repo, `AGENTS.md` và 13 Skill hiện tại.
+- Quy tắc của repo, `AGENTS.md` và [danh mục Skill hiện hành](../../../skills/README.md).
 - Kiến trúc, API và contract giữa các repo CIRNETLAB.
 - Hệ thống tài liệu và quy trình quản lý phiên bản.
 - Dữ liệu người dùng và thay đổi mã nguồn chưa commit.
@@ -355,4 +355,4 @@ phục ngữ cảnh từ checkpoint đáng tin cậy, xác minh trạng thái th
 tiếp tục các hành động đã được phép.
 
 <!-- source: en/specs/cirnet-rules/task-continuity/spec.md -->
-<!-- source-sha256: 74269017b3e1406054ef91227ac1d22cbb4dfe4e8be10f18bbd762acceb8f4ee -->
+<!-- source-sha256: 5c346e447f50c3761a206c3c700417aeb0645dee5978584249204e572065b8ca -->
