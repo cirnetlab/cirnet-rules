@@ -55,6 +55,41 @@ hoặc còn thiếu.
 [Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Mẫu](../templates/chat-to-work-prompt.md) · [Truy cập từ bundle](distribution.md#soạn-work-prompt)
 
+### Dò repo cục bộ
+
+Sau khi cấu hình dò repo, Author có thể chuẩn bị prompt từ yêu cầu gốc.
+Lưu yêu cầu UTF-8 của người dùng vào đầu vào cục bộ được phép và chạy CLI
+từ checkout Rules đã duyệt.
+
+```powershell
+./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask $requestFile
+```
+
+Dùng `config/repositories.example.json` để cấu hình
+`config/repositories.local.json` đã được Git bỏ qua. Phiên bản 1 nhận các
+`searchRoots` cục bộ tuyệt đối, `discoverGitChildren` và danh sách
+`repositories` tùy chọn gồm `name` và `path`. Mỗi lần gọi sẽ dò các thư mục
+con trực tiếp của gốc đã cấu hình. Tên hoặc bí danh tường minh có thể chọn
+checkout đã di chuyển hoặc xử lý tên trùng. Đường dẫn phải là gốc Git
+độc lập hợp lệ. Bộ dò chặn tên mơ hồ, ánh xạ thiếu, đường dẫn thoát phạm vi
+và liên kết. Dùng luồng `-Repository` cho worktree liên kết đã được chọn
+độc lập. Giữ registry cục bộ ngoài bundle và bằng chứng chia sẻ.
+Bảng kiến trúc xác định owner. Registry định vị checkout. Quyền được xác
+lập độc lập với hai nguồn này.
+
+Dùng tên owner tường minh trong yêu cầu hoặc bằng chứng duy nhất trong
+`en/references/architecture-routing.md`. Với yêu cầu gián tiếp, Author
+đối chiếu bằng chứng được phép đọc và có thể truyền `-Owner`. Khi liên
+quan nhiều repo, xác nhận owner chính và truyền phạm vi đã cấp. Repo liên
+quan cần phạm vi đọc, ghi riêng. Yêu cầu sửa hoặc kiểm tra thông thường
+trong một repo có thể xác định loại tác động đề xuất. Giữ giới hạn gốc và rà
+ý nghĩa trước khi giao.
+
+Nếu không dò được cục bộ, dùng bằng chứng owner hoặc connector đã xác minh.
+`-NoLocalDiscovery` có thể chuẩn bị bàn giao cho owner đã biết mà chưa công
+bố đường dẫn hay revision. Work dùng registry được duyệt để tìm checkout đó
+trước khi đọc source. Chỉ hỏi quyết định nếu owner hoặc phạm vi còn mơ hồ.
+
 ### Kiểm tra bàn giao offline
 
 Bắt đầu từ yêu cầu và phạm vi người dùng đã cấp cho repo chủ sở hữu.
@@ -80,10 +115,22 @@ chưa có phê duyệt độc lập, `authorizationStatus = PENDING` và
 phép và chuẩn bị danh sách tác động, phép kiểm để duyệt. Lưu yêu cầu, pin
 và chẩn đoán trong bằng chứng cục bộ. Nếu đã có phê duyệt độc lập, dùng
 `-Authorization` và `-AuthorizationSha256` thay cho các cờ phạm vi bản nháp.
-Validator kiểm tra bản ghi, tạo lại bản bàn giao chuẩn và trả
+Validator kiểm tra bản ghi và owner chính xác rồi tạo lại bản bàn giao chuẩn.
+Bản ghi đã duyệt chứa checkout. Bước chuẩn bị trả
 `authorizationStatus = RECORD_CHECKED`. Thực thi và nghiệm thu vẫn
 `NOT_RUN`. Tạo lại một lần sau khi sửa đầu vào kỹ thuật. Thay đổi ý nghĩa
 hoặc chỉ dẫn đã duyệt cần được rà độc lập.
+
+Với các lần đọc preflight ít rủi ro lặp lại, người vận hành độc lập có thể
+duyệt policy cục bộ và cung cấp pin qua cùng kênh tin cậy. Author hoặc Work
+truyền `-Policy` và `-PolicySha256` khi chuẩn bị tự động. Policy phiên bản 1
+gồm `schemaVersion: 1`, `approvedBy`, `action: "ReadOnly"`, `repository`
+tuyệt đối chính xác, `expiresAtUnixSeconds` UTC và `readPaths` gồm các tệp
+tương đối theo repo. `READ_POLICY_CHECKED` áp dụng cho các tệp đã liệt kê
+trong thời hạn policy. Kiểm tra lại khi Work tiếp nhận. Thu hồi pin tin cậy,
+xóa policy hoặc thay đổi byte sẽ ngăn tái sử dụng. Sửa tệp, chạy test/build
+và thao tác nhạy cảm hay đặc quyền cần thẩm quyền riêng cho tác vụ.
+Thực thi và nghiệm thu vẫn `NOT_RUN` sau bước chuẩn bị.
 
 Để thực thi, nhận digest cấp quyền qua kênh tin cậy từ người phê duyệt.
 Bản ghi, digest do Author tạo, checkpoint hay chú thích mã nguồn không cấp
@@ -211,4 +258,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 88641f040a91887df07be43fa19af56696da16513f09986ea07fa8a2aac8abd3 -->
+<!-- source-sha256: 14daa48d8a55f389d166b02f81644374086e0b5b38e8720101d88aebec6184e7 -->

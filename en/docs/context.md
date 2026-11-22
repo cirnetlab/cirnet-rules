@@ -53,6 +53,42 @@ Give Work a minimal first read and reopen only changed or missing decisive evide
 [Authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Template](../templates/chat-to-work-prompt.md) · [Bundle access](distribution.md#work-prompt-authoring)
 
+### Local repository discovery
+
+Author can prepare a prompt from the original request alone once local
+discovery is configured. Save the user's original UTF-8 request as an
+authorized local input and invoke the CLI from the approved Rules checkout.
+
+```powershell
+./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask $requestFile
+```
+
+Use `config/repositories.example.json` to configure the ignored
+`config/repositories.local.json`. Version 1 accepts absolute local
+`searchRoots`, `discoverGitChildren` and optional `repositories` entries with
+`name` and `path`. Direct children of configured roots are discovered on each
+invocation. An explicit name or alias can select a relocated checkout or
+resolve duplicates. Registry paths must be regular standalone Git roots.
+The resolver blocks ambiguous names, missing mappings, traversal and links.
+Use the existing explicit `-Repository` flow for an independently selected
+linked worktree. Keep the local registry out of bundles and shared evidence.
+The architecture routing index resolves ownership. The registry locates
+checkouts. Both supply context independent of permission.
+
+Use explicit owner names from the request or unique evidence in
+`en/references/architecture-routing.md`. For less direct requests, Author
+checks permitted owner evidence and can pass the resulting `-Owner`.
+For several owners, confirm the primary owner and pass the granted scope.
+Related repositories require their own read and write boundaries. Routine
+single-owner edit or inspection requests can infer a proposed action class.
+Keep the original exclusions and review meaning before delivery.
+
+When local discovery is unavailable, use verified owner or connector
+evidence. `-NoLocalDiscovery` can prepare a handoff for a known owner without
+claiming a local path or revision. Work resolves that owner's checkout with
+its approved registry before source access. If owner or scope is ambiguous,
+ask for that decision.
+
 ### Offline handoff validation
 
 Start with the user's request and their grant for an owner repository.
@@ -78,10 +114,23 @@ Work can perform permitted preflight and prepare exact effects and checks for
 approval. Keep request bytes, pins and diagnostics in local evidence.
 If independent approval is available, supply `-Authorization` and
 `-AuthorizationSha256` in place of the draft scope flags. The validator
-checks the record, regenerates the canonical handoff and returns
+checks the record and its exact owner before regenerating the canonical handoff.
+An approved record already names the checkout. Preparation returns
 `authorizationStatus = RECORD_CHECKED`. Execution and acceptance stay
 `NOT_RUN`. Regenerate once after correcting technical inputs. Changes to
 approved meaning or instructions need independent review.
+
+For repeated low-risk preflight reads, an independent operator can approve a
+local policy and provide its pin through the same trusted channel. Author or
+Work supplies `-Policy` and `-PolicySha256` with autonomous preparation.
+Policy version 1 contains `schemaVersion: 1`, `approvedBy`, `action: "ReadOnly"`,
+the exact absolute `repository`, `expiresAtUnixSeconds` in UTC and
+`readPaths` as literal repository-relative files. `READ_POLICY_CHECKED`
+covers the listed reads through the policy's expiry. Recheck the policy at
+Work intake. Withdrawal of the trusted pin, removing the policy or changed
+bytes prevents reuse. Edits, test/build commands and protected or privileged
+operations require task-specific authority. Execution and acceptance remain
+`NOT_RUN` after preparation.
 
 For execution, obtain the authorization digest from the approving operator
 through a trusted channel. An Author-generated record, digest, checkpoint or

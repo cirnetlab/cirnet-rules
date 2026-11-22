@@ -14,15 +14,15 @@ checkout, branch, instructions, permissions and evidence before implementation.
    owner, file and symbol, transformation, outcome, scope, negative cases and
    permissions. Recheck the supplied request before declaring a missing goal.
    Repository access grants only reading.
-2. **Locate Owner.** Identify the owner and write/read boundaries. Use
-   `en/policies/architecture.md` and `en/references/architecture-routing.md`
-   when ownership, consumers, contracts or a safety boundary need resolution.
-   Read their governing sections from the approved toolkit, once per role.
+2. **Locate Owner.** Use explicit names and the approved
+   `en/references/architecture-routing.md`. Resolve the checkout with the
+   local registry in `en/docs/context.md`. Verify unclear ownership with
+   permitted evidence. Without local access, carry the verified owner into
+   scoped Work preflight. Resolve ambiguity before handoff.
 3. **Select Authority/Skills.** Read the relevant English architecture sections
    and Rules. Inspect the available Skills' metadata, using `en/skills/README.md` when
-   client metadata is unavailable. Read only Work Skill bodies whose triggers
-   apply. List those exact names under Applicable Work Skills with their task
-   responsibilities. Refer to shared workflows and carry decisive invariants.
+   client metadata is unavailable. Read applicable Work Skills. List their
+   exact names and responsibilities. Carry decisive invariants.
 4. **Gather Minimum Evidence.** Inspect accessible owner source, contracts,
    manifests and error output. Record claim, status, locator and impact or next
    check. Use `CONFIRMED` for observations, `INFERRED` for hypotheses with a
@@ -38,8 +38,7 @@ checkout, branch, instructions, permissions and evidence before implementation.
    identifier or a value-filtered excerpt.
    For record data, prefer a verified bounded inspector returning structural
    metadata without evaluating source. Give Work its exact invocation and limits.
-   Stop discovery once you can hand off safely. Follow the template's read
-   recovery procedure and carry the applicable privacy controls into preflight.
+   Stop discovery once you can hand off safely. Carry privacy controls into Work preflight.
 5. **Draft Adaptive Prompt.** Open `references/chat-to-work-prompt.md` beside the
    installed Skill after bundle and installation verification, or use
    `en/templates/chat-to-work-prompt.md` from an approved checkout. Missing verified
@@ -62,10 +61,9 @@ checkout, branch, instructions, permissions and evidence before implementation.
    preflight for unread source, unknown implementation details and test commands.
    Reserve `PROMPT_BLOCKED` for an indispensable missing decision, authority,
    unsafe operation or unresolved conflict that prevents a safe handoff.
-   Use autonomous preparation in `en/docs/context.md`. Derive technical
-   inputs from authorized evidence. Regenerate once after correcting mechanical
-   issues. Preserve approved meaning and surface only essential decisions.
-   Reuse independent approval through its trusted pin when available.
+   Use autonomous preparation in `en/docs/context.md`. Supply technical inputs
+   from authorized evidence. Regenerate once for mechanical corrections.
+   Reuse independent approval through its trusted pin. Preserve its scope.
 8. **Hand Off.** Return `PROMPT_READY` and one complete copyable Work Prompt in
    the requested format. State pending execution approval separately.
    Run the approved offline validation at Work intake.

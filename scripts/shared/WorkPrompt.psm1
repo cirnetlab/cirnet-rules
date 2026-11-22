@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Bundle.psm1')
 Import-Module (Join-Path $PSScriptRoot '../continuity/Repository.psm1')
 Import-Module (Join-Path $PSScriptRoot '../continuity/Checkpoint.psm1')
+Import-Module (Join-Path $PSScriptRoot 'RepositoryRegistry.psm1')
 
 $permissionKinds = @('read','write','test','build','export','privileged')
 $requirementFields = @('action','target','transformation','outcome','scope','negative','acceptance')
@@ -243,11 +244,38 @@ function Resolve-PreparationPath([string]$Root, [string]$Path) {
         throw 'A protected or ambiguous path requires separate review.'
     }
     Assert-NoCredential $Path
+    if (-not $Root) {
+        if ($Path -notmatch '^[\w.-]+(?:/[\w.-]+)*\z' -or $Path -match '(?i)(?:^|/)(?:\.git|\.{1,2})(?:/|$)') {
+            throw 'Use literal repository file paths.'
+        }
+        return
+    }
     Resolve-PromptPath $Root $Path
 }
 
+function Read-WorkPromptReadPolicy([string]$Path, [string]$Pin, [string]$Root) {
+    $bytes = Read-PromptBytes $Path
+    if ((Get-CirnetPayloadHash $bytes) -cne $Pin) { throw 'Read policy pin mismatch.' }
+    $policy = ConvertFrom-ContinuityJson $bytes -UniqueProperties
+    if (-not (Test-PromptMap $policy @('schemaVersion','approvedBy','action','repository','expiresAtUnixSeconds','readPaths')) -or
+        $policy.schemaVersion -isnot [long] -and $policy.schemaVersion -isnot [int] -or $policy.schemaVersion -ne 1 -or
+        $policy.approvedBy -isnot [string] -or -not $policy.approvedBy.Trim() -or $policy.approvedBy.Length -gt 128 -or
+        $policy.action -cne 'ReadOnly' -or $policy.repository -cne $Root -or
+        -not (Test-Integer $policy.expiresAtUnixSeconds) -or $policy.expiresAtUnixSeconds -le [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -or
+        $policy.readPaths -isnot [array] -or -not $policy.readPaths.Count -or $policy.readPaths.Count -gt 32) {
+        throw 'Invalid or expired read policy.'
+    }
+    foreach ($path in $policy.readPaths) {
+        if ($path -isnot [string]) { throw 'Invalid read policy path.' }
+        $file = Resolve-PreparationPath $Root $path
+        if (-not $file.Exists) { throw 'Missing read policy path.' }
+        $path
+    }
+}
+
 function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]$Lines,
-    [string]$Scope, [string[]]$ReadPath, [string[]]$WritePath, [string[]]$SourcePath, [string]$Risk) {
+    [string]$Scope, [string[]]$ReadPath, [string[]]$WritePath, [string[]]$SourcePath, [string]$Risk, $Resolution,
+    [switch]$ReadPolicyChecked) {
     if ($Scope -eq 'ReadOnly' -and $WritePath.Count) {
         return New-PreparationResult BLOCKED 'Resolve the conflict between read-only scope and the proposed write paths.'
     }
@@ -261,6 +289,7 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
     $allowed = @(foreach ($path in $ReadPath + $SourcePath) { "read: $path" }) +
         @(foreach ($path in $WritePath) { "write: $path"; "create: $path"; "modify: $path" })
     $mentioned = [Collections.Generic.List[string]]::new()
+    $proposedActions = [ordered]@{}
     for ($i = 0; $i -lt $Lines.Length; $i++) {
         $statement = $Lines[$i].Trim() -replace '^(?:[-*+] |\d+[.)] )', ''
         if ($statement -match '^(?<verb>read|write|create|modify)(?:\s*:\s*|\s+)(?<file>[\w./-]+\.[\w-]+)\.?$') {
@@ -272,19 +301,20 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
                 ($verb -ne 'read' -and $Scope -eq 'Edit' -and (-not $WritePath.Count -or $path -cin $WritePath))) {
                 $allowed += "${verb}: $path"
                 if ($withinRead -and $mentioned.Count -lt 16) { $mentioned.Add($path) }
+                $proposedActions[[string]($i + 1)] = @("${verb}: $path")
             }
         }
         $violation = Get-PromptViolation $statement $allowed
-        if ($violation -or $statement -match '^(?:(?:also|then)\s+)?(?:delete|remove-item|move-item|rm|mv|sudo|npm(?:\.cmd)?\s+publish|kubectl|terraform\s+(?:apply|destroy))\s+' -or
+        if ($violation -or $statement -match '^(?:(?:also|then)\s+)?(?:delete|remove-item|move-item|rm|mv|sudo|flash|energize|npm(?:\.cmd)?\s+publish|kubectl|terraform\s+(?:apply|destroy))\s+' -or
             $statement -match '^(?:ignore|override|bypass)\b.*\b(?:instructions|policy|scope|approval|authorization)\b' -or
-            ($Scope -eq 'ReadOnly' -and $statement -match '^(?:edit|correct|change|fix|update|replace|implement|add|remove|modify|create|write)\b')) {
+            ($Scope -eq 'ReadOnly' -and $statement -match '^(?:edit|correct|change|fix|update|replace|implement|add|remove|modify|create|write|sửa|cải thiện|cập nhật|thêm)\b')) {
             return New-PreparationResult BLOCKED "Resolve the action, scope or evidence conflict on request line $($i + 1) before handoff."
         }
     }
     $pins = @($WritePath + $SourcePath | Where-Object { -not $ReadPath.Count -or $_ -cin $ReadPath } | Sort-Object -CaseSensitive -Unique)
     $evidence = @(foreach ($path in $pins) {
         $file = Resolve-PreparationPath $Owner.root $path
-        if ($file.Exists -and $file.Length -le 1MB) {
+        if ($file -and $file.Exists -and $file.Length -le 1MB) {
             try {
                 $sha256 = Get-CirnetPayloadHash (Read-ContinuityBytes $file.FullName 1MB)
                 [pscustomobject]@{ path=$path; status='PINNED'; sha256=$sha256 }
@@ -295,13 +325,21 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         }
         [pscustomobject]@{ path=$path; status='NOT_INSPECTED' }
     })
+    if ($Resolution -and $Owner.root) {
+        foreach ($path in @('AGENTS.md','package.json','Cargo.toml','CMakeLists.txt','pyproject.toml')) {
+            if ($ReadPath.Count -and $path -cnotin $ReadPath) { continue }
+            try {
+                if ((Resolve-PreparationPath $Owner.root $path).Exists) { $mentioned.Add($path) }
+            } catch { continue }
+        }
+    }
     foreach ($path in ($mentioned | Sort-Object -CaseSensitive -Unique)) {
         if ($path -cin $pins) { continue }
         $file = Resolve-PreparationPath $Owner.root $path
-        $state = if ($file.Exists) { 'LOCATED' } else { 'NOT_INSPECTED' }
+        $state = if ($file -and $file.Exists) { 'LOCATED' } else { 'NOT_INSPECTED' }
         $evidence += [pscustomobject]@{ path=$path; status=$state }
     }
-    if ((Get-ContinuityHead $Owner) -cne $Head) { throw 'HEAD changed during preparation.' }
+    if ($Owner.root -and (Get-ContinuityHead $Owner) -cne $Head) { throw 'HEAD changed during preparation.' }
     $digest = Get-CirnetPayloadHash $Bytes
     $fenceLength = 3
     foreach ($match in [regex]::Matches(($Lines -join [char]10), '~{3,}')) {
@@ -319,7 +357,15 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         $fence
         ''
         '## Owner and granted scope'
-        "Owner: $($Owner.root)"
+        if ($Resolution) {
+            if ($Owner.root) { "Owner: $($Resolution.name) ($($Owner.root))" }
+            else {
+                "Owner: $($Resolution.name)"
+                'Checkout and revision are NOT_INSPECTED. In local Work preflight, resolve this owner using the approved local registry and verify the Git root before reading source.'
+            }
+            if ($Resolution.routing) { "Confirm ownership and boundaries in the approved CIRNET Rules $($Resolution.routing) and en/policies/architecture.md." }
+            if ($Resolution.related.Count) { "Related owners require separately permitted reads: $($Resolution.related -join ', ')." }
+        } else { "Owner: $($Owner.root)" }
         if ($ReadPath.Count) {
             'Limit source reads to these repository-relative paths:'
             foreach ($path in ($ReadPath | Sort-Object -CaseSensitive -Unique)) { "- ``$path``" }
@@ -334,6 +380,10 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         ''
         '## Work preflight and verification'
         'Confirm the request identity, owner revision, local instructions, applicable Rules and Work Skills. Find the owner verification for each criterion.'
+        if ($Resolution) {
+            'Check Git status and preserve existing changes. Use Task Continuity for long-running or resumed work.'
+            if ($Scope -eq 'Edit') { 'Use cirnet-implementation when available. Select more specific Work Skills from the approved metadata for the confirmed scope.' }
+        }
         if ($Risk -ine 'LIGHT') { 'Trace the affected dependencies and negative cases against owner evidence. Record assumptions and their resolving checks.' }
         if ($Risk -ieq 'DEEP') { 'Verify each owner and independent approval. Establish required preventive controls and task-specific safety evidence before protected reads or execution.' }
         foreach ($item in $evidence) {
@@ -342,6 +392,9 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
             else { "- ``$($item.path)`` is NOT_INSPECTED. Resolve it within the granted scope." }
         }
         'Obtain independent execution authorization for the exact effects and checks before acting. Capture and pin the scope baseline when required, verify execution intake, and reconcile scope after Work.'
+        if ($ReadPolicyChecked) {
+            'Recheck the current independently pinned read policy at intake to reuse its listed preflight reads. Obtain task approval for effects or commands outside that policy.'
+        }
         $reportLine
     )
     $result = New-PreparationResult PASS 'Original task and declared scope prepared. Independent execution authorization is pending.'
@@ -349,10 +402,21 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         prompt = $body -join [char]10
         originalSha256 = $digest
         repository = $Owner.root
-        revision = $Head
+        revision = $(if ($Head) { $Head })
         risk = $Risk.ToUpperInvariant()
         evidence = $evidence
     }
+    if ($Resolution) {
+        $result | Add-Member -NotePropertyMembers @{
+            repositoryName = $Resolution.name
+            repositoryStatus = $(if ($Owner.root) { 'CONFIRMED' } else { 'NOT_INSPECTED' })
+            approvalProposal = @{
+                actions = $proposedActions; scope = $Scope; grants = @()
+                checks = 'Resolve exact acceptance checks in Work preflight.'
+            }
+        }
+    }
+    if ($ReadPolicyChecked) { $result.authorizationStatus = 'READ_POLICY_CHECKED' }
     $result
 }
 
@@ -360,7 +424,7 @@ function New-CirnetWorkPromptProposal {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$OriginalTask,
-        [Parameter(Mandatory)][string]$Repository,
+        [string]$Repository,
         [string[]]$SourcePath = @(),
         [switch]$Sensitive,
         [ValidateSet('PROMPT_READY','PROMPT_BLOCKED')][string]$Readiness = 'PROMPT_READY',
@@ -371,7 +435,12 @@ function New-CirnetWorkPromptProposal {
         [ValidateSet('LIGHT','STANDARD','DEEP')][string]$Risk = 'STANDARD',
         [switch]$RequirePreventiveScope,
         [string]$Authorization,
-        [string]$AuthorizationSha256
+        [string]$AuthorizationSha256,
+        [string]$Registry,
+        [string]$Owner,
+        [switch]$NoLocalDiscovery,
+        [string]$Policy,
+        [string]$PolicySha256
     )
     if ($Sensitive -or $RequirePreventiveScope) {
         $message = 'Preparation requires a preventive boundary and an approved isolated projection before reading protected inputs.'
@@ -380,8 +449,13 @@ function New-CirnetWorkPromptProposal {
     }
     if ($Autonomous) {
         if ($Readiness -eq 'PROMPT_BLOCKED') { return New-PreparationResult BLOCKED 'Resolve the documented blocker before preparing an actionable handoff.' }
+        if (($Policy -or $PolicySha256) -and (-not ($Policy -and $PolicySha256) -or $Authorization -or $AuthorizationSha256 -or $NoLocalDiscovery -or
+            $WritePath.Count -or $AuthorizedScope -eq 'Edit' -or $Risk -eq 'DEEP')) {
+            return New-PreparationResult BLOCKED 'A recurring read policy needs its independent pin and covers read-only preflight without additional effects.'
+        }
         if ($Authorization -or $AuthorizationSha256) {
-            if (-not ($Authorization -and $AuthorizationSha256) -or $AuthorizedScope -or $ReadPath.Count -or $WritePath.Count -or $SourcePath.Count) {
+            if (-not ($Authorization -and $AuthorizationSha256) -or $AuthorizedScope -or $ReadPath.Count -or $WritePath.Count -or $SourcePath.Count -or
+                $Registry -or $Owner -or $NoLocalDiscovery) {
                 return New-PreparationResult BLOCKED 'Supply the independent approval file and its pin together without additional grants.'
             }
             $result = Test-CirnetWorkPromptFile -RenderApproved -OriginalTask $OriginalTask -Repository $Repository -Authorization $Authorization -AuthorizationSha256 $AuthorizationSha256
@@ -392,8 +466,11 @@ function New-CirnetWorkPromptProposal {
             $result | Add-Member -NotePropertyMembers @{ authoringStatus='PASS'; readiness='PROMPT_READY'; authorizationStatus='RECORD_CHECKED'; risk=$Risk.ToUpperInvariant() }
             return $result
         }
-        if (-not $AuthorizedScope) { return New-PreparationResult BLOCKED 'Confirm the owner repository and whether Work may inspect or edit it.' }
-    } elseif ($AuthorizedScope -or $ReadPath.Count -or $WritePath.Count -or $Authorization -or $AuthorizationSha256) {
+        if ($Repository -and ($Registry -or $Owner -or $NoLocalDiscovery)) {
+            return New-PreparationResult BLOCKED 'Use either a direct repository path or registry resolution.'
+        }
+        if ($Repository -and -not ($AuthorizedScope -or $Policy)) { return New-PreparationResult BLOCKED 'Confirm the owner repository and whether Work may inspect or edit it.' }
+    } elseif ($AuthorizedScope -or $ReadPath.Count -or $WritePath.Count -or $Authorization -or $AuthorizationSha256 -or $Registry -or $Owner -or $NoLocalDiscovery -or $Policy -or $PolicySha256) {
         return New-PromptResult BLOCKED 'Use autonomous preparation for a declared scope or an existing approval.'
     }
     try {
@@ -401,13 +478,56 @@ function New-CirnetWorkPromptProposal {
         $bytes = Read-PromptBytes $OriginalTask
         $lines = ConvertTo-PromptLines $bytes
         if ($lines.Length -gt 1024) { throw 'Too many original task lines.' }
-        $owner = Get-ContinuityRepository ([IO.Path]::GetFullPath($Repository, $PWD.ProviderPath))
-        $head = Get-ContinuityHead $owner
-        if (-not $head) { throw 'Owner needs a pinned HEAD.' }
+        $resolution = $null
         if ($Autonomous) {
-            Assert-NoCredential ($lines -join [char]10)
+            $request = $lines -join [char]10
+            Assert-NoCredential $request
             if ($lines -match '[\x00-\x08\x0b-\x1f\x7f]') { throw 'Invalid original task text.' }
-            return New-ScopedPromptDraft $owner $head $bytes $lines $AuthorizedScope $ReadPath $WritePath $SourcePath $Risk
+            if (-not $Repository) {
+                if (-not $Registry -and -not $NoLocalDiscovery) {
+                    $Registry = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../config/repositories.local.json'))
+                    if (-not [IO.File]::Exists($Registry)) { $NoLocalDiscovery = $true }
+                }
+                try { $resolution = Resolve-CirnetPromptOwner -Request $request -Registry $Registry -OwnerName $Owner -NoLocalDiscovery:$NoLocalDiscovery }
+                catch { return New-PreparationResult BLOCKED $_.Exception.Message }
+                if ($resolution.related.Count) {
+                    if (-not $Owner -or -not $AuthorizedScope) {
+                        return New-PreparationResult BLOCKED 'Confirm the primary owner and its effects. Related repositories need their own scope.'
+                    }
+                    $Risk = 'DEEP'
+                }
+                if (-not $AuthorizedScope) {
+                    $visible = (Get-PromptProse $lines) -join [char]10
+                    if ($visible -match '(?im)^\s*(?:[-*+]\s+)?(?:fix|edit|improve|update|correct|refactor|add|change|modify|create|write|sửa|cải thiện|cập nhật|thêm)\b') {
+                        $AuthorizedScope = 'Edit'
+                    } elseif ($visible -match '(?im)^\s*(?:[-*+]\s+)?(?:inspect|review|check|audit|explain|read|kiểm tra|rà soát|đọc)\b') {
+                        $AuthorizedScope = 'ReadOnly'
+                    } else { return New-PreparationResult BLOCKED 'Confirm whether the task requests changes or read-only inspection.' }
+                }
+            }
+        }
+        $checkout = if ($resolution) { $resolution.checkout ?? @{root=$null} }
+            else {
+                $root = if ($Repository) { $Repository } else { $PWD.ProviderPath }
+                Get-ContinuityRepository ([IO.Path]::GetFullPath($root, $PWD.ProviderPath))
+            }
+        $head = if ($checkout.root) { Get-ContinuityHead $checkout }
+        if ($checkout.root -and -not $head) { throw 'Owner needs a pinned HEAD.' }
+        if ($Autonomous) {
+            if ($Policy) {
+                if (-not $checkout.root -or $AuthorizedScope -eq 'Edit' -or $Risk -eq 'DEEP') {
+                    return New-PreparationResult BLOCKED 'Use a verified owner and obtain task approval for effects outside the recurring read policy.'
+                }
+                try { $policyPaths = @(Read-WorkPromptReadPolicy $Policy $PolicySha256 $checkout.root) }
+                catch { return New-PreparationResult BLOCKED 'Obtain a current independently pinned read policy for this checkout.' }
+                if (@($ReadPath | Where-Object { $_ -cnotin $policyPaths }).Count) {
+                    return New-PreparationResult BLOCKED 'Limit requested read paths to those approved by the recurring policy.'
+                }
+                if (-not $ReadPath.Count) { $ReadPath = $policyPaths }
+                $AuthorizedScope = 'ReadOnly'
+                $Risk = 'LIGHT'
+            }
+            return New-ScopedPromptDraft $checkout $head $bytes $lines $AuthorizedScope $ReadPath $WritePath $SourcePath $Risk $resolution -ReadPolicyChecked:([bool]$Policy)
         }
         $fields = [ordered]@{}
         $permissions = [ordered]@{}
@@ -415,10 +535,10 @@ function New-CirnetWorkPromptProposal {
         foreach ($kind in $permissionKinds) { $permissions[$kind] = @() }
         $sources = [Collections.Specialized.OrderedDictionary]::new([StringComparer]::Ordinal)
         foreach ($path in $SourcePath) {
-            $file = Resolve-PromptPath $owner.root $path
+            $file = Resolve-PromptPath $checkout.root $path
             $sources.Add($path, (Get-CirnetPayloadHash (Read-ContinuityBytes $file.FullName 1MB)))
         }
-        if ((Get-ContinuityHead $owner) -cne $head) { throw 'HEAD changed during proposal preparation.' }
+        if ((Get-ContinuityHead $checkout) -cne $head) { throw 'HEAD changed during proposal preparation.' }
         [pscustomobject]@{
             status = 'REVIEW_REQUIRED'
             diagnostics = @('Approve line mappings, permissions, checks and pins independently before validation.')
@@ -427,7 +547,7 @@ function New-CirnetWorkPromptProposal {
             })
             proposal = [ordered]@{
                 originalSha256 = Get-CirnetPayloadHash $bytes
-                repository = $owner.root; revision = $head; readiness = $Readiness; sensitive = $false
+                repository = $checkout.root; revision = $head; readiness = $Readiness; sensitive = $false
                 fields = $fields; permissions = $permissions; actions = [ordered]@{}; checks = [ordered]@{}; sources = $sources
             }
         }
@@ -472,7 +592,7 @@ function Test-CirnetWorkPromptFile {
         [Parameter(Mandatory)][string]$OriginalTask,
         [Parameter(Mandatory)][string]$Authorization,
         [Parameter(Mandatory)][string]$AuthorizationSha256,
-        [Parameter(Mandatory)][string]$Repository,
+        [Parameter(Mandatory, ParameterSetName='Validate')][Parameter(ParameterSetName='Render')][AllowEmptyString()][string]$Repository,
         [Parameter(ParameterSetName='Validate')][ValidatePattern('^[0-9a-f]{64}\z')][string]$ReviewedPromptSha256,
         [switch]$RequirePreventiveScope,
         [Parameter(ParameterSetName='Validate')][switch]$ExecutionPreflight,
@@ -513,6 +633,7 @@ function Test-CirnetWorkPromptFile {
         if ((Get-CirnetPayloadHash $bytes) -cne $record.originalSha256) { return New-PromptResult FAIL 'The original request differs from its approved digest.' }
         $task = ConvertTo-PromptLines $bytes
         $stage = 'approved repository and revision'
+        if ($RenderApproved -and -not $Repository) { $Repository = $record.repository }
         $root = Resolve-CirnetRoot ([IO.Path]::GetFullPath($Repository, $PWD.ProviderPath))
         if (-not $root.Equals($record.repository)) { return New-PromptResult FAIL 'Select the exact repository root named by the approval.' }
         $owner = Get-ContinuityRepository $root

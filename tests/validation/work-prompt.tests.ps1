@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Import-Module (Join-Path $repo 'scripts/shared/WorkPrompt.psm1')
 Import-Module (Join-Path $repo 'scripts/shared/Bundle.psm1')
+& (Join-Path $PSScriptRoot 'repository-discovery.tests.ps1')
 $fixture = (New-Item -ItemType Directory -Force -Path (Join-Path $repo ('target/work-prompt-tests/' + [guid]::NewGuid().ToString('N')))).FullName
 $original = Join-Path $fixture 'request.txt'
 $approval = Join-Path $fixture 'approval.json'
@@ -79,6 +80,10 @@ if ($approved.readiness -cne 'PROMPT_READY' -or $approved.authorizationStatus -c
 Expect PASS $approved.prompt
 if ($approved.prompt -match 'Extra formatting' -or $approved.promptSha256 -cne (Get-CirnetHash $draft)) {
     throw 'Canonical regeneration did not repair formatting while preserving approved bytes.'
+}
+$resolvedApproval = New-CirnetWorkPromptProposal -Autonomous -OriginalTask $original -Authorization $approval -AuthorizationSha256 $pin
+if ($resolvedApproval.authorizationStatus -cne 'RECORD_CHECKED' -or $resolvedApproval.prompt -cne $approved.prompt) {
+    throw 'An independently pinned approval required an extra local checkout argument.'
 }
 if ((New-CirnetWorkPromptProposal @preparation -Authorization $approval -AuthorizationSha256 ('0' * 64)).readiness -cne 'PROMPT_BLOCKED') {
     throw 'An incorrect approval pin was accepted.'

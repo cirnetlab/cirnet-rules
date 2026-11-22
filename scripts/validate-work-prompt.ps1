@@ -21,11 +21,18 @@ param(
     [Parameter(ParameterSetName='Prepare')][string[]]$ReadPath,
     [Parameter(ParameterSetName='Prepare')][string[]]$WritePath,
     [Parameter(ParameterSetName='Prepare')][ValidateSet('LIGHT','STANDARD','DEEP')][string]$Risk,
+    [Parameter(ParameterSetName='Prepare')][string]$Registry,
+    [Parameter(ParameterSetName='Prepare')][string]$Owner,
+    [Parameter(ParameterSetName='Prepare')][switch]$NoLocalDiscovery,
+    [Parameter(ParameterSetName='Prepare')][string]$Policy,
+    [Parameter(ParameterSetName='Prepare')][string]$PolicySha256,
     [string]$Repository = (Get-Location).ProviderPath
 )
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'shared/WorkPrompt.psm1')
-$PSBoundParameters['Repository'] = $Repository
+if (-not ($Prepare -and $Autonomous) -or $PSBoundParameters.ContainsKey('Repository')) {
+    $PSBoundParameters['Repository'] = $Repository
+}
 $result = if ($Prepare) {
     [void]$PSBoundParameters.Remove('Prepare')
     New-CirnetWorkPromptProposal @PSBoundParameters

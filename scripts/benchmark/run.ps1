@@ -225,7 +225,8 @@ foreach ($id in $cases) {
 $runnerHashes = [ordered]@{}
 foreach ($relative in @('scripts/benchmark/run.ps1', 'scripts/benchmark/role.ps1', 'scripts/benchmark/report.mjs',
     'scripts/benchmark/Scenarios.psm1', 'scripts/benchmark/inspect-source.mjs', 'scripts/benchmark/rtl-observer.mjs',
-    'scripts/shared/WorkPrompt.psm1', 'scripts/continuity/Repository.psm1', 'scripts/continuity/Checkpoint.psm1', 'scripts/shared/Bundle.psm1')) {
+    'scripts/shared/WorkPrompt.psm1', 'scripts/shared/RepositoryRegistry.psm1',
+    'scripts/continuity/Repository.psm1', 'scripts/continuity/Checkpoint.psm1', 'scripts/shared/Bundle.psm1')) {
     $runnerHashes[$relative] = Get-InputHash $repo $relative
 }
 

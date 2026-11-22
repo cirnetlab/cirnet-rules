@@ -21,7 +21,8 @@ Compare the draft goal, scope and acceptance against the user's requested
 action, target, transformation, outcome, constraints, negative cases and
 permissions. Restore any missing requirement before compressing. Keep this
 comparison internal. Use autonomous preparation in
-`en/docs/context.md#offline-handoff-validation` before delivery. Derive
+`en/docs/context.md#local-repository-discovery` before delivery. Include a
+verified checkout path, or give Work bounded local resolution for the known owner. Derive
 technical inputs from authorized reads and defer unknowns to Work preflight.
 Regenerate after correcting mechanical issues. Keep owner, scoped effects,
 acceptance, reporting and pending approvals visible. Have Work validate the

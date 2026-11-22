@@ -14,15 +14,15 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    tệp và symbol, phép đổi, kết quả, phạm vi, ca âm tính và quyền. Đọc lại yêu
    cầu đã cung cấp trước khi kết luận thiếu mục tiêu. Truy cập repo chỉ xác lập
    quyền đọc.
-2. **Locate Owner.** Xác định owner và ranh giới ghi/đọc. Dùng
-   `en/policies/architecture.md` và `en/references/architecture-routing.md`
-   khi cần làm rõ chủ sở hữu, consumer, contract hoặc ranh giới an toàn.
-   Đọc các mục chi phối trong toolkit được phép, một lần cho mỗi vai trò.
+2. **Locate Owner.** Dùng tên tường minh và
+   `en/references/architecture-routing.md` đã duyệt. Định vị checkout bằng
+   registry cục bộ theo `en/docs/context.md`. Xác minh quyền sở hữu chưa rõ
+   bằng bằng chứng được phép. Nếu thiếu truy cập cục bộ, chuyển owner đã xác
+   minh sang preflight có giới hạn. Giải quyết mơ hồ trước khi giao.
 3. **Select Authority/Skills.** Đọc các mục kiến trúc tiếng Anh và Rules liên
    quan. Xem metadata của các Skill hiện có, dùng `en/skills/README.md` nếu client
-   không cung cấp metadata. Chỉ đọc thân Work Skills có trigger áp dụng. Liệt kê
-   đúng tên trong Applicable Work Skills cùng trách nhiệm theo nhiệm vụ.
-   Tham chiếu workflow chung và giữ invariant mang tính quyết định.
+   không cung cấp metadata. Đọc Work Skills áp dụng. Liệt kê tên chính xác
+   và trách nhiệm. Giữ invariant mang tính quyết định.
 4. **Gather Minimum Evidence.** Xem source, contract, manifest và output lỗi của
    owner khi truy cập được. Ghi nhận định, trạng thái, vị trí nguồn và tác động
    hoặc phép kiểm tiếp theo. Dùng `CONFIRMED` cho quan sát, `INFERRED` cho giả
@@ -38,8 +38,7 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    hoặc trích đoạn đã lọc giá trị.
    Với dữ liệu bản ghi, ưu tiên inspector đã xác minh, có giới hạn, trả metadata
    cấu trúc mà không thực thi source. Đưa đúng lệnh gọi và giới hạn cho Work.
-   Dừng khảo sát khi đã có thể bàn giao an toàn. Theo quy trình khôi phục lần
-   đọc của mẫu và chuyển các kiểm soát quyền riêng tư áp dụng sang preflight.
+   Dừng khảo sát khi có thể bàn giao an toàn. Chuyển quy định riêng tư vào preflight.
 5. **Draft Adaptive Prompt.** Mở `references/chat-to-work-prompt.md` cạnh
    Skill sau khi xác minh bundle và bản cài, hoặc dùng
    `en/templates/chat-to-work-prompt.md` từ checkout được phép. Thiếu nguồn
@@ -62,10 +61,9 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    chi tiết triển khai và lệnh kiểm thử chưa biết. Chỉ dùng `PROMPT_BLOCKED`
    khi thiếu quyết định hoặc thẩm quyền thiết yếu, thao tác không an toàn hay
    xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng bước chuẩn bị
-   tự động trong `en/docs/context.md`. Suy ra đầu vào kỹ thuật từ bằng chứng
-   được phép đọc. Tạo lại một lần sau khi sửa lỗi cơ học. Giữ nguyên ý nghĩa
-   đã duyệt và chỉ nêu quyết định thiết yếu. Dùng lại phê duyệt độc lập qua
-   pin tin cậy nếu đã có.
+   tự động trong `en/docs/context.md`. Lấy đầu vào kỹ thuật từ bằng chứng được
+   phép. Tạo lại một lần để sửa lỗi cơ học. Dùng lại phê duyệt độc lập qua
+   pin tin cậy và giữ phạm vi đã duyệt.
 8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
    chép theo định dạng được yêu cầu. Nêu riêng quyền thực thi đang chờ.
    Chạy phép kiểm offline của bản đã duyệt khi Work tiếp nhận.
@@ -111,4 +109,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: 44877a4227beea8592fcea06491b08204a8cb7088cf3dcc0df236033f9bb0d70 -->
+<!-- source-sha256: b1b6001721eef80e46d0abc5da4c6ada32c527cce561fca7672204b2791e3392 -->

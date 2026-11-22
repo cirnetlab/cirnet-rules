@@ -1,4 +1,5 @@
 /target/
+/config/repositories.local.json
 /.cirnet/tasks/
 /.cnr/
 .superpowers/
