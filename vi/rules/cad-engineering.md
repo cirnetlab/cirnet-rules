@@ -96,13 +96,16 @@ Cổng kiểm tra container, cây cảnh được chọn và cấu trúc khai b�
 đổi. Với primitive đang dùng, cổng kiểm tra số lượng thuộc tính, phạm vi
 bộ đệm, stride và căn chỉnh, số thực hữu hạn, phạm vi chỉ số đã giải mã và
 các giá trị chỉ số dành riêng. Cổng đối chiếu cận POSITION và cận chỉ số đã
-khai báo với giá trị giải mã. Tổng ngân sách cho các lần quét nhị phân riêng
-là 32 MiB. Mỗi tên bắt buộc xuất hiện đúng một lần trong cảnh đã chọn.
+khai báo với giá trị giải mã. Cổng kiểm tra liên kết giữa vật liệu và texture,
+tham chiếu sampler, tập UV bắt buộc và chữ ký định dạng PNG/JPEG đã khai báo.
+Buffer view chứa ảnh dành riêng cho dữ liệu ảnh. Tổng ngân sách cho các lần
+quét hình học riêng là 32 MiB. Mỗi tên bắt buộc xuất hiện đúng một lần
+trong cảnh đã chọn.
 Báo cáo JSON dùng `PASS`/0, `FAIL`/1 hoặc `BLOCKED`/3.
 
 Dùng phép kiểm của chủ sở hữu cho chất lượng bề mặt lưới, hướng và độ dài
-pháp tuyến, kích thước thế giới, hành vi biến đổi và ngoại quan vật liệu
-hoặc texture. Các giá trị cực trị tùy chọn của tọa độ texture nằm ngoài
+pháp tuyến, kích thước thế giới, hành vi biến đổi, giải mã ảnh và ngoại quan
+vật liệu. Các giá trị cực trị tùy chọn của tọa độ texture nằm ngoài
 phép so sánh cận tĩnh. Đo bộ nhớ và số lệnh vẽ trong runtime của chủ sở hữu.
 Giữ bằng chứng CAD native, phê duyệt trực quan và bằng chứng sản phẩm riêng.
 SHA-256 đã rà soát độc lập ghim các byte. Ghi ai tạo tệp và cách chủ sở hữu
@@ -209,4 +212,4 @@ workbench, đồ thị chịu ảnh hưởng. (`tests/gltf-assets.test.ts`,
 `tests/oscilloscope.test.ts:128–173`, `e2e/assets.spec.ts`.)
 
 <!-- source: en/rules/cad-engineering.md -->
-<!-- source-sha256: d6c6daade3d5dcd3ebbe4c731d11479f95ac585625687be812d415ce647b089d -->
+<!-- source-sha256: 443bd24c5f2059fe9a946c935a80afa40142bee115c1f65f1ab2956bf86717bf -->

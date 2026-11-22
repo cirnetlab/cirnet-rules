@@ -97,12 +97,15 @@ The gate checks the container, selected scene tree and transform declaration
 shapes. For active primitives it checks attribute counts, buffer ranges,
 stride and alignment, finite float values, decoded index bounds and reserved
 index values. It compares POSITION bounds and declared index bounds with
-decoded values. Distinct binary scans have a cumulative 32 MiB budget.
+decoded values. The gate verifies material texture bindings, sampler
+references, required UV sets and declared PNG/JPEG signatures. It reserves
+image buffer views for image data. Distinct geometry scans have a cumulative
+32 MiB budget.
 Each required name must occur once in the selected scene. The JSON report
 uses `PASS`/0, `FAIL`/1 or `BLOCKED`/3.
 
 Use the owner's checks for mesh surface quality, normal direction and length,
-world dimensions, transform behavior, and texture or material appearance.
+world dimensions, transform behavior, image decoding and material appearance.
 Optional texture-coordinate extrema are outside the static bounds comparison.
 Measure memory and draw calls in the owner runtime. Keep native CAD,
 visual approval and product evidence separately. An independently reviewed

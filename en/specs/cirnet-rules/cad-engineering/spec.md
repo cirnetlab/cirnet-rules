@@ -31,6 +31,8 @@ engineering workspace UI Skill routes interaction design and testing.
    required name or exceeded reviewed budget fails within the intake domain.
    The gate checks actual finite vertex components and index values in active
    primitives, including bounds, declared POSITION extrema and buffer layout.
+   It checks texture links and UV sets used by active materials, as well as
+   embedded image signatures.
    Correct optional or required `KHR_materials_unlit` declarations are
    supported. Unavailable prerequisites, unsupported features and exceeded
    hard read or scan limits block the static intake.

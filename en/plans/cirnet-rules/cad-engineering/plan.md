@@ -68,3 +68,14 @@ text-to-cad and Interface as read-only reference checkouts.
   check found no `cad` command or matching build123d/OpenCASCADE environment.
   Geometry inspection, snapshots, STEP/GLB export, visual review and new
   Interface runtime adoption remain `NOT_RUN`.
+
+## Static material and texture checks
+
+At `bbe06d4adb805d61cfe73a47d7ffbb70dca2a1e2`, the static gate accepted
+broken texture, image, sampler and UV references. The focused regression
+exited 1 before the fix. After the fix, the CAD suite exited 0. It also
+checks image signatures against the declared PNG/JPEG type and keeps image
+buffer views separate from geometry. It reports unsupported texture
+extensions as `BLOCKED`. Both existing Interface GLBs passed with the
+owner-pinned hashes. The signature check confirms the declared format at
+the start of the embedded data. Image decoding remains an owner check.

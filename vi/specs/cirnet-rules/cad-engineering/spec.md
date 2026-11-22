@@ -30,6 +30,8 @@ sản. Skill giao diện workspace kỹ thuật điều hướng thiết kế v�
    buộc thiếu hoặc trùng, hay vượt ngân sách đã duyệt đều thất bại trong phạm
    vi tiếp nhận. Cổng kiểm tra dữ liệu đỉnh hữu hạn và giá trị chỉ số thực của
    primitive đang dùng, gồm cận, cực trị POSITION đã khai báo và bố cục bộ đệm.
+   Cổng kiểm tra liên kết texture, tập UV của vật liệu đang dùng và chữ ký
+   định dạng của ảnh nhúng.
    Hỗ trợ khai báo `KHR_materials_unlit` hợp lệ dưới dạng tùy chọn hoặc bắt buộc.
    Điều kiện tiên quyết không khả dụng, tính năng ngoài hỗ trợ hoặc vượt giới
    hạn đọc, quét cứng làm lần kiểm tra bị chặn.
@@ -45,4 +47,4 @@ lập. Bộ xác minh tĩnh gọn trong Rules cung cấp hợp đồng tiếp nh
 không tích hợp Python hay kernel CAD vào bản build Interface.
 
 <!-- source: en/specs/cirnet-rules/cad-engineering/spec.md -->
-<!-- source-sha256: 47f39cb432528a127bf114d98d87263a6240875fe60d14d5ccb5dd1034e32d6f -->
+<!-- source-sha256: b3c02ff6db7c8e81645a33ba8d58fe7fa4748c9383ecca066048f0ba4f9f129f -->

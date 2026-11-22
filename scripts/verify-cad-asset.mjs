@@ -7,6 +7,16 @@ const maximumExpectationBytes = 32 * 1024;
 const componentSizes = new Map([[5120, 1], [5121, 1], [5122, 2], [5123, 2], [5125, 4], [5126, 4]]);
 const componentCounts = new Map([['SCALAR', 1], ['VEC2', 2], ['VEC3', 3], ['VEC4', 4]]);
 const unlitExtension = 'KHR_materials_unlit';
+const imageSignatures = new Map([
+  ['image/png', Buffer.from('89504e470d0a1a0a', 'hex')],
+  ['image/jpeg', Buffer.from('ffd8ff', 'hex')],
+]);
+const samplerValues = {
+  magFilter: [9728, 9729],
+  minFilter: [9728, 9729, 9984, 9985, 9986, 9987],
+  wrapS: [33071, 33648, 10497],
+  wrapT: [33071, 33648, 10497],
+};
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const isDigest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -107,13 +117,13 @@ function getAt(items, index) {
   return items[index];
 }
 
-function readStructure(doc, binBytes) {
+function readStructure(doc, binary) {
   if (!Array.isArray(doc.buffers) || doc.buffers.length !== 1 || !Array.isArray(doc.bufferViews)) {
     invalid('expected-embedded-buffer');
   }
   const buffer = getAt(doc.buffers, 0);
   if (Object.hasOwn(buffer, 'uri') || !positive(buffer.byteLength) ||
-      buffer.byteLength > binBytes || binBytes - buffer.byteLength > 3) invalid('invalid-embedded-buffer');
+      buffer.byteLength > binary.length || binary.length - buffer.byteLength > 3) invalid('invalid-embedded-buffer');
   for (const view of doc.bufferViews) {
     if (!isObject(view)) invalid('invalid-buffer-view');
     const offset = defined(view, 'byteOffset', 0);
@@ -125,12 +135,21 @@ function readStructure(doc, binBytes) {
   }
   const images = defined(doc, 'images', []);
   if (!Array.isArray(images)) invalid('invalid-gltf-image');
+  const imageViews = new Map();
   for (const image of images) {
     if (!isObject(image) || Object.hasOwn(image, 'uri') ||
-        !['image/png', 'image/jpeg'].includes(image.mimeType)) invalid('expected-embedded-image');
-    getAt(doc.bufferViews, image.bufferView);
+        !imageSignatures.has(image.mimeType)) invalid('expected-embedded-image');
+    checkCoreTextureExtensions(image);
+    const view = getAt(doc.bufferViews, image.bufferView);
+    if (Object.hasOwn(view, 'target') || Object.hasOwn(view, 'byteStride')) invalid('invalid-image-buffer-view');
+    const offset = defined(view, 'byteOffset', 0);
+    const signature = imageSignatures.get(image.mimeType);
+    if (view.byteLength < signature.length ||
+        !binary.subarray(offset, offset + signature.length).equals(signature)) invalid('image-signature-mismatch');
+    imageViews.set(image.bufferView, { target: 'image' });
   }
   if (Object.hasOwn(doc, 'skins') || Object.hasOwn(doc, 'animations')) blocked('unsupported-gltf-profile');
+  return imageViews;
 }
 
 function readExtensions(doc) {
@@ -160,6 +179,39 @@ function readExtensions(doc) {
     foundUnlit = true;
   }
   if (used.includes(unlitExtension) && !foundUnlit) invalid('missing-unlit-material');
+}
+
+function checkCoreTextureExtensions(record) {
+  const extensions = defined(record, 'extensions', {});
+  if (!isObject(extensions)) invalid('invalid-extensions');
+  if (Object.keys(extensions).length) blocked('unsupported-texture-extension');
+}
+
+function checkMaterialTextures(doc, index, attributes) {
+  const material = getAt(doc.materials, index);
+  const pbr = defined(material, 'pbrMetallicRoughness', {});
+  if (!isObject(pbr)) invalid('invalid-pbr-material');
+  checkCoreTextureExtensions(pbr);
+  for (const [record, field] of [
+    [pbr, 'baseColorTexture'], [pbr, 'metallicRoughnessTexture'], [material, 'normalTexture'],
+    [material, 'occlusionTexture'], [material, 'emissiveTexture'],
+  ]) {
+    if (!Object.hasOwn(record, field)) continue;
+    const info = record[field];
+    if (!isObject(info)) invalid('invalid-texture-info');
+    checkCoreTextureExtensions(info);
+    const texCoord = defined(info, 'texCoord', 0);
+    if (!uint(texCoord) || !Object.hasOwn(attributes, `TEXCOORD_${texCoord}`)) invalid('invalid-texture-coordinate');
+    const texture = getAt(doc.textures, info.index);
+    checkCoreTextureExtensions(texture);
+    getAt(doc.images, texture.source);
+    if (!Object.hasOwn(texture, 'sampler')) continue;
+    const sampler = getAt(doc.samplers, texture.sampler);
+    checkCoreTextureExtensions(sampler);
+    for (const [property, values] of Object.entries(samplerValues)) {
+      if (Object.hasOwn(sampler, property) && !values.includes(sampler[property])) invalid('invalid-texture-sampler');
+    }
+  }
 }
 
 function readAccessor(doc, index, target, context) {
@@ -272,20 +324,20 @@ function countMesh(doc, mesh, context) {
       count = layout.accessor.count;
     }
     if (count % 3) invalid('incomplete-triangle');
-    if (Object.hasOwn(primitive, 'material')) getAt(doc.materials, primitive.material);
+    if (Object.hasOwn(primitive, 'material')) checkMaterialTextures(doc, primitive.material, attributes);
     triangles += count / 3;
   }
   return { triangles, primitiveInstances: mesh.primitives.length };
 }
 
-function checkScene(doc, expectation, binary) {
+function checkScene(doc, expectation, binary, views) {
   const scene = getAt(doc.scenes, defined(doc, 'scene', 0));
   if (!Array.isArray(scene.nodes) || !scene.nodes.length) invalid('missing-scene-nodes');
   const pending = [...scene.nodes];
   const visited = new Set();
   const names = new Map(expectation.requiredNodes.map(name => [name, 0]));
   const meshes = new Map();
-  const context = { binary, views: new Map(), scanned: new Map(), remaining: maximumGlbBytes };
+  const context = { binary, views, scanned: new Map(), remaining: maximumGlbBytes };
   let triangles = 0, meshNodes = 0, primitiveInstances = 0;
   while (pending.length) {
     const index = pending.pop();
@@ -337,9 +389,9 @@ function measure(args) {
   if (sha256 !== expected.sha256) invalid('asset-pin-mismatch');
   if (glb.length > expected.budgets.bytes) invalid('file-budget-exceeded');
   const { document, binary } = parseGlb(glb);
-  readStructure(document, binary.length);
+  const views = readStructure(document, binary);
   readExtensions(document);
-  return { sha256, bytes: glb.length, ...checkScene(document, expected, binary) };
+  return { sha256, bytes: glb.length, ...checkScene(document, expected, binary, views) };
 }
 
 const report = { schemaVersion: 1, scope: 'static-glb-intake', status: 'BLOCKED', reason: '', metrics: null };

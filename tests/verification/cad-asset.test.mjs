@@ -175,6 +175,53 @@ test('checks finite UV values without interpreting optional texture bounds', t =
   assert.equal(run(make(true)).status, 'FAIL');
 });
 
+test('checks active material texture bindings and embedded image signatures', async t => {
+  const { run } = fixture(t);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jP1sAAAAASUVORK5CYII=', 'base64');
+  const make = (edit = () => {}, image = png) => candidate(doc => {
+    doc.buffers[0].byteLength = 68 + image.length;
+    doc.bufferViews.push({ buffer: 0, byteOffset: 44, byteLength: 24 },
+      { buffer: 0, byteOffset: 68, byteLength: image.length });
+    doc.accessors.push({ bufferView: 2, componentType: 5126, count: 3, type: 'VEC2' });
+    doc.images = [{ bufferView: 3, mimeType: 'image/png' }];
+    doc.samplers = [{}];
+    doc.textures = [{ source: 0, sampler: 0 }];
+    doc.materials = [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }];
+    const primitive = doc.meshes[0].primitives[0];
+    primitive.attributes.TEXCOORD_0 = 2;
+    primitive.material = 0;
+    edit(doc, primitive);
+  }, binary => {
+    writeTriangle(binary);
+    image.copy(binary, 68);
+  }, Math.ceil((68 + image.length) / 4) * 4);
+  assert.equal(run(make()).status, 'PASS');
+  assert.equal(run(make((doc, primitive) => {
+    primitive.attributes.TEXCOORD_1 = 2;
+    doc.materials[0].pbrMetallicRoughness.baseColorTexture.texCoord = 1;
+    delete doc.textures[0].sampler;
+  })).status, 'PASS');
+  assert.equal(run(make(doc => { doc.images[0].mimeType = 'image/jpeg'; },
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).status, 'PASS');
+  for (const [name, edit] of Object.entries({
+    'missing texture': doc => { doc.materials[0].pbrMetallicRoughness.baseColorTexture.index = 5; },
+    'missing source image': doc => { doc.textures[0].source = 5; },
+    'missing sampler': doc => { doc.textures[0].sampler = 5; },
+    'invalid sampler enum': doc => { doc.samplers[0].magFilter = 9987; },
+    'missing default UV': (_doc, primitive) => { delete primitive.attributes.TEXCOORD_0; },
+    'missing explicit UV': doc => { doc.materials[0].normalTexture = { index: 0, texCoord: 1 }; },
+    'invalid UV declaration': doc => { doc.materials[0].pbrMetallicRoughness.baseColorTexture.texCoord = null; },
+    'invalid PBR declaration': doc => { doc.materials[0].pbrMetallicRoughness = null; },
+    'embedded image view marked as geometry': doc => { doc.bufferViews[3].target = 34962; },
+    'geometry reuses the embedded image view': doc => { doc.accessors[2].bufferView = 3; },
+    'mismatched image MIME': doc => { doc.images[0].mimeType = 'image/jpeg'; },
+  })) await t.test(name, () => assert.equal(run(make(edit)).status, 'FAIL'));
+  assert.equal(run(make(doc => {
+    doc.materials[0].pbrMetallicRoughness.baseColorTexture.extensions = { KHR_texture_transform: {} };
+  })).status, 'BLOCKED');
+  assert.equal(run(make(undefined, Buffer.alloc(png.length))).status, 'FAIL');
+});
+
 test('requires four-byte element alignment for normalized short vertex layouts', t => {
   const { run } = fixture(t);
   const make = padded => candidate(doc => {

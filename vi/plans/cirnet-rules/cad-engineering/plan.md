@@ -69,5 +69,15 @@ và Interface là checkout tham chiếu chỉ đọc.
   Kiểm tra hình học, chụp ảnh, xuất STEP/GLB, rà soát trực quan và tiếp nhận
   mới trong runtime Interface giữ `NOT_RUN`.
 
+## Kiểm tra tĩnh vật liệu và texture
+
+Tại `bbe06d4adb805d61cfe73a47d7ffbb70dca2a1e2`, cổng tĩnh chấp nhận tham
+chiếu texture, ảnh, sampler và UV bị hỏng. Hồi quy tập trung thoát 1 trước
+khi sửa. Sau khi sửa, suite CAD thoát 0. Suite cũng đối chiếu chữ ký ảnh
+với định dạng PNG/JPEG đã khai báo và tách buffer view ảnh khỏi hình học.
+Extension texture ngoài hỗ trợ trả `BLOCKED`. Cả hai GLB Interface hiện có
+đều qua với hash do chủ sở hữu ghim. Kiểm tra chữ ký xác nhận định dạng
+ở đầu dữ liệu nhúng. Giải mã ảnh thuộc phép kiểm của chủ sở hữu.
+
 <!-- source: en/plans/cirnet-rules/cad-engineering/plan.md -->
-<!-- source-sha256: f2c995f62003317cb6f92e11073735e0c0c3466576489d78a87e5fe8cde77d36 -->
+<!-- source-sha256: 71084c9509f4206bcb6ef9a9711a8906ddfa43d3260e79f394ddf4a744b899da -->
