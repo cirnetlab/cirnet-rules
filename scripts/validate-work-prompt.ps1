@@ -3,11 +3,11 @@
 param(
     [Parameter(Mandatory, ParameterSetName='Validate')][string]$Prompt,
     [Parameter(Mandatory)][string]$OriginalTask,
-    [Parameter(Mandatory, ParameterSetName='Validate')][string]$Authorization,
-    [Parameter(Mandatory, ParameterSetName='Validate')][string]$AuthorizationSha256,
+    [Parameter(Mandatory, ParameterSetName='Validate')][Parameter(ParameterSetName='Prepare')][string]$Authorization,
+    [Parameter(Mandatory, ParameterSetName='Validate')][Parameter(ParameterSetName='Prepare')][string]$AuthorizationSha256,
     [Parameter(ParameterSetName='Validate')]
     [ValidatePattern('^[0-9a-f]{64}\z')][string]$ReviewedPromptSha256,
-    [Parameter(ParameterSetName='Validate')][switch]$RequirePreventiveScope,
+    [switch]$RequirePreventiveScope,
     [Parameter(ParameterSetName='Validate')][switch]$ExecutionPreflight,
     [Parameter(ParameterSetName='Validate')][switch]$CaptureScope,
     [Parameter(ParameterSetName='Validate')][string]$ScopeSnapshot,
@@ -16,6 +16,11 @@ param(
     [Parameter(ParameterSetName='Prepare')][string[]]$SourcePath,
     [Parameter(ParameterSetName='Prepare')][switch]$Sensitive,
     [Parameter(ParameterSetName='Prepare')][ValidateSet('PROMPT_READY','PROMPT_BLOCKED')][string]$Readiness,
+    [Parameter(ParameterSetName='Prepare')][switch]$Autonomous,
+    [Parameter(ParameterSetName='Prepare')][ValidateSet('ReadOnly','Edit')][string]$AuthorizedScope,
+    [Parameter(ParameterSetName='Prepare')][string[]]$ReadPath,
+    [Parameter(ParameterSetName='Prepare')][string[]]$WritePath,
+    [Parameter(ParameterSetName='Prepare')][ValidateSet('LIGHT','STANDARD','DEEP')][string]$Risk,
     [string]$Repository = (Get-Location).ProviderPath
 )
 $ErrorActionPreference = 'Stop'

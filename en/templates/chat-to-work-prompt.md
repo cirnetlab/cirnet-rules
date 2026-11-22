@@ -20,10 +20,12 @@ handoff. Each fact, constraint and criterion belongs in one place.
 Compare the draft goal, scope and acceptance against the user's requested
 action, target, transformation, outcome, constraints, negative cases and
 permissions. Restore any missing requirement before compressing. Keep this
-comparison internal. Before delivery and again at intake, apply the
-offline handoff check in `en/docs/context.md#offline-handoff-validation` to the exact draft.
-Keep the approved owner, action effects, acceptance and reporting instructions
-visible. Have Work pass the execution intake gate before acting. Include a
+comparison internal. Use autonomous preparation in
+`en/docs/context.md#offline-handoff-validation` before delivery. Derive
+technical inputs from authorized reads and defer unknowns to Work preflight.
+Regenerate after correcting mechanical issues. Keep owner, scoped effects,
+acceptance, reporting and pending approvals visible. Have Work validate the
+independently approved handoff and pass execution intake before acting. Include a
 pinned baseline and require reconciliation for potentially mutating Work.
 
 ### Choose detail by task
@@ -168,7 +170,7 @@ for an actionable handoff or `PROMPT_BLOCKED` for missing essential authority.
 The handoff conveys the user's granted scope. Work supplies fresh evidence for
 `IMPLEMENTATION_VERIFIED`.
 
-Before handing off, manually review completeness, accessibility and repetition.
+Before handing off, review completeness, accessibility and repetition.
 Expand missing critical detail or block the dependent task. Return only the
 finished task-specific handoff and readiness status, without template directions
 or a repeated generic Inspect → Plan → Implement → Test → Report sequence.

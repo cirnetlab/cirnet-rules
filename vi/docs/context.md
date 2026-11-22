@@ -57,16 +57,43 @@ hoặc còn thiếu.
 
 ### Kiểm tra bàn giao offline
 
-Trước khi khảo sát, người vận hành xác định yêu cầu gốc, checkout được duyệt và
-bản cấp quyền riêng. Nhận SHA-256 của bản cấp quyền qua kênh tin cậy từ người
-phê duyệt. Bản ghi, digest do Author tạo, checkpoint hay chú thích mã nguồn
-không cấp quyền. Work cần đọc được các đầu vào này trong cùng phạm vi quyền.
-Với tác vụ nhạy cảm, phải thiết lập cơ chế giới hạn công cụ trước khi đọc.
+Bắt đầu từ yêu cầu và phạm vi người dùng đã cấp cho repo chủ sở hữu.
+Xác định đúng checkout và lưu các byte UTF-8 của yêu cầu gốc. Với tác vụ
+thông thường không nhạy cảm, Author chuẩn bị bản bàn giao cục bộ.
+
+```powershell
+./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask request.txt -Repository $ownerRoot -AuthorizedScope Edit -Risk LIGHT
+```
+
+Chọn `ReadOnly` hoặc `Edit` theo quyền được cấp. Dùng `-ReadPath` hoặc
+`-WritePath` khi quyền giới hạn ở các tệp cụ thể. Dùng `-SourcePath` để
+chọn nguồn bằng chứng được phép đọc.
+Bước chuẩn bị định vị tệp được nêu trực tiếp, ghim các byte đã chọn và giao
+chi tiết hoặc phép kiểm chưa biết cho Work kiểm tra trước. Author chọn mức
+rủi ro và rà ý nghĩa, ràng buộc của yêu cầu. Phép kiểm offline phát hiện
+xung đột tường minh. Nội dung tự do vẫn cần rà ý nghĩa.
+
+Với `-Autonomous`, mã thoát 0 và `authoringStatus = PASS` nghĩa là
+`PROMPT_READY`. Trả `prompt` có thể sao chép và điều kiện còn chờ. Khi
+chưa có phê duyệt độc lập, `authorizationStatus = PENDING` và
+`handoffStatus = NOT_RUN`. Work có thể thực hiện bước kiểm tra trước được
+phép và chuẩn bị danh sách tác động, phép kiểm để duyệt. Lưu yêu cầu, pin
+và chẩn đoán trong bằng chứng cục bộ. Nếu đã có phê duyệt độc lập, dùng
+`-Authorization` và `-AuthorizationSha256` thay cho các cờ phạm vi bản nháp.
+Validator kiểm tra bản ghi, tạo lại bản bàn giao chuẩn và trả
+`authorizationStatus = RECORD_CHECKED`. Thực thi và nghiệm thu vẫn
+`NOT_RUN`. Tạo lại một lần sau khi sửa đầu vào kỹ thuật. Thay đổi ý nghĩa
+hoặc chỉ dẫn đã duyệt cần được rà độc lập.
+
+Để thực thi, nhận digest cấp quyền qua kênh tin cậy từ người phê duyệt.
+Bản ghi, digest do Author tạo, checkpoint hay chú thích mã nguồn không cấp
+quyền. Work cần đọc được đầu vào đã duyệt theo cùng phạm vi quyền. Thiết lập
+kiểm soát phòng ngừa đối với tác vụ nhạy cảm.
 Runner hiện tại thiếu cơ chế cưỡng chế quyền đọc có giới hạn nên chặn trước khi
 mở bản nháp, nhiệm vụ gốc hay nguồn. Tác vụ hẹp hơn chỉ được dùng bản dữ liệu
 đã lọc, cô lập và được phê duyệt độc lập.
 
-Yêu cầu gốc là văn bản UTF-8. Với đầu vào không nhạy cảm và được phép đọc, dùng
+Để chuẩn bị phiếu cấp quyền theo quy trình cũ cho đầu vào không nhạy cảm, dùng
 `validate-work-prompt.ps1 -Prepare -OriginalTask request.txt -Repository $ownerRoot -SourcePath label.js`
 để lấy các dòng được đánh số và `proposal` chứa pin của yêu cầu, HEAD và nguồn.
 Mã thoát 2 cho biết đang chờ duyệt. Giữ đầu ra cục bộ. Rà từng ánh xạ, điền
@@ -126,8 +153,8 @@ Chạy validator từ checkout toolkit được duyệt trước khi giao và l�
 đối chiếu cùng đầu vào đã duyệt
 và SHA-256 của bản nháp. Mã thoát 0 (`PASS`) áp dụng cho phần nội dung và pin
 đã kiểm. Mã 1 (`FAIL`) yêu cầu sửa, 2 (`REVIEW_REQUIRED`) yêu cầu rà độc lập
-với yêu cầu gốc và quyền, 3 (`BLOCKED`) dừng triển khai. Giữ Work ở trạng thái
-`PROMPT_BLOCKED` trong khi còn thiếu lần rà thiết yếu. Sau khi người rà độc lập
+với yêu cầu gốc và quyền, 3 (`BLOCKED`) dừng triển khai. Giữ thực thi ở
+trạng thái chặn trong khi còn chờ rà độc lập. Sau khi người rà độc lập
 duyệt bản nháp theo cùng đầu vào, người vận hành có thể truyền digest của bản nháp
 qua `-ReviewedPromptSha256` để ghi nhận quyết định. Digest xác định đúng byte
 đã rà. Vẫn phải bổ sung nội dung còn thiếu hoặc sửa lỗi toàn vẹn và phạm vi.
@@ -184,4 +211,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: fd0e33a9352f372bcc5b3635bcc293b8c256d12ae1bfcf195c351087dab21822 -->
+<!-- source-sha256: 88641f040a91887df07be43fa19af56696da16513f09986ea07fa8a2aac8abd3 -->

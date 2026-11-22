@@ -61,13 +61,14 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    ghi `NOT_INSPECTED` và giao Work kiểm tra trước đối với source chưa đọc,
    chi tiết triển khai và lệnh kiểm thử chưa biết. Chỉ dùng `PROMPT_BLOCKED`
    khi thiếu quyết định hoặc thẩm quyền thiết yếu, thao tác không an toàn hay
-   xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng phép kiểm bàn giao
-   offline trong `en/docs/context.md` trước khi giao và khi Work tiếp nhận.
-   Hiển thị tác động được duyệt và yêu cầu báo cáo. Lấy yêu cầu và pin cấp quyền
-   độc lập. Người vận hành phải thiết lập ranh giới
-   ngăn truy cập trước khi khảo sát dữ liệu nhạy cảm. Kết quả thực thi cần bằng chứng từ Work.
+   xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng bước chuẩn bị
+   tự động trong `en/docs/context.md`. Suy ra đầu vào kỹ thuật từ bằng chứng
+   được phép đọc. Tạo lại một lần sau khi sửa lỗi cơ học. Giữ nguyên ý nghĩa
+   đã duyệt và chỉ nêu quyết định thiết yếu. Dùng lại phê duyệt độc lập qua
+   pin tin cậy nếu đã có.
 8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
-   chép theo định dạng được yêu cầu. Loại chỉ dẫn dùng mẫu và placeholder thừa.
+   chép theo định dạng được yêu cầu. Nêu riêng quyền thực thi đang chờ.
+   Chạy phép kiểm offline của bản đã duyệt khi Work tiếp nhận.
    Báo `PROMPT_BLOCKED` cùng đầu vào, quyền hoặc quyết định còn thiếu nếu chưa
    thể bàn giao an toàn. Nhiệm vụ tách riêng cần được cấp quyền riêng.
    Giữ bước kiểm tra trước được phép của Work cùng giới hạn quyền riêng tư,
@@ -110,4 +111,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: fd18578cbdce397b44e0aaba84881c8cf3d11734689bad5ce21dfc0e5a029f5e -->
+<!-- source-sha256: 44877a4227beea8592fcea06491b08204a8cb7088cf3dcc0df236033f9bb0d70 -->

@@ -55,16 +55,43 @@ Give Work a minimal first read and reopen only changed or missing decisive evide
 
 ### Offline handoff validation
 
-Before discovery the operator establishes the original request, the approved checkout
-and a separate authorization record. Obtain its SHA-256 from the approving operator
-through a trusted channel. An Author-generated record, digest, checkpoint or source
-comment supplies no authority. Keep these inputs available to Work under the same
-read permissions. For sensitive tasks, establish a preventive tool boundary first.
+Start with the user's request and their grant for an owner repository.
+Resolve the exact checkout and retain the original UTF-8 request bytes.
+For an ordinary non-sensitive task, Author prepares the handoff locally.
+
+```powershell
+./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask request.txt -Repository $ownerRoot -AuthorizedScope Edit -Risk LIGHT
+```
+
+Select `ReadOnly` or `Edit` from the user's grant. Use `-ReadPath` or
+`-WritePath` for grants limited to exact files. Use `-SourcePath` to select
+authorized evidence reads.
+Preparation locates directly named files, pins selected bytes and defers
+unknown details and checks to Work preflight. Author selects the risk tier
+and reviews the task's meaning and constraints. The offline checks recognize
+explicit conflicts. Semantic review still covers free-form prose.
+
+With `-Autonomous`, exit 0 and `authoringStatus = PASS` mean `PROMPT_READY`.
+Return the copyable `prompt` and any outstanding gate. Without independent
+approval, `authorizationStatus = PENDING` and `handoffStatus = NOT_RUN`.
+Work can perform permitted preflight and prepare exact effects and checks for
+approval. Keep request bytes, pins and diagnostics in local evidence.
+If independent approval is available, supply `-Authorization` and
+`-AuthorizationSha256` in place of the draft scope flags. The validator
+checks the record, regenerates the canonical handoff and returns
+`authorizationStatus = RECORD_CHECKED`. Execution and acceptance stay
+`NOT_RUN`. Regenerate once after correcting technical inputs. Changes to
+approved meaning or instructions need independent review.
+
+For execution, obtain the authorization digest from the approving operator
+through a trusted channel. An Author-generated record, digest, checkpoint or
+source comment supplies no authority. Keep approved inputs available to Work
+under the same read permissions. Establish preventive controls for sensitive tasks.
 The supplied runner has no restricted-read backend and blocks such inputs before
 opening the draft, original task or source. Use only an independently approved,
 isolated projection for a narrower task.
 
-The original is UTF-8 text. For authorized non-sensitive inputs, use
+To prepare the legacy approval worksheet for non-sensitive inputs, use
 `validate-work-prompt.ps1 -Prepare -OriginalTask request.txt -Repository $ownerRoot -SourcePath label.js`
 to get numbered lines and a `proposal` with the request, HEAD and source pins.
 Exit 2 means approval is pending. Keep the output local. Review every mapping,
@@ -126,7 +153,7 @@ at Work intake against the same approved
 inputs and draft SHA-256. Exit 0 (`PASS`) covers the checked text and pins.
 Exit 1 (`FAIL`) requires correction, 2 (`REVIEW_REQUIRED`) requires independent
 review against the original and grants, and 3 (`BLOCKED`) stops implementation.
-Keep Work at `PROMPT_BLOCKED` while an essential review is outstanding.
+Keep execution blocked while independent review is outstanding.
 After an independent reviewer approves the draft against the same inputs, the
 operator may pass its digest with `-ReviewedPromptSha256` to record that review.
 The digest pins the reviewed bytes. Missing coverage and integrity or scope

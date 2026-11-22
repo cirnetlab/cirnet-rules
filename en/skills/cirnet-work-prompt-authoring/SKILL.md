@@ -62,13 +62,13 @@ checkout, branch, instructions, permissions and evidence before implementation.
    preflight for unread source, unknown implementation details and test commands.
    Reserve `PROMPT_BLOCKED` for an indispensable missing decision, authority,
    unsafe operation or unresolved conflict that prevents a safe handoff.
-   Use the offline handoff check in `en/docs/context.md` before delivery and at
-   Work intake. Keep the approved effects and reporting requirements visible.
-   Obtain the request and approval pin independently. Have the
-   operator establish a preventive boundary before sensitive discovery.
-   Execution results require Work's actual evidence.
+   Use autonomous preparation in `en/docs/context.md`. Derive technical
+   inputs from authorized evidence. Regenerate once after correcting mechanical
+   issues. Preserve approved meaning and surface only essential decisions.
+   Reuse independent approval through its trusted pin when available.
 8. **Hand Off.** Return `PROMPT_READY` and one complete copyable Work Prompt in
-   the requested format. Exclude template instructions and unused placeholders.
+   the requested format. State pending execution approval separately.
+   Run the approved offline validation at Work intake.
    Report `PROMPT_BLOCKED` with the missing input, permission or decision when a
    safe handoff is unavailable. A separable task needs its own authorization.
    Include Work's permitted preflight and task-specific privacy, safety and read
