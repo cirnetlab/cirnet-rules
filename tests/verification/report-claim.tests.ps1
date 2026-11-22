@@ -38,12 +38,13 @@ function Invoke-FixtureGit([string[]]$Arguments, [string]$Checkout = $worktree) 
     if ($LASTEXITCODE -ne 0) { throw 'Fixture Git operation failed.' }
 }
 
-function Invoke-ClaimCheck($Rows, [int]$ExpectedExit, $Review, [switch]$NoOutput, [switch]$Unbound) {
+function Invoke-ClaimCheck($Rows, [int]$ExpectedExit, $Review, [switch]$NoOutput, [switch]$Unbound,
+        [string]$VerifierRepository = $worktree, [string]$VerifierPath = $verifier) {
     $planPin = Write-Json '.local/expectation.json' $plan
     $observationPin = Write-Json '.local/observation.json' @{
         schemaVersion = 1; expectationSha256 = $planPin; stages = $Rows
     }
-    $nativeArguments = @('-NoProfile', '-NonInteractive', '-File', $verifier, '-Repository', $worktree,
+    $nativeArguments = @('-NoProfile', '-NonInteractive', '-File', $VerifierPath, '-Repository', $VerifierRepository,
         '-ExpectationPath', '.local/expectation.json', '-ExpectationSha256', $planPin,
         '-ObservationPath', '.local/observation.json', '-ObservationSha256', $observationPin)
     $inputs = @('scripts/verify-claim.ps1', '.local/expectation.json', '.local/observation.json', $inputRelative)
@@ -176,6 +177,15 @@ Check the process observation and verifier output together.
             $result.claim.stages[1].status -cne 'SKIPPED' -or $result.claim.executionVerified) {
             throw 'The report did not preserve the measured exit and scoped claim outcome.'
         }
+    }
+
+    $repositoryWithSeparator = $worktree + [IO.Path]::DirectorySeparatorChar
+    $id = Invoke-ClaimCheck @($pass, $optionalSkip) 0 -VerifierRepository $repositoryWithSeparator
+    $null = Read-ClaimReport $id 0 VALIDATED
+    if ($IsWindows) {
+        $verifierWithSlashes = $verifier.Replace([IO.Path]::DirectorySeparatorChar, '/')
+        $id = Invoke-ClaimCheck @($pass, $optionalSkip) 0 -VerifierPath $verifierWithSlashes
+        $null = Read-ClaimReport $id 0 VALIDATED
     }
 
     $id = Invoke-ClaimCheck @($pass, $optionalSkip) 0

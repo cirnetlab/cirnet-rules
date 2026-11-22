@@ -393,7 +393,8 @@ try {
             $verifier = Join-Path $PSScriptRoot 'verify-claim.ps1'
             if ($measurement.phase -cne 'running' -or [IO.Path]::GetFileName($measurement.toolPath) -inotmatch '^pwsh(?:\.exe)?\z' -or
                 $Arguments.Count -lt 4 -or $Arguments[0] -ine '-NoProfile' -or $Arguments[1] -ine '-NonInteractive' -or
-                $Arguments[2] -ine '-File' -or $Arguments[3] -cne $verifier) {
+                $Arguments[2] -ine '-File' -or ![IO.Path]::IsPathFullyQualified($Arguments[3]) -or
+                $Arguments[3].Replace([IO.Path]::AltDirectorySeparatorChar, [IO.Path]::DirectorySeparatorChar) -cne $verifier) {
                 throw 'Capture requires direct execution of the approved claim verifier.'
             }
             $destination = Resolve-ContinuityFile $checkout.root $ClaimOutputPath

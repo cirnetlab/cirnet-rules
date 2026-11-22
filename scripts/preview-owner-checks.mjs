@@ -173,15 +173,18 @@ function cmakeChecks(source) {
   }
   const checks = [];
   let referencesPending = Boolean(data.include?.length);
-  for (const kind of ['configure', 'build', 'test', 'workflow']) {
+  const tools = { configure: 'cmake', build: 'cmake', test: 'ctest', package: 'cpack', workflow: 'cmake' };
+  for (const [kind, tool] of Object.entries(tools)) {
     const presets = data[kind + 'Presets'] ?? [];
     if (!Array.isArray(presets)) throw new PreviewError('Expected CMake preset arrays.');
     for (const preset of presets) {
       assertNamed(preset?.name);
-      referencesPending ||= Boolean(preset.inherits || preset.configurePreset);
+      referencesPending ||= Boolean(preset.inherits || preset.configurePreset ||
+        (kind === 'workflow' && preset.steps?.length));
       if (preset.hidden === true) continue;
-      checks.push(candidate('cmake:' + kind + ':' + preset.name, kind === 'test' ? 'ctest' : 'cmake',
-        'may configure or build artifacts, run tests or start dependent preset steps'));
+      const effect = kind === 'package' ? 'may create packages or run packaging scripts' :
+        'may configure or build artifacts, run tests or start dependent preset steps';
+      checks.push(candidate('cmake:' + kind + ':' + preset.name, tool, effect));
     }
   }
   return { checks, referencesPending };

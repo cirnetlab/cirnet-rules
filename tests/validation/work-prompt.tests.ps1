@@ -59,6 +59,27 @@ function Expect([string]$Expected, [string]$Text, [string]$Pin = $pin) {
 Expect PASS ($body.Replace($pin,$examplePin)) $examplePin
 $pin = Save-Approval
 Expect PASS $body
+$bom = [string][char]0xfeff
+Expect PASS ($bom + $body)
+Expect FAIL ($bom + $bom + $body)
+$plainOriginal = [IO.File]::ReadAllBytes($original)
+try {
+    [IO.File]::WriteAllText($original, [Text.Encoding]::UTF8.GetString($plainOriginal), [Text.UTF8Encoding]::new($true))
+    Expect FAIL $body
+    $record.originalSha256 = Get-CirnetHash $original
+    $proposal = New-CirnetWorkPromptProposal -OriginalTask $original -Repository $repo
+    if ($proposal.status -cne 'REVIEW_REQUIRED' -or $proposal.lines[0].text -cne $goal -or
+        $proposal.proposal.originalSha256 -cne $record.originalSha256) {
+        throw 'A UTF-8 signature must leave the task content intact and remain in the byte digest.'
+    }
+    $bomPin = Save-Approval
+    Expect PASS ($bom + $body.Replace($taskHash, $record.originalSha256).Replace($pin, $bomPin)) $bomPin
+}
+finally {
+    [IO.File]::WriteAllBytes($original, $plainOriginal)
+    $record.originalSha256 = $taskHash
+    $null = Save-Approval
+}
 Expect FAIL ($body.Replace($constraints, ''))
 Expect FAIL ($body.Replace('Replace the trimAlias call in formatLabel with string trim.', 'Use native trimming inside formatLabel.'))
 Expect FAIL ($body.Replace('Verify Task#3: test: node --test', ''))

@@ -104,6 +104,41 @@ test('previews explicitly selected checks from npm, Cargo, CMake and an RTL scri
   assert.equal(report.sources.find(source => source.path === 'CMakePresets.json').referencesPending, true);
 });
 
+test('previews visible CMake package presets as CPack checks', t => {
+  const root = fixture(t);
+  writeFileSync(join(root, 'CMakePresets.json'), JSON.stringify({
+    version: 6,
+    configurePresets: [{ name: 'local', binaryDir: '${sourceDir}/build' }],
+    packagePresets: [
+      { name: 'base', hidden: true, generators: ['ZIP'] },
+      { name: 'local', inherits: 'base', configurePreset: 'local' },
+    ],
+  }));
+
+  const result = preview(root, '--manifest', 'CMakePresets.json', '--select', 'cmake:package:local');
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.executionStatus, 'NOT_RUN');
+  const packagePresets = report.checks.filter(check => check.id.startsWith('cmake:package:'));
+  assert.deepEqual(packagePresets.map(({ id, tool, selected }) => ({ id, tool, selected })), [
+    { id: 'cmake:package:local', tool: 'cpack', selected: true },
+  ]);
+  assert.ok(packagePresets[0].potentialEffects.some(effect => effect.includes('packages')));
+});
+
+test('reports preset references in local CMake workflow steps', t => {
+  const root = fixture(t);
+  writeFileSync(join(root, 'CMakePresets.json'), JSON.stringify({
+    version: 6,
+    configurePresets: [{ name: 'local', binaryDir: '${sourceDir}/build' }],
+    workflowPresets: [{ name: 'local', steps: [{ type: 'configure', name: 'local' }] }],
+  }));
+
+  const result = preview(root, '--manifest', 'CMakePresets.json', '--select', 'cmake:workflow:local');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).sources[0].referencesPending, true);
+});
+
 test('rejects traversal, unrecognized source types, oversized inputs and unknown check selections', t => {
   const root = fixture(t);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'tool test' } }));

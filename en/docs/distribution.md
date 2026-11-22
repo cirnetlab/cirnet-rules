@@ -287,14 +287,17 @@ node scripts/preview-owner-checks.mjs --root $approvedRoot --manifest package.js
 ```
 
 Pass the absolute owner root and exact relative manifest paths. Supported inputs
-are npm scripts in `package.json`, explicit named Cargo targets in `Cargo.toml`,
-local visible presets in `CMakePresets.json`, and an owner-nominated script via
-`--rtl scripts/check-rtl.ps1`. The preview records source hashes, candidate IDs,
-selection and potential effects. It leaves execution `NOT_RUN`, prerequisites
-`NOT_CHECKED` and authorization `NOT_GRANTED_BY_PREVIEW`. Review lifecycle
-hooks, includes, inherited settings, dependencies and actual effects with the
-owner. Undeclared targets and workflows outside these formats need owner
-discovery. Choose tests because they cover changed requirements or dependencies.
+are npm scripts in `package.json`, explicit Cargo targets with a literal `name`
+in a `Cargo.toml` that uses single-line strings, visible configure, build, test,
+package and workflow presets in `CMakePresets.json`, and an owner-nominated
+script via `--rtl scripts/check-rtl.ps1`. The preview records source hashes,
+candidate IDs, selection and potential effects. It leaves execution `NOT_RUN`,
+prerequisites `NOT_CHECKED` and authorization `NOT_GRANTED_BY_PREVIEW`. Review
+lifecycle hooks, includes, inherited settings, workflow steps, dependencies and
+actual effects with the owner. Use the owner guide to discover implicit Cargo
+targets, targets in manifests with multiline strings and workflows outside the
+supported formats. Choose tests because they cover changed requirements or
+dependencies.
 
 #### From selection to a reviewed claim
 

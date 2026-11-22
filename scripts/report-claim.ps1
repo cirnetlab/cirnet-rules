@@ -84,7 +84,7 @@ function Get-VerifierInvocation($Check, $Status) {
         if (!$options.ContainsKey($key)) { throw 'Missing verifier parameter.' }
     }
     if (![IO.Path]::IsPathFullyQualified($options['-Repository']) -or
-        ![string]::Equals([IO.Path]::GetFullPath($options['-Repository']), $checkout.root, $pathComparison) -or
+        ![string]::Equals((Resolve-CirnetRoot -Path $options['-Repository']), $checkout.root, $pathComparison) -or
         $options['-ExpectationSha256'] -cnotmatch $digestPattern -or $options['-ObservationSha256'] -cnotmatch $digestPattern -or
         $measurement.inputs[$options['-ExpectationPath']] -cne $options['-ExpectationSha256'] -or
         $measurement.inputs[$options['-ObservationPath']] -cne $options['-ObservationSha256']) {

@@ -512,12 +512,9 @@ function Save-ContinuityCheckpoint([string]$Store, $State, [string]$Task, [strin
             $priorBytes = Read-ContinuityBytes $current 4096
             $prior = Read-CheckpointPayload $Store (ConvertFrom-ContinuityJson $priorBytes -UniqueProperties) $State.taskId
             if ($prior.State.taskKey -cne $State.taskKey) { throw 'Task identity changed during publication.' }
-            $backup = $candidate + '.prior'
-            Write-ContinuityNewFile $backup $priorBytes
-            try { [IO.File]::Move($backup, $previous, $true) }
-            finally { [IO.File]::Delete($backup) }
+            [IO.File]::Replace($candidate, $current, $previous)
         }
-        [IO.File]::Move($candidate, $current, $true)
+        else { [IO.File]::Move($candidate, $current) }
     }
     finally { [IO.File]::Delete($candidate) }
     $confirmed

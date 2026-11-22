@@ -283,16 +283,17 @@ node scripts/preview-owner-checks.mjs --root $approvedRoot --manifest package.js
 ```
 
 Truyền đường dẫn tuyệt đối tới thư mục gốc của chủ sở hữu và đường dẫn manifest
-tương đối chính xác. Đầu vào hỗ trợ gồm script npm
-trong `package.json`, target Cargo có tên khai báo rõ trong `Cargo.toml`,
-preset cục bộ hiển thị trong `CMakePresets.json`, và script RTL do chủ sở
-hữu chỉ định qua `--rtl scripts/check-rtl.ps1`. Bản xem trước ghi hash nguồn,
-ID ứng viên, lựa chọn và tác dụng có thể có. Trạng thái thực thi là
-`NOT_RUN`, điều kiện tiên quyết là `NOT_CHECKED` và quyền là
-`NOT_GRANTED_BY_PREVIEW`. Cùng chủ sở hữu kiểm tra lifecycle hook, include,
-cấu hình kế thừa, phụ thuộc và tác dụng thực tế. Với target chưa khai báo
-và quy trình ngoài các định dạng này, dùng cách khám phá của chủ sở hữu.
-Chọn test dựa trên yêu cầu hoặc phụ thuộc bị thay đổi.
+tương đối chính xác. Đầu vào hỗ trợ gồm script npm trong `package.json`,
+target Cargo có giá trị `name` khai báo trực tiếp trong `Cargo.toml` dùng
+chuỗi một dòng, các preset configure, build, test, package và workflow hiển thị
+trong `CMakePresets.json`, và script RTL do chủ sở hữu chỉ định qua
+`--rtl scripts/check-rtl.ps1`. Bản xem trước ghi hash nguồn, ID ứng viên, lựa
+chọn và tác dụng có thể có. Trạng thái thực thi là `NOT_RUN`, điều kiện tiên
+quyết là `NOT_CHECKED` và quyền là `NOT_GRANTED_BY_PREVIEW`. Cùng chủ sở hữu
+kiểm tra lifecycle hook, include, thiết lập kế thừa, các bước trong workflow,
+phụ thuộc và tác dụng thực tế. Dùng hướng dẫn của chủ sở hữu để tìm target
+Cargo ngầm định, target trong manifest có chuỗi nhiều dòng và quy trình ngoài
+các định dạng được hỗ trợ. Chọn test dựa trên yêu cầu hoặc phụ thuộc bị thay đổi.
 
 #### Từ lựa chọn đến kết luận đã rà soát
 
@@ -570,4 +571,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: f0f7e138afb99db7f47a73ad094ec1a01de1a2e8d501d6b83bf55e0c7a445ced -->
+<!-- source-sha256: 188da3b41be79b8b950c5c1543da3198d16b081dd30e639e3c205ee3a346fe2b -->

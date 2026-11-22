@@ -27,6 +27,12 @@ function Read-PromptBytes([string]$Path) {
     return ,(Read-ContinuityBytes $path 1MB)
 }
 
+function ConvertTo-PromptLines([byte[]]$Bytes) {
+    $text = [Text.UTF8Encoding]::new($false,$true).GetString($Bytes)
+    if ($text.Length -gt 0 -and $text[0] -ceq [char]0xfeff) { $text = $text.Substring(1) }
+    return ,($text -split '\r?\n')
+}
+
 function New-PromptRequirement([string]$Label, [string[]]$Forms) {
     @{ label=$Label; forms=$Forms }
 }
@@ -233,7 +239,7 @@ function New-CirnetWorkPromptProposal {
     try {
         if ($SourcePath.Length -gt 32) { throw 'Too many source pins.' }
         $bytes = Read-PromptBytes $OriginalTask
-        $lines = [Text.UTF8Encoding]::new($false,$true).GetString($bytes) -split '\r?\n'
+        $lines = ConvertTo-PromptLines $bytes
         if ($lines.Length -gt 1024) { throw 'Too many original task lines.' }
         $owner = Get-ContinuityRepository ([IO.Path]::GetFullPath($Repository, $PWD.ProviderPath))
         $head = Get-ContinuityHead $owner
@@ -304,7 +310,6 @@ function Test-CirnetWorkPromptFile {
         [string]$ScopeSnapshot,
         [ValidatePattern('^[0-9a-f]{64}\z')][string]$ScopeSnapshotSha256
     )
-    $utf8 = [Text.UTF8Encoding]::new($false,$true)
     $stage = 'approved authorization record'
     $phase = if ($CaptureScope) { 'baselineStatus' } elseif ($ExecutionPreflight) { 'executionStatus' }
         elseif ($ScopeSnapshot -or $ScopeSnapshotSha256) { 'scopeAuditStatus' }
@@ -336,7 +341,7 @@ function Test-CirnetWorkPromptFile {
         $stage = 'original task bytes'
         $bytes = Read-PromptBytes $OriginalTask
         if ((Get-CirnetPayloadHash $bytes) -cne $record.originalSha256) { return New-PromptResult FAIL 'The original request differs from its approved digest.' }
-        $task = $utf8.GetString($bytes) -split '\r?\n'
+        $task = ConvertTo-PromptLines $bytes
         $stage = 'approved repository and revision'
         $root = Resolve-CirnetRoot ([IO.Path]::GetFullPath($Repository, $PWD.ProviderPath))
         if (-not $root.Equals($record.repository)) { return New-PromptResult FAIL 'Select the exact repository root named by the approval.' }
@@ -429,7 +434,7 @@ function Test-CirnetWorkPromptFile {
             if ($violation) { return New-PromptResult BLOCKED "Original Task#$($n+1) $violation. Resolve the conflict before handoff." }
         }
         $bytes = Read-PromptBytes $Prompt
-        $lines = $utf8.GetString($bytes) -split '\r?\n'
+        $lines = ConvertTo-PromptLines $bytes
         if (-not $lines[0].Equals($record.readiness)) { return New-PromptResult FAIL 'Restore the approved readiness on the first line.' }
         $headings = @('Goal & Expected Behavior','Owner & Permissions','References & Evidence','Requirements & Constraints','Acceptance & Verification','Deliverables & Reporting')
         $bodyAllowed = @($taskEffects | ForEach-Object { $_ }) + @($headings | ForEach-Object { "## $_" })

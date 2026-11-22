@@ -172,7 +172,9 @@ Review the process evidence after any change.
     Assert-True ($resumed.IntegrityStatus -ceq 'PASS' -and $resumed.Status -ceq 'NOT_RUN' -and
         $resumed.AgentFamilyMatched -and -not $resumed.AgentIdentityVerified) 'Integrity or a declared family was confused with verification.'
     # Make the final pointer rotation fail after a complete candidate has been written.
+    $current = Join-Path $store 'current.json'
     $previous = Join-Path $store 'previous.json'
+    $firstPointer = [IO.File]::ReadAllText($current)
     [void][IO.Directory]::CreateDirectory($previous)
     $publicationFailed = $false
     try { $null = & $manager save @codex }
@@ -187,10 +189,22 @@ Review the process evidence after any change.
     Assert-Rejected { & $manager save @codex @progressArgs } 'ExpectedCheckpointId'
     Assert-Rejected { & $manager save @codex @progressArgs -ExpectedCheckpointId $firstId } 'ConfirmProgressChange'
     $updated = & $manager save @codex @progressArgs -ExpectedCheckpointId $firstId -ConfirmProgressChange -ProgressReason 'Owner reviewed the fixture decision.'
-    $audit = (& $manager status @codex).ProgressReconciliation
+    $updatedStatus = & $manager status @codex
+    $audit = $updatedStatus.ProgressReconciliation
     Assert-True ($audit.priorCheckpointId -ceq $firstId -and $audit.sections -ccontains 'Decisions & Blockers' -and
         [IO.File]::ReadAllText($savedProgress) -ceq $resumed.Progress -and $updated.CheckpointId -cne $firstId) 'Progress reconciliation lost its prior decision.'
-    $current = Join-Path $store 'current.json'
+    Assert-True ($updatedStatus.CheckpointId -ceq $updated.CheckpointId -and [IO.File]::ReadAllText($previous) -ceq $firstPointer) 'Successful publication did not rotate the confirmed pointers.'
+    if ($IsWindows) {
+        $currentPointer = [IO.File]::ReadAllText($current)
+        $reader = [IO.File]::Open($current, 'Open', 'Read', 'Read')
+        $publicationFailed = $false
+        try { $null = & $manager save @codex }
+        catch [IO.IOException], [UnauthorizedAccessException] { $publicationFailed = $true }
+        finally { $reader.Dispose() }
+        Assert-True ($publicationFailed -and [IO.File]::ReadAllText($current) -ceq $currentPointer -and
+            [IO.File]::ReadAllText($previous) -ceq $firstPointer) 'Failed replacement lost a confirmed current or recovery pointer.'
+        Assert-True ([IO.Directory]::GetFiles($store, '.pending-*').Count -eq 0) 'Failed replacement left an unpublished candidate pointer.'
+    }
     $currentBytes = [IO.File]::ReadAllBytes($current)
     try {
         [IO.File]::WriteAllText($current, '{')
