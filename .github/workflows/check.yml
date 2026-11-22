@@ -34,6 +34,12 @@ jobs:
       - name: Test pinned claim evidence
         shell: pwsh
         run: ./tests/verification/verify-claim.tests.ps1
+      - name: Test reviewed execution evidence
+        shell: pwsh
+        run: ./tests/verification/strict-claim.tests.ps1
+      - name: Test claim and process status reporting
+        shell: pwsh
+        run: ./tests/verification/report-claim.tests.ps1
       - name: Test RTL trace evidence collection
         shell: pwsh
         run: ./tests/benchmark/rtl.tests.ps1

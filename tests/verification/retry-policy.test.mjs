@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { assessCorrection } from '../../scripts/verification/retry-policy.mjs';
+import { fileURLToPath } from 'node:url';
+import * as retryPolicy from '../../scripts/verification/retry-policy.mjs';
+
+const { assessCorrection } = retryPolicy;
 
 const clusterId = 'synthetic-failure';
 const args = ['-e', 'process.exit(7)'];
@@ -117,4 +122,157 @@ test('check identity and an actual failing exit must match the latest observatio
     [check('check-1', { clusterId: 'different-task' })],
     [check('check-1'), check('check-1')],
   ]) assert.equal(assess(attempts).reason, 'invalid-evidence');
+});
+
+test('checkpoint-backed correction keeps a reviewed budget across interrupted runs and refuses disputed history', t => {
+  const { assessCheckpointCorrection, correctionHypothesisDigest, readCorrectionHistory } = retryPolicy;
+  assert.equal(typeof assessCheckpointCorrection, 'function');
+  const output = fileURLToPath(new URL('../../target/', import.meta.url));
+  mkdirSync(output, { recursive: true });
+  const fixture = mkdtempSync(join(output, 'cirnet-correction-'));
+  t.after(() => rmSync(fixture, { recursive: true, force: true }));
+  const repository = join(fixture, 'primary');
+  mkdirSync(repository);
+  const manager = fileURLToPath(new URL('../../scripts/task-continuity.ps1', import.meta.url));
+  const taskId = 'correction-fixture';
+  const read = { repository, taskId, clusterId, agentFamily: 'codex', confirmScope: true };
+  const run = (program, args, cwd = fixture) => {
+    const result = spawnSync(program, args, { cwd, encoding: 'utf8', timeout: 30_000, windowsHide: true });
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    return result;
+  };
+  const git = (...args) => {
+    const result = run('git', ['-c', `core.hooksPath=${join(fixture, 'absent-hooks')}`, ...args], repository);
+    assert.equal(result.status, 0, result.stderr);
+  };
+  const put = (path, value) => writeFileSync(join(fixture, path), value);
+  const progress = hypotheses => `## Completed Work
+Prepared the fixture.
+## Pending Work
+Exercise correction decisions.
+## Decisions & Blockers
+Use the primary checkout.
+${hypotheses.join('\n')}
+## Next Action
+Review current evidence.
+## Re-verification
+Check the recorded process exit.
+`;
+  put('invoke.ps1', `param($Request)
+$ErrorActionPreference = 'Stop'
+$InputData = Get-Content -Raw -LiteralPath $Request | ConvertFrom-Json -AsHashtable
+$RunOptions = $InputData.Options
+$Result = & $InputData.Manager $InputData.Action @RunOptions
+$RunExit = $LASTEXITCODE
+$Result | ConvertTo-Json -Depth 20 -Compress
+exit $RunExit
+`);
+  const invoke = (action, options, exit = 0) => {
+    put('args.json', JSON.stringify({ Manager: manager, Action: action, Options: {
+      Repository: repository, TaskId: taskId, AgentFamily: 'codex', ConfirmScope: true, ...options,
+    } }));
+    const result = run('pwsh', ['-NoProfile', '-NonInteractive', '-File', join(fixture, 'invoke.ps1'), join(fixture, 'args.json')]);
+    assert.equal(result.status, exit, result.stderr || result.stdout);
+    return JSON.parse(result.stdout);
+  };
+  git('init', '--quiet', '--template=', '-b', 'main');
+  put('primary/.gitignore', '/.cirnet/tasks/\n/.local/\n');
+  for (const path of ['plan.md', 'spec.md', 'architecture.md', 'AGENTS.md']) put(`primary/${path}`, `# ${path}\n`);
+  put('primary/check.mjs', "import { readFileSync } from 'node:fs';\nreadFileSync('source.txt');\nprocess.exit(7);\n");
+  put('primary/edit.mjs', "import { writeFileSync } from 'node:fs';\nwriteFileSync('source.txt', process.argv[2]);\n");
+  put('primary/timeout.mjs', 'setTimeout(() => {}, 10_000);\n');
+  put('primary/source.txt', 'initial');
+  git('add', '--all');
+  git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'baseline');
+  put('task.md', `## Original Task
+Exercise a bounded correction workflow.
+## Objectives
+Keep the previous attempts across checkpoint saves.
+## Acceptance Criteria
+- Observe the actual check process exit.
+## Architecture & Rules
+Use the pinned fixture content.
+## Scope & Authorization
+This test controls its own temporary worktree.
+## Plans & Specs
+Consult the pinned fixture references.
+`);
+  const checkId = number => `${clusterId}-a${String(number).padStart(3, '0')}`;
+  put('acceptance.json', JSON.stringify([{ id: 'observe-exit', checks: [checkId(1)] }]));
+  put('progress.md', progress([]));
+  put('refs.json', JSON.stringify({ documents: [
+    ['plan', 'plan.md'], ['spec', 'spec.md'], ['architecture', 'architecture.md'], ['rules', 'AGENTS.md'],
+  ].map(([kind, path]) => ({ kind, path, repository: 'primary' })), relatedRepositories: [] }));
+  invoke('save', { TaskFile: join(fixture, 'task.md'), ProgressFile: join(fixture, 'progress.md'),
+    ReferencesFile: join(fixture, 'refs.json'), AcceptanceFile: join(fixture, 'acceptance.json') });
+  const measure = (number, options = {}, exit = 7) => invoke('run', {
+    Executable: process.execPath, Arguments: ['check.mjs'], InputPath: ['check.mjs', 'source.txt'],
+    EvidenceId: checkId(number), Kind: 'test', ...options,
+  }, exit);
+
+  const outcome = (record, anchor, overrides = {}, options = {}) => assessCheckpointCorrection({
+    ...read, anchor, expectedCheckpointId: record.checkpointId, ...options,
+    request: { ...request, checkDigest: record.checkDigest, timeAvailable: true, resourcesAvailable: true,
+      prerequisitesUnchanged: true, ...overrides },
+  });
+  measure(1);
+  const first = readCorrectionHistory(read);
+  assert.equal(first.attempts[0].exitCode, 7);
+  assert.equal(outcome(first, first.anchor).allowed, true);
+  const store = join(repository, '.cirnet', 'tasks', taskId);
+  const pointer = join(store, 'current.json');
+  const previousPointer = join(store, 'previous.json');
+  const firstPointer = readFileSync(pointer);
+  const firstPrevious = readFileSync(previousPointer);
+  assert.equal(outcome(first, undefined).allowed, false);
+  assert.equal(outcome(first, first.anchor, { timeAvailable: false }).reason, 'time-unavailable');
+  assert.equal(outcome(first, first.anchor, { resourcesAvailable: false }).reason, 'resources-unavailable');
+  assert.equal(outcome(first, first.anchor, { prerequisitesUnchanged: false }).reason, 'prerequisites-unverified');
+  put('primary/source.txt', 'unreviewed change');
+  assert.equal(outcome(first, first.anchor).reason, 'check-evidence-stale');
+  put('primary/source.txt', 'initial');
+
+  measure(2);
+  const second = readCorrectionHistory(read);
+  assert.equal(outcome(second, first.anchor).reason, 'retry-budget-exhausted');
+  assert.equal(outcome(second, second.anchor, {}, { expectedCheckpointId: first.checkpointId }).reason, 'checkpoint-changed');
+  assert.equal(outcome(second, second.anchor, {}, { attempts: second.attempts.slice().reverse() }).reason, 'invalid-evidence');
+  assert.equal(outcome(second, second.anchor, {}, { attempts: [second.attempts[0]] }).reason, 'invalid-evidence');
+  assert.equal(outcome(second, { ...first.anchor, clusterId: 'changed-cluster' }).reason, 'reviewed-history-mismatch');
+
+  const entries = [`- cirnet-correction ${checkId(3)} ${correctionHypothesisDigest('first cause')}`];
+  put('progress.md', progress(entries));
+  measure(3, { Kind: 'edit', Corrective: true, Arguments: ['edit.mjs', 'repaired'], InputPath: ['edit.mjs'],
+    ExpectedCheckpointId: second.checkpointId, ProgressFile: join(fixture, 'progress.md') }, 0);
+  measure(4);
+  const afterRepair = readCorrectionHistory(read);
+  assert.notEqual(afterRepair.checkDigest, second.checkDigest);
+  assert.equal(outcome(afterRepair, second.anchor, { checkDigest: second.checkDigest }).reason, 'check-identity-changed');
+  assert.equal(outcome(afterRepair, second.anchor).reason, 'retry-budget-exhausted');
+  assert.equal(outcome(afterRepair, second.anchor, { kind: 'repair', hypothesis: ' First Cause ' }).reason, 'repair-hypothesis-repeated');
+
+  entries.push(`- cirnet-correction ${checkId(5)} ${correctionHypothesisDigest('second cause')}`);
+  put('progress.md', progress(entries));
+  const timeout = measure(5, { Kind: 'edit', Corrective: true, Arguments: ['timeout.mjs'], InputPath: ['timeout.mjs'],
+    TimeoutSeconds: 1, ExpectedCheckpointId: afterRepair.checkpointId, ProgressFile: join(fixture, 'progress.md') }, 1);
+  assert.equal(timeout.Phase, 'interrupted');
+  measure(6);
+  const resumed = readCorrectionHistory(read);
+  assert.equal(resumed.attempts[4].status, 'NOT_RUN');
+  assert.equal(resumed.attempts[4].launched, true);
+  assert.equal(outcome(resumed, afterRepair.anchor, { kind: 'repair', hypothesis: 'third cause' }).reason, 'repair-budget-exhausted');
+
+  const original = readFileSync(pointer);
+  const originalPrevious = readFileSync(previousPointer);
+  writeFileSync(pointer, '{');
+  assert.equal(outcome(resumed, resumed.anchor).reason, 'checkpoint-history-unavailable');
+  writeFileSync(pointer, firstPointer);
+  writeFileSync(previousPointer, firstPrevious);
+  assert.equal(outcome(first, resumed.anchor).reason, 'reviewed-history-mismatch');
+  writeFileSync(pointer, original);
+  writeFileSync(previousPointer, originalPrevious);
+  const reused = measure(2);
+  assert.equal(outcome(resumed, resumed.anchor, {}, { expectedCheckpointId: reused.CheckpointId }).reason,
+    'checkpoint-history-unavailable');
 });

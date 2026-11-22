@@ -25,7 +25,10 @@ function Assert-Claim($Rows, $Status, $Exit, $RequiredStatus, $OptionalStatus = 
         -ObservationPath "$relative/observation.json" -ObservationSha256 $observationHash
     $code = $LASTEXITCODE
     $result = $raw | ConvertFrom-Json
-    if ($code -ne $Exit -or $result.status -cne $Status) { throw "Expected $Status/$Exit, observed $($result.status)/$code." }
+    if ($code -ne $Exit -or $result.status -cne $Status -or $result.recordStatus -cne $Status -or
+        $result.mode -cne 'record-consistency' -or $result.executionVerified) {
+        throw "Expected record consistency $Status/$Exit, observed $($result.status)/$code."
+    }
     if ($RequiredStatus) {
         $mandatory = @($result.stages | Where-Object id -CEQ 'tests')
         $optional = @($result.stages | Where-Object id -CEQ 'lint')
@@ -53,6 +56,16 @@ try {
     $pass = Observe tests PASS 0 2
     $optionalSkip = Observe lint SKIPPED $null 0 0 'owner-policy'
     Assert-Claim @($pass, $optionalSkip) PASS 0 PASS SKIPPED
+    $planHash = Write-Record plan.json $plan
+    $observationHash = Write-Record observation.json @{ schemaVersion = 1; expectationSha256 = $planHash; stages = @($pass) }
+    $raw = & $verify -Repository $repo -ExpectationPath "$relative/plan.json" -ExpectationSha256 $planHash `
+        -ObservationPath "$relative/observation.json" -ObservationSha256 $observationHash -Strict
+    $code = $LASTEXITCODE
+    $strict = $raw | ConvertFrom-Json -ErrorAction Stop
+    if ($code -ne 3 -or $strict.status -cne 'BLOCKED' -or $strict.recordStatus -cne 'PASS' -or
+        $strict.executionVerified -or @($strict.stages | Where-Object status -CEQ 'PASS').Count) {
+        throw 'A manufactured, correctly pinned observation must remain record-consistent without proving strict execution.'
+    }
     Assert-Claim @((Observe tests FAIL 7), $optionalSkip) FAIL 1 FAIL SKIPPED
     Assert-Claim @((Observe tests FAIL 0 2 1)) FAIL 1 FAIL
     Assert-Claim @((Observe tests SKIPPED $null 0 0 'tool-unavailable')) BLOCKED 3 SKIPPED

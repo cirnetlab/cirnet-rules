@@ -5,13 +5,18 @@ param(
     [Parameter(Mandatory)][string]$ExpectationPath,
     [Parameter(Mandatory)][ValidatePattern('(?-i:^[a-f0-9]{64}\z)')][string]$ExpectationSha256,
     [Parameter(Mandatory)][string]$ObservationPath,
-    [Parameter(Mandatory)][ValidatePattern('(?-i:^[a-f0-9]{64}\z)')][string]$ObservationSha256
+    [Parameter(Mandatory)][ValidatePattern('(?-i:^[a-f0-9]{64}\z)')][string]$ObservationSha256,
+    [switch]$Strict,
+    [string]$TrustedReviewPath,
+    [string]$TrustedReviewSha256,
+    [string]$CheckpointRoot = '.cirnet/tasks'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'continuity/Repository.psm1')
 Import-Module (Join-Path $PSScriptRoot 'continuity/Checkpoint.psm1')
+Import-Module (Join-Path $PSScriptRoot 'continuity/Verification.psm1')
 Import-Module (Join-Path $PSScriptRoot 'shared/Bundle.psm1')
 
 $digestPattern = '^[a-f0-9]{64}\z'
@@ -36,8 +41,8 @@ function Read-PinnedBytes([string]$Root, [string]$Path, [int]$MaxBytes, [ref]$Bu
     return ,(Read-ContinuityBytes $file.FullName $MaxBytes $Budget)
 }
 
-function Read-EvidenceRecord([string]$Root, [string]$Path, [string]$Digest) {
-    $bytes = Read-PinnedBytes $Root $Path 1MB $null
+function Read-EvidenceRecord([string]$Root, [string]$Path, [string]$Digest, [ref]$Budget) {
+    $bytes = Read-PinnedBytes $Root $Path 1MB $Budget
     if ((Get-CirnetPayloadHash $bytes) -cne $Digest) { throw 'Evidence hash mismatch.' }
     ConvertFrom-ContinuityJson $bytes -UniqueProperties
 }
@@ -89,6 +94,112 @@ function Read-StageObservations($Record, $Plan) {
     $rows
 }
 
+function Set-ClaimStatus($Result) {
+    $required = @($Result.stages | Where-Object required)
+    $Result.status = if ('FAIL' -cin $required.status) { 'FAIL' }
+        elseif ($required | Where-Object { $_.status -ceq 'BLOCKED' -or $_.reason -cin $blockedReasons }) { 'BLOCKED' }
+        elseif ($required | Where-Object { $_.status -cne 'PASS' }) { 'NOT_RUN' }
+        else { 'PASS' }
+    $Result.reason = 'required-stage-assessment'
+}
+
+function Read-ReviewStages($Review, $Plan) {
+    Assert-Record $Review @('schemaVersion','expectationSha256','observationSha256','taskId','checkpointSeal','stages')
+    if (!(Test-Integer $Review.schemaVersion) -or $Review.schemaVersion -ne 1 -or
+        $Review.expectationSha256 -isnot [string] -or $Review.observationSha256 -isnot [string] -or
+        $Review.expectationSha256 -cne $ExpectationSha256 -or $Review.observationSha256 -cne $ObservationSha256 -or
+        $Review.taskId -isnot [string] -or $Review.checkpointSeal -isnot [string] -or
+        $Review.checkpointSeal -cnotmatch $digestPattern -or $Review.stages -isnot [array] -or
+        $Review.stages.Count -gt $Plan.stages.Count) { throw 'Invalid execution review.' }
+    Assert-ContinuityId $Review.taskId
+    $rows = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+    $checks = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $artifacts = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($row in $Review.stages) {
+        Assert-Record $row @('id','checkId','artifactPath','artifactSha256')
+        if ($row.id -isnot [string] -or $row.id -cnotin $Plan.stages.id -or $row.checkId -isnot [string] -or
+            $row.artifactPath -isnot [string] -or $row.artifactPath -in @($ExpectationPath,$ObservationPath,$TrustedReviewPath) -or
+            $row.artifactSha256 -isnot [string] -or $row.artifactSha256 -cnotmatch $digestPattern -or
+            !$checks.Add($row.checkId) -or !$artifacts.Add($row.artifactPath)) { throw 'Invalid reviewed stage.' }
+        Assert-ContinuityId $row.checkId
+        Assert-NoCredential $row.artifactPath
+        $rows.Add($row.id, $row)
+    }
+    return ,$rows
+}
+
+function Test-StageEvidence($Root, [string]$StorageRoot, $Stage, $Reviewed, $Check, $Plan, [ref]$Budget) {
+    if ($null -eq $Check -or $Check.Phase -cne 'finished' -or $Check.Kind -cnotin @('build','test') -or
+        $Check.Status -cnotin @('PASS','FAIL') -or $Check.EvidenceOrigin -cne 'machine-observation') { return $false }
+    foreach ($path in $Plan.inputs.psbase.Keys) {
+        if ($path -cnotin $Check.Evidence.inputs.psbase.Keys -or
+            $Check.Evidence.inputs[$path] -cne $Plan.inputs[$path]) { return $false }
+    }
+    $resolved = Resolve-CirnetPath -Root $Root.root -Relative $Reviewed.artifactPath
+    if (Test-ContinuityInside $StorageRoot $resolved) { return $false }
+    $artifact = Read-EvidenceRecord $Root.root $Reviewed.artifactPath $Reviewed.artifactSha256 $Budget
+    Assert-Record $artifact @('schemaVersion','stageId','exitCode','assertions','failedAssertions')
+    if (!(Test-Integer $artifact.schemaVersion) -or $artifact.schemaVersion -ne 1 -or
+        $artifact.stageId -isnot [string] -or $artifact.stageId -cne $Stage.id -or
+        !(Test-Integer $artifact.exitCode) -or $artifact.exitCode -ne $Stage.exitCode -or
+        !(Test-Integer $artifact.assertions) -or $artifact.assertions -ne $Stage.assertions -or
+        !(Test-Integer $artifact.failedAssertions) -or $artifact.failedAssertions -ne $Stage.failedAssertions) { return $false }
+    # A reviewer may bind an observed child failure when a wrapper discarded that exit.
+    return $Check.ExitCode -eq $artifact.exitCode -or ($Check.ExitCode -eq 0 -and $Stage.recordStatus -ceq 'FAIL')
+}
+
+function Measure-StrictEvidence($Root, $Plan, $Result) {
+    $completed = @($Result.stages | Where-Object { $_.status -cin @('PASS','FAIL') })
+    foreach ($stage in $Result.stages) {
+        $stage.recordStatus = $stage.status
+        $stage.evidenceStatus = 'NOT_RUN'
+    }
+    foreach ($stage in $completed) {
+        $stage.status = 'BLOCKED'
+        $stage.reason = 'trusted-execution-evidence-required'
+    }
+    Set-ClaimStatus $Result
+    if (!$TrustedReviewPath -and !$TrustedReviewSha256) { return }
+    if (!$TrustedReviewPath -or $TrustedReviewSha256 -cnotmatch $digestPattern) { throw 'Missing trusted review pin.' }
+    $budget = 8MB
+    $review = Read-EvidenceRecord $Root.root $TrustedReviewPath $TrustedReviewSha256 ([ref]$budget)
+    $reviewedStages = Read-ReviewStages $review $Plan
+    $store = Get-ContinuityStore $Root $CheckpointRoot $review.taskId
+    $storageRoot = [IO.Path]::GetDirectoryName($store)
+    $checkpoint = Read-ContinuityCheckpoint $store $review.taskId -RemainingBytes ([ref]$budget)
+    if ($checkpoint.Seal -cne $review.checkpointSeal) { throw 'Reviewed checkpoint is stale.' }
+    $git = Get-ContinuityGitSnapshot $Root
+    $status = Get-ContinuityStatus $Root $store $checkpoint $git @{}
+    if (!$status.Git.Matches -or $status.GitConflicted -or $status.ReferenceProblems.Count -or
+        (Get-ContinuityHead $Root) -cne $Plan.revision) { throw 'Reviewed checkout is stale.' }
+    $matches = @{}
+    foreach ($stage in $completed) {
+        if (!$reviewedStages.ContainsKey($stage.id)) { continue }
+        $reviewed = $reviewedStages[$stage.id]
+        $check = $status.Checks | Where-Object Id -CEQ $reviewed.checkId
+        try {
+            if (Test-StageEvidence $Root $storageRoot $stage $reviewed $check $Plan ([ref]$budget)) { $matches[$stage.id] = $check }
+        }
+        catch { continue }
+    }
+    $current = Read-ContinuityCheckpoint $store $review.taskId -RemainingBytes ([ref]$budget)
+    if ($current.Seal -cne $checkpoint.Seal) { throw 'Reviewed checkpoint changed during assessment.' }
+    $Result.checkpointSeal = $checkpoint.Seal
+    foreach ($stage in $completed) {
+        if (!$matches.ContainsKey($stage.id)) { continue }
+        $reviewed = $reviewedStages[$stage.id]
+        $stage.status = $stage.recordStatus
+        $stage.reason = ''
+        $stage.evidenceStatus = 'PASS'
+        $stage.checkId = $reviewed.checkId
+        $stage.artifactPath = $reviewed.artifactPath
+        $stage.artifactSha256 = $reviewed.artifactSha256
+        $stage.measurementExitCode = $matches[$stage.id].ExitCode
+    }
+    Set-ClaimStatus $Result
+    $Result.executionVerified = $Result.status -ceq 'PASS'
+}
+
 function Measure-Claim($Result) {
     $root = Get-ContinuityRepository $Repository
     $plan = Read-EvidenceRecord $root.root $ExpectationPath $ExpectationSha256
@@ -127,20 +238,21 @@ function Measure-Claim($Result) {
             failedAssertions = if ($row) { $row.failedAssertions } else { 0 }
         }
     })
-    $required = @($Result.stages | Where-Object required)
-    $Result.status = if ('FAIL' -cin $required.status) { 'FAIL' }
-        elseif ($required | Where-Object { $_.status -ceq 'BLOCKED' -or $_.reason -cin $blockedReasons }) { 'BLOCKED' }
-        elseif ($required | Where-Object { $_.status -cne 'PASS' }) { 'NOT_RUN' }
-        else { 'PASS' }
-    $Result.reason = 'required-stage-assessment'
+    Set-ClaimStatus $Result
+    $Result.recordStatus = $Result.status
+    if ($Strict) { Measure-StrictEvidence $root $plan $Result }
+    elseif ($TrustedReviewPath -or $TrustedReviewSha256) { throw 'Use -Strict with a trusted review.' }
 }
 
 $result = [ordered]@{
     schemaVersion = 1; status = 'BLOCKED'; reason = 'evidence-unavailable-or-invalid'
     scope = 'declared-stages-and-inputs'; revision = $null
+    mode = if ($Strict) { 'strict' } else { 'record-consistency' }
+    recordStatus = $null; executionVerified = $false; checkpointSeal = $null
     expectationSha256 = $ExpectationSha256; observationSha256 = $ObservationSha256; stages = @()
 }
 try { Measure-Claim $result }
 catch { $result.status = 'BLOCKED'; $result.reason = 'evidence-unavailable-or-invalid'; $result.stages = @() }
+if ($null -eq $result.recordStatus) { $result.recordStatus = $result.status }
 ConvertTo-Json -InputObject $result -Depth 8 -Compress
 exit (@{ PASS = 0; FAIL = 1; NOT_RUN = 2; BLOCKED = 3 }[$result.status])

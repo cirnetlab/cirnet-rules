@@ -286,15 +286,53 @@ still run through their own workflow or the existing Task Continuity runner.
 node scripts/preview-owner-checks.mjs --root $approvedRoot --manifest package.json --select npm:test
 ```
 
-Select exact relative manifest paths. Supported inputs are npm scripts in
-`package.json`, explicit named Cargo targets in `Cargo.toml`, local visible
-presets in `CMakePresets.json`, and an owner-nominated script via
+Pass the absolute owner root and exact relative manifest paths. Supported inputs
+are npm scripts in `package.json`, explicit named Cargo targets in `Cargo.toml`,
+local visible presets in `CMakePresets.json`, and an owner-nominated script via
 `--rtl scripts/check-rtl.ps1`. The preview records source hashes, candidate IDs,
 selection and potential effects. It leaves execution `NOT_RUN`, prerequisites
 `NOT_CHECKED` and authorization `NOT_GRANTED_BY_PREVIEW`. Review lifecycle
 hooks, includes, inherited settings, dependencies and actual effects with the
 owner. Undeclared targets and workflows outside these formats need owner
 discovery. Choose tests because they cover changed requirements or dependencies.
+
+#### From selection to a reviewed claim
+
+1. Record the owner worktree revision, nominated relative source path and
+   SHA-256, selected candidate ID, and criterion it covers. Open the owner
+   guide and resolve the exact executable, arguments, working directory, and
+   input pins. Use the guide directly if preview cannot describe the check.
+2. Verify tools, pinned dependencies, fixtures and services. Review lifecycle
+   hooks, subprocesses, network and data access, and writes, including where
+   logs and artifacts will go. Obtain owner authorization for that exact
+   scope before starting the command. Recheck scope when the command or pins
+   change.
+3. Run via the approved owner workflow or CI. Use the existing Task
+   Continuity `run` for a compatible direct command when authorized. Record the
+   command or CI job identity, revision, inputs, outer exit and timeout. Use
+   the owner's harness for actual stage exits, assertion counts and coverage.
+4. Keep raw output in the owner-allocated location. When available and approved
+   for the reviewer, record a bounded, redacted reference such as a CI job and
+   relative artifact name. Review the owner-produced stage observations against
+   that source. Provide only the permitted structured records at relative
+   worktree paths to the strict claim verifier below, with their approved pins.
+5. Report the scope exercised, the outer process outcome and the strict claim
+   status separately. Use `NOT_RUN` for a check that was never run and `BLOCKED`
+   for missing prerequisites, authority or required trustworthy evidence.
+   Request authorized review of current criterion evidence before closing a
+   Task Continuity task.
+
+Use these examples to find the guide within each approved owner checkout.
+
+| Owner | Nomination and owner verification guide |
+| --- | --- |
+| `cirnet-interface` | In `package.json`, select `npm:test`, `npm:check:boundaries`, or `npm:test:e2e:platform` as required. `docs/en/contributing/verification.md` specifies the CI Node version, reviewed SDK and Remote OpenAPI, and the pinned Chromium lane. Browser verification against the installed native product requires its own pinned host and fixtures. |
+| `cirnet-remote` | `Cargo.toml` exposes explicit targets such as `cargo:test:cli` and `cargo:test:db_readonly`. Use `docs/en/contributing/rust-verification.md` for the exact Cargo invocation, pinned toolchain and Contracts, owned external output paths and isolated fixtures. Use that guide for implicit targets and ignored tests as well. |
+| `cirnet-simulator` | `CMakeLists.txt` without `CMakePresets.json` is outside preview coverage. Select the C++ worker workflow in `docs/en/contributing/verification.md` and review the matching MSVC tools, allocated output and installed artifact checks there. |
+| `cirnet-fpga` | `scripts/check_rtl.py` uses an extension outside preview coverage. The isolated RTL section in `docs/en/verification.md` defines the required toolchain and inputs and requires both `LAB_FIRST_RTL_PASS` and `PERMIT_MATRIX_RTL_PASS` from simulation. |
+
+UI interaction, performance, exact selected-chain E2E and physical/HIL
+results each require their own owner workflow and evidence.
 
 ### Assess required stages
 
@@ -330,24 +368,114 @@ with placeholder hashes follow.
     -ObservationPath $observation -ObservationSha256 $observationPin
 ```
 
-The validator checks both pins, current HEAD, declared input bytes, unique
-stages, actual recorded exit codes and assertion counts. It reports JSON and
-exits 0 for `PASS`, 1 for `FAIL`, 2 for `NOT_RUN` and 3 for `BLOCKED`.
+The default `record-consistency` mode checks both pins, current HEAD, declared
+input bytes, unique stages, submitted exit codes and assertion counts. Its
+`PASS` reports consistency of those records. `executionVerified` is false in
+this mode. Both modes emit JSON and exit 0 for `PASS`, 1 for `FAIL`, 2 for
+`NOT_RUN` and 3 for `BLOCKED`.
 An absent or skipped mandatory stage leaves the claim `NOT_RUN` unless a
 required failure or blocker takes precedence. Optional outcomes remain in the
 summary. For `BLOCKED`, `NOT_RUN` or `SKIPPED` stage observations, use a null
 exit, zero assertion counts and a reason code such as `tool-unavailable`,
 `authorization-required`, `owner-policy`, `timeout`, or `not-executed`.
 
-The operator or independent reviewer establishes who produced the evidence and
-what the observed assertions prove. Digests establish identity for the
-declared scope. Keep raw evidence in the owner's approved output location and
-pass only bounded, reviewed summaries to the verifier. For a Task Continuity
-criterion, declare the verifier as a required test check and pin the verifier
-script, the two JSON files and relevant local inputs with `-InputPath`. Preserve
-the JSON in the review evidence. Task Continuity records its direct process
-exit and maps a nonzero exit to `FAIL`. The verifier's JSON retains stage-level
-statuses. Review criteria separately before closing the task.
+#### Verify reviewed execution
+
+After the owner run, an independent reviewer traces each stage to a finished
+Task Continuity build or test for the approved command, worktree, input set
+and revision. The reviewer checks the owner output for the actual stage exit
+and coverage, including child exits when a wrapper is involved. Keep raw
+output in the owner's approved location. Use a distinct bounded, redacted
+JSON artifact per reviewed stage at an approved relative worktree path.
+It has `schemaVersion: 1`, `stageId`, `exitCode`, `assertions` and
+`failedAssertions` fields populated from the owner observation.
+
+The reviewed JSON ties those artifact pins to the two claim records and the
+current checkpoint. The reviewer can read the canonical `Seal` from
+`Read-ContinuityCheckpoint` in `scripts/continuity/Checkpoint.psm1`.
+Use the exact owner check ID for each stage.
+
+```json
+{
+  "schemaVersion": 1,
+  "expectationSha256": "<expectation SHA-256>",
+  "observationSha256": "<observation SHA-256>",
+  "taskId": "owner-checks",
+  "checkpointSeal": "<current reviewed checkpoint seal>",
+  "stages": [
+    {"id": "unit", "checkId": "owner-unit", "artifactPath": "target/owner-unit.json", "artifactSha256": "<artifact SHA-256>"}
+  ]
+}
+```
+
+```powershell
+./scripts/verify-claim.ps1 -Repository $approvedRoot `
+    -ExpectationPath $plan -ExpectationSha256 $planPin `
+    -ObservationPath $observation -ObservationSha256 $observationPin `
+    -Strict -TrustedReviewPath $review -TrustedReviewSha256 $reviewPin
+```
+
+Obtain the review pin through the independent reviewer or a trusted owner
+execution boundary. The verifier checks the pin, checkpoint seal, current
+worktree, finished measurements, input coverage and structured stage values.
+A digest establishes byte identity. The independent review establishes
+producer provenance, correct check-to-stage linkage and assertion meaning.
+When a wrapper exits zero and its reviewed child record reports failure,
+the claim reports `FAIL` with both exits. Missing or inconsistent proof
+blocks the affected completed stage. Required skips and missing stages
+retain their coverage status. A strict `PASS` sets `executionVerified`
+to true for the declared required scope. Review that evidence against the
+original criteria before closing a task.
+
+### Report the measured claim
+
+Run `verify-claim.ps1` as a direct Task Continuity build or test check with
+`pwsh -NoProfile -NonInteractive -File <absolute-verifier-path>` and the named
+verifier parameters. Supply an absolute `-Repository`. Pin the expectation,
+observation, their declared inputs and any trusted review in the check's
+`-InputPath`. Pin the verifier itself there for a script in the worktree, or as
+a reference document in the reviewed toolkit checkout. For a strict run,
+keep the reviewed source checkpoint in its owner task and measure the verifier
+in a separate reporting task. Publishing the reporting check then leaves the
+source checkpoint seal available to the verifier. The strict source checkpoint
+supports primary-worktree references.
+
+Capture only the verifier's JSON stdout from that measured invocation in the
+approved local output location. Keep progress, runner objects and diagnostics
+out of that file. One supported capture is a dedicated PowerShell process that
+invokes `task-continuity.ps1 run` with `| Out-Null` and returns its
+`$LASTEXITCODE`. Redirect the host's stdout to an approved ignored result file
+inside the worktree. Review the result with the measured check and pin its
+SHA-256 independently. The pin binds the reviewed bytes to this report.
+The operator establishes which invocation produced them.
+
+```powershell
+./scripts/report-claim.ps1 -Repository $approvedRoot -TaskId $reportingTask `
+    -EvidenceId $verifierCheck -ExpectedCheckpointId $reportedCheckpoint `
+    -ResultPath $resultRelativePath -ResultSha256 $reviewedResultPin
+```
+
+Supply the same approved `-RelatedRoot` mappings when the reporting checkpoint
+uses related references.
+
+The read-only report exposes `process.recordedStatus`, `process.effectiveStatus`
+and `process.exitCode` alongside `claim.status`, `claim.stages` and the current
+Task Continuity `task.acceptanceReady` and `task.completionStatus`. A validated
+pair preserves this mapping.
+
+| Process exit | Recorded process status | Claim status |
+| --- | --- | --- |
+| 0 | `PASS` | `PASS` in the declared mode and scope |
+| 1 | `FAIL` | `FAIL` |
+| 2 | `FAIL` | `NOT_RUN` |
+| 3 | `FAIL` | `BLOCKED` |
+
+`SKIPPED` remains a stage status. A missing or skipped required stage prevents
+a claim `PASS`. A validated report uses the claim's exit code.
+`reportStatus: BLOCKED` with a null claim and exit 3 indicates an unavailable,
+stale or disagreeing pair. Treat `claim.mode: record-consistency` as the
+record-format assessment. Use the independent review and Task Continuity close
+gate for overall acceptance.
 
 ### Bound correction
 
@@ -366,6 +494,33 @@ scope or safety, exhausted budget or lack of progress. Record the reason and
 preserve the failed observation. Use distinct attempt identifiers. The policy
 module returns a decision and counts without launching commands or granting
 authority.
+
+For a correction workflow that spans sessions, use
+`readCorrectionHistory({ repository, taskId, clusterId, agentFamily,
+confirmScope: true })` and `assessCheckpointCorrection` in the same module.
+Use the original local Task Continuity store and reserve consecutive
+evidence IDs `<cluster>-a001`, `<cluster>-a002`, and onward. Use a new ID
+for each observed check or edit. For a controlled edit, include
+`- cirnet-correction <evidence-id> <digest>` under **Decisions & Blockers**
+in the confirmed progress update with the edit. Compute the digest using
+`correctionHypothesisDigest(hypothesis)`.
+
+An independent owner or reviewer confirms and retains the returned
+`anchor` outside the editable checkpoint store, and reviews the current
+`checkpointId` as `expectedCheckpointId`. Refresh the retained anchor
+after each observed attempt, before further advice or a session handoff.
+Give `assessCheckpointCorrection` the same read options, the retained
+anchor, the reviewed checkpoint ID, and the request. Set `request.checkDigest`
+to the reviewed failing check identity and explicitly confirm
+`timeAvailable`, `resourcesAvailable`, and `prerequisitesUnchanged`.
+The policy reconciles current and previous snapshots with the retained
+history, check definition and live fingerprints. A launched interrupted edit
+counts toward the repair budget. The limit of one unchanged retry applies
+to the reviewed cluster, including after an input-changing repair.
+Guidance stops while a process may still be running. The checkpoint-based
+decision remains advisory. Separately
+authorized operations use the reviewed `-ExpectedCheckpointId` with
+Task Continuity.
 
 ## Update and restore
 

@@ -282,7 +282,8 @@ chạy theo quy trình của họ hoặc qua runner Task Continuity hiện có.
 node scripts/preview-owner-checks.mjs --root $approvedRoot --manifest package.json --select npm:test
 ```
 
-Chọn chính xác đường dẫn manifest tương đối. Đầu vào hỗ trợ gồm script npm
+Truyền đường dẫn tuyệt đối tới thư mục gốc của chủ sở hữu và đường dẫn manifest
+tương đối chính xác. Đầu vào hỗ trợ gồm script npm
 trong `package.json`, target Cargo có tên khai báo rõ trong `Cargo.toml`,
 preset cục bộ hiển thị trong `CMakePresets.json`, và script RTL do chủ sở
 hữu chỉ định qua `--rtl scripts/check-rtl.ps1`. Bản xem trước ghi hash nguồn,
@@ -292,6 +293,46 @@ ID ứng viên, lựa chọn và tác dụng có thể có. Trạng thái thực
 cấu hình kế thừa, phụ thuộc và tác dụng thực tế. Với target chưa khai báo
 và quy trình ngoài các định dạng này, dùng cách khám phá của chủ sở hữu.
 Chọn test dựa trên yêu cầu hoặc phụ thuộc bị thay đổi.
+
+#### Từ lựa chọn đến kết luận đã rà soát
+
+1. Ghi revision của worktree phía chủ sở hữu, đường dẫn tương đối và SHA-256
+   của nguồn đã chỉ định, ID ứng viên đã chọn và tiêu chí được kiểm tra. Đọc
+   hướng dẫn của chủ sở hữu để xác định chính xác tệp thực thi, đối số, thư
+   mục làm việc và các pin đầu vào. Dùng trực tiếp hướng dẫn đó nếu phép kiểm
+   nằm ngoài phạm vi xem trước.
+2. Kiểm tra công cụ, phụ thuộc đã ghim, fixture và dịch vụ. Rà lifecycle hook,
+   tiến trình con, truy cập mạng và dữ liệu, thao tác ghi và nơi lưu log, tạo
+   artifact. Chỉ chạy lệnh khi chủ sở hữu đã phê duyệt đúng phạm vi. Kiểm tra
+   lại phạm vi khi lệnh hoặc pin thay đổi.
+3. Chạy theo quy trình hoặc CI đã được chủ sở hữu phê duyệt. Dùng lệnh `run`
+   hiện có của Task Continuity cho lệnh trực tiếp tương thích khi được cấp
+   quyền. Ghi định danh lệnh hoặc CI job, revision, đầu vào, mã thoát của tiến
+   trình trực tiếp và tình trạng hết thời gian. Dùng bộ kiểm tra của chủ sở
+   hữu để thu mã thoát, số assertion và phạm vi kiểm tra thực tế của từng bước.
+4. Giữ đầu ra thô ở nơi chủ sở hữu cấp phát. Khi có tham chiếu được phép cung
+   cấp cho người rà soát, ghi thông tin có giới hạn, đã lọc dữ liệu nhạy cảm,
+   chẳng hạn CI job và tên tương đối của artifact. Đối chiếu các quan sát từng
+   bước do chủ sở hữu tạo với nguồn đó. Chỉ chuyển bản ghi có cấu trúc được
+   phép, nằm ở đường dẫn tương đối trong worktree và có pin đã duyệt, cho bộ
+   xác minh nghiêm ngặt bên dưới.
+5. Báo cáo riêng phạm vi đã kiểm tra, kết quả tiến trình trực tiếp và trạng
+   thái kết luận nghiêm ngặt. Dùng `NOT_RUN` khi phép kiểm chưa chạy và
+   `BLOCKED` khi thiếu điều kiện tiên quyết, quyền hoặc bằng chứng đáng tin cậy
+   bắt buộc. Trước khi đóng task bằng Task Continuity, trình bằng chứng còn
+   hiệu lực của từng tiêu chí cho người có thẩm quyền rà soát.
+
+Các ví dụ dưới đây chỉ đến hướng dẫn trong từng checkout đã duyệt của chủ sở hữu.
+
+| Chủ sở hữu | Nguồn chỉ định và hướng dẫn kiểm chứng của chủ sở hữu |
+| --- | --- |
+| `cirnet-interface` | Trong `package.json`, chọn `npm:test`, `npm:check:boundaries` hoặc `npm:test:e2e:platform` theo yêu cầu. `docs/en/contributing/verification.md` quy định phiên bản Node dùng trong CI, SDK và Remote OpenAPI đã rà soát, cùng quy trình Chromium đã ghim. Kiểm chứng trình duyệt trên sản phẩm native đã cài cần host và fixture đã ghim riêng. |
+| `cirnet-remote` | `Cargo.toml` khai báo các target như `cargo:test:cli` và `cargo:test:db_readonly`. Dùng `docs/en/contributing/rust-verification.md` để xác định chính xác lệnh Cargo, toolchain và Contracts đã ghim, đường dẫn đầu ra ngoài repo do chủ sở hữu cấp phát, cùng fixture biệt lập. Dùng cùng hướng dẫn cho target ngầm định và test đánh dấu bỏ qua. |
+| `cirnet-simulator` | `CMakeLists.txt` thiếu `CMakePresets.json` nằm ngoài phạm vi xem trước. Chọn quy trình C++ worker trong `docs/en/contributing/verification.md` và kiểm tra công cụ MSVC tương ứng, đầu ra đã cấp phát và phép kiểm artifact đã cài theo hướng dẫn đó. |
+| `cirnet-fpga` | Phần mở rộng của `scripts/check_rtl.py` nằm ngoài phạm vi xem trước. Mục kiểm chứng RTL biệt lập trong `docs/en/verification.md` quy định toolchain và đầu vào bắt buộc, đồng thời yêu cầu mô phỏng tạo cả `LAB_FIRST_RTL_PASS` và `PERMIT_MATRIX_RTL_PASS`. |
+
+Kết quả tương tác UI, hiệu năng, E2E trên đúng chuỗi artifact đã chọn và
+kiểm chứng vật lý/HIL đều cần quy trình và bằng chứng riêng của chủ sở hữu.
 
 ### Đánh giá các bước bắt buộc
 
@@ -327,24 +368,116 @@ assertion tối thiểu. Ví dụ dưới đây dùng hash giữ chỗ.
     -ObservationPath $observation -ObservationSha256 $observationPin
 ```
 
-Bộ xác minh kiểm tra hai pin, HEAD hiện tại, byte đầu vào đã khai báo,
-ID bước duy nhất, mã thoát đã ghi nhận và số assertion. Công cụ báo JSON
-và thoát 0 cho `PASS`, 1 cho `FAIL`, 2 cho `NOT_RUN` và 3 cho `BLOCKED`.
+Chế độ mặc định `record-consistency` kiểm tra hai pin, HEAD hiện tại, byte
+đầu vào đã khai báo, ID bước duy nhất, mã thoát và số assertion trong bản
+ghi. `PASS` ở chế độ này xác nhận bản ghi nhất quán. `executionVerified`
+có giá trị false. Cả hai chế độ xuất JSON và thoát 0 cho `PASS`, 1 cho
+`FAIL`, 2 cho `NOT_RUN` và 3 cho `BLOCKED`.
 Bước bắt buộc vắng mặt hoặc bị bỏ qua giữ kết luận ở `NOT_RUN` trừ khi có
 lỗi hoặc điều kiện chặn ưu tiên hơn ở bước bắt buộc. Kết quả tùy chọn vẫn
 hiện trong bản tóm tắt. Với quan sát `BLOCKED`, `NOT_RUN` hoặc `SKIPPED`,
 dùng mã thoát null, số assertion bằng 0 và mã lý do như `tool-unavailable`,
 `authorization-required`, `owner-policy`, `timeout` hoặc `not-executed`.
 
-Người vận hành hoặc người rà soát độc lập xác định ai tạo bằng chứng và
-assertion quan sát được chứng minh điều gì. Hash xác lập danh tính trong
-phạm vi đã khai báo. Giữ bằng chứng thô trong nơi đầu ra đã duyệt của chủ
-sở hữu và chỉ đưa bản tóm tắt có giới hạn, đã rà soát vào bộ xác minh.
-Với tiêu chí Task Continuity, khai báo bộ xác minh là phép test bắt buộc
-và ghim script, hai tệp JSON và đầu vào cục bộ liên quan qua `-InputPath`.
-Giữ JSON trong bằng chứng rà soát. Task Continuity ghi mã thoát tiến trình
-trực tiếp và ánh xạ mã khác 0 thành `FAIL`. JSON của bộ xác minh giữ trạng
-thái từng bước. Rà soát tiêu chí riêng trước khi đóng nhiệm vụ.
+#### Xác minh thực thi đã rà soát
+
+Sau lần chạy của chủ sở hữu, người rà soát độc lập truy vết từng bước đến
+một lần build hoặc test đã hoàn tất trong Task Continuity, với lệnh, worktree,
+tập đầu vào và revision đã duyệt. Người rà soát đối chiếu đầu ra của chủ sở
+hữu để xác định mã thoát và độ bao phủ thực tế, kể cả mã thoát tiến trình con
+khi có wrapper. Giữ đầu ra thô ở vị trí chủ sở hữu đã duyệt. Với mỗi bước đã
+rà soát, dùng một tệp JSON riêng, có giới hạn dung lượng và đã lược dữ liệu
+nhạy cảm tại đường dẫn tương đối được duyệt trong worktree. Điền
+`schemaVersion: 1`, `stageId`, `exitCode`, `assertions` và
+`failedAssertions` từ quan sát của chủ sở hữu.
+
+Tệp JSON đã rà soát gắn các pin này với hai bản ghi kết luận và checkpoint
+hiện tại. Người rà soát đọc `Seal` chuẩn từ `Read-ContinuityCheckpoint`
+trong `scripts/continuity/Checkpoint.psm1`. Dùng đúng ID kiểm tra của chủ
+sở hữu cho từng bước.
+
+```json
+{
+  "schemaVersion": 1,
+  "expectationSha256": "<expectation SHA-256>",
+  "observationSha256": "<observation SHA-256>",
+  "taskId": "owner-checks",
+  "checkpointSeal": "<current reviewed checkpoint seal>",
+  "stages": [
+    {"id": "unit", "checkId": "owner-unit", "artifactPath": "target/owner-unit.json", "artifactSha256": "<artifact SHA-256>"}
+  ]
+}
+```
+
+```powershell
+./scripts/verify-claim.ps1 -Repository $approvedRoot `
+    -ExpectationPath $plan -ExpectationSha256 $planPin `
+    -ObservationPath $observation -ObservationSha256 $observationPin `
+    -Strict -TrustedReviewPath $review -TrustedReviewSha256 $reviewPin
+```
+
+Nhận pin rà soát qua người rà soát độc lập hoặc môi trường thực thi đáng
+tin cậy của chủ sở hữu. Bộ xác minh đối chiếu pin, seal, worktree hiện tại,
+các lần đo đã hoàn tất, độ bao phủ đầu vào và giá trị theo từng bước. Hash
+xác định các byte khớp nhau. Rà soát độc lập xác lập nguồn gốc, kiểm tra liên
+kết giữa lần chạy và từng bước, đồng thời xác định ý nghĩa các assertion.
+Khi wrapper thoát 0 và bản ghi tiến trình con đã rà soát cho thấy lỗi, kết
+luận trả `FAIL` và giữ cả hai mã thoát. Bước đã hoàn tất bị chặn khi thiếu
+bằng chứng hoặc dữ liệu không khớp. Bước bắt buộc bị bỏ qua hoặc vắng mặt
+giữ trạng thái bao phủ tương ứng. `PASS` ở chế độ strict đặt
+`executionVerified` thành true trong phạm vi bắt buộc đã khai báo. Đối
+chiếu bằng chứng với tiêu chí gốc trước khi đóng nhiệm vụ.
+
+### Báo cáo claim đã đo
+
+Chạy `verify-claim.ps1` dưới dạng check build hoặc test trực tiếp của Task
+Continuity với `pwsh -NoProfile -NonInteractive -File <đường-dẫn-tuyệt-đối>`
+và các tham số có tên của verifier. Truyền đường dẫn tuyệt đối cho
+`-Repository`. Ghim kỳ vọng, quan sát, các đầu vào đã khai báo và bản rà soát
+được tin cậy nếu có trong `-InputPath` của check. Ghim script verifier tại đó
+nếu script nằm trong cây làm việc, hoặc ghim nó dưới dạng tài liệu tham chiếu
+trong checkout bộ công cụ đã được rà soát. Với chế độ strict, giữ checkpoint
+nguồn đã rà soát trong task của chủ sở hữu và đo chạy verifier trong một task
+báo cáo riêng. Check báo cáo có thể tạo checkpoint riêng mà vẫn giữ được seal
+của checkpoint nguồn cho verifier. Checkpoint nguồn strict hỗ trợ tài liệu
+tham chiếu trong cây làm việc chính.
+
+Chỉ lưu JSON stdout của verifier từ lần chạy đã đo vào vị trí đầu ra cục bộ
+được phê duyệt. Lưu tiến độ, đối tượng của runner và chẩn đoán bên ngoài tệp
+này. Có thể dùng một tiến trình PowerShell riêng gọi
+`task-continuity.ps1 run` với `| Out-Null` rồi trả về `$LASTEXITCODE`.
+Chuyển stdout của tiến trình này vào tệp kết quả đã được phê duyệt, nằm
+trong cây làm việc và thuộc diện Git bỏ qua. Đối chiếu kết quả với check đã
+đo rồi ghim SHA-256 độc lập. Giá trị băm gắn các byte đã rà soát với báo cáo.
+Người vận hành xác định lần chạy đã tạo ra chúng.
+
+```powershell
+./scripts/report-claim.ps1 -Repository $approvedRoot -TaskId $reportingTask `
+    -EvidenceId $verifierCheck -ExpectedCheckpointId $reportedCheckpoint `
+    -ResultPath $resultRelativePath -ResultSha256 $reviewedResultPin
+```
+
+Truyền cùng ánh xạ `-RelatedRoot` đã được phê duyệt nếu checkpoint báo cáo
+sử dụng tài liệu tham chiếu liên quan.
+
+Báo cáo chỉ đọc trình bày `process.recordedStatus`,
+`process.effectiveStatus` và `process.exitCode` cùng với `claim.status`,
+`claim.stages`, `task.acceptanceReady` và `task.completionStatus` hiện tại
+của Task Continuity. Cặp kết quả hợp lệ giữ cách ánh xạ sau.
+
+| Mã thoát tiến trình | Trạng thái tiến trình đã ghi | Trạng thái claim |
+| --- | --- | --- |
+| 0 | `PASS` | `PASS` trong chế độ và phạm vi đã khai báo |
+| 1 | `FAIL` | `FAIL` |
+| 2 | `FAIL` | `NOT_RUN` |
+| 3 | `FAIL` | `BLOCKED` |
+
+`SKIPPED` là trạng thái cấp giai đoạn. Giai đoạn bắt buộc bị thiếu hoặc bỏ
+qua làm claim không thể đạt `PASS`. Báo cáo hợp lệ dùng mã thoát của claim.
+`reportStatus: BLOCKED` với claim rỗng và mã thoát 3 báo hiệu cặp kết quả
+không khả dụng, đã cũ hoặc không khớp. `claim.mode: record-consistency` biểu
+thị đánh giá tính nhất quán của bản ghi. Dùng cơ chế rà soát độc lập và cổng
+đóng task của Task Continuity để nghiệm thu tổng thể.
 
 ### Giới hạn các lần sửa
 
@@ -364,6 +497,32 @@ thiếu bằng chứng, phạm vi hoặc an toàn chưa rõ, hết ngân sách h
 có tiến triển. Ghi lý do và giữ quan sát thất bại. Dùng ID riêng cho mỗi
 lần. Module trả quyết định và số lần dùng, với thao tác chạy và cấp quyền
 do chủ sở hữu quyết định.
+
+Với quy trình sửa kéo dài qua nhiều phiên, dùng
+`readCorrectionHistory({ repository, taskId, clusterId, agentFamily,
+confirmScope: true })` và `assessCheckpointCorrection` trong cùng module.
+Dùng kho Task Continuity cục bộ gốc và dành các ID bằng chứng liên tiếp
+`<cluster>-a001`, `<cluster>-a002`, v.v. Dùng ID mới cho mỗi lần kiểm tra
+hoặc sửa được quan sát. Với lần sửa có kiểm soát, thêm dòng
+`- cirnet-correction <evidence-id> <digest>` vào **Decisions & Blockers**
+trong bản cập nhật tiến độ được xác nhận cùng lần sửa. Tính digest bằng
+`correctionHypothesisDigest(hypothesis)`.
+
+Chủ sở hữu hoặc người rà soát độc lập xác nhận và lưu `anchor` được trả
+về bên ngoài kho checkpoint có thể chỉnh sửa. Họ rà soát `checkpointId`
+hiện tại để dùng làm `expectedCheckpointId`. Cập nhật anchor đã lưu sau
+mỗi lần quan sát, trước lần tư vấn tiếp theo hoặc bàn giao phiên. Truyền
+cùng tùy chọn đọc, anchor đã lưu, ID checkpoint đã rà soát và yêu cầu
+vào `assessCheckpointCorrection`. Đặt `request.checkDigest` theo định danh
+lần kiểm tra thất bại đã rà soát và xác nhận rõ `timeAvailable`,
+`resourcesAvailable` và `prerequisitesUnchanged`. Chính sách đối chiếu
+snapshot hiện tại và trước đó với lịch sử đã lưu, định nghĩa kiểm tra và
+fingerprint hiện tại. Lần sửa đã khởi chạy rồi gián đoạn vẫn tính vào ngân
+sách sửa. Giới hạn một lần chạy lại lệnh giữ nguyên áp dụng cho nhóm lỗi
+đã rà soát, kể cả sau lần sửa thay đổi đầu vào. Tư vấn dừng khi tiến trình
+có thể còn chạy. Quyết định dựa trên
+checkpoint mang tính tư vấn. Thao tác được phép riêng dùng
+`-ExpectedCheckpointId` đã rà soát với Task Continuity.
 
 ## Cập nhật và restore
 
@@ -395,4 +554,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 65c02e382aece5776e3faf44b2910d07e762aa0a7232704e4445b04fcdbe3e04 -->
+<!-- source-sha256: 42000fcb126fc169dab66f7f4ee5108534661f2346ae2758ba73df8c2a7a248e -->
