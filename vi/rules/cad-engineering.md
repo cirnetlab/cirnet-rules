@@ -134,9 +134,12 @@ Chạy trong thư mục dựng hình cô lập đã được duyệt, với thư
 & $Cad server start
 & $CadPython -B ./src/enclosure.py
 & $Cad model inspect $Id --json
+& $Cad model inspect $Id enclosure_base --query geometry --json
 & $Cad model interference $Id --json
 & $Cad model snapshot $Id ./out/iso.png --camera iso --json
+& $Cad model snapshot $Id ./out/interior.png --camera iso --display '{"hidden":["enclosure_lid"]}' --json
 & $Cad model export $Id ./out/enclosure.step --json
+& $Cad step inspect ./out/enclosure.step --json
 & $Cad model export $Id ./out/enclosure.glb --tolerance 0.05 --angle 5 --json
 & $Cad glb inspect ./out/enclosure.glb --json
 & $Cad server stop --json
@@ -148,10 +151,13 @@ Tạo `out` dưới thư mục được duyệt. `$Cad` và `$CadPython` là cá
 
 Mô hình mẫu có thông số tạm thời theo milimét CAD, với gốc tọa độ ở tâm mặt đáy. Dựng hộp 80 × 50 × 21, thân cao 18 mm, nắp dày 3 mm, thành dày 2 mm, góc ngoài R3 và lỗ mặt trước 12 × 6 có tâm tại tọa độ CAD `(0,-25,10)`. Dùng các nhãn `enclosure_base`, `enclosure_lid` và `connector_usb`. Kiểm tra các khối hợp lệ, có đủ nhãn, kích thước và bán kính trong dung sai ±0,05 mm, lỗ thông, khe hở quanh đầu nối trong lỗ tối thiểu 0,5 mm và không có chồng lấn ngoài ý định ở tư thế lắp. Chụp mặt trước, sau, trái, phải, trên, dưới, hình trục đo và chi tiết bên trong khi ẩn nắp. Kiểm tra tên node trong tệp xuất, kích thước bao 0,080 × 0,021 × 0,050 m trong hệ tọa độ thế giới, mặt trước GLB hướng +Z, và mã SHA-256 của nguồn và hiện vật. Đây là mẫu dự kiến chạy bằng công cụ thực. Khi thiếu môi trường chạy, ghi rõ thao tác nào bị chặn hoặc bỏ qua cùng lý do.
 
-Trong một lần chạy fixture riêng, bỏ chuẩn đầu nối và xác nhận yêu cầu về
-tên node thất bại. Kiểm tra node trực tiếp trên GLB. Ở revision đã đọc,
-trình xuất GLB có thể dùng chung node giữa các phần tử cùng cấp có cùng
-nhãn và bỏ đường dẫn rỗng. Trình xuất ghi vị trí đỉnh, pháp tuyến và hỗ trợ
+Đặt ba chi tiết có nhãn duy nhất ngay dưới node gốc của cụm lắp. Tạo hình
+học có thể chia lưới cho chuẩn đầu nối bên trong lỗ. Trình xuất GLB bỏ qua
+chi tiết không có tam giác và có thể tạo các node cùng cấp riêng biệt có
+cùng tên nếu nhãn trùng nhau. Chi tiết lồng nhau có tên theo đường dẫn.
+Xác nhận trực tiếp ba tên chính xác trong GLB. Trong lần chạy fixture
+riêng, bỏ chuẩn đầu nối và xác nhận yêu cầu tên node thất bại. Trình xuất
+ghi vị trí đỉnh, pháp tuyến và hỗ trợ
 tham số vật liệu. Sản phẩm cần texture phải có quy trình UV và ảnh được chủ
 sở hữu rà soát. Xem `packages/cad/src/cad/engine/export/glb.py` của công cụ.
 
@@ -220,4 +226,4 @@ workbench, đồ thị chịu ảnh hưởng. (`tests/gltf-assets.test.ts`,
 `tests/oscilloscope.test.ts:128–173`, `e2e/assets.spec.ts`.)
 
 <!-- source: en/rules/cad-engineering.md -->
-<!-- source-sha256: ed15691f2bb83d09e2f04c99e52f19707ac4fedc9c424b5496ef2d69443824d0 -->
+<!-- source-sha256: 8a4edb848dfa6be0cd4ecd9db9b6d097ed7cd0aa8932ddb2137cc92e672450dc -->

@@ -133,9 +133,12 @@ Run in an approved isolated authoring root, with engine, state, cache and output
 & $Cad server start
 & $CadPython -B ./src/enclosure.py
 & $Cad model inspect $Id --json
+& $Cad model inspect $Id enclosure_base --query geometry --json
 & $Cad model interference $Id --json
 & $Cad model snapshot $Id ./out/iso.png --camera iso --json
+& $Cad model snapshot $Id ./out/interior.png --camera iso --display '{"hidden":["enclosure_lid"]}' --json
 & $Cad model export $Id ./out/enclosure.step --json
+& $Cad step inspect ./out/enclosure.step --json
 & $Cad model export $Id ./out/enclosure.glb --tolerance 0.05 --angle 5 --json
 & $Cad glb inspect ./out/enclosure.glb --json
 & $Cad server stop --json
@@ -147,10 +150,13 @@ Create `out` under the approved root. `$Cad` and `$CadPython` are the verified e
 
 Provisional fixture in CAD millimetres with a footprint-centred origin on the base plane. Model an 80 × 50 × 21 enclosure with an 18 mm base, 3 mm lid, 2 mm shell walls, R3 outside corners and a 12 × 6 front opening centred at CAD `(0,-25,10)`. Use `enclosure_base`, `enclosure_lid` and `connector_usb` labels. Assert valid solids, required labels, stated dimensions and radii within ±0.05 mm, a through-opening, at least 0.5 mm clearance around the connector in the aperture, and zero unintended overlap in the assembled pose. Capture front, back, left, right, top, bottom, iso and an interior detail with the lid hidden. Check exported node names, a 0.080 × 0.021 × 0.050 m world envelope, +Z as the GLB front, and source and artifact SHA-256 identity. This is a planned native fixture. Record blocked or skipped operations with the reason when the runtime is unavailable.
 
-In a separate fixture run, omit the connector datum and check that the named
-node requirement fails. Confirm exported nodes directly on the GLB. At the
-inspected revision, the GLB writer can share sibling nodes with the same label
-and omits empty paths. It emits vertex positions and normals and supports
+Place the three uniquely labelled parts directly under the assembly root.
+Give the connector datum tessellatable geometry inside the aperture. The
+GLB writer omits parts without triangles and can emit distinct sibling nodes
+with the same name when their labels match. Nested parts use path-based
+names. Confirm the three exact names directly on the GLB. In a separate
+fixture run, omit the connector datum and check that the named node
+requirement fails. The writer emits vertex positions and normals and supports
 material parameters. Textured deliverables need an owner-reviewed pipeline
 for UVs and images. See the tool's `packages/cad/src/cad/engine/export/glb.py`.
 
