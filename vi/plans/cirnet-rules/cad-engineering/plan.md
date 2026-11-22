@@ -44,5 +44,30 @@ tài sản là hai bước nghiệm thu riêng.
 | Pilot CAD native | `BLOCKED`. Máy đã kiểm tra có Python 3.14.4 và uv 0.11.9. Checkout nguồn cục bộ không cung cấp tệp thực thi CAD đã cài hoặc runtime build123d, OpenCASCADE hay Blender cần thiết. Không có thao tác cài hoặc kích hoạt plugin. |
 | Nghiệm thu trực quan native và sản phẩm | `NOT_RUN`. Pilot xác định các bước kiểm hình học, chụp ảnh, xuất và rà soát native. Kiểm thử loader, trình duyệt và tương tác của Interface cần quyền tiếp nhận riêng. |
 
+## Gia cố cổng tiếp nhận tĩnh
+
+Đợt rà soát bắt đầu từ Rules `1d22a337fdf53ab30c6b15814f116569e43a8798`.
+Dùng parser GLB, pin tài sản và cổng cảnh đã chọn hiện có. Giữ text-to-cad
+và Interface là checkout tham chiếu chỉ đọc.
+
+- Suite hồi quy tái hiện kết quả PASS sai với chỉ số ngoài phạm vi hoặc dành
+  riêng, thành phần POSITION và NORMAL không hữu hạn, khai báo đỉnh sai và
+  bố cục bộ đệm không nhất quán. Bộ kiểm tra cũ đọc kích thước và số lượng
+  từ khai báo mà chưa giải mã giá trị. Một số offset sai đơn giản đã bị từ
+  chối. Bộ kiểm tra mới đọc có giới hạn từ chunk BIN hiện có và xác minh
+  phạm vi chỉ số từng primitive. Dùng lại kết quả quét của accessor dùng chung.
+- Cơ chế cũ từ chối mọi extension bắt buộc. Fixture xác nhận
+  `KHR_materials_unlit` ở dạng bắt buộc và tùy chọn, đồng thời phân biệt
+  khai báo sai với extension ngoài hỗ trợ.
+- Hai GLB Interface ghim theo chủ sở hữu đều qua cổng tĩnh. Trình xuất máy
+  phát ghi lại tọa độ V sau khi xuất và GLB đã giao còn hai giá trị cực trị
+  UV tùy chọn đã cũ. Phép so sánh cận tĩnh bao phủ POSITION và cực trị chỉ
+  số đã khai báo. Bố cục UV và số thực UV vẫn được kiểm tra. Giữ byte đã
+  giao của sản phẩm và dùng kiểm thử của chủ sở hữu cho tính đúng của texture.
+- Pilot hộp mô phỏng giữ `BLOCKED`. Kiểm tra bản cài cục bộ hiện tại
+  không tìm thấy lệnh `cad` hoặc môi trường build123d/OpenCASCADE phù hợp.
+  Kiểm tra hình học, chụp ảnh, xuất STEP/GLB, rà soát trực quan và tiếp nhận
+  mới trong runtime Interface giữ `NOT_RUN`.
+
 <!-- source: en/plans/cirnet-rules/cad-engineering/plan.md -->
-<!-- source-sha256: e89302a9bff114083f3b9960821d8e0c07018de0185cef7283ae82380bc44234 -->
+<!-- source-sha256: f2c995f62003317cb6f92e11073735e0c0c3466576489d78a87e5fe8cde77d36 -->

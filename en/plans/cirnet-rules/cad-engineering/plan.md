@@ -41,3 +41,30 @@ Interface adoption are separate acceptance steps.
 | Skill distribution | Fallback and trigger metadata tests passed. The Windows bundle and install tests exercised default and optional CAD selection in fake homes. Reparse and junction fixtures were skipped by host permissions. |
 | Native CAD pilot | `BLOCKED`. The checked machine has Python 3.14.4 and uv 0.11.9. The local source checkout provides neither an installed CAD executable nor the required build123d, OpenCASCADE or Blender runtime. No install or plugin activation ran. |
 | Native visual and product acceptance | `NOT_RUN`. The pilot defines native geometry, snapshot, export and review work. Actual Interface loader, browser and interaction checks require separately authorized adoption. |
+
+## Static intake hardening
+
+The targeted review started at Rules `1d22a337fdf53ab30c6b15814f116569e43a8798`.
+Use the existing GLB parser, artifact pins and selected-scene gate. Keep
+text-to-cad and Interface as read-only reference checkouts.
+
+- The regression suite reproduced false passes for out-of-range and reserved
+  index values, non-finite POSITION and NORMAL components, invalid vertex
+  declarations and inconsistent buffer layouts. The prior checker read
+  declaration sizes and counts without decoding the values. Some simple
+  invalid offsets were already rejected. The updated checker reads bounded
+  data from the existing BIN chunk and validates each primitive's index
+  range. Scans of a shared accessor are reused.
+- The previous extension guard rejected any required extension. Fixtures
+  confirm required and optional `KHR_materials_unlit` support and separate
+  malformed declarations from unsupported extensions.
+- Both owner-pinned Interface GLBs passed static intake. The generator
+  exporter rewrites V coordinates after export and its delivered GLB retains
+  two stale optional UV extrema. The static bound comparison covers POSITION
+  and declared index extrema. UV layout and float values are checked.
+  Preserve the delivered product bytes and leave texture correctness to
+  the owner tests.
+- The enclosure pilot remains `BLOCKED`. The current local installation
+  check found no `cad` command or matching build123d/OpenCASCADE environment.
+  Geometry inspection, snapshots, STEP/GLB export, visual review and new
+  Interface runtime adoption remain `NOT_RUN`.

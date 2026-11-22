@@ -4,8 +4,9 @@ import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 
 const maximumGlbBytes = 32 * 1024 * 1024;
 const maximumExpectationBytes = 32 * 1024;
-const vectorSizes = new Map([[5126, 12]]);
-const indexSizes = new Map([[5121, 1], [5123, 2], [5125, 4]]);
+const componentSizes = new Map([[5120, 1], [5121, 1], [5122, 2], [5123, 2], [5125, 4], [5126, 4]]);
+const componentCounts = new Map([['SCALAR', 1], ['VEC2', 2], ['VEC3', 3], ['VEC4', 4]]);
+const unlitExtension = 'KHR_materials_unlit';
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const isDigest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -98,7 +99,7 @@ function parseGlb(bytes) {
       bytes.readUInt32LE(binStart) !== bytes.length - binStart - 8) invalid('invalid-glb-chunks');
   const document = json(bytes.subarray(20, binStart), invalid, 'invalid-gltf-json');
   if (!isObject(document) || document.asset?.version !== '2.0') invalid('invalid-gltf-version');
-  return { document, binBytes: bytes.length - binStart - 8 };
+  return { document, binary: bytes.subarray(binStart + 8) };
 }
 
 function getAt(items, index) {
@@ -129,30 +130,119 @@ function readStructure(doc, binBytes) {
         !['image/png', 'image/jpeg'].includes(image.mimeType)) invalid('expected-embedded-image');
     getAt(doc.bufferViews, image.bufferView);
   }
-  const extensionsUsed = defined(doc, 'extensionsUsed', []);
-  const extensionsRequired = defined(doc, 'extensionsRequired', []);
-  if (!Array.isArray(extensionsUsed) || !Array.isArray(extensionsRequired)) invalid('invalid-extensions');
-  if (extensionsRequired.length || extensionsUsed.some(name => name !== 'KHR_materials_unlit') ||
-      Object.hasOwn(doc, 'skins') || Object.hasOwn(doc, 'animations')) blocked('unsupported-gltf-profile');
+  if (Object.hasOwn(doc, 'skins') || Object.hasOwn(doc, 'animations')) blocked('unsupported-gltf-profile');
 }
 
-function readAccessor(doc, index, type, sizes) {
+function readExtensions(doc) {
+  const used = defined(doc, 'extensionsUsed', []);
+  const required = defined(doc, 'extensionsRequired', []);
+  for (const names of [used, required]) {
+    if (!Array.isArray(names) || names.some(name => typeof name !== 'string' || !name.length) ||
+        new Set(names).size !== names.length) invalid('invalid-extensions');
+    if (names.some(name => name !== unlitExtension)) blocked('unsupported-gltf-profile');
+  }
+  if (required.some(name => !used.includes(name))) invalid('required-extension-not-used');
+  const materials = defined(doc, 'materials', []);
+  if (!Array.isArray(materials)) invalid('invalid-materials');
+  let foundUnlit = false;
+  for (const material of materials) {
+    if (!isObject(material)) invalid('invalid-materials');
+    const extensions = defined(material, 'extensions', {});
+    if (!isObject(extensions)) invalid('invalid-extensions');
+    if (Object.keys(extensions).some(name => name !== unlitExtension)) blocked('unsupported-material-extension');
+    if (!Object.hasOwn(extensions, unlitExtension)) continue;
+    const unlit = extensions[unlitExtension];
+    if (!used.includes(unlitExtension) || !isObject(unlit)) invalid('invalid-unlit-material');
+    if (Object.hasOwn(unlit, 'extensions')) {
+      if (!isObject(unlit.extensions)) invalid('invalid-extensions');
+      if (Object.keys(unlit.extensions).length) blocked('unsupported-material-extension');
+    }
+    foundUnlit = true;
+  }
+  if (used.includes(unlitExtension) && !foundUnlit) invalid('missing-unlit-material');
+}
+
+function readAccessor(doc, index, target, context) {
   const accessor = getAt(doc.accessors, index);
   if (Object.hasOwn(accessor, 'sparse')) blocked('unsupported-sparse-accessor');
-  const size = sizes.get(accessor.componentType);
+  const width = componentSizes.get(accessor.componentType);
+  const components = componentCounts.get(accessor.type);
+  const size = width * components;
+  const isIndex = target === 34963;
+  const floating = accessor.componentType === 5126;
   const view = getAt(doc.bufferViews, accessor.bufferView);
   const offset = defined(accessor, 'byteOffset', 0);
+  const start = defined(view, 'byteOffset', 0) + offset;
   const stride = defined(view, 'byteStride', size);
-  const alignment = type === 'VEC3' ? 4 : size;
-  if (accessor.type !== type || !size || !positive(accessor.count) || !uint(offset) || !positive(stride) ||
-      stride < size || offset > view.byteLength - size || offset % alignment ||
-      (defined(view, 'byteOffset', 0) + offset) % alignment ||
-      (type === 'SCALAR' && Object.hasOwn(view, 'byteStride')) ||
+  const normalized = defined(accessor, 'normalized', false);
+  if (!size || !positive(accessor.count) || !uint(offset) || !positive(stride) || stride < size ||
+      offset > view.byteLength - size || offset % (isIndex ? width : 4) || start % width ||
+      (isIndex ? Object.hasOwn(view, 'byteStride') : stride % 4 !== 0) || defined(view, 'target', target) !== target ||
+      typeof normalized !== 'boolean' || ((isIndex || floating) && normalized) ||
       accessor.count - 1 > Math.floor((view.byteLength - offset - size) / stride)) invalid('invalid-geometry-accessor');
+
+  const previous = context.views.get(accessor.bufferView);
+  if (previous && (previous.target !== target ||
+      (!isIndex && previous.index !== index && !Object.hasOwn(view, 'byteStride')))) invalid('inconsistent-buffer-view');
+  context.views.set(accessor.bufferView, { target, index });
+  return { accessor, index, width, components, start, stride, floating, normalized };
+}
+
+function scanAccessor(layout, context) {
+  const { accessor, index, width, components, start, stride, floating } = layout;
+  if (context.scanned.has(index)) return context.scanned.get(index);
+  // Distinct accessors can alias the buffer. Cap scan work independently of file bytes.
+  context.remaining -= accessor.count * width * components;
+  if (context.remaining < 0) blocked('geometry-scan-limit');
+  const min = Array(components).fill(Infinity);
+  const max = Array(components).fill(-Infinity);
+  for (let i = 0, offset = start; i < accessor.count; i++, offset += stride) {
+    for (let c = 0; c < components; c++) {
+      const address = offset + c * width;
+      const value = floating ? context.binary.readFloatLE(address) : context.binary.readUIntLE(address, width);
+      if (!Number.isFinite(value)) invalid('non-finite-vertex-component');
+      min[c] = Math.min(min[c], value);
+      max[c] = Math.max(max[c], value);
+    }
+  }
+  const bounds = { min, max };
+  context.scanned.set(index, bounds);
+  return bounds;
+}
+
+function checkBounds(layout, bounds) {
+  const { accessor, components, floating } = layout;
+  for (const [name, values] of Object.entries(bounds)) {
+    if (!Object.hasOwn(accessor, name)) continue;
+    const declared = accessor[name];
+    if (!Array.isArray(declared) || declared.length !== components || declared.some((value, c) =>
+      !Number.isFinite(value) || (floating ? Math.fround(value) : value) !== values[c])) invalid('inconsistent-accessor-bounds');
+  }
+}
+
+function readAttribute(doc, index, semantic, context) {
+  const layout = readAccessor(doc, index, 34962, context);
+  const { accessor, floating, normalized } = layout;
+  const unsignedNormalized = normalized && [5121, 5123].includes(accessor.componentType);
+  let valid;
+  if (semantic === 'POSITION' || semantic === 'NORMAL') valid = accessor.type === 'VEC3' && floating;
+  else if (semantic === 'TANGENT') valid = accessor.type === 'VEC4' && floating;
+  else if (/^TEXCOORD_(?:0|[1-9]\d*)$/u.test(semantic)) valid = accessor.type === 'VEC2' && (floating || unsignedNormalized);
+  else if (/^COLOR_(?:0|[1-9]\d*)$/u.test(semantic)) valid = ['VEC3', 'VEC4'].includes(accessor.type) && (floating || unsignedNormalized);
+  else if (semantic.startsWith('_')) valid = accessor.componentType !== 5125;
+  else if (/^(JOINTS|WEIGHTS)_\d+$/u.test(semantic)) blocked('unsupported-skinning-attribute');
+  if (!valid) invalid('invalid-vertex-attribute');
+  if (semantic === 'POSITION' && (!Object.hasOwn(accessor, 'min') || !Object.hasOwn(accessor, 'max'))) {
+    invalid('missing-position-bounds');
+  }
+  if (floating) {
+    const bounds = scanAccessor(layout, context);
+    if (semantic === 'POSITION') checkBounds(layout, bounds);
+  }
   return accessor.count;
 }
 
-function countMesh(doc, mesh) {
+function countMesh(doc, mesh, context) {
   if (!Array.isArray(mesh.primitives) || !mesh.primitives.length) invalid('missing-mesh-primitives');
   if (Object.hasOwn(mesh, 'weights')) blocked('unsupported-primitive');
   let triangles = 0;
@@ -161,12 +251,26 @@ function countMesh(doc, mesh) {
     const mode = defined(primitive, 'mode', 4);
     if (!uint(mode) || mode > 6) invalid('invalid-primitive-mode');
     if (mode !== 4 || Object.hasOwn(primitive, 'targets') || primitive.extensions) blocked('unsupported-primitive');
-    const vertices = readAccessor(doc, primitive.attributes?.POSITION, 'VEC3', vectorSizes);
-    if (Object.hasOwn(primitive.attributes, 'NORMAL') &&
-        readAccessor(doc, primitive.attributes.NORMAL, 'VEC3', vectorSizes) !== vertices) invalid('normal-count-mismatch');
-    const count = Object.hasOwn(primitive, 'indices')
-      ? readAccessor(doc, primitive.indices, 'SCALAR', indexSizes)
-      : vertices;
+    const attributes = primitive.attributes;
+    if (!isObject(attributes) || !Object.hasOwn(attributes, 'POSITION')) invalid('missing-position-attribute');
+    const vertices = readAttribute(doc, attributes.POSITION, 'POSITION', context);
+    for (const [semantic, index] of Object.entries(attributes)) {
+      if (semantic !== 'POSITION' && readAttribute(doc, index, semantic, context) !== vertices) {
+        invalid('attribute-count-mismatch');
+      }
+    }
+    let count = vertices;
+    if (Object.hasOwn(primitive, 'indices')) {
+      const layout = readAccessor(doc, primitive.indices, 34963, context);
+      if (layout.accessor.type !== 'SCALAR' || ![5121, 5123, 5125].includes(layout.accessor.componentType)) {
+        invalid('invalid-index-accessor');
+      }
+      const bounds = scanAccessor(layout, context);
+      checkBounds(layout, bounds);
+      const [max] = bounds.max;
+      if (max >= vertices || max === 2 ** (8 * layout.width) - 1) invalid('triangle-index-out-of-range');
+      count = layout.accessor.count;
+    }
     if (count % 3) invalid('incomplete-triangle');
     if (Object.hasOwn(primitive, 'material')) getAt(doc.materials, primitive.material);
     triangles += count / 3;
@@ -174,13 +278,14 @@ function countMesh(doc, mesh) {
   return { triangles, primitiveInstances: mesh.primitives.length };
 }
 
-function checkScene(doc, expectation) {
+function checkScene(doc, expectation, binary) {
   const scene = getAt(doc.scenes, defined(doc, 'scene', 0));
   if (!Array.isArray(scene.nodes) || !scene.nodes.length) invalid('missing-scene-nodes');
   const pending = [...scene.nodes];
   const visited = new Set();
   const names = new Map(expectation.requiredNodes.map(name => [name, 0]));
   const meshes = new Map();
+  const context = { binary, views: new Map(), scanned: new Map(), remaining: maximumGlbBytes };
   let triangles = 0, meshNodes = 0, primitiveInstances = 0;
   while (pending.length) {
     const index = pending.pop();
@@ -200,7 +305,7 @@ function checkScene(doc, expectation) {
       for (const child of node.children) pending.push(child);
     }
     if (!Object.hasOwn(node, 'mesh')) continue;
-    if (!meshes.has(node.mesh)) meshes.set(node.mesh, countMesh(doc, getAt(doc.meshes, node.mesh)));
+    if (!meshes.has(node.mesh)) meshes.set(node.mesh, countMesh(doc, getAt(doc.meshes, node.mesh), context));
     const measured = meshes.get(node.mesh);
     meshNodes++;
     triangles += measured.triangles;
@@ -231,9 +336,10 @@ function measure(args) {
   const sha256 = digest(glb);
   if (sha256 !== expected.sha256) invalid('asset-pin-mismatch');
   if (glb.length > expected.budgets.bytes) invalid('file-budget-exceeded');
-  const { document, binBytes } = parseGlb(glb);
-  readStructure(document, binBytes);
-  return { sha256, bytes: glb.length, ...checkScene(document, expected) };
+  const { document, binary } = parseGlb(glb);
+  readStructure(document, binary.length);
+  readExtensions(document);
+  return { sha256, bytes: glb.length, ...checkScene(document, expected, binary) };
 }
 
 const report = { schemaVersion: 1, scope: 'static-glb-intake', status: 'BLOCKED', reason: '', metrics: null };

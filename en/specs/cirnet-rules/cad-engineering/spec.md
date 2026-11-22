@@ -29,8 +29,11 @@ engineering workspace UI Skill routes interaction design and testing.
    bytes, active-scene mesh nodes, triangles and primitive instances.
    A mismatched artifact, malformed supported structure, missing or duplicate
    required name or exceeded reviewed budget fails within the intake domain.
-   Unavailable prerequisites, unsupported features and files beyond the hard
-   read cap block the static intake.
+   The gate checks actual finite vertex components and index values in active
+   primitives, including bounds, declared POSITION extrema and buffer layout.
+   Correct optional or required `KHR_materials_unlit` declarations are
+   supported. Unavailable prerequisites, unsupported features and exceeded
+   hard read or scan limits block the static intake.
 4. A production adoption decision requires kernel and assembly evidence,
    review of rendered output and the owner's import, fallback and
    interaction checks. The static CLI covers its declared checks. It has no

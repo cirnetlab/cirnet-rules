@@ -10,7 +10,16 @@ import { test } from 'node:test';
 const cli = fileURLToPath(new URL('../../scripts/verify-cad-asset.mjs', import.meta.url));
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
-function candidate(edit = () => {}) {
+function writePositions(binary) {
+  [0, 0, 0, 1, 0, 0, 0, 1, 0].forEach((value, index) => binary.writeFloatLE(value, 4 * index));
+}
+
+function writeTriangle(binary) {
+  writePositions(binary);
+  [0, 1, 2].forEach((value, index) => binary.writeUInt16LE(value, 36 + 2 * index));
+}
+
+function candidate(edit = () => {}, write = writeTriangle, binaryBytes = 44) {
   const doc = {
     asset: { version: '2.0' },
     scene: 0, scenes: [{ nodes: [0, 1] }],
@@ -26,9 +35,8 @@ function candidate(edit = () => {}) {
   edit(doc);
   const json = Buffer.from(JSON.stringify(doc));
   const jsonSize = Math.ceil(json.length / 4) * 4;
-  const binary = Buffer.alloc(44);
-  [0, 0, 0, 1, 0, 0, 0, 1, 0].forEach((value, index) => binary.writeFloatLE(value, 4 * index));
-  [0, 1, 2].forEach((value, index) => binary.writeUInt16LE(value, 36 + 2 * index));
+  const binary = Buffer.alloc(binaryBytes);
+  write(binary);
   const glb = Buffer.alloc(28 + jsonSize + binary.length);
   glb.write('glTF');
   glb.writeUInt32LE(2, 4);
@@ -133,4 +141,151 @@ test('fails malformed chunks, unsupported dependencies and inconsistent geometry
     doc => { doc.meshes[0].primitives[0].mode = 5; },
     doc => { doc.bufferViews[0].extensions = { EXT_meshopt_compression: {} }; },
   ]) assert.equal(run(candidate(edit)).status, 'BLOCKED');
+});
+
+function interleaved(withBadNormal = false) {
+  return candidate(doc => {
+    doc.buffers[0].byteLength = 78;
+    doc.bufferViews[0] = { buffer: 0, byteLength: 72, byteStride: 24 };
+    doc.bufferViews[1].byteOffset = 72;
+    doc.accessors[2] = { ...doc.accessors[0], byteOffset: 12, min: [0, 0, 1], max: [0, 0, 1] };
+    doc.meshes[0].primitives[0].attributes.NORMAL = 2;
+  }, binary => {
+    [[0, 0], [1, 0], [0, 1]].forEach(([x, y], i) => {
+      binary.writeFloatLE(x, i * 24);
+      binary.writeFloatLE(y, i * 24 + 4);
+      binary.writeFloatLE(withBadNormal && i === 2 ? -Infinity : 1, i * 24 + 20);
+      binary.writeUInt16LE(i, 72 + i * 2);
+    });
+  }, 80);
+}
+
+test('checks finite UV values without interpreting optional texture bounds', t => {
+  const { run } = fixture(t);
+  const make = bad => candidate(doc => {
+    doc.buffers[0].byteLength = 68;
+    doc.bufferViews.push({ buffer: 0, byteOffset: 44, byteLength: 24 });
+    doc.accessors.push({ bufferView: 2, componentType: 5126, count: 3, type: 'VEC2', min: [0, 0.1], max: [1, 1] });
+    doc.meshes[0].primitives[0].attributes.TEXCOORD_0 = 2;
+  }, binary => {
+    writeTriangle(binary);
+    binary.writeFloatLE(bad ? Infinity : 0, 48);
+  }, 68);
+  assert.equal(run(make(false)).status, 'PASS');
+  assert.equal(run(make(true)).status, 'FAIL');
+});
+
+test('requires four-byte element alignment for normalized short vertex layouts', t => {
+  const { run } = fixture(t);
+  const make = padded => candidate(doc => {
+    doc.buffers[0].byteLength = 56;
+    doc.bufferViews.push(padded
+      ? { buffer: 0, byteOffset: 44, byteLength: 12, byteStride: 4 }
+      : { buffer: 0, byteOffset: 44, byteLength: 6 });
+    doc.accessors.push({ bufferView: 2, componentType: 5121, count: 3, type: 'VEC2', normalized: true });
+    doc.meshes[0].primitives[0].attributes.TEXCOORD_0 = 2;
+  }, writeTriangle, 56);
+  assert.equal(run(make(true)).status, 'PASS');
+  assert.equal(run(make(false)).status, 'FAIL');
+});
+
+test('decodes little-endian triangle indices at each supported width', async t => {
+  const { run } = fixture(t);
+  for (const [componentType, width] of [[5121, 1], [5123, 2], [5125, 4]]) {
+    await t.test(`componentType ${componentType}`, () => {
+      const make = last => candidate(doc => {
+        doc.buffers[0].byteLength = 36 + 3 * width;
+        doc.bufferViews[1].byteLength = 3 * width;
+        doc.accessors[1].componentType = componentType;
+      }, binary => {
+        writePositions(binary);
+        [0, 1, last].forEach((value, index) => binary.writeUIntLE(value, 36 + width * index, width));
+      }, Math.ceil((36 + 3 * width) / 4) * 4);
+      assert.equal(run(make(2)).status, 'PASS');
+      assert.equal(run(make(3)).status, 'FAIL');
+    });
+  }
+});
+
+test('rejects the reserved maximum index inside a large enough vertex accessor', t => {
+  const { run } = fixture(t);
+  const make = last => candidate(doc => {
+    doc.buffers[0].byteLength = 3075;
+    doc.bufferViews = [{ buffer: 0, byteLength: 3072 }, { buffer: 0, byteOffset: 3072, byteLength: 3 }];
+    doc.accessors[0] = { ...doc.accessors[0], count: 256, max: [0, 0, 0] };
+    doc.accessors[1].componentType = 5121;
+  }, binary => { binary[3074] = last; }, 3076);
+  assert.equal(run(make(254)).status, 'PASS');
+  assert.equal(run(make(255)).status, 'FAIL');
+});
+
+test('rejects non-finite vertex components while accepting valid interleaving', async t => {
+  const { run } = fixture(t);
+  assert.equal(run(interleaved()).status, 'PASS');
+  for (const [name, glb] of [
+    ['NaN POSITION', candidate(undefined, binary => { writeTriangle(binary); binary.writeFloatLE(NaN); })],
+    ['infinite NORMAL', interleaved(true)],
+  ]) await t.test(name, () => assert.equal(run(glb).status, 'FAIL'));
+});
+
+test('rejects inconsistent supported accessor declarations', async t => {
+  const { run } = fixture(t);
+  for (const [name, edit] of Object.entries({
+    'missing position bounds': doc => { delete doc.accessors[0].min; },
+    'bounds differ from binary': doc => { doc.accessors[0].max = [1, 2, 0]; },
+    'index bounds differ from binary': doc => { doc.accessors[1].max = [1]; },
+    'normalized floating point': doc => { doc.accessors[0].normalized = true; },
+    'invalid attribute reference': doc => { doc.meshes[0].primitives[0].attributes.TEXCOORD_0 = 99; },
+    'wrong texture coordinate layout': doc => { doc.meshes[0].primitives[0].attributes.TEXCOORD_0 = 0; },
+    'vertex view targets indices': doc => { doc.bufferViews[0].target = 34963; },
+    'two vertex accessors in an unstrided view': doc => {
+      doc.accessors.push({ ...doc.accessors[0] });
+      doc.meshes[0].primitives[0].attributes.NORMAL = 2;
+    },
+    'index and vertex accessors share a view': doc => { doc.accessors[1].bufferView = 0; },
+    'aligning relative but not absolute index offset': doc => {
+      doc.bufferViews[1].byteOffset = 35;
+    },
+  })) await t.test(name, () => assert.equal(run(candidate(edit)).status, 'FAIL'));
+});
+
+test('blocks excessive scan work from distinct accessors sharing the same bytes', t => {
+  const { run } = fixture(t);
+  const vertices = 262146;
+  const bytes = 12 * vertices;
+  const glb = candidate(doc => {
+    doc.buffers[0].byteLength = bytes;
+    doc.bufferViews = [{ buffer: 0, byteLength: bytes, byteStride: 12 }];
+    doc.accessors = [{ ...doc.accessors[0], count: vertices, max: [0, 0, 0] }];
+    const primitive = doc.meshes[0].primitives[0];
+    delete primitive.indices;
+    for (let i = 1; i <= 10; i++) {
+      doc.accessors.push({ ...doc.accessors[0] });
+      primitive.attributes[`_ALIAS_${i}`] = i;
+    }
+  }, () => {}, bytes);
+  const result = run(glb, { budgets: { bytes: glb.length, triangles: 2 * vertices / 3, primitiveInstances: 2 } });
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.reason, 'geometry-scan-limit');
+});
+
+function unlit(doc) {
+  doc.extensionsUsed = ['KHR_materials_unlit'];
+  doc.extensionsRequired = ['KHR_materials_unlit'];
+  doc.materials = [{ extensions: { KHR_materials_unlit: {} } }];
+  doc.meshes[0].primitives[0].material = 0;
+}
+
+test('accepts supported unlit declarations and distinguishes malformed and unsupported extensions', async t => {
+  const { run } = fixture(t);
+  for (const [name, expected, edit] of [
+    ['required unlit', 'PASS', unlit],
+    ['optional unlit', 'PASS', doc => { unlit(doc); delete doc.extensionsRequired; }],
+    ['required without used', 'FAIL', doc => { unlit(doc); delete doc.extensionsUsed; }],
+    ['required without material binding', 'FAIL', doc => { unlit(doc); delete doc.materials[0].extensions; }],
+    ['invalid unlit material record', 'FAIL', doc => { unlit(doc); doc.materials[0].extensions.KHR_materials_unlit = null; }],
+    ['duplicate declaration', 'FAIL', doc => { unlit(doc); doc.extensionsUsed.push('KHR_materials_unlit'); }],
+    ['unlisted material extension', 'BLOCKED', doc => { unlit(doc); doc.materials[0].extensions.KHR_materials_clearcoat = {}; }],
+    ['mixed required extensions', 'BLOCKED', doc => { unlit(doc); doc.extensionsRequired.push('KHR_draco_mesh_compression'); }],
+  ]) await t.test(name, () => assert.equal(run(candidate(edit)).status, expected));
 });

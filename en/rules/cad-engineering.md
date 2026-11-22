@@ -90,17 +90,24 @@ Both file paths are literal and relative to the authoring root. Use an
 owner-controlled workspace after the export finishes. The gate caps
 input at 32 KiB for the expectation and 32 MiB for the GLB. It reads without
 launching an authoring tool or fetching files. The supported profile is GLB
-2.0 with embedded buffer data, PNG/JPEG images when present, static triangle
-primitives and optional `KHR_materials_unlit`. It checks the container,
-selected scene tree, transform declaration shapes, POSITION/index ranges
-and optional NORMAL declarations. Each required name must occur once in the
-selected scene. The JSON report uses `PASS`/0, `FAIL`/1 or `BLOCKED`/3.
+2.0 with embedded buffer data, PNG/JPEG images when present, and static triangle
+primitives. It accepts correctly declared `KHR_materials_unlit` in optional
+or required form. Unsupported extensions and scan limits yield `BLOCKED`.
+The gate checks the container, selected scene tree and transform declaration
+shapes. For active primitives it checks attribute counts, buffer ranges,
+stride and alignment, finite float values, decoded index bounds and reserved
+index values. It compares POSITION bounds and declared index bounds with
+decoded values. Distinct binary scans have a cumulative 32 MiB budget.
+Each required name must occur once in the selected scene. The JSON report
+uses `PASS`/0, `FAIL`/1 or `BLOCKED`/3.
 
-Keep native and product evidence separately. Check mesh surfaces, decoded
-indices and normals, world dimensions, transform behavior, texture/material
-rendering, memory and actual draw calls with the owning tools and test
-profile. An independently reviewed SHA-256 pins bytes. Record who produced
-the file and how the owner established that provenance.
+Use the owner's checks for mesh surface quality, normal direction and length,
+world dimensions, transform behavior, and texture or material appearance.
+Optional texture-coordinate extrema are outside the static bounds comparison.
+Measure memory and draw calls in the owner runtime. Keep native CAD,
+visual approval and product evidence separately. An independently reviewed
+SHA-256 pins bytes. Record who produced the file and how the owner established
+that provenance.
 
 [CAD engineering specification](../specs/cirnet-rules/cad-engineering/spec.md)
 

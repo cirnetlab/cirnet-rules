@@ -89,17 +89,24 @@ Cả hai đường dẫn tệp là đường dẫn nguyên văn tương đối v
 mẫu. Dùng workspace do chủ sở hữu kiểm soát sau khi hoàn tất xuất tệp.
 Cổng giới hạn kỳ vọng ở 32 KiB và GLB ở 32 MiB. Nó đọc tệp mà không chạy
 công cụ tạo mẫu hay tải tệp. Phạm vi hỗ trợ là GLB 2.0 với bộ đệm nhúng,
-ảnh PNG/JPEG nếu có, primitive tam giác tĩnh và `KHR_materials_unlit` tùy
-chọn. Cổng kiểm tra container, cây cảnh được chọn, cấu trúc khai báo phép biến
-đổi, phạm vi POSITION/chỉ số và khai báo NORMAL tùy chọn. Mỗi tên bắt buộc
-xuất hiện đúng một lần trong cảnh đã chọn. Báo cáo JSON dùng `PASS`/0,
-`FAIL`/1 hoặc `BLOCKED`/3.
+ảnh PNG/JPEG nếu có và primitive tam giác tĩnh. Cổng chấp nhận
+`KHR_materials_unlit` được khai báo đúng ở dạng tùy chọn hoặc bắt buộc.
+Extension ngoài hỗ trợ và trường hợp vượt giới hạn quét trả `BLOCKED`.
+Cổng kiểm tra container, cây cảnh được chọn và cấu trúc khai báo phép biến
+đổi. Với primitive đang dùng, cổng kiểm tra số lượng thuộc tính, phạm vi
+bộ đệm, stride và căn chỉnh, số thực hữu hạn, phạm vi chỉ số đã giải mã và
+các giá trị chỉ số dành riêng. Cổng đối chiếu cận POSITION và cận chỉ số đã
+khai báo với giá trị giải mã. Tổng ngân sách cho các lần quét nhị phân riêng
+là 32 MiB. Mỗi tên bắt buộc xuất hiện đúng một lần trong cảnh đã chọn.
+Báo cáo JSON dùng `PASS`/0, `FAIL`/1 hoặc `BLOCKED`/3.
 
-Giữ bằng chứng native và sản phẩm riêng. Dùng công cụ và cấu hình kiểm thử
-của chủ sở hữu để kiểm tra bề mặt lưới, chỉ số và pháp tuyến đã giải mã,
-kích thước thế giới, hành vi biến đổi, render vật liệu và texture, bộ nhớ
-và số lệnh vẽ thực. SHA-256 đã rà soát độc lập ghim các byte. Ghi ai tạo tệp
-và cách chủ sở hữu xác lập xuất xứ.
+Dùng phép kiểm của chủ sở hữu cho chất lượng bề mặt lưới, hướng và độ dài
+pháp tuyến, kích thước thế giới, hành vi biến đổi và ngoại quan vật liệu
+hoặc texture. Các giá trị cực trị tùy chọn của tọa độ texture nằm ngoài
+phép so sánh cận tĩnh. Đo bộ nhớ và số lệnh vẽ trong runtime của chủ sở hữu.
+Giữ bằng chứng CAD native, phê duyệt trực quan và bằng chứng sản phẩm riêng.
+SHA-256 đã rà soát độc lập ghim các byte. Ghi ai tạo tệp và cách chủ sở hữu
+xác lập xuất xứ.
 
 [Đặc tả kỹ thuật CAD](../specs/cirnet-rules/cad-engineering/spec.md)
 
@@ -202,4 +209,4 @@ workbench, đồ thị chịu ảnh hưởng. (`tests/gltf-assets.test.ts`,
 `tests/oscilloscope.test.ts:128–173`, `e2e/assets.spec.ts`.)
 
 <!-- source: en/rules/cad-engineering.md -->
-<!-- source-sha256: 66e7490975744891addc70e6be0b91b5b3b43248983a6efa96f61be2e9d8f436 -->
+<!-- source-sha256: d6c6daade3d5dcd3ebbe4c731d11479f95ac585625687be812d415ce647b089d -->
