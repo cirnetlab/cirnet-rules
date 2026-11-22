@@ -94,8 +94,9 @@ launching an authoring tool or fetching files. The supported profile is GLB
 primitives. It accepts correctly declared `KHR_materials_unlit` in optional
 or required form. Unsupported extensions and scan limits yield `BLOCKED`.
 The gate checks the container, selected scene tree, node name types and
-transform declaration shapes. Invalid camera references in the selected scene
-yield `FAIL`.
+transform declarations. Rotation quaternion components must be in
+`[-1, 1]`, with a length within `0.001` of one to allow export rounding.
+Invalid camera references in the selected scene yield `FAIL`.
 A camera referenced by that scene is outside the static profile and yields
 `BLOCKED` when its reference is valid. For active primitives the gate checks
 attribute counts, buffer ranges, stride and alignment, finite float values,

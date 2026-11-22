@@ -175,6 +175,31 @@ test('checks finite UV values without interpreting optional texture bounds', t =
   assert.equal(run(make(true)).status, 'FAIL');
 });
 
+test('checks unit quaternions on nodes in the active scene', async t => {
+  const { run } = fixture(t);
+  const make = rotation => candidate(doc => { doc.nodes[0].rotation = rotation; });
+  const floatComponent = Math.fround(Math.SQRT1_2);
+  for (const rotation of [
+    [0, 0, 0, 1],
+    [0, 0, -1, 0],
+    [floatComponent, 0, 0, floatComponent],
+    [0.259, 0, 0, 0.966],
+  ]) assert.equal(run(make(rotation)).status, 'PASS');
+  for (const [name, rotation] of [
+    ['zero quaternion', [0, 0, 0, 0]],
+    ['length below the rounding tolerance', [0, 0, 0, 0.9989]],
+    ['length above the rounding tolerance', [0.708, 0, 0, 0.708]],
+    ['component above one with a near-unit length', [1.0001, 0, 0, 0]],
+    ['component below minus one with a near-unit length', [-1.0001, 0, 0, 0]],
+  ]) {
+    await t.test(name, () => {
+      const { status, reason } = run(make(rotation));
+      assert.deepEqual({ status, reason }, { status: 'FAIL', reason: 'invalid-node-rotation' });
+    });
+  }
+  assert.equal(run(make([0, '0', 0, 1])).reason, 'invalid-node-transform');
+});
+
 test('checks optional node name types in the active scene', t => {
   const { run } = fixture(t);
   const make = node => candidate(doc => {

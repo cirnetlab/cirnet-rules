@@ -92,8 +92,10 @@ công cụ tạo mẫu hay tải tệp. Phạm vi hỗ trợ là GLB 2.0 với b
 ảnh PNG/JPEG nếu có và primitive tam giác tĩnh. Cổng chấp nhận
 `KHR_materials_unlit` được khai báo đúng ở dạng tùy chọn hoặc bắt buộc.
 Extension ngoài hỗ trợ và trường hợp vượt giới hạn quét trả `BLOCKED`.
-Cổng kiểm tra container, cây cảnh được chọn, kiểu tên node và cấu trúc
-khai báo phép biến đổi. Tham chiếu camera không hợp lệ trong cảnh được
+Cổng kiểm tra container, cây cảnh được chọn, kiểu tên node và khai báo
+phép biến đổi. Các thành phần của quaternion quay phải nằm trong
+`[-1, 1]`. Độ dài được phép lệch tối đa `0.001` so với 1 để chấp nhận
+sai số làm tròn khi xuất. Tham chiếu camera không hợp lệ trong cảnh được
 chọn trả `FAIL`.
 Camera được cảnh đó tham chiếu nằm ngoài phạm vi tĩnh và trả `BLOCKED`
 khi tham chiếu hợp lệ. Với primitive đang dùng, cổng kiểm tra số lượng
@@ -218,4 +220,4 @@ workbench, đồ thị chịu ảnh hưởng. (`tests/gltf-assets.test.ts`,
 `tests/oscilloscope.test.ts:128–173`, `e2e/assets.spec.ts`.)
 
 <!-- source: en/rules/cad-engineering.md -->
-<!-- source-sha256: 54c8dfd32ec3b6c96b1855430e27e90ccf7bcdb3e3f76f420de860f629b13929 -->
+<!-- source-sha256: ed15691f2bb83d09e2f04c99e52f19707ac4fedc9c424b5496ef2d69443824d0 -->

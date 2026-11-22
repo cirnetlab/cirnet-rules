@@ -4,6 +4,8 @@ import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 
 const maximumGlbBytes = 32 * 1024 * 1024;
 const maximumExpectationBytes = 32 * 1024;
+// Allow rounding four unit-quaternion components to three decimal places.
+const rotationLengthTolerance = 1e-3;
 const componentSizes = new Map([[5120, 1], [5121, 1], [5122, 2], [5123, 2], [5125, 4], [5126, 4]]);
 const componentCounts = new Map([['SCALAR', 1], ['VEC2', 2], ['VEC3', 3], ['VEC4', 4]]);
 const unlitExtension = 'KHR_materials_unlit';
@@ -375,6 +377,8 @@ function checkScene(doc, expectation, binary, views) {
       const numbers = node[key];
       if (!Array.isArray(numbers) || numbers.length !== length || !numbers.every(Number.isFinite) ||
           (key !== 'matrix' && Object.hasOwn(node, 'matrix'))) invalid('invalid-node-transform');
+      if (key === 'rotation' && (numbers.some(value => Math.abs(value) > 1) ||
+          Math.abs(Math.hypot(...numbers) - 1) > rotationLengthTolerance)) invalid('invalid-node-rotation');
     }
     if (Object.hasOwn(node, 'children')) {
       if (!Array.isArray(node.children)) invalid('invalid-node-children');
