@@ -1,23 +1,21 @@
 ## Prompt giao nhiệm vụ mới cho AI Agent Chat
 
-Hãy dùng Skill `cirnet-work-prompt-authoring` để soạn **một Work Prompt bằng tiếng Anh** cho Codex thực thi nhiệm vụ dưới đây và soạn Prompt Tiếng Anh.
+Dùng Skill `cirnet-work-prompt-authoring` để khảo sát trong phạm vi đọc và soạn một Work Prompt cho Codex. Viết hướng dẫn bằng tiếng Anh, giữ nguyên văn và thứ tự các dòng yêu cầu đã duyệt.
 
 **Yêu cầu gốc**
 
 [DÁN NGUYÊN VĂN NHIỆM VỤ TẠI ĐÂY.]
 
-Bổ sung repository đích, phạm vi đã cấp và đường dẫn lưu prompt nếu có.
+Ghi riêng repo đích, quyền đã cấp và đích lưu nếu có.
 
-**Cách soạn**
-
-1. Từ yêu cầu gốc, xác định hành động, đối tượng, thay đổi cần làm, kết quả quan sát được và quyền đã cấp. Dùng checkout `cirnet-rules` được phê duyệt để đọc mẫu `en/templates/chat-to-work-prompt.md` và áp dụng bước xác thực tại `en/docs/context.md#offline-handoff-validation`. Dùng thông tin phê duyệt từ người có thẩm quyền.
-2. Xác định repository chịu trách nhiệm bằng `en/policies/architecture.md` và `en/references/architecture-routing.md` khi nhiệm vụ liên quan đến kiến trúc hoặc ranh giới sở hữu. Đọc đúng phần tiếng Anh chi phối thay đổi, `AGENTS.md` có hiệu lực, Rules/Skills áp dụng, Plans/Specs liên quan, mã nguồn, hợp đồng, phiên bản đang được chọn và kiểm thử của repo sở hữu. Tra cứu theo đường dẫn và symbol, dùng lại nguồn đã đọc ở đúng revision, dừng khi đủ bằng chứng. Ghi rõ dữ kiện đã xác minh, giả thuyết và phần chưa đọc bằng locator cụ thể.
-3. Viết theo độ sâu phù hợp với rủi ro. Nêu mục tiêu, phạm vi đọc/ghi và tác động được phép, nguồn có thẩm quyền, ràng buộc kỹ thuật, hành vi khi lỗi, đầu ra và tiêu chí nghiệm thu. Gắn mỗi tiêu chí với lệnh hoặc quan sát đã xác minh. Nếu lệnh chưa biết, chỉ rõ nơi Codex cần tra cứu. Dẫn tới nguồn thay vì chép lại quy tắc chung. Bảo toàn mọi yêu cầu gốc và giữ mỗi ý ở một nơi.
-4. Yêu cầu Codex xác nhận repo, worktree, branch/HEAD, trạng thái Git và quyền hiện hành. Trước khi sửa, Codex phải đối chiếu các nguồn chi phối với checkout thực tế, xử lý mâu thuẫn ảnh hưởng đến cách làm và đạt bước kiểm tra trước thực thi theo hướng dẫn ở bước 1. Với tác vụ có thể kéo dài qua nhiều phiên, tạo checkpoint Task Continuity trước khi sửa và cập nhật theo `en/docs/distribution.md#task-continuity`. Báo cáo tệp đã đổi, lệnh đã chạy, kết quả thực tế và giới hạn.
+1. **Xác nhận đầu vào.** Đọc mẫu và quy trình xác thực từ `cirnet-rules` đã duyệt. Trước khi khảo sát, xác nhận yêu cầu gốc, checkout đích và hồ sơ cấp quyền. Kiểm tra SHA-256 của hồ sơ với giá trị nhận riêng từ người duyệt. Chỉ dùng bản trích xuất đã duyệt cho nguồn nhạy cảm. [Mẫu tiếng Anh](en/templates/chat-to-work-prompt.md) · [Xác thực](en/docs/context.md#offline-handoff-validation)
+2. **Đối chiếu nguồn.** Xác định repo sở hữu. Đọc `AGENTS.md` có hiệu lực, Rules/Skills, Plans/Specs và phần mã, hợp đồng, artifact đã chọn, kiểm thử liên quan. Khi ảnh hưởng kiến trúc hoặc quyền sở hữu, đọc phần kiến trúc tiếng Anh có thẩm quyền. Tra theo đường dẫn/symbol và dùng lại bằng chứng đúng revision. Tách dữ kiện khỏi giả thuyết. Ghi `NOT_INSPECTED` kèm bước xác minh nếu nguồn chưa đọc và phạm vi đã rõ. [Chính sách kiến trúc](en/policies/architecture.md) · [Bảng chủ sở hữu](en/references/architecture-routing.md)
+3. **Soạn handoff.** Chọn LIGHT/STANDARD/DEEP theo rủi ro và độ phức tạp. Nêu thay đổi cụ thể, kết quả quan sát được, quyền đọc/ghi/thực thi, ràng buộc và trường hợp lỗi. Gắn mỗi tiêu chí nghiệm thu với lệnh hoặc quan sát đã xác minh. Chỉ nơi tra cứu khi chưa biết lệnh. Dẫn đúng mục và revision, giữ mỗi ý một lần.
+4. **Kiểm tra và giao việc.** Trước khi giao, chạy `scripts/validate-work-prompt.ps1` và yêu cầu `handoffStatus = PASS`. Codex phải xác nhận repo/worktree, branch/HEAD, trạng thái Git và quyền, rồi đọc và đối chiếu nguồn chi phối tại checkout thực tế. Chỉ thực thi khi `-ExecutionPreflight` cho `executionStatus = PASS`. Khi ghi hoặc chạy build/test có thể ghi, dùng baseline phạm vi đã duyệt và đối soát sau chạy. Tác vụ nhiều phiên cần checkpoint trước khi sửa và cập nhật tiến độ. Báo cáo đầu ra, tệp đổi, kết quả kiểm tra thực tế và giới hạn. [Task Continuity](en/docs/distribution.md#task-continuity)
 
 **Đầu ra**
 
-Trả `PROMPT_READY` khi handoff đủ điều kiện, lưu Work Prompt vào một tệp Markdown ở đích được phép và gửi liên kết kèm tóm tắt tiếng Việt. Trả `PROMPT_BLOCKED` khi thiếu quyết định, thẩm quyền hoặc điều kiện thiết yếu, kèm thông tin cần bổ sung. Với nguồn chưa đọc mà phạm vi an toàn đã rõ, ghi `NOT_INSPECTED` và chỉ định bước xác minh cho Codex.
+Khi đủ điều kiện, lưu một Work Prompt Markdown tại đích được phép. Trả `PROMPT_READY`, liên kết và tóm tắt tiếng Việt. Nếu thiếu điều kiện thiết yếu, trả `PROMPT_BLOCKED` và nêu phần cần bổ sung.
 
 
 ## Prompt phụ giao nhiệm vụ cho AI Agent Chat
