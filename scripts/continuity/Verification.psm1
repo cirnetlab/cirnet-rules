@@ -26,6 +26,38 @@ function Get-ReferenceRoots($Repository, $References, [hashtable]$RelatedRoot) {
     $roots
 }
 
+function Get-ReviewedRelatedRoots($Repository, $References, $Review, [bool]$ConfirmRead, [hashtable]$AuthorizedRoots) {
+    $roots = @{}
+    $expected = @($References.relatedRepositories | ForEach-Object id)
+    if (!$Review.Contains('relatedRoots')) {
+        if (!$expected.Count) { return $roots }
+        throw 'The reviewed related roots are missing.'
+    }
+    if (!$ConfirmRead -or !$expected.Count -or $Review.relatedRoots -isnot [Collections.IDictionary] -or
+        $Review.relatedRoots.psbase.Count -ne $expected.Count) {
+        throw 'Confirm read access to exactly the reviewed related roots.'
+    }
+    $comparer = if ($IsWindows) { [StringComparer]::OrdinalIgnoreCase } else { [StringComparer]::Ordinal }
+    $seen = [Collections.Generic.HashSet[string]]::new($comparer)
+    [void]$seen.Add($Repository.root)
+    foreach ($id in $expected) {
+        $path = $Review.relatedRoots[$id]
+        if ($id -cnotin $Review.relatedRoots.psbase.Keys -or $path -isnot [string] -or
+            ![IO.Path]::IsPathFullyQualified($path) -or ($IsWindows -and $path -match '^[\\/]{2}')) {
+            throw 'Expected an explicitly approved local related worktree root.'
+        }
+        if ($PSBoundParameters.ContainsKey('AuthorizedRoots') -and $AuthorizedRoots[$id] -cne $path) {
+            throw 'Confirm the same related-root read scope for the report.'
+        }
+        Assert-NoCredential $path
+        if ((Get-ContinuityInputPath $path) -cne $path) { throw 'Use the canonical related worktree root.' }
+        $checkout = Get-ContinuityRepository $path
+        if ($checkout.root -cne $path -or !$seen.Add($checkout.root)) { throw 'Expected distinct related worktree roots.' }
+        $roots.Add($id, $path)
+    }
+    $roots
+}
+
 function Get-DocumentDigest($Checkout, [string]$Relative, [string]$Store) {
     $path = Resolve-ContinuityFile $Checkout.root $Relative
     if (Test-ContinuityInside (Split-Path -Parent $Store) $path) {
@@ -357,11 +389,49 @@ function New-ContinuityMeasurement($Repository, [string]$Store, $State, [string]
     $measurement
 }
 
-function Invoke-ContinuityMeasurement($Repository, $Measurement, [int]$TimeoutSeconds) {
+function Read-ClaimStdout($Stream, $Clock, [int]$Deadline) {
+    $buffer = [byte[]]::new(1MB + 1)
+    $length = 0
+    while ($length -lt $buffer.Length) {
+        $remaining = $Deadline - $Clock.ElapsedMilliseconds
+        if ($remaining -le 0) { return }
+        $read = $Stream.ReadAsync($buffer, $length, $buffer.Length - $length)
+        if (!$read.Wait([int]$remaining)) { return }
+        if ($read.Result -eq 0) {
+            if ($length) {
+                [Array]::Resize([ref]$buffer, $length)
+                return ,$buffer
+            }
+            return
+        }
+        $length += $read.Result
+    }
+}
+
+function Save-ClaimStdout($Repository, [string]$Relative, [byte[]]$Bytes) {
+    $claim = ConvertFrom-ContinuityJson $Bytes -UniqueProperties
+    Assert-Record $claim @('schemaVersion','status','reason','scope','revision','mode','recordStatus','executionVerified',
+        'checkpointSeal','expectationSha256','observationSha256','stages')
+    Assert-NoCredential ([Text.Encoding]::UTF8.GetString($Bytes))
+    $destination = Resolve-ContinuityFile $Repository.root $Relative
+    Assert-ContinuityDestination $Repository $destination -OwningWorktree
+    Write-ContinuityNewFile $destination $Bytes
+    Get-CirnetPayloadHash $Bytes
+}
+
+function Invoke-ContinuityMeasurement($Repository, $Measurement, [int]$TimeoutSeconds, [string]$ClaimOutputPath) {
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = $Measurement.toolPath
     $info.WorkingDirectory = $Repository.root
     $info.UseShellExecute = $false
+    if ($ClaimOutputPath) {
+        $info.RedirectStandardOutput = $true
+        # Run the approved verifier with OS and executable lookup inputs only.
+        foreach ($name in @($info.Environment.Keys)) {
+            if ($name -cnotin @('PATH','Path','SystemRoot','SYSTEMROOT','WINDIR','windir','TEMP','TMP','TMPDIR','PATHEXT',
+                'HOME','USERPROFILE','HOMEDRIVE','HOMEPATH')) { $null = $info.Environment.Remove($name) }
+        }
+    }
     foreach ($arg in $Measurement.arguments) { $info.ArgumentList.Add($arg) }
     try { $process = [Diagnostics.Process]::Start($info) }
     catch {
@@ -372,10 +442,21 @@ function Invoke-ContinuityMeasurement($Repository, $Measurement, [int]$TimeoutSe
         return
     }
     try {
-        if ($process.WaitForExit($TimeoutSeconds * 1000)) {
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        $milliseconds = $TimeoutSeconds * 1000
+        if ($ClaimOutputPath) {
+            try { $bytes = Read-ClaimStdout $process.StandardOutput.BaseStream $clock $milliseconds }
+            catch { $bytes = $null }
+            $process.StandardOutput.Dispose()
+        }
+        if ($process.WaitForExit([int][Math]::Max(0, $milliseconds - $clock.ElapsedMilliseconds))) {
             $Measurement.exitCode = $process.ExitCode
             $Measurement.phase = 'finished'
             $Measurement.result = if ($Measurement.exitCode -eq 0) { 'PASS' } else { 'FAIL' }
+            if ($ClaimOutputPath -and $bytes -and $Measurement.exitCode -in 0..3) {
+                try { $Measurement.stdoutSha256 = Save-ClaimStdout $Repository $ClaimOutputPath $bytes }
+                catch { } # Missing or rejected stdout is unbound. Preserve the real process observation.
+            }
         }
         else {
             $Measurement.phase = 'interrupted'
@@ -394,6 +475,6 @@ function Invoke-ContinuityMeasurement($Repository, $Measurement, [int]$TimeoutSe
     $Measurement.finishedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 }
 
-Export-ModuleMember -Function New-ContinuityReferences, Get-ContinuityReferenceProblems, Get-ContinuityStatus,
+Export-ModuleMember -Function New-ContinuityReferences, Get-ContinuityReferenceProblems, Get-ContinuityStatus, Get-ReviewedRelatedRoots,
     New-ContinuityMeasurement, Invoke-ContinuityMeasurement, Get-ProcessInputsMatch, Get-EffectiveCheck,
     Set-ContinuityReviews

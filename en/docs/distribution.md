@@ -427,6 +427,13 @@ retain their coverage status. A strict `PASS` sets `executionVerified`
 to true for the declared required scope. Review that evidence against the
 original criteria before closing a task.
 
+For related references, include an optional `relatedRoots` object in the
+independently pinned review. Map exactly the declared repository IDs to their
+canonical local Git worktree roots. After confirming current read access,
+add `-ConfirmRelatedRead` to the verifier arguments. The verifier reconciles
+each selected HEAD and document digest through Task Continuity. The review
+maps read scope for source or contract checks.
+
 ### Report the measured claim
 
 Run `verify-claim.ps1` as a direct Task Continuity build or test check with
@@ -437,17 +444,17 @@ observation, their declared inputs and any trusted review in the check's
 a reference document in the reviewed toolkit checkout. For a strict run,
 keep the reviewed source checkpoint in its owner task and measure the verifier
 in a separate reporting task. Publishing the reporting check then leaves the
-source checkpoint seal available to the verifier. The strict source checkpoint
-supports primary-worktree references.
+source checkpoint seal available to the verifier.
 
-Capture only the verifier's JSON stdout from that measured invocation in the
-approved local output location. Keep progress, runner objects and diagnostics
-out of that file. One supported capture is a dedicated PowerShell process that
-invokes `task-continuity.ps1 run` with `| Out-Null` and returns its
-`$LASTEXITCODE`. Redirect the host's stdout to an approved ignored result file
-inside the worktree. Review the result with the measured check and pin its
-SHA-256 independently. The pin binds the reviewed bytes to this report.
-The operator establishes which invocation produced them.
+Opt in with `-ClaimOutputPath $resultRelativePath` on `task-continuity.ps1 run`.
+Choose a new file in an existing owner-approved ignored directory in the
+worktree, outside task storage. The runner reads up to 1 MiB of complete
+verifier stdout within the process timeout. It admits the verifier's JSON
+shape, screens for credentials, writes the exact bytes once and stores their
+digest in the process observation. Capture uses a minimal OS environment
+and keeps stderr out of the result. The owner controls access and retention.
+The checkpoint holds the digest. Keep that checkpoint in the trusted owner
+workflow and obtain the reviewed result pin independently.
 
 ```powershell
 ./scripts/report-claim.ps1 -Repository $approvedRoot -TaskId $reportingTask `
@@ -455,8 +462,10 @@ The operator establishes which invocation produced them.
     -ResultPath $resultRelativePath -ResultSha256 $reviewedResultPin
 ```
 
-Supply the same approved `-RelatedRoot` mappings when the reporting checkpoint
-uses related references.
+Supply the same approved `-RelatedRoot` mappings for related references in
+the reporting or strict source checkpoint. For the source checkpoint the
+mappings must match the pinned review and the measured verifier must include
+`-ConfirmRelatedRead`.
 
 The read-only report exposes `process.recordedStatus`, `process.effectiveStatus`
 and `process.exitCode` alongside `claim.status`, `claim.stages` and the current
@@ -476,6 +485,10 @@ a claim `PASS`. A validated report uses the claim's exit code.
 stale or disagreeing pair. Treat `claim.mode: record-consistency` as the
 record-format assessment. Use the independent review and Task Continuity close
 gate for overall acceptance.
+Reports mark a bound result with `outputOrigin: captured-stdout`. Earlier
+runs that lack the observed digest require a fresh opt-in run to establish
+output origin. Owner assertion meaning and reviewer authority still come
+from independent review.
 
 ### Bound correction
 
@@ -517,10 +530,12 @@ The policy reconciles current and previous snapshots with the retained
 history, check definition and live fingerprints. A launched interrupted edit
 counts toward the repair budget. The limit of one unchanged retry applies
 to the reviewed cluster, including after an input-changing repair.
-Guidance stops while a process may still be running. The checkpoint-based
-decision remains advisory. Separately
-authorized operations use the reviewed `-ExpectedCheckpointId` with
-Task Continuity.
+Guidance stops while a process may still be running. Two sessions can
+receive advice against the same checkpoint. For separately authorized
+dispatch, pass the reviewed `-ExpectedCheckpointId` to Task Continuity.
+The per-task lock and expected-ID check admit at most one competing
+dispatch against that checkpoint. Keep using the original independently
+reviewed cluster and history when reconciling the losing request.
 
 ## Update and restore
 

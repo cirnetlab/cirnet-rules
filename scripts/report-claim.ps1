@@ -71,11 +71,11 @@ function Get-VerifierInvocation($Check, $Status) {
 
     $options = @{}
     $keys = @('-Repository','-ExpectationPath','-ExpectationSha256','-ObservationPath','-ObservationSha256')
-    $allowed = $keys + @('-TrustedReviewPath','-TrustedReviewSha256','-CheckpointRoot','-Strict')
+    $allowed = $keys + @('-TrustedReviewPath','-TrustedReviewSha256','-CheckpointRoot','-Strict','-ConfirmRelatedRead')
     for ($index = 4; $index -lt $argsList.Count; $index++) {
         $key = $argsList[$index]
         if ($key -notin $allowed -or $options.ContainsKey($key)) { throw 'Unexpected or duplicate verifier parameter.' }
-        if ($key -ieq '-Strict') { $options[$key] = $true; continue }
+        if ($key -in @('-Strict','-ConfirmRelatedRead')) { $options[$key] = $true; continue }
         $index++
         if ($index -ge $argsList.Count -or !$argsList[$index]) { throw 'Missing verifier parameter value.' }
         $options[$key] = $argsList[$index]
@@ -198,7 +198,9 @@ function Assert-ClaimResult($Result, $Check, $Options) {
             $review.checkpointSeal -cne $Result.checkpointSeal) {
             throw 'The reviewed source checkpoint changed.'
         }
-        $sourceStatus = Get-ContinuityStatus $checkout $sourceStore $source $git $RelatedRoot
+        $sourceRoots = Get-ReviewedRelatedRoots $checkout $source.State.references $review `
+            ($Options.ContainsKey('-ConfirmRelatedRead')) $RelatedRoot
+        $sourceStatus = Get-ContinuityStatus $checkout $sourceStore $source $git $sourceRoots
         if (!$sourceStatus.Git.Matches -or $sourceStatus.GitConflicted -or $sourceStatus.ReferenceProblems.Count) {
             throw 'The reviewed source checkout changed.'
         }
@@ -224,6 +226,7 @@ function Assert-ClaimResult($Result, $Check, $Options) {
 
 $report = [ordered]@{
     schemaVersion = 1; reportStatus = 'BLOCKED'; reason = 'checkpoint-unavailable'
+    outputOrigin = 'unverified'
     checkpointId = $null; evidenceId = $null; process = $null; claim = $null; task = $null
 }
 try {
@@ -254,6 +257,10 @@ try {
 
     $report.reason = 'verifier-invocation-unconfirmed'
     $options = Get-VerifierInvocation $check $status
+    $report.reason = 'process-output-provenance-unverified'
+    if (!$check.Evidence.Contains('stdoutSha256') -or $check.Evidence.stdoutSha256 -cne $ResultSha256) {
+        throw 'The supplied digest is not the stdout digest observed by Task Continuity.'
+    }
     $report.reason = 'verifier-result-unavailable-or-disagrees'
     $claim = Read-ReportRecord $ResultPath $ResultSha256
     Assert-ClaimResult $claim $check $options
@@ -270,6 +277,7 @@ try {
         })
     }
     $report.reportStatus = 'VALIDATED'
+    $report.outputOrigin = 'captured-stdout'
     $report.reason = ''
 }
 catch { }

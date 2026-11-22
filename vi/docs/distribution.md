@@ -428,6 +428,13 @@ giữ trạng thái bao phủ tương ứng. `PASS` ở chế độ strict đặ
 `executionVerified` thành true trong phạm vi bắt buộc đã khai báo. Đối
 chiếu bằng chứng với tiêu chí gốc trước khi đóng nhiệm vụ.
 
+Với tài liệu tham chiếu repo phụ, thêm đối tượng `relatedRoots` tùy chọn vào
+bản rà soát được ghim độc lập. Ánh xạ đúng các ID repo đã khai báo tới thư
+mục gốc chuẩn của từng Git worktree cục bộ. Sau khi xác nhận quyền đọc hiện
+tại, thêm `-ConfirmRelatedRead` vào tham số verifier. Verifier dùng Task
+Continuity để đối chiếu HEAD đã chọn và hash tài liệu của từng repo. Ánh
+xạ xác định phạm vi đọc để kiểm tra mã nguồn hoặc hợp đồng.
+
 ### Báo cáo claim đã đo
 
 Chạy `verify-claim.ps1` dưới dạng check build hoặc test trực tiếp của Task
@@ -439,17 +446,18 @@ nếu script nằm trong cây làm việc, hoặc ghim nó dưới dạng tài l
 trong checkout bộ công cụ đã được rà soát. Với chế độ strict, giữ checkpoint
 nguồn đã rà soát trong task của chủ sở hữu và đo chạy verifier trong một task
 báo cáo riêng. Check báo cáo có thể tạo checkpoint riêng mà vẫn giữ được seal
-của checkpoint nguồn cho verifier. Checkpoint nguồn strict hỗ trợ tài liệu
-tham chiếu trong cây làm việc chính.
+của checkpoint nguồn cho verifier.
 
-Chỉ lưu JSON stdout của verifier từ lần chạy đã đo vào vị trí đầu ra cục bộ
-được phê duyệt. Lưu tiến độ, đối tượng của runner và chẩn đoán bên ngoài tệp
-này. Có thể dùng một tiến trình PowerShell riêng gọi
-`task-continuity.ps1 run` với `| Out-Null` rồi trả về `$LASTEXITCODE`.
-Chuyển stdout của tiến trình này vào tệp kết quả đã được phê duyệt, nằm
-trong cây làm việc và thuộc diện Git bỏ qua. Đối chiếu kết quả với check đã
-đo rồi ghim SHA-256 độc lập. Giá trị băm gắn các byte đã rà soát với báo cáo.
-Người vận hành xác định lần chạy đã tạo ra chúng.
+Bật thu nhận bằng `-ClaimOutputPath $resultRelativePath` khi gọi
+`task-continuity.ps1 run`. Chọn tệp mới trong thư mục có sẵn, được chủ sở
+hữu duyệt, thuộc diện Git bỏ qua trong worktree và nằm ngoài kho task.
+Runner đọc tối đa 1 MiB stdout hoàn chỉnh của verifier trong thời hạn của
+tiến trình. Runner kiểm tra cấu trúc JSON, sàng lọc thông tin xác thực,
+ghi đúng các byte một lần và lưu digest của chúng trong quan sát tiến trình.
+Chế độ thu nhận dùng tập biến môi trường hệ điều hành tối thiểu và giữ
+stderr ngoài tệp kết quả. Chủ sở hữu quản lý quyền truy cập và thời hạn
+lưu. Checkpoint giữ digest. Giữ checkpoint trong quy trình tin cậy của chủ
+sở hữu và nhận pin kết quả đã rà soát qua kênh độc lập.
 
 ```powershell
 ./scripts/report-claim.ps1 -Repository $approvedRoot -TaskId $reportingTask `
@@ -457,8 +465,10 @@ Người vận hành xác định lần chạy đã tạo ra chúng.
     -ResultPath $resultRelativePath -ResultSha256 $reviewedResultPin
 ```
 
-Truyền cùng ánh xạ `-RelatedRoot` đã được phê duyệt nếu checkpoint báo cáo
-sử dụng tài liệu tham chiếu liên quan.
+Truyền cùng ánh xạ `-RelatedRoot` đã được duyệt cho tài liệu tham chiếu repo
+phụ trong checkpoint báo cáo hoặc checkpoint nguồn strict. Với checkpoint
+nguồn, ánh xạ phải khớp bản rà soát đã ghim và lệnh verifier đã đo phải có
+`-ConfirmRelatedRead`.
 
 Báo cáo chỉ đọc trình bày `process.recordedStatus`,
 `process.effectiveStatus` và `process.exitCode` cùng với `claim.status`,
@@ -478,6 +488,10 @@ qua làm claim không thể đạt `PASS`. Báo cáo hợp lệ dùng mã thoát
 không khả dụng, đã cũ hoặc không khớp. `claim.mode: record-consistency` biểu
 thị đánh giá tính nhất quán của bản ghi. Dùng cơ chế rà soát độc lập và cổng
 đóng task của Task Continuity để nghiệm thu tổng thể.
+Báo cáo đánh dấu kết quả đã gắn với tiến trình bằng
+`outputOrigin: captured-stdout`. Với lần chạy cũ thiếu digest quan sát,
+cần một lần chạy mới có bật thu nhận để xác lập nguồn gốc đầu ra. Rà soát
+độc lập vẫn xác định ý nghĩa assertion và thẩm quyền của người rà soát.
 
 ### Giới hạn các lần sửa
 
@@ -520,9 +534,11 @@ snapshot hiện tại và trước đó với lịch sử đã lưu, định ngh
 fingerprint hiện tại. Lần sửa đã khởi chạy rồi gián đoạn vẫn tính vào ngân
 sách sửa. Giới hạn một lần chạy lại lệnh giữ nguyên áp dụng cho nhóm lỗi
 đã rà soát, kể cả sau lần sửa thay đổi đầu vào. Tư vấn dừng khi tiến trình
-có thể còn chạy. Quyết định dựa trên
-checkpoint mang tính tư vấn. Thao tác được phép riêng dùng
-`-ExpectedCheckpointId` đã rà soát với Task Continuity.
+có thể còn chạy. Hai phiên có thể nhận tư vấn trên cùng checkpoint. Khi
+thực thi theo quyền đã duyệt riêng, truyền `-ExpectedCheckpointId` đã rà soát
+cho Task Continuity. Khóa theo task và kiểm tra ID chỉ cho tối đa một lệnh
+cạnh tranh được chạy với checkpoint đó. Dùng nhóm lỗi và lịch sử gốc đã
+rà soát độc lập khi đối chiếu yêu cầu còn lại.
 
 ## Cập nhật và restore
 
@@ -554,4 +570,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 42000fcb126fc169dab66f7f4ee5108534661f2346ae2758ba73df8c2a7a248e -->
+<!-- source-sha256: f0f7e138afb99db7f47a73ad094ec1a01de1a2e8d501d6b83bf55e0c7a445ced -->

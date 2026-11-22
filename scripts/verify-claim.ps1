@@ -7,6 +7,7 @@ param(
     [Parameter(Mandatory)][string]$ObservationPath,
     [Parameter(Mandatory)][ValidatePattern('(?-i:^[a-f0-9]{64}\z)')][string]$ObservationSha256,
     [switch]$Strict,
+    [switch]$ConfirmRelatedRead,
     [string]$TrustedReviewPath,
     [string]$TrustedReviewSha256,
     [string]$CheckpointRoot = '.cirnet/tasks'
@@ -104,7 +105,9 @@ function Set-ClaimStatus($Result) {
 }
 
 function Read-ReviewStages($Review, $Plan) {
-    Assert-Record $Review @('schemaVersion','expectationSha256','observationSha256','taskId','checkpointSeal','stages')
+    $fields = @('schemaVersion','expectationSha256','observationSha256','taskId','checkpointSeal','stages')
+    if ($Review -is [Collections.IDictionary] -and $Review.Contains('relatedRoots')) { $fields += 'relatedRoots' }
+    Assert-Record $Review $fields
     if (!(Test-Integer $Review.schemaVersion) -or $Review.schemaVersion -ne 1 -or
         $Review.expectationSha256 -isnot [string] -or $Review.observationSha256 -isnot [string] -or
         $Review.expectationSha256 -cne $ExpectationSha256 -or $Review.observationSha256 -cne $ObservationSha256 -or
@@ -169,7 +172,8 @@ function Measure-StrictEvidence($Root, $Plan, $Result) {
     $checkpoint = Read-ContinuityCheckpoint $store $review.taskId -RemainingBytes ([ref]$budget)
     if ($checkpoint.Seal -cne $review.checkpointSeal) { throw 'Reviewed checkpoint is stale.' }
     $git = Get-ContinuityGitSnapshot $Root
-    $status = Get-ContinuityStatus $Root $store $checkpoint $git @{}
+    $related = Get-ReviewedRelatedRoots $Root $checkpoint.State.references $review $ConfirmRelatedRead.IsPresent
+    $status = Get-ContinuityStatus $Root $store $checkpoint $git $related
     if (!$status.Git.Matches -or $status.GitConflicted -or $status.ReferenceProblems.Count -or
         (Get-ContinuityHead $Root) -cne $Plan.revision) { throw 'Reviewed checkout is stale.' }
     $matches = @{}

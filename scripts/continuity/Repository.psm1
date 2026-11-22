@@ -122,7 +122,7 @@ function Test-ContinuityInside([string]$Root, [string]$Path) {
     $Path.Equals($Root, $pathComparison) -or $Path.StartsWith($prefix, $pathComparison)
 }
 
-function Assert-ContinuityDestination($Repository, [string]$Path, [switch]$Directory) {
+function Assert-ContinuityDestination($Repository, [string]$Path, [switch]$Directory, [switch]$OwningWorktree) {
     if ($Path -match '(?i)(?:^|[\\/])\.git(?:[\\/]|$)' -or
         (Test-ContinuityInside $Repository.gitDirectory $Path) -or
         (Test-ContinuityInside $Repository.commonDirectory $Path)) {
@@ -133,6 +133,9 @@ function Assert-ContinuityDestination($Repository, [string]$Path, [switch]$Direc
     $parent = [IO.Path]::GetDirectoryName($Path)
     while ($parent) {
         if ([IO.File]::Exists((Join-Path $parent '.git')) -or [IO.Directory]::Exists((Join-Path $parent '.git'))) {
+            if ($OwningWorktree -and !$parent.Equals($Repository.root, $pathComparison)) {
+                throw 'Claim output must stay in the owning worktree.'
+            }
             $relative = [IO.Path]::GetRelativePath($parent, $Path).Replace([IO.Path]::DirectorySeparatorChar, '/')
             if ($Directory) { $relative += '/' }
             $tracked = Invoke-ContinuityGit $parent @('ls-files', '--cached', '-z', '--', $relative)

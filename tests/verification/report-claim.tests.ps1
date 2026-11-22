@@ -15,6 +15,8 @@ $verifier = Join-Path $worktree 'scripts/verify-claim.ps1'
 $report = Join-Path $worktree 'scripts/report-claim.ps1'
 $resultRelative = '.local/result.json'
 $inputRelative = '.local/source.txt'
+$substitutionFailures = [Collections.Generic.List[string]]::new()
+$reportRelatedRoot = @{}
 Import-Module (Join-Path $repo 'scripts/continuity/Repository.psm1')
 Import-Module (Join-Path $repo 'scripts/continuity/Checkpoint.psm1')
 
@@ -31,52 +33,72 @@ function Write-Json([string]$Relative, $Data) {
     Pin-File $Relative
 }
 
-function Invoke-FixtureGit([string[]]$Arguments) {
-    & git -C $worktree -c core.hooksPath=../absent-hooks -c core.autocrlf=false -c core.fsmonitor=false @Arguments
+function Invoke-FixtureGit([string[]]$Arguments, [string]$Checkout = $worktree) {
+    & git -C $Checkout -c core.hooksPath=../absent-hooks -c core.autocrlf=false -c core.fsmonitor=false @Arguments
     if ($LASTEXITCODE -ne 0) { throw 'Fixture Git operation failed.' }
 }
 
-function Invoke-ClaimCheck($Rows, [int]$ExpectedExit, $Review) {
+function Invoke-ClaimCheck($Rows, [int]$ExpectedExit, $Review, [switch]$NoOutput, [switch]$Unbound) {
     $planPin = Write-Json '.local/expectation.json' $plan
     $observationPin = Write-Json '.local/observation.json' @{
         schemaVersion = 1; expectationSha256 = $planPin; stages = $Rows
     }
-    $nativeArguments = @('-NoProfile', '-NonInteractive', '-File', (Join-Path $fixture 'capture.ps1'),
-        $worktree, $pwsh, $planPin, $observationPin)
+    $nativeArguments = @('-NoProfile', '-NonInteractive', '-File', $verifier, '-Repository', $worktree,
+        '-ExpectationPath', '.local/expectation.json', '-ExpectationSha256', $planPin,
+        '-ObservationPath', '.local/observation.json', '-ObservationSha256', $observationPin)
+    $inputs = @('scripts/verify-claim.ps1', '.local/expectation.json', '.local/observation.json', $inputRelative)
     if ($Review) {
         $Review.expectationSha256 = $planPin
         $Review.observationSha256 = $observationPin
-        $nativeArguments += Write-Json '.local/review.json' $Review
+        $nativeArguments += @('-Strict', '-TrustedReviewPath', '.local/review.json', '-TrustedReviewSha256',
+            (Write-Json '.local/review.json' $Review))
+        $inputs += '.local/review.json'
+        if ($Review.ContainsKey('relatedRoots')) { $nativeArguments += '-ConfirmRelatedRead' }
     }
-    $capture = [Diagnostics.ProcessStartInfo]::new($pwsh)
-    $capture.UseShellExecute = $false
-    $capture.RedirectStandardOutput = $true
-    foreach ($argument in $nativeArguments) { $capture.ArgumentList.Add($argument) }
-    $process = [Diagnostics.Process]::Start($capture)
-    try {
-        $raw = $process.StandardOutput.ReadToEnd()
-        $process.WaitForExit()
-        if ($process.ExitCode -ne $ExpectedExit) { throw "Expected measured exit $ExpectedExit, got $($process.ExitCode)." }
+    $script:resultRelative = '.local/result-' + [guid]::NewGuid().ToString('N') + '.json'
+    $capture = if ($Unbound) { @{} } else { @{ ClaimOutputPath = $resultRelative } }
+    $measured = & $manager run @common -ConfirmScope -EvidenceId claim-check -Kind test -Executable $pwsh `
+        -Arguments $nativeArguments -InputPath $inputs @capture
+    if ($LASTEXITCODE -ne $ExpectedExit -or $measured.ExitCode -ne $ExpectedExit) { throw 'Unexpected measured process exit.' }
+    if ($NoOutput -or $Unbound) {
+        if ([IO.File]::Exists((Join-Path $worktree $resultRelative)) -or $measured.Evidence.Contains('stdoutSha256')) {
+            throw 'An incomplete or uncaptured output acquired a digest.'
+        }
     }
-    finally { $process.Dispose() }
-    Write-Fixture $worktree $resultRelative $raw
-    if (!$raw.Trim()) { throw 'The actual verifier process emitted no structured result.' }
-    (& $manager status @common).CheckpointId
+    elseif (![IO.File]::Exists((Join-Path $worktree $resultRelative)) -or
+        $measured.Evidence.stdoutSha256 -cne (Pin-File $resultRelative)) {
+        throw "Expected directly captured verifier result and measured exit $ExpectedExit."
+    }
+    $measured.CheckpointId
 }
 
 function Read-ClaimReport([string]$CheckpointId, [int]$ExpectedExit, [string]$ExpectedStatus,
         [string]$Pin = (Pin-File $resultRelative), [string]$Path = $resultRelative) {
     $raw = & $report -Repository $worktree -TaskId claim -EvidenceId claim-check -ExpectedCheckpointId $CheckpointId `
-        -ResultPath $Path -ResultSha256 $Pin
+        -ResultPath $Path -ResultSha256 $Pin -RelatedRoot $reportRelatedRoot
     $code = $LASTEXITCODE
     $result = ConvertFrom-Json -InputObject $raw
-    if ($code -ne $ExpectedExit -or $result.reportStatus -cne $ExpectedStatus) {
+    if ($code -ne $ExpectedExit -or $result.reportStatus -cne $ExpectedStatus -or
+        ($ExpectedStatus -ceq 'VALIDATED') -ne ($result.outputOrigin -ceq 'captured-stdout')) {
         throw "Expected report $ExpectedStatus/$ExpectedExit, got $($result.reportStatus)/$code."
     }
     if ($result.task.acceptanceReady -or $result.task.completionStatus -cne 'NOT_RUN') {
         throw 'The report treated a check as task acceptance.'
     }
     $result
+}
+
+function Test-Substitution([string]$CheckpointId, [string]$Mode) {
+    $actualBytes = [IO.File]::ReadAllBytes((Join-Path $worktree $resultRelative))
+    $path = '.local/substituted.json'
+    Write-Fixture $worktree $path ([Text.Encoding]::UTF8.GetString($actualBytes) + ' ')
+    $raw = & $report -Repository $worktree -TaskId claim -EvidenceId claim-check -ExpectedCheckpointId $CheckpointId `
+        -ResultPath $path -ResultSha256 (Pin-File $path) -RelatedRoot $reportRelatedRoot
+    $code = $LASTEXITCODE
+    $result = $raw | ConvertFrom-Json
+    if ($code -ne 3 -or $result.reportStatus -cne 'BLOCKED') {
+        $substitutionFailures.Add("$Mode accepted non-origin bytes with status $($result.reportStatus)/$code")
+    }
 }
 
 try {
@@ -123,23 +145,6 @@ Check the process observation and verifier output together.
               {"kind":"architecture","repository":"primary","path":"architecture.md"}],"relatedRepositories":[]}
 '@
     Write-Fixture $fixture 'acceptance.json' '[{"id":"verification","checks":["claim-check"]}]'
-    Write-Fixture $fixture 'capture.ps1' @'
-param($Root, $Tool, $PlanPin, $ObservationPin, $ReviewPin)
-$ErrorActionPreference = 'Stop'
-$verifier = Join-Path $Root 'scripts/verify-claim.ps1'
-$arguments = @('-NoProfile', '-NonInteractive', '-File', $verifier, '-Repository', $Root,
-    '-ExpectationPath', '.local/expectation.json', '-ExpectationSha256', $PlanPin,
-    '-ObservationPath', '.local/observation.json', '-ObservationSha256', $ObservationPin)
-$inputs = @('scripts/verify-claim.ps1', '.local/expectation.json', '.local/observation.json', '.local/source.txt')
-if ($ReviewPin) {
-    $arguments += @('-Strict', '-TrustedReviewPath', '.local/review.json', '-TrustedReviewSha256', $ReviewPin)
-    $inputs += '.local/review.json'
-}
-& (Join-Path $Root 'scripts/task-continuity.ps1') run -Repository $Root -TaskId claim -AgentFamily codex -ConfirmScope `
-    -EvidenceId claim-check -Kind test -Executable $Tool -Arguments $arguments `
-    -InputPath $inputs | Out-Null
-exit $LASTEXITCODE
-'@
     Write-Fixture $worktree $inputRelative 'fixture source'
     $null = & $manager save @common -ConfirmScope -TaskFile (Join-Path $fixture 'task.md') `
         -ProgressFile (Join-Path $fixture 'progress.md') -ReferencesFile (Join-Path $fixture 'refs.json') `
@@ -174,6 +179,7 @@ exit $LASTEXITCODE
     }
 
     $id = Invoke-ClaimCheck @($pass, $optionalSkip) 0
+    Test-Substitution $id 'record-consistency'
     $actual = Get-Content -LiteralPath (Join-Path $worktree $resultRelative) -Raw
     $wrong = ConvertFrom-Json -InputObject $actual -AsHashtable
     $wrong.status = 'FAIL'
@@ -216,9 +222,21 @@ if ((Get-Content -LiteralPath '.local/source.txt' -Raw) -cne 'fixture source' -o
 '@
     $owner = $common.Clone()
     $owner.TaskId = 'owner-source'
+    $related = Join-Path $fixture 'related'
+    [void][IO.Directory]::CreateDirectory($related)
+    Invoke-FixtureGit @('init','--quiet','--template=','-b','main') $related
+    Write-Fixture $related 'contract.md' '# Disposable owner contract'
+    Invoke-FixtureGit @('add','--','contract.md') $related
+    Invoke-FixtureGit @('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','-c','commit.gpgsign=false',
+        'commit','--quiet','-m','Related fixture') $related
+    $refs = Get-Content -LiteralPath (Join-Path $fixture 'refs.json') -Raw | ConvertFrom-Json -AsHashtable
+    $refs.documents += @{ kind = 'architecture'; repository = 'related'; path = 'contract.md' }
+    $refs.relatedRepositories = @(@{ id = 'related'; revision = (Invoke-FixtureGit @('rev-parse','HEAD') $related); access = 'read' })
+    Write-Fixture $fixture 'owner-refs.json' (ConvertTo-Json $refs -Depth 8)
+    $owner.RelatedRoot = @{ related = $related }
     Write-Fixture $fixture 'owner-acceptance.json' '[{"id":"verification","checks":["owner-check"]}]'
     $null = & $manager save @owner -ConfirmScope -TaskFile (Join-Path $fixture 'task.md') `
-        -ProgressFile (Join-Path $fixture 'progress.md') -ReferencesFile (Join-Path $fixture 'refs.json') `
+        -ProgressFile (Join-Path $fixture 'progress.md') -ReferencesFile (Join-Path $fixture 'owner-refs.json') `
         -AcceptanceFile (Join-Path $fixture 'owner-acceptance.json')
     $observed = & $manager run @owner -ConfirmScope -EvidenceId owner-check -Kind test -Executable $pwsh `
         -Arguments @('-NoProfile', '-File', '.local/owner-test.ps1') `
@@ -228,14 +246,19 @@ if ((Get-Content -LiteralPath '.local/source.txt' -Raw) -cne 'fixture source' -o
     $ownerCheckpoint = Read-ContinuityCheckpoint $ownerStore $owner.TaskId
     $review = @{
         schemaVersion = 1; taskId = $owner.TaskId; checkpointSeal = $ownerCheckpoint.Seal
+        relatedRoots = $owner.RelatedRoot
         stages = @(@{ id = 'required'; checkId = 'owner-check'; artifactPath = '.local/owner-result.json';
             artifactSha256 = (Pin-File '.local/owner-result.json') })
     }
     $id = Invoke-ClaimCheck @($pass, $optionalSkip) 0 $review
+    $null = Read-ClaimReport $id 3 BLOCKED
+    $reportRelatedRoot = $owner.RelatedRoot
     $result = Read-ClaimReport $id 0 VALIDATED
     if ($result.claim.mode -cne 'strict' -or !$result.claim.executionVerified) {
         throw 'Strict PASS did not compose with a separate source checkpoint.'
     }
+    Test-Substitution $id 'strict'
+    if ($substitutionFailures.Count) { throw ($substitutionFailures -join [Environment]::NewLine) }
     $artifact = Get-Content -LiteralPath (Join-Path $worktree '.local/owner-result.json') -Raw
     Write-Fixture $worktree '.local/owner-result.json' ($artifact + ' ')
     $result = Read-ClaimReport $id 3 BLOCKED
@@ -246,6 +269,27 @@ if ((Get-Content -LiteralPath '.local/source.txt' -Raw) -cne 'fixture source' -o
     Write-Fixture $worktree '.local/owner-extra.txt' 'owner prerequisite'
     $null = & $manager save @owner
     $null = Read-ClaimReport $id 3 BLOCKED
+
+    $savedResult = $resultRelative
+    $savedPin = Pin-File $savedResult
+    $originalVerifier = [IO.File]::ReadAllBytes($verifier)
+    foreach ($output in @('exit 0', "Write-Output ('x' * (1MB + 1)); exit 0")) {
+        [IO.File]::WriteAllText($verifier, $output)
+        $id = Invoke-ClaimCheck @($pass, $optionalSkip) 0 -NoOutput
+        $null = Read-ClaimReport $id 3 BLOCKED $savedPin $savedResult
+    }
+    [IO.File]::WriteAllBytes($verifier, $originalVerifier)
+    $id = Invoke-ClaimCheck @($pass, $optionalSkip) 0 -Unbound
+    $unbound = Read-ClaimReport $id 3 BLOCKED $savedPin $savedResult
+    if ($unbound.reason -cne 'process-output-provenance-unverified') { throw 'Expected an unbound historical result.' }
+    $resultRelative = $savedResult
+
+    $check = & $manager run @common -ConfirmScope -EvidenceId claim-check -Kind test `
+        -Executable $pwsh -Arguments @('-NoProfile', '-NonInteractive', '-Command', 'exit 0')
+    $result = Read-ClaimReport $check.CheckpointId 3 BLOCKED
+    if ($result.process.exitCode -ne 0 -or $result.reason -cne 'verifier-invocation-unconfirmed') {
+        throw 'A different successful command cannot establish the verifier result.'
+    }
 
     $check = & $manager run @common -ConfirmScope -EvidenceId claim-check -Kind test `
         -Executable $pwsh -Arguments @('-NoProfile', '-NonInteractive', '-Command', 'exit 4')

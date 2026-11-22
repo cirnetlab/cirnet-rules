@@ -1,4 +1,5 @@
 #requires -Version 7.2
+param([switch]$Related)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -10,6 +11,8 @@ $target = Join-Path $repo 'target'
 $root = Join-Path $target ('strict-claim-test-' + [guid]::NewGuid().ToString('N'))
 $taskId = 'strict-claim'
 $scope = @{ Repository = $root; TaskId = $taskId; AgentFamily = 'codex'; ConfirmScope = $true }
+$approvedRelatedRoots = $null
+$confirmRelatedRead = $true
 
 function Write-Fixture($Path, $Content) { [IO.File]::WriteAllText((Join-Path $root $Path), $Content) }
 function Get-FixtureHash($Path) { (Get-FileHash -LiteralPath (Join-Path $root $Path)).Hash.ToLowerInvariant() }
@@ -17,8 +20,8 @@ function Write-Record($Path, $Record) {
     Write-Fixture $Path (ConvertTo-Json -InputObject $Record -Depth 8)
     Get-FixtureHash $Path
 }
-function Invoke-FixtureGit($Arguments) {
-    & git -C $root -c core.autocrlf=false -c "core.hooksPath=$(Join-Path $root '.local/no-hooks')" `
+function Invoke-FixtureGit($Arguments, $Checkout = $root) {
+    & git -C $Checkout -c core.autocrlf=false -c "core.hooksPath=$(Join-Path $root '.local/no-hooks')" `
         -c user.name=Fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false @Arguments
     if ($LASTEXITCODE) { throw 'Fixture Git failed.' }
 }
@@ -26,14 +29,20 @@ function Assert-Strict($Row, $Proofs, $Expected, $Exit, $StageStatus, [switch]$B
     $observationHash = Write-Record .local/observation.json @{
         schemaVersion = 1; expectationSha256 = $planHash; stages = @($Row)
     }
-    $reviewHash = Write-Record .local/review.json @{
+    $review = @{
         schemaVersion = 1; expectationSha256 = $planHash; observationSha256 = $observationHash
         taskId = $taskId; checkpointSeal = $checkpoint.Seal; stages = @($Proofs)
     }
+    $relatedOptions = @{}
+    if ($approvedRelatedRoots) {
+        $review.relatedRoots = $approvedRelatedRoots
+        $relatedOptions.ConfirmRelatedRead = $confirmRelatedRead
+    }
+    $reviewHash = Write-Record .local/review.json $review
     if ($BadReviewPin) { $reviewHash = '0' * 64 }
     $json = & $verify -Repository $root -ExpectationPath .local/expectation.json -ExpectationSha256 $planHash `
         -ObservationPath .local/observation.json -ObservationSha256 $observationHash -Strict `
-        -TrustedReviewPath .local/review.json -TrustedReviewSha256 $reviewHash
+        -TrustedReviewPath .local/review.json -TrustedReviewSha256 $reviewHash @relatedOptions
     $actual = $LASTEXITCODE
     $result = $json | ConvertFrom-Json
     if ($actual -ne $Exit -or $result.status -cne $Expected -or $result.mode -cne 'strict' -or
@@ -107,6 +116,20 @@ Inspect structured child output.
 ],"relatedRepositories":[]}
 '@
     Write-Fixture '.local/acceptance.json' '[{"id":"fixture","checks":["stage-pass"]}]'
+    if ($Related) {
+        $relatedCheckout = Join-Path $root '.local/contracts'
+        [void][IO.Directory]::CreateDirectory($relatedCheckout)
+        Invoke-FixtureGit @('init','--quiet','--template=','-b','main') $relatedCheckout
+        Write-Fixture '.local/contracts/architecture.md' '# Fixture contract'
+        Invoke-FixtureGit @('add','--','architecture.md') $relatedCheckout
+        Invoke-FixtureGit @('commit','--quiet','-m','related fixture') $relatedCheckout
+        $relatedHead = Invoke-FixtureGit @('rev-parse','HEAD') $relatedCheckout
+        $refs = Get-Content (Join-Path $root '.local/refs.json') -Raw | ConvertFrom-Json -AsHashtable
+        $refs.documents += @{ kind = 'architecture'; repository = 'contracts'; path = 'architecture.md' }
+        $refs.relatedRepositories = @(@{ id = 'contracts'; revision = $relatedHead; access = 'read' })
+        $null = Write-Record .local/refs.json $refs
+        $scope.RelatedRoot = @{ contracts = $relatedCheckout }
+    }
     $null = & $manager save @scope -TaskFile (Join-Path $root '.local/task.md') -ProgressFile (Join-Path $root '.local/progress.md') `
         -ReferencesFile (Join-Path $root '.local/refs.json') -AcceptanceFile (Join-Path $root '.local/acceptance.json')
     $planHash = Write-Record .local/expectation.json @{
@@ -125,9 +148,36 @@ Inspect structured child output.
         id = 'tests'; checkId = 'stage-pass'; artifactPath = '.local/pass.json'
         artifactSha256 = Get-FixtureHash .local/pass.json
     }
+    if ($Related) {
+        $missing = Assert-Strict $pass @($passProof) BLOCKED 3 ''
+        if ($missing.reason -cne 'evidence-unavailable-or-invalid') { throw 'Expected a missing related root to block strict evidence.' }
+        Write-Host 'Observed strict BLOCKED with a current owner run and pinned related document when the verifier has no related root.'
+        $approvedRelatedRoots = $scope.RelatedRoot
+    }
     $good = Assert-Strict $pass @($passProof) PASS 0 PASS
     if ($good.stages[0].evidenceStatus -cne 'PASS' -or $good.stages[0].measurementExitCode -ne 0 -or
         $good.checkpointSeal -cne $checkpoint.Seal) { throw 'Strict PASS was missing reviewed evidence.' }
+    if ($Related) {
+        $confirmRelatedRead = $false
+        $null = Assert-Strict $pass @($passProof) BLOCKED 3 ''
+        $confirmRelatedRead = $true
+        $approvedRelatedRoots = @{ contracts = (Join-Path $relatedCheckout '..') }
+        $null = Assert-Strict $pass @($passProof) BLOCKED 3 ''
+        $approvedRelatedRoots = $scope.RelatedRoot
+        $contract = Join-Path $relatedCheckout 'architecture.md'
+        $original = [IO.File]::ReadAllBytes($contract)
+        [IO.File]::AppendAllText($contract, ' changed contract')
+        $null = Assert-Strict $pass @($passProof) BLOCKED 3 ''
+        [IO.File]::WriteAllBytes($contract, $original)
+        $tree = & git -C $relatedCheckout rev-parse 'HEAD^{tree}'
+        $stale = & git -C $relatedCheckout -c user.name=Fixture -c user.email=fixture@example.invalid `
+            -c commit.gpgsign=false commit-tree $tree -m 'Different related revision'
+        & git -C $relatedCheckout update-ref HEAD $stale $relatedHead
+        if ($LASTEXITCODE) { throw 'Expected a different related HEAD.' }
+        $null = Assert-Strict $pass @($passProof) BLOCKED 3 ''
+        & git -C $relatedCheckout update-ref HEAD $relatedHead $stale
+        if ($LASTEXITCODE) { throw 'Could not restore the disposable related HEAD.' }
+    }
     $null = Assert-Strict $pass @() BLOCKED 3 BLOCKED
     $null = Assert-Strict $pass @($passProof) BLOCKED 3 '' -BadReviewPin
     $outsideProof = $passProof.Clone()

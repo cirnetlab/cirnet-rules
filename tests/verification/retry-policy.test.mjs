@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -124,7 +124,7 @@ test('check identity and an actual failing exit must match the latest observatio
   ]) assert.equal(assess(attempts).reason, 'invalid-evidence');
 });
 
-test('checkpoint-backed correction keeps a reviewed budget across interrupted runs and refuses disputed history', t => {
+test('checkpoint-backed correction keeps a reviewed budget across interrupted runs and refuses disputed history', async t => {
   const { assessCheckpointCorrection, correctionHypothesisDigest, readCorrectionHistory } = retryPolicy;
   assert.equal(typeof assessCheckpointCorrection, 'function');
   const output = fileURLToPath(new URL('../../target/', import.meta.url));
@@ -179,7 +179,8 @@ exit $RunExit
   git('init', '--quiet', '--template=', '-b', 'main');
   put('primary/.gitignore', '/.cirnet/tasks/\n/.local/\n');
   for (const path of ['plan.md', 'spec.md', 'architecture.md', 'AGENTS.md']) put(`primary/${path}`, `# ${path}\n`);
-  put('primary/check.mjs', "import { readFileSync } from 'node:fs';\nreadFileSync('source.txt');\nprocess.exit(7);\n");
+  mkdirSync(join(repository, '.local'));
+  put('primary/check.mjs', "import { appendFileSync, readFileSync } from 'node:fs';\nreadFileSync('source.txt');\nappendFileSync('.local/launches', 'check\\n');\nprocess.exit(7);\n");
   put('primary/edit.mjs', "import { writeFileSync } from 'node:fs';\nwriteFileSync('source.txt', process.argv[2]);\n");
   put('primary/timeout.mjs', 'setTimeout(() => {}, 10_000);\n');
   put('primary/source.txt', 'initial');
@@ -233,7 +234,22 @@ Consult the pinned fixture references.
   assert.equal(outcome(first, first.anchor).reason, 'check-evidence-stale');
   put('primary/source.txt', 'initial');
 
-  measure(2);
+  assert.equal(outcome(first, first.anchor).allowed, true); // A second reader can receive the same advice.
+  const contender = name => {
+    const file = join(fixture, name);
+    writeFileSync(file, JSON.stringify({ Manager: manager, Action: 'run', Options: {
+      Repository: repository, TaskId: taskId, AgentFamily: 'codex', ConfirmScope: true,
+      ExpectedCheckpointId: first.checkpointId, Kind: 'test', EvidenceId: checkId(2),
+      Executable: process.execPath, Arguments: ['check.mjs'], InputPath: ['check.mjs', 'source.txt'],
+    } }));
+    return new Promise(resolve => {
+      execFile('pwsh', ['-NoProfile', '-NonInteractive', '-File', join(fixture, 'invoke.ps1'), file],
+        { cwd: fixture, timeout: 30_000, windowsHide: true }, error => resolve(error?.code ?? 0));
+    });
+  };
+  const competing = await Promise.all([contender('session-one.json'), contender('session-two.json')]);
+  assert.deepEqual(competing.sort(), [1, 7]);
+  assert.equal(readFileSync(join(repository, '.local', 'launches'), 'utf8'), 'check\ncheck\n');
   const second = readCorrectionHistory(read);
   assert.equal(outcome(second, first.anchor).reason, 'retry-budget-exhausted');
   assert.equal(outcome(second, second.anchor, {}, { expectedCheckpointId: first.checkpointId }).reason, 'checkpoint-changed');

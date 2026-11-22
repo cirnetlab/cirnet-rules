@@ -228,6 +228,11 @@ function Assert-Measurement($Check) {
             }
         }
     }
+    if ($Check.Contains('stdoutSha256')) {
+        $fields += 'stdoutSha256'
+        if ($Check.phase -cne 'finished' -or $Check.stdoutSha256 -isnot [string] -or
+            $Check.stdoutSha256 -cnotmatch $shaPattern) { throw 'Invalid measured stdout digest.' }
+    }
     Assert-Record $Check $fields
     if ($Check.kind -cnotin @('edit', 'build', 'test', 'handoff') -or
         $Check.phase -cnotin @('running', 'finished', 'blocked', 'interrupted') -or

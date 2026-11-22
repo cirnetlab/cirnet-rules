@@ -34,6 +34,7 @@ param(
     [string[]]$EnvironmentName = @(),
     [ValidateRange(1, 86400)][int]$TimeoutSeconds = 600,
     [string]$OutputFile,
+    [string]$ClaimOutputPath,
     [string]$HandoffFile,
     [string]$ExpectedSha256,
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z')][string]$SessionKey,
@@ -87,6 +88,9 @@ if (($AcceptanceFile -and $Action -cne 'save') -or ($ReviewFile -and $Action -cn
 }
 if ($Corrective -and ($Action -cne 'run' -or $Kind -cne 'edit')) {
     throw 'Use -Corrective only for an authorized controlled edit.'
+}
+if ($ClaimOutputPath -and ($Action -cne 'run' -or $Kind -cnotin @('build','test') -or $EnvironmentName.Count)) {
+    throw 'Use -ClaimOutputPath only for a direct claim verification build or test without custom environment inputs.'
 }
 
 $usesDiscovery = $Action -cin @('discover', 'bootstrap', 'bind')
@@ -385,10 +389,29 @@ try {
         $progress = Get-UpdatedProgress $checkpoint $state
         Resolve-InterruptedMeasurements $state
         $measurement = New-ContinuityMeasurement $checkout $store $state $Kind $Executable $Arguments $InputPath $EnvironmentName
+        if ($ClaimOutputPath) {
+            $verifier = Join-Path $PSScriptRoot 'verify-claim.ps1'
+            if ($measurement.phase -cne 'running' -or [IO.Path]::GetFileName($measurement.toolPath) -inotmatch '^pwsh(?:\.exe)?\z' -or
+                $Arguments.Count -lt 4 -or $Arguments[0] -ine '-NoProfile' -or $Arguments[1] -ine '-NonInteractive' -or
+                $Arguments[2] -ine '-File' -or $Arguments[3] -cne $verifier) {
+                throw 'Capture requires direct execution of the approved claim verifier.'
+            }
+            $destination = Resolve-ContinuityFile $checkout.root $ClaimOutputPath
+            Assert-NoCredential $ClaimOutputPath
+            Assert-ContinuityDestination $checkout $destination -OwningWorktree
+            $parent = Split-Path -Parent $destination
+            if ((Test-ContinuityInside (Split-Path -Parent $store) $destination) -or
+                (Test-Path -LiteralPath $destination) -or ![IO.Directory]::Exists($parent)) {
+                throw 'Choose a new claim output in an existing ignored owner directory outside checkpoint storage.'
+            }
+        }
         $state.checks[$EvidenceId] = $measurement
         $confirmed = Save-ContinuityCheckpoint $store $state $checkpoint.Task $progress
         if ($measurement.phase -ceq 'running') {
-            Invoke-ContinuityMeasurement $checkout $measurement $TimeoutSeconds
+            if ($ClaimOutputPath) {
+                Invoke-ContinuityMeasurement $checkout $measurement $TimeoutSeconds -ClaimOutputPath $ClaimOutputPath
+            }
+            else { Invoke-ContinuityMeasurement $checkout $measurement $TimeoutSeconds }
             $after = Get-ContinuityGitSnapshot $checkout
             $measurement.afterGitFingerprint = Get-ContinuityGitFingerprint $after
             $referenceProblems = @(Get-ContinuityReferenceProblems $checkout $store $state.references $RelatedRoot)

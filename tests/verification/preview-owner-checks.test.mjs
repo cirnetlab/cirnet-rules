@@ -64,7 +64,8 @@ test('previews explicitly selected checks from npm, Cargo, CMake and an RTL scri
 
   const result = preview(root,
     '--manifest', 'package.json', '--manifest', 'Cargo.toml', '--manifest', 'CMakePresets.json',
-    '--rtl', 'scripts/simulate.mjs', '--select', 'npm:test', '--select', 'cargo:test:smoke');
+    '--rtl', 'scripts/simulate.mjs', '--select', 'npm:test', '--select', 'cargo:test:smoke',
+    '--select', 'cmake:test:local', '--select', 'rtl:scripts/simulate.mjs');
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, '');
   assert.doesNotMatch(result.stdout, /PRIVATE_|private-crate-field|command-executed/);
@@ -99,7 +100,7 @@ test('previews explicitly selected checks from npm, Cargo, CMake and an RTL scri
     assert.equal(check.selectionReason, check.selected ? 'EXPLICIT_SELECTION' : 'NOT_SELECTED');
   }
   assert.deepEqual(report.checks.filter(check => check.selected).map(check => check.id).sort(),
-    ['cargo:test:smoke', 'npm:test']);
+    ['cargo:test:smoke', 'cmake:test:local', 'npm:test', 'rtl:scripts/simulate.mjs']);
   assert.equal(report.sources.find(source => source.path === 'CMakePresets.json').referencesPending, true);
 });
 
@@ -107,6 +108,8 @@ test('rejects traversal, unrecognized source types, oversized inputs and unknown
   const root = fixture(t);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'tool test' } }));
   writeFileSync(join(root, 'README.md'), 'No declared manifest.');
+  writeFileSync(join(root, 'CMakeLists.txt'), 'project(OwnerFixture LANGUAGES CXX)');
+  writeFileSync(join(root, 'check_rtl.py'), 'raise RuntimeError("must not run")');
   mkdirSync(join(root, 'large'));
   writeFileSync(join(root, 'large', 'package.json'), ' '.repeat(256 * 1024));
   mkdirSync(join(root, 'invalid'));
@@ -115,6 +118,8 @@ test('rejects traversal, unrecognized source types, oversized inputs and unknown
     ['--manifest', '../package.json'],
     ['--manifest', join(root, 'package.json')],
     ['--manifest', 'README.md'],
+    ['--manifest', 'CMakeLists.txt'],
+    ['--rtl', 'check_rtl.py'],
     ['--manifest', 'large/package.json'],
     ['--manifest', 'invalid/package.json'],
     ['--manifest', 'package.json', '--manifest', 'package.json'],
