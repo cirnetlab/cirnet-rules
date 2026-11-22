@@ -68,22 +68,26 @@ từ checkout Rules đã duyệt.
 Dùng `config/repositories.example.json` để cấu hình
 `config/repositories.local.json` đã được Git bỏ qua. Phiên bản 1 nhận các
 `searchRoots` cục bộ tuyệt đối, `discoverGitChildren` và danh sách
-`repositories` tùy chọn gồm `name` và `path`. Mỗi lần gọi sẽ dò các thư mục
+`repositories` tùy chọn gồm `name` và `path`. Mỗi ánh xạ có thể ghi GitHub
+`origin` dự kiến theo dạng `tổ-chức/repo`. Mỗi lần gọi sẽ dò các thư mục
 con trực tiếp của gốc đã cấu hình. Tên hoặc bí danh tường minh có thể chọn
 checkout đã di chuyển hoặc xử lý tên trùng. Đường dẫn phải là gốc Git
 độc lập hợp lệ. Bộ dò chặn tên mơ hồ, ánh xạ thiếu, đường dẫn thoát phạm vi
 và liên kết. Dùng luồng `-Repository` cho worktree liên kết đã được chọn
 độc lập. Giữ registry cục bộ ngoài bundle và bằng chứng chia sẻ.
-Bảng kiến trúc xác định owner. Registry định vị checkout. Quyền được xác
-lập độc lập với hai nguồn này.
+CLI đối chiếu URL GitHub origin cục bộ được hỗ trợ với owner CIRNET chuẩn
+hoặc origin đã cấu hình. Origin xung đột, nhiều URL origin cục bộ hoặc thiếu
+origin khớp với pin tường minh sẽ chặn lựa chọn. `ORIGIN_MATCH` ghi nhận
+metadata cục bộ khớp. Checkout offline hoặc origin không nhận diện được
+và không có pin tường minh trả `PATH_ONLY`. Các trạng thái này không xác thực
+remote hay cấp quyền.
 
 Dùng tên owner tường minh trong yêu cầu hoặc bằng chứng duy nhất trong
 `en/references/architecture-routing.md`. Với yêu cầu gián tiếp, Author
-đối chiếu bằng chứng được phép đọc và có thể truyền `-Owner`. Khi liên
-quan nhiều repo, xác nhận owner chính và truyền phạm vi đã cấp. Repo liên
-quan cần phạm vi đọc, ghi riêng. Yêu cầu sửa hoặc kiểm tra thông thường
-trong một repo có thể xác định loại tác động đề xuất. Giữ giới hạn gốc và rà
-ý nghĩa trước khi giao.
+đối chiếu bằng chứng được phép đọc và có thể truyền `-Owner`. Yêu cầu có
+một đích rõ ràng và nhắc riêng các repo phụ thuộc có thể chọn owner chính.
+Repo liên quan cần quyền riêng. Xác nhận owner chính nếu vẫn còn nhiều
+đích hợp lý.
 
 Nếu không dò được cục bộ, dùng bằng chứng owner hoặc connector đã xác minh.
 `-NoLocalDiscovery` có thể chuẩn bị bàn giao cho owner đã biết mà chưa công
@@ -104,9 +108,14 @@ Chọn `ReadOnly` hoặc `Edit` theo quyền được cấp. Dùng `-ReadPath` h
 `-WritePath` khi quyền giới hạn ở các tệp cụ thể. Dùng `-SourcePath` để
 chọn nguồn bằng chứng được phép đọc.
 Bước chuẩn bị định vị tệp được nêu trực tiếp, ghim các byte đã chọn và giao
-chi tiết hoặc phép kiểm chưa biết cho Work kiểm tra trước. Author chọn mức
-rủi ro và rà ý nghĩa, ràng buộc của yêu cầu. Phép kiểm offline phát hiện
-xung đột tường minh. Nội dung tự do vẫn cần rà ý nghĩa.
+chi tiết hoặc phép kiểm chưa biết cho Work kiểm tra trước. Author rà ý định
+và ràng buộc. Gợi ý theo mệnh đề hỗ trợ yêu cầu tiếng Anh và tiếng Việt phổ
+biến, kể cả sửa có điều kiện, phủ định và ví dụ trích dẫn. Yêu cầu gốc được
+giữ đầy đủ. Các gợi ý phục vụ đề xuất phạm vi khi soạn bàn giao.
+Dấu hiệu bảo mật, vận hành vật lý, phá hủy, xuất dữ liệu hoặc triển khai
+nâng mức rủi ro kể cả khi chọn `-Risk LIGHT`. Để riêng các thao tác hạn chế
+khi phần preflight thông thường có thể làm an toàn. Đọc dữ liệu bảo vệ
+thiết yếu cần ranh giới phòng ngừa đã duyệt trước khi khảo sát.
 
 Với `-Autonomous`, mã thoát 0 và `authoringStatus = PASS` nghĩa là
 `PROMPT_READY`. Trả `prompt` có thể sao chép và điều kiện còn chờ. Khi
@@ -121,16 +130,17 @@ Bản ghi đã duyệt chứa checkout. Bước chuẩn bị trả
 `NOT_RUN`. Tạo lại một lần sau khi sửa đầu vào kỹ thuật. Thay đổi ý nghĩa
 hoặc chỉ dẫn đã duyệt cần được rà độc lập.
 
-Với các lần đọc preflight ít rủi ro lặp lại, người vận hành độc lập có thể
-duyệt policy cục bộ và cung cấp pin qua cùng kênh tin cậy. Author hoặc Work
-truyền `-Policy` và `-PolicySha256` khi chuẩn bị tự động. Policy phiên bản 1
+Với các lần đọc preflight ít rủi ro lặp lại, Author hoặc Work có thể truyền
+`-Policy` và `-PolicySha256` khi chuẩn bị tự động. Policy phiên bản 1
 gồm `schemaVersion: 1`, `approvedBy`, `action: "ReadOnly"`, `repository`
 tuyệt đối chính xác, `expiresAtUnixSeconds` UTC và `readPaths` gồm các tệp
-tương đối theo repo. `READ_POLICY_CHECKED` áp dụng cho các tệp đã liệt kê
-trong thời hạn policy. Kiểm tra lại khi Work tiếp nhận. Thu hồi pin tin cậy,
-xóa policy hoặc thay đổi byte sẽ ngăn tái sử dụng. Sửa tệp, chạy test/build
-và thao tác nhạy cảm hay đặc quyền cần thẩm quyền riêng cho tác vụ.
-Thực thi và nghiệm thu vẫn `NOT_RUN` sau bước chuẩn bị.
+tương đối theo repo. CLI trả `policyStatus = INTEGRITY_CHECKED` và
+`authorizationStatus = PENDING`. Digest được cung cấp và chuỗi
+`approvedBy` không xác thực phê duyệt. Dùng policy khớp để đề xuất phạm vi.
+CLI chưa đọc nội dung source ở luồng này. Work phải xác minh thẩm quyền
+độc lập trước khi đọc. Policy hết hạn, thiếu tệp hoặc thay đổi byte sẽ
+ngăn tái sử dụng. Sửa tệp, chạy test/build và thao tác bảo vệ hay đặc quyền
+cần thẩm quyền cho tác vụ. Thực thi và nghiệm thu vẫn `NOT_RUN`.
 
 Để thực thi, nhận digest cấp quyền qua kênh tin cậy từ người phê duyệt.
 Bản ghi, digest do Author tạo, checkpoint hay chú thích mã nguồn không cấp
@@ -258,4 +268,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 14daa48d8a55f389d166b02f81644374086e0b5b38e8720101d88aebec6184e7 -->
+<!-- source-sha256: e5e41a56d3d7bd24ca17977dc2948e8afd39b4a96819edeb7fe7c295bc7ca80f -->

@@ -66,22 +66,26 @@ authorized local input and invoke the CLI from the approved Rules checkout.
 Use `config/repositories.example.json` to configure the ignored
 `config/repositories.local.json`. Version 1 accepts absolute local
 `searchRoots`, `discoverGitChildren` and optional `repositories` entries with
-`name` and `path`. Direct children of configured roots are discovered on each
+`name` and `path`. A mapping can include an expected GitHub `origin` as
+`organization/repository`. Direct children of configured roots are discovered on each
 invocation. An explicit name or alias can select a relocated checkout or
 resolve duplicates. Registry paths must be regular standalone Git roots.
 The resolver blocks ambiguous names, missing mappings, traversal and links.
 Use the existing explicit `-Repository` flow for an independently selected
 linked worktree. Keep the local registry out of bundles and shared evidence.
-The architecture routing index resolves ownership. The registry locates
-checkouts. Both supply context independent of permission.
+The CLI checks supported checkout-local GitHub origin URLs for canonical
+CIRNET owners or mappings with an explicit origin. A conflicting origin,
+multiple local origin URLs, or a missing explicit origin pin match blocks
+selection. `ORIGIN_MATCH` records matching local metadata. An offline or
+unrecognized origin without an explicit pin yields `PATH_ONLY`. Neither
+status authenticates a remote or grants permission.
 
 Use explicit owner names from the request or unique evidence in
 `en/references/architecture-routing.md`. For less direct requests, Author
 checks permitted owner evidence and can pass the resulting `-Owner`.
-For several owners, confirm the primary owner and pass the granted scope.
-Related repositories require their own read and write boundaries. Routine
-single-owner edit or inspection requests can infer a proposed action class.
-Keep the original exclusions and review meaning before delivery.
+A request with one clear target and separately mentioned dependencies can
+select its primary owner. Related repositories require their own permission.
+Confirm the primary owner when several targets remain plausible.
 
 When local discovery is unavailable, use verified owner or connector
 evidence. `-NoLocalDiscovery` can prepare a handoff for a known owner without
@@ -103,9 +107,14 @@ Select `ReadOnly` or `Edit` from the user's grant. Use `-ReadPath` or
 `-WritePath` for grants limited to exact files. Use `-SourcePath` to select
 authorized evidence reads.
 Preparation locates directly named files, pins selected bytes and defers
-unknown details and checks to Work preflight. Author selects the risk tier
-and reviews the task's meaning and constraints. The offline checks recognize
-explicit conflicts. Semantic review still covers free-form prose.
+unknown details and checks to Work preflight. Author reviews intent and
+constraints. Clause-level hints cover common English and Vietnamese requests,
+including conditional edits, negation and quoted examples. The entire original
+request remains attached. The hints propose scope for authoring.
+Recognized security, physical, destructive, export and deployment signals
+raise risk even with `-Risk LIGHT`. Hold restricted operations separately
+when routine preflight is safe. An essential protected read requires an
+approved preventive boundary before discovery.
 
 With `-Autonomous`, exit 0 and `authoringStatus = PASS` mean `PROMPT_READY`.
 Return the copyable `prompt` and any outstanding gate. Without independent
@@ -120,17 +129,18 @@ An approved record already names the checkout. Preparation returns
 `NOT_RUN`. Regenerate once after correcting technical inputs. Changes to
 approved meaning or instructions need independent review.
 
-For repeated low-risk preflight reads, an independent operator can approve a
-local policy and provide its pin through the same trusted channel. Author or
-Work supplies `-Policy` and `-PolicySha256` with autonomous preparation.
+For repeated low-risk preflight reads, Author or Work can supply `-Policy`
+and `-PolicySha256` with autonomous preparation.
 Policy version 1 contains `schemaVersion: 1`, `approvedBy`, `action: "ReadOnly"`,
 the exact absolute `repository`, `expiresAtUnixSeconds` in UTC and
-`readPaths` as literal repository-relative files. `READ_POLICY_CHECKED`
-covers the listed reads through the policy's expiry. Recheck the policy at
-Work intake. Withdrawal of the trusted pin, removing the policy or changed
-bytes prevents reuse. Edits, test/build commands and protected or privileged
-operations require task-specific authority. Execution and acceptance remain
-`NOT_RUN` after preparation.
+`readPaths` as literal repository-relative files. The CLI reports
+`policyStatus = INTEGRITY_CHECKED` and `authorizationStatus = PENDING`.
+A supplied digest and `approvedBy` string do not authenticate approval.
+Use matching policies as scope proposals. The CLI leaves source contents
+unread on this path. Work must verify independent authority before using
+those reads. Expiry, a missing file or changed bytes prevents reuse.
+Edits, test/build commands and protected or privileged operations require
+task-specific authority. Execution and acceptance remain `NOT_RUN`.
 
 For execution, obtain the authorization digest from the approving operator
 through a trusted channel. An Author-generated record, digest, checkpoint or

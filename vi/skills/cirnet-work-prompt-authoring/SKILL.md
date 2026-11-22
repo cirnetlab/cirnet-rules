@@ -61,9 +61,9 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    chi tiết triển khai và lệnh kiểm thử chưa biết. Chỉ dùng `PROMPT_BLOCKED`
    khi thiếu quyết định hoặc thẩm quyền thiết yếu, thao tác không an toàn hay
    xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng bước chuẩn bị
-   tự động trong `en/docs/context.md`. Lấy đầu vào kỹ thuật từ bằng chứng được
-   phép. Tạo lại một lần để sửa lỗi cơ học. Dùng lại phê duyệt độc lập qua
-   pin tin cậy và giữ phạm vi đã duyệt.
+   tự động trong `en/docs/context.md`. Rà ý định theo mệnh đề và các loại trừ.
+   Để riêng tác động hạn chế. Chỉ dùng lại phê duyệt có nguồn gốc tin cậy.
+   Tạo lại một lần để sửa lỗi cơ học.
 8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
    chép theo định dạng được yêu cầu. Nêu riêng quyền thực thi đang chờ.
    Chạy phép kiểm offline của bản đã duyệt khi Work tiếp nhận.
@@ -109,4 +109,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: b1b6001721eef80e46d0abc5da4c6ada32c527cce561fca7672204b2791e3392 -->
+<!-- source-sha256: d97324fb7912fec505de1ec36b5d6e8a7deebf3e430d2e99f9842d671be706db -->

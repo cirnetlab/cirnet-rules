@@ -99,6 +99,72 @@ function Test-MinimumStatement([string]$Line) {
         [regex]::Matches($statement, '[\p{L}][\p{L}\p{N}_-]*').Count -ge 2
 }
 
+function Get-WorkPromptIntent([string[]]$Lines) {
+    # This classifies authoring intent only. The approved effect validator
+    # remains responsible for admitting exact operations at Work intake.
+    $visible = (Get-PromptProse $Lines) -join [char]10
+    $visible = [regex]::Replace($visible, '"[^"\r\n]*"|“[^”\r\n]*”|(?<!\w)''[^''\r\n]*''|`[^`\r\n]*`', {
+        param($quoted)
+        if ($quoted.Value -match '^.([\w.-]+).$') { $Matches[1] } else { ' quoted text ' }
+    })
+    $parts = $visible -split '(?i)([\r\n;!?]+|\.(?=\s|$)|,|\b(?:and then|and|or|but|then|without|while|và|hoặc|nhưng|rồi|đồng thời)\b)'
+    $targets = [Collections.Generic.List[string]]::new()
+    $pending = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $edit = $read = $deep = $protectedRead = $noEdits = $false
+    $documentationOnly = $true
+    $negative = $false
+    for ($i = 0; $i -lt $parts.Count; $i += 2) {
+        $clause = $parts[$i].Trim() -replace '^(?:[-*+]\s+|\d+[.)]\s+)', ''
+        $clause = $clause -replace '^(?:(?:please|kindly|hãy|giúp tôi|vui lòng|tôi muốn|i want to|i would like to)\s+)+', ''
+        if (-not $clause) { continue }
+        $connector = if ($i) { $parts[$i-1] } else { '' }
+        $negativePrefix = $clause -match '^(?:do not|don''t|never|avoid|without|không được|không|đừng|tránh)\b'
+        $negative = $negativePrefix -or $connector -eq 'without' -or ($negative -and $connector -match '^(?:or|and|hoặc|và)$')
+        if ($negative) {
+            if ($clause -match '^(?:do not|don''t|never|avoid|without|không được|không|đừng|tránh)?\s*(?:modify|modifying|edit|editing|change|changing|write|writing|chỉnh sửa|sửa|thay đổi)(?:\s+(?:the\s+)?(?:source(?: code)?|code|files|anything|mã nguồn))?$') {
+                $noEdits = $true
+            }
+            continue
+        }
+        $action = $clause -replace '^(?:if\b.*?\bthen\s+|nếu\b.*?\bthì\s+|only\s+|chỉ\s+)', ''
+        $risk = switch -Regex ($action) {
+            '^(?:deploy|release|publish|triển khai(?!\s+mã\b)|phát hành|công bố)\b' { 'deployment'; break }
+            '^(?:export|share|upload|disclose|xuất|chia sẻ)\b' { 'export'; break }
+            '^(?:erase|wipe|destroy|rm|remove-item)\b|^(?:delete|remove|xóa|xoá)\b.*\b(?:files?|folders?|director(?:y|ies)|repositories|branches|databases?|records?|tệp|thư mục|cơ sở dữ liệu)\b' { 'destructive'; break }
+            '^(?:flash|energize|power on|program.*\b(?:fpga|hardware|board)\b|nạp(?: firmware| bitstream)?|cấp điện|vận hành)\b' { 'physical'; break }
+            '^(?:sudo|escalate|change global|install system|cài toàn cục)\b' { 'privileged'; break }
+            '^(?:git(?:\.exe)?\s+)?(?:commit|push|merge|reset|clean|stash)\b' { 'git state change'; break }
+        }
+        if ($risk) { [void]$pending.Add($risk) }
+        $isRead = $action -match '^(?:inspect|review|check|audit|explain|read|propose|report|investigate|kiểm tra|rà soát|đọc|đề xuất|xem)\b'
+        if ($isRead) {
+            $read = $true
+            if ($action -match '^(?:inspect|review|check|audit|read|kiểm tra|rà soát|đọc)(?:\s+(?:the|all|raw|actual|our|các|toàn bộ))*\s+(?:customer records?|personal data|private records?|secrets?|credentials?|passwords?|hồ sơ khách hàng|dữ liệu cá nhân|mật khẩu|bí mật)\b') {
+                $protectedRead = $true
+            }
+        }
+        if (-not $risk -and $action -match '^(?:fix|edit|improve|update|correct|refactor|add|change|modify|create|write|implement|remove|delete|chỉnh sửa|sửa|cải thiện|cập nhật|thêm|thay đổi|xóa|xoá|triển khai mã)\b') {
+            $edit = $true
+            if ($action -notmatch '\b(?:documentation|readme|typo|spelling|tài liệu|chính tả)\b') { $documentationOnly = $false }
+        }
+        if ($action -match '\b(?:authentication|authorization controls?|access controls?|security controls?|security policy|physical (?:lab|hardware|fpga)|safety-critical|xác thực|phân quyền|an toàn vật lý)\b') {
+            $deep = $true
+        }
+        # Keep conjunctive targets such as "Fix A and B" ambiguous. A
+        # compatibility clause can name a consumer or dependency after "with".
+        if (-not $risk) {
+            $targets.Add(($clause -replace '(?i)\b(?:compatibility|compatible|tương thích)\b.*?\b(?:with|against|với)\b.*$', ''))
+        }
+    }
+    [pscustomobject]@{
+        visible=$visible; targetText=($targets -join ' ')
+        scope=$(if ($edit) { 'Edit' } elseif ($read -or $pending.Count) { 'ReadOnly' })
+        conflict=($edit -and $noEdits); noEdits=$noEdits; protectedRead=$protectedRead
+        risk=$(if ($deep -or $pending.Count) { 'DEEP' } elseif ($edit -and $documentationOnly) { 'LIGHT' } else { 'STANDARD' })
+        pending=@($pending | Sort-Object)
+    }
+}
+
 # Unknown prose can change the meaning of adjacent approved lines. Never
 # ignore decorations, comments or fences. Nothing in the draft is executed.
 function Test-PromptContent([string[]]$Lines, $Requirements, [string[]]$Allowed, [string]$Readiness) {
@@ -275,7 +341,7 @@ function Read-WorkPromptReadPolicy([string]$Path, [string]$Pin, [string]$Root) {
 
 function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]$Lines,
     [string]$Scope, [string[]]$ReadPath, [string[]]$WritePath, [string[]]$SourcePath, [string]$Risk, $Resolution,
-    [switch]$ReadPolicyChecked) {
+    $Intent, [switch]$ReadPolicyIntegrityChecked) {
     if ($Scope -eq 'ReadOnly' -and $WritePath.Count) {
         return New-PreparationResult BLOCKED 'Resolve the conflict between read-only scope and the proposed write paths.'
     }
@@ -290,8 +356,9 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         @(foreach ($path in $WritePath) { "write: $path"; "create: $path"; "modify: $path" })
     $mentioned = [Collections.Generic.List[string]]::new()
     $proposedActions = [ordered]@{}
-    for ($i = 0; $i -lt $Lines.Length; $i++) {
-        $statement = $Lines[$i].Trim() -replace '^(?:[-*+] |\d+[.)] )', ''
+    $prose = @(Get-PromptProse $Lines)
+    for ($i = 0; $i -lt $prose.Length; $i++) {
+        $statement = $prose[$i].Trim() -replace '^(?:[-*+] |\d+[.)] )', ''
         if ($statement -match '^(?<verb>read|write|create|modify)(?:\s*:\s*|\s+)(?<file>[\w./-]+\.[\w-]+)\.?$') {
             $verb = $Matches.verb.ToLowerInvariant()
             $path = $Matches.file
@@ -306,15 +373,14 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         }
         $violation = Get-PromptViolation $statement $allowed
         if ($violation -or $statement -match '^(?:(?:also|then)\s+)?(?:delete|remove-item|move-item|rm|mv|sudo|flash|energize|npm(?:\.cmd)?\s+publish|kubectl|terraform\s+(?:apply|destroy))\s+' -or
-            $statement -match '^(?:ignore|override|bypass)\b.*\b(?:instructions|policy|scope|approval|authorization)\b' -or
-            ($Scope -eq 'ReadOnly' -and $statement -match '^(?:edit|correct|change|fix|update|replace|implement|add|remove|modify|create|write|sửa|cải thiện|cập nhật|thêm)\b')) {
+            $statement -match '^(?:ignore|override|bypass)\b.*\b(?:instructions|policy|scope|approval|authorization)\b') {
             return New-PreparationResult BLOCKED "Resolve the action, scope or evidence conflict on request line $($i + 1) before handoff."
         }
     }
     $pins = @($WritePath + $SourcePath | Where-Object { -not $ReadPath.Count -or $_ -cin $ReadPath } | Sort-Object -CaseSensitive -Unique)
     $evidence = @(foreach ($path in $pins) {
         $file = Resolve-PreparationPath $Owner.root $path
-        if ($file -and $file.Exists -and $file.Length -le 1MB) {
+        if (-not $ReadPolicyIntegrityChecked -and $file -and $file.Exists -and $file.Length -le 1MB) {
             try {
                 $sha256 = Get-CirnetPayloadHash (Read-ContinuityBytes $file.FullName 1MB)
                 [pscustomobject]@{ path=$path; status='PINNED'; sha256=$sha256 }
@@ -377,6 +443,9 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
             'Prepare changes for this owner only. Identify exact paths from the original requirements during Work preflight.'
         } else { 'Prepare read-only inspection of this owner.' }
         'Keep all explicit exclusions. Additional repositories, destructive actions, protected data, privileged operations and release actions require separate authority.'
+        if ($Intent.pending.Count) {
+            "Separate approval required for $($Intent.pending -join ', ') in this request. Keep these operations out of the routine effects and leave them pending."
+        }
         ''
         '## Work preflight and verification'
         'Confirm the request identity, owner revision, local instructions, applicable Rules and Work Skills. Find the owner verification for each criterion.'
@@ -392,8 +461,8 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
             else { "- ``$($item.path)`` is NOT_INSPECTED. Resolve it within the granted scope." }
         }
         'Obtain independent execution authorization for the exact effects and checks before acting. Capture and pin the scope baseline when required, verify execution intake, and reconcile scope after Work.'
-        if ($ReadPolicyChecked) {
-            'Recheck the current independently pinned read policy at intake to reuse its listed preflight reads. Obtain task approval for effects or commands outside that policy.'
+        if ($ReadPolicyIntegrityChecked) {
+            'The read policy matched its supplied pin and limits. Verify approval provenance independently at intake before using its listed reads.'
         }
         $reportLine
     )
@@ -405,18 +474,20 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         revision = $(if ($Head) { $Head })
         risk = $Risk.ToUpperInvariant()
         evidence = $evidence
+        pendingOperations = $Intent.pending
     }
     if ($Resolution) {
         $result | Add-Member -NotePropertyMembers @{
             repositoryName = $Resolution.name
             repositoryStatus = $(if ($Owner.root) { 'CONFIRMED' } else { 'NOT_INSPECTED' })
+            repositoryIdentityStatus = $(if ($Owner.root) { $Owner.identityStatus } else { 'NOT_INSPECTED' })
             approvalProposal = @{
                 actions = $proposedActions; scope = $Scope; grants = @()
                 checks = 'Resolve exact acceptance checks in Work preflight.'
             }
         }
     }
-    if ($ReadPolicyChecked) { $result.authorizationStatus = 'READ_POLICY_CHECKED' }
+    if ($ReadPolicyIntegrityChecked) { $result | Add-Member -NotePropertyName policyStatus -NotePropertyValue 'INTEGRITY_CHECKED' }
     $result
 }
 
@@ -479,30 +550,39 @@ function New-CirnetWorkPromptProposal {
         $lines = ConvertTo-PromptLines $bytes
         if ($lines.Length -gt 1024) { throw 'Too many original task lines.' }
         $resolution = $null
+        $intent = $null
         if ($Autonomous) {
             $request = $lines -join [char]10
             Assert-NoCredential $request
             if ($lines -match '[\x00-\x08\x0b-\x1f\x7f]') { throw 'Invalid original task text.' }
+            $intent = Get-WorkPromptIntent $lines
+            if ($intent.protectedRead) {
+                return New-PreparationResult BLOCKED 'Establish an independently approved preventive read boundary for the protected records or credentials requested.'
+            }
+            if ($intent.conflict -or ($AuthorizedScope -eq 'ReadOnly' -and $intent.scope -ceq 'Edit') -or
+                ($AuthorizedScope -eq 'Edit' -and $intent.noEdits)) {
+                return New-PreparationResult BLOCKED 'Confirm whether the conflicting source edits are in scope.'
+            }
+            if ($intent.risk -ceq 'DEEP' -or (-not $PSBoundParameters.ContainsKey('Risk') -and $intent.risk -ceq 'LIGHT')) {
+                $Risk = $intent.risk
+            }
+            $declaredScope = [bool]$AuthorizedScope
             if (-not $Repository) {
                 if (-not $Registry -and -not $NoLocalDiscovery) {
                     $Registry = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../config/repositories.local.json'))
                     if (-not [IO.File]::Exists($Registry)) { $NoLocalDiscovery = $true }
                 }
-                try { $resolution = Resolve-CirnetPromptOwner -Request $request -Registry $Registry -OwnerName $Owner -NoLocalDiscovery:$NoLocalDiscovery }
+                try { $resolution = Resolve-CirnetPromptOwner -Request $intent.visible -TargetText $intent.targetText -Registry $Registry -OwnerName $Owner -NoLocalDiscovery:$NoLocalDiscovery }
                 catch { return New-PreparationResult BLOCKED $_.Exception.Message }
                 if ($resolution.related.Count) {
-                    if (-not $Owner -or -not $AuthorizedScope) {
+                    if (-not $resolution.uniqueTarget -and -not ($Owner -and $declaredScope)) {
                         return New-PreparationResult BLOCKED 'Confirm the primary owner and its effects. Related repositories need their own scope.'
                     }
                     $Risk = 'DEEP'
                 }
+                if (-not $AuthorizedScope) { $AuthorizedScope = $intent.scope }
                 if (-not $AuthorizedScope) {
-                    $visible = (Get-PromptProse $lines) -join [char]10
-                    if ($visible -match '(?im)^\s*(?:[-*+]\s+)?(?:fix|edit|improve|update|correct|refactor|add|change|modify|create|write|sửa|cải thiện|cập nhật|thêm)\b') {
-                        $AuthorizedScope = 'Edit'
-                    } elseif ($visible -match '(?im)^\s*(?:[-*+]\s+)?(?:inspect|review|check|audit|explain|read|kiểm tra|rà soát|đọc)\b') {
-                        $AuthorizedScope = 'ReadOnly'
-                    } else { return New-PreparationResult BLOCKED 'Confirm whether the task requests changes or read-only inspection.' }
+                    return New-PreparationResult BLOCKED 'Confirm whether the task requests changes or read-only inspection.'
                 }
             }
         }
@@ -519,7 +599,7 @@ function New-CirnetWorkPromptProposal {
                     return New-PreparationResult BLOCKED 'Use a verified owner and obtain task approval for effects outside the recurring read policy.'
                 }
                 try { $policyPaths = @(Read-WorkPromptReadPolicy $Policy $PolicySha256 $checkout.root) }
-                catch { return New-PreparationResult BLOCKED 'Obtain a current independently pinned read policy for this checkout.' }
+                catch { return New-PreparationResult BLOCKED 'Provide a current read policy and matching pin for this checkout.' }
                 if (@($ReadPath | Where-Object { $_ -cnotin $policyPaths }).Count) {
                     return New-PreparationResult BLOCKED 'Limit requested read paths to those approved by the recurring policy.'
                 }
@@ -527,7 +607,7 @@ function New-CirnetWorkPromptProposal {
                 $AuthorizedScope = 'ReadOnly'
                 $Risk = 'LIGHT'
             }
-            return New-ScopedPromptDraft $checkout $head $bytes $lines $AuthorizedScope $ReadPath $WritePath $SourcePath $Risk $resolution -ReadPolicyChecked:([bool]$Policy)
+            return New-ScopedPromptDraft $checkout $head $bytes $lines $AuthorizedScope $ReadPath $WritePath $SourcePath $Risk $resolution $intent -ReadPolicyIntegrityChecked:([bool]$Policy)
         }
         $fields = [ordered]@{}
         $permissions = [ordered]@{}

@@ -61,9 +61,9 @@ checkout, branch, instructions, permissions and evidence before implementation.
    preflight for unread source, unknown implementation details and test commands.
    Reserve `PROMPT_BLOCKED` for an indispensable missing decision, authority,
    unsafe operation or unresolved conflict that prevents a safe handoff.
-   Use autonomous preparation in `en/docs/context.md`. Supply technical inputs
-   from authorized evidence. Regenerate once for mechanical corrections.
-   Reuse independent approval through its trusted pin. Preserve its scope.
+   Use autonomous preparation in `en/docs/context.md`. Review clause-level
+   intent and exclusions. Hold restricted effects separately. Reuse approval
+   only with trusted provenance. Regenerate once for mechanical corrections.
 8. **Hand Off.** Return `PROMPT_READY` and one complete copyable Work Prompt in
    the requested format. State pending execution approval separately.
    Run the approved offline validation at Work intake.

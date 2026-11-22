@@ -24,6 +24,8 @@ comparison internal. Use autonomous preparation in
 `en/docs/context.md#local-repository-discovery` before delivery. Include a
 verified checkout path, or give Work bounded local resolution for the known owner. Derive
 technical inputs from authorized reads and defer unknowns to Work preflight.
+Keep conditions and exclusions. Route dependencies separately and list
+restricted operations that still need approval.
 Regenerate after correcting mechanical issues. Keep owner, scoped effects,
 acceptance, reporting and pending approvals visible. Have Work validate the
 independently approved handoff and pass execution intake before acting. Include a

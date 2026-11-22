@@ -48,6 +48,49 @@ foreach ($case in @(
     $routed = Prepare $case[0]
     if ($routed.readiness -cne 'PROMPT_READY' -or $routed.repositoryName -cne $case[1]) { throw 'Architecture routing lost an owner.' }
 }
+$intentCases = @(
+    @{ text='Hãy kiểm tra cirnet-interface, nếu phát hiện lỗi thì sửa và chạy kiểm thử.'; owner='cirnet-interface'; scope='Edit' },
+    @{ text='Tôi muốn cải thiện cirnet-remote nhưng không thay đổi cirnet-contracts.'; owner='cirnet-remote'; scope='Edit'; related='cirnet-contracts' },
+    @{ text='Review the current module, fix the confirmed defects, and run the relevant tests.'; owner='cirnet-interface'; explicitOwner=$true; scope='Edit' },
+    @{ text='Hãy kiểm tra cirnet-hardware và đề xuất các cải tiến, không chỉnh sửa mã nguồn.'; owner='cirnet-hardware'; scope='ReadOnly' },
+    @{ text='Giúp tôi rà soát cirnet-interface, chỉ sửa khi cần thiết và không xóa tệp.'; owner='cirnet-interface'; scope='Edit' },
+    @{ text='Vui lòng triển khai mã xử lý mới trong cirnet-interface.'; owner='cirnet-interface'; scope='Edit'; risk='STANDARD' },
+    @{ text='Fix the cirnet-remote API compatibility issue with cirnet-contracts, but do not modify Contracts.'; owner='cirnet-remote'; scope='Edit'; related='cirnet-contracts' },
+    @{ text='Review cirnet-interface without modifying or deleting files.'; owner='cirnet-interface'; scope='ReadOnly' },
+    @{ text="Improve cirnet-interface without modifying 'graph semantics'."; owner='cirnet-interface'; scope='Edit' },
+    @{ text='Remove the stale UI toggle from cirnet-interface.'; owner='cirnet-interface'; scope='Edit'; risk='STANDARD' },
+    @{ text='Review cirnet-interface. The note says "edit cirnet-remote and deploy".'; owner='cirnet-interface'; scope='ReadOnly' },
+    @{ text='Improve the UI and deploy it to production.'; owner='cirnet-interface'; explicitOwner=$true; scope='Edit'; hold='deployment' },
+    @{ text='Fix the CircuitGraph UI, then export the output to a third party.'; owner='cirnet-interface'; scope='Edit'; hold='export' },
+    @{ text='Fix the CircuitGraph UI and delete the original working files.'; owner='cirnet-interface'; scope='Edit'; hold='destructive' },
+    @{ text='Fix the CircuitGraph UI and git push the branch.'; owner='cirnet-interface'; scope='Edit'; hold='git state change' },
+    @{ text='Review cirnet-fpga and flash the physical FPGA.'; owner='cirnet-fpga'; scope='ReadOnly'; hold='physical' },
+    @{ text='Update authentication in cirnet-remote.'; owner='cirnet-remote'; scope='Edit'; risk='DEEP' },
+    @{ text='Fix a documentation typo in cirnet-interface.'; owner='cirnet-interface'; scope='Edit'; risk='LIGHT' }
+)
+$intentFailures = @(foreach ($case in $intentCases) {
+    $opts = @{}
+    if ($case['explicitOwner']) { $opts.Owner = $case.owner }
+    if ($case['hold'] -or $case['risk'] -eq 'DEEP') { $opts.Risk = 'LIGHT' }
+    $handoff = Prepare $case.text $opts
+    if ($handoff.readiness -cne 'PROMPT_READY' -or $handoff.repositoryName -cne $case.owner -or
+        $handoff.approvalProposal.scope -cne $case.scope -or $handoff.authorizationStatus -cne 'PENDING' -or
+        $handoff.executionStatus -cne 'NOT_RUN' -or -not $handoff.prompt.Contains($case.text) -or
+        ($case['related'] -and -not $handoff.prompt.Contains("Related owners require separately permitted reads: $($case.related).")) -or
+        ($case['hold'] -and ($handoff.risk -cne 'DEEP' -or $case.hold -cnotin $handoff.pendingOperations -or $handoff.approvalProposal.grants.Count)) -or
+        ($case['risk'] -and $handoff.risk -cne $case.risk)) {
+        "$($case.text) -> $($handoff.readiness)"
+    }
+})
+$protected = Prepare 'Inspect cirnet-interface and read customer records.' @{Risk='LIGHT'}
+if ($protected.readiness -cne 'PROMPT_BLOCKED') { $intentFailures += 'Protected read was handed off without preventive access.' }
+$observed = Prepare "Review cirnet-interface.`nDo not modify the source."
+if ($observed.readiness -cne 'PROMPT_READY' -or $observed.approvalProposal.scope -cne 'ReadOnly') {
+    $intentFailures += 'A separate prohibitive instruction was interpreted as an edit.'
+}
+$contradiction = Prepare 'Edit cirnet-interface, but do not modify the source.'
+if ($contradiction.readiness -cne 'PROMPT_BLOCKED') { $intentFailures += 'A conflicting blanket edit prohibition was ignored.' }
+if ($intentFailures.Count) { throw ($intentFailures -join [char]10) }
 $seventh = 'cirnet-new-fixture'
 New-TestCheckout (Join-Path $main $seventh)
 $result = Prepare "Update documentation in $seventh."
@@ -65,6 +108,19 @@ foreach ($known in @($request,'Fix graph-team formatting.')) {
     $resolved = Prepare $known
     if ($resolved.repository -cne $outside) { throw 'Explicit override or alias failed.' }
 }
+git -C $outside remote add origin 'https://github.com/cirnetlab/cirnet-remote.git'
+if ((Prepare $request).readiness -cne 'PROMPT_BLOCKED') { throw 'A matching checkout path with a conflicting canonical identity was accepted.' }
+git -C $outside remote set-url origin 'git@github.com:cirnetlab/cirnet-interface.git'
+$config.repositories[1].origin = 'cirnetlab/cirnet-interface'
+Save-Registry
+$matched = Prepare 'Fix graph-team formatting.'
+if ($matched.readiness -cne 'PROMPT_READY' -or $matched.repositoryIdentityStatus -cne 'ORIGIN_MATCH') {
+    throw 'A relocated alias did not preserve its configured identity.'
+}
+git -C $outside remote remove origin
+if ((Prepare 'Fix graph-team formatting.').readiness -cne 'PROMPT_BLOCKED') { throw 'An explicit origin pin was silently skipped.' }
+$config.repositories[1].Remove('origin')
+Save-Registry
 $notMapped = (New-Item -ItemType Directory -Path (Join-Path $fixture 'unlisted')).FullName
 New-TestCheckout (Join-Path $notMapped 'private-owner')
 if ((Prepare 'Fix documentation in private-owner.' @{Owner='private-owner'}).readiness -cne 'PROMPT_BLOCKED') {
@@ -123,10 +179,15 @@ function Save-Policy {
 $options = @{Policy=$policy; PolicySha256=(Save-Policy)}
 foreach ($inputText in @('Read README.md in cirnet-fpga.', 'Inspect documentation in cirnet-fpga.')) {
     $covered = Prepare $inputText $options
-    if ($covered.readiness -cne 'PROMPT_READY' -or $covered.authorizationStatus -cne 'READ_POLICY_CHECKED' -or
-        $covered.executionStatus -cne 'NOT_RUN' -or -not $covered.prompt.Contains('README.md')) {
-        throw 'A current independent read policy could not be reused.'
+    if ($covered.readiness -cne 'PROMPT_READY' -or $covered.authorizationStatus -cne 'PENDING' -or
+        $covered.policyStatus -cne 'INTEGRITY_CHECKED' -or $covered.executionStatus -cne 'NOT_RUN' -or
+        -not $covered.prompt.Contains('README.md')) {
+        throw 'Policy scope was lost or a self-supplied pin was presented as verified authority.'
     }
+}
+$unattested = Prepare 'Inspect documentation in cirnet-fpga.' ($options + @{SourcePath=@('README.md')})
+if (@($unattested.evidence | Where-Object status -eq 'PINNED').Count) {
+    throw 'A self-supplied policy pin triggered a source content read.'
 }
 if ((Prepare 'Edit README.md in cirnet-fpga.' $options).readiness -cne 'PROMPT_BLOCKED' -or
     (Prepare "Inspect cirnet-fpga.`nread: other.md" $options).readiness -cne 'PROMPT_BLOCKED' -or

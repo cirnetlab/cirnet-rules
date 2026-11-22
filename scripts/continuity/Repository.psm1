@@ -102,6 +102,10 @@ function Get-ContinuityHead($Repository) {
     Get-GitLine (Invoke-ContinuityGit $Repository.root @('rev-parse', '--verify', '--quiet', 'HEAD^{commit}') @(0, 1))
 }
 
+function Get-ContinuityLocalOrigin($Repository) {
+    Get-GitRecords (Invoke-ContinuityGit $Repository.root @('config', '--local', '--no-includes', '--null', '--get-all', 'remote.origin.url') @(0, 1))
+}
+
 function Get-ContinuityIndexEntries([string]$Root) {
     Invoke-ContinuityGit $Root @('ls-files', '--stage', '-z', '--')
 }
@@ -346,7 +350,7 @@ function Compare-ContinuityGit($Saved, $Current) {
     }
 }
 
-Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityValueHash, Test-ContinuityWorktree,
+Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityLocalOrigin, Get-ContinuityValueHash, Test-ContinuityWorktree,
     Test-ContinuityReferenceConflict, Get-ContinuityIndexEntries, Get-ContinuityTextHash,
     Assert-ContinuityDestination, Test-ContinuityInside, Resolve-ContinuityFile, Get-ContinuityFileDigest,
     Get-ContinuityGitFingerprint, Get-ContinuityGitSnapshot, Get-ContinuityGitMetadataHash, Compare-ContinuityGit

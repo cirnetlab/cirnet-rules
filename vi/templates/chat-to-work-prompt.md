@@ -5,7 +5,9 @@
 Dùng bước chuẩn bị tự động trong `en/docs/context.md#local-repository-discovery`
 trước khi giao. Ghi đường dẫn đã xác minh hoặc giao Work định vị cục bộ
 trong phạm vi của owner đã biết. Suy ra đầu vào kỹ thuật từ các lần đọc được phép và giao
-chi tiết chưa biết cho Work kiểm tra trước. Tạo lại sau khi sửa lỗi cơ học.
+chi tiết chưa biết cho Work kiểm tra trước. Giữ điều kiện và nội dung loại
+trừ, xác định riêng repo phụ thuộc và liệt kê các thao tác hạn chế còn chờ
+duyệt. Tạo lại sau khi sửa lỗi cơ học.
 Nêu rõ owner, tác động trong phạm vi, nghiệm thu, báo cáo và phê duyệt còn
 chờ. Work phải kiểm tra bản bàn giao đã duyệt độc lập và qua bước tiếp nhận
 thực thi. Với Work có thể ghi, yêu cầu baseline đã xác minh và đối chiếu
@@ -174,4 +176,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: a11b5f1e255d12aa8e053a399f54908db37af487670a5a153581e4996abb3515 -->
+<!-- source-sha256: 6a3905cc9660fd21933cf5c66476fbbc5244811f8d3b9d5f017ed8df911de682 -->
