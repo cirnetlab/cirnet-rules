@@ -37,8 +37,9 @@ lần. Adapter managed chỉ nên đưa vào baseline.
 ## Chat-to-Work
 
 Khi được yêu cầu chuẩn bị Prompt cho Agent khác, chọn Skill biên soạn và mở
-mẫu tiếng Anh từ bản cài đã xác minh hoặc checkout đã được phép. Chọn Work Skills áp dụng từ metadata,
-chỉ đọc thân các Skill đó, kiến trúc, chỉ dẫn owner và bằng chứng liên quan.
+mẫu tiếng Anh đã duyệt từ nguồn đã xác minh. Chọn Work
+Skills áp dụng từ metadata, đọc thân các Skill đó, kiến trúc, chỉ dẫn owner và
+bằng chứng liên quan.
 Chọn LIGHT, STANDARD hoặc DEEP theo độ phức tạp, rủi ro, phụ thuộc, bất định
 và quyền đọc source. Xét đủ 12 trường ngữ nghĩa, gom thông tin áp dụng vào
 các heading nhiệm vụ cần.
@@ -54,6 +55,33 @@ của Work. Giao Work lần đọc đầu tối thiểu, chỉ mở lại bằng
 hoặc còn thiếu.
 [Skill biên soạn](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Mẫu](../templates/chat-to-work-prompt.md) · [Truy cập từ bundle](distribution.md#soạn-work-prompt)
+
+### Soạn Work Prompt trong Chat
+
+Dùng mẫu tiếng Anh đã duyệt và bằng chứng nguồn đã xác minh trong phạm vi
+được phép. Yêu cầu trả Work Prompt trong Chat cho phép bàn giao dạng có thể
+sao chép, trừ khi người dùng đặt điều kiện chặt hơn. Khi đã đủ căn cứ về owner,
+phạm vi và bằng chứng để Work kiểm tra trước an toàn, trả một bản bàn giao
+`PROMPT_READY` hoàn chỉnh ngay cả khi Chat thiếu PowerShell 7 hoặc quyền truy
+cập checkout local. Giữ nguyên câu chữ, thứ tự, ràng buộc và tiêu chí nghiệm
+thu của yêu cầu gốc. Giao các chi tiết kỹ thuật chưa xác minh cho Work, kèm
+owner, phép kiểm được phép và điều kiện dừng. Người dùng có thể nhận bản bàn
+giao mà chưa cần cung cấp đường dẫn local, JSON phê duyệt hay digest.
+
+Ghi `NOT_INSPECTED` cho trạng thái checkout local và bằng chứng thực thi chưa
+kiểm tra. Báo `handoffStatus = NOT_RUN` khi chưa chạy xác thực chính thức,
+`authorizationStatus = PENDING` khi còn chờ phê duyệt thực thi độc lập và
+`executionStatus = NOT_RUN` khi chưa kiểm tra điều kiện thực thi local.
+`PROMPT_READY` chỉ ghi nhận bản soạn đã sẵn sàng. Nếu người dùng yêu cầu
+`handoffStatus = PASS` trước khi bàn giao và chưa thể đạt, trả `PROMPT_BLOCKED`
+cùng điều kiện tiên quyết còn thiếu. Chỉ bàn giao dạng có thể sao chép theo
+luồng này khi người dùng đồng ý thay đổi điều kiện đó.
+
+Với công việc liên repo, dùng một bản bàn giao điều phối, ghi riêng nhiệm vụ,
+phạm vi, phụ thuộc và phép nghiệm thu của từng owner. Giữ toàn văn yêu cầu
+gốc. Mỗi owner cần phê duyệt độc lập và bằng chứng xác thực local riêng. Bản
+điều phối và phê duyệt của owner khác không cấp quyền ghi. Nếu phải đạt PASS
+trước khi bàn giao, cần xác thực đủ các owner trong phạm vi yêu cầu.
 
 ### Dò repo cục bộ
 
@@ -89,16 +117,19 @@ một đích rõ ràng và nhắc riêng các repo phụ thuộc có thể chọ
 Repo liên quan cần quyền riêng. Xác nhận owner chính nếu vẫn còn nhiều
 đích hợp lý.
 
-Nếu không dò được cục bộ, dùng bằng chứng owner hoặc connector đã xác minh.
-`-NoLocalDiscovery` có thể chuẩn bị bàn giao cho owner đã biết mà chưa công
-bố đường dẫn hay revision. Work dùng registry được duyệt để tìm checkout đó
-trước khi đọc source. Chỉ hỏi quyết định nếu owner hoặc phạm vi còn mơ hồ.
+Khi có PowerShell nhưng không thể truy cập checkout, `-NoLocalDiscovery` có
+thể chuẩn bị bản nháp cho một owner đã biết mà chưa công bố đường dẫn hay
+revision local. Chat có thể [soạn prompt trong Chat](#soạn-work-prompt-trong-chat)
+mà không chạy CLI. Với bản điều phối, Work định vị riêng từng owner đã xác định
+rõ khi tiếp nhận. Hỏi quyết định nếu owner hoặc phạm vi vẫn còn mơ hồ.
 
 ### Kiểm tra bàn giao offline
 
-Bắt đầu từ yêu cầu và phạm vi người dùng đã cấp cho repo chủ sở hữu.
-Xác định đúng checkout và lưu các byte UTF-8 của yêu cầu gốc. Với tác vụ
-thông thường không nhạy cảm, Author chuẩn bị bản bàn giao cục bộ.
+Khi tiếp nhận, Codex Work dùng registry local đã duyệt để định vị từng owner.
+Xác minh định danh checkout, nhánh, HEAD và trạng thái Git, rồi đọc chỉ dẫn
+local và lồng nhau áp dụng trong giới hạn quyền đọc. Lưu các byte UTF-8 của
+yêu cầu gốc. Khi có công cụ local cho tác vụ thông thường không nhạy cảm,
+CLI cũng có thể chuẩn bị bản nháp cho một owner.
 
 ```powershell
 ./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask request.txt -Repository $ownerRoot -AuthorizedScope Edit -Risk LIGHT
@@ -157,7 +188,9 @@ Runner hiện tại thiếu cơ chế cưỡng chế quyền đọc có giới h
 mở bản nháp, nhiệm vụ gốc hay nguồn. Tác vụ hẹp hơn chỉ được dùng bản dữ liệu
 đã lọc, cô lập và được phê duyệt độc lập.
 
-Để chuẩn bị phiếu cấp quyền theo quy trình cũ cho đầu vào không nhạy cảm, dùng
+Với đầu vào không nhạy cảm, Work xác định đường dẫn, ánh xạ, phép kiểm và pin
+từ bằng chứng local được phép để trình phê duyệt độc lập. Dùng phiếu cấp quyền
+hiện có qua lệnh
 `validate-work-prompt.ps1 -Prepare -OriginalTask request.txt -Repository $ownerRoot -SourcePath label.js`
 để lấy các dòng được đánh số và `proposal` chứa pin của yêu cầu, HEAD và nguồn.
 Mã thoát 2 cho biết đang chờ duyệt. Giữ đầu ra cục bộ. Rà từng ánh xạ, điền
@@ -213,9 +246,10 @@ chỉ áp dụng cho fixture benchmark.
 ./scripts/validate-work-prompt.ps1 -OriginalTask request.txt -Authorization approval.json -AuthorizationSha256 $approvedPin -Prompt handoff.md -Repository $ownerRoot
 ```
 
-Chạy validator từ checkout toolkit được duyệt trước khi giao và lúc Work tiếp nhận,
-đối chiếu cùng đầu vào đã duyệt
-và SHA-256 của bản nháp. Mã thoát 0 (`PASS`) áp dụng cho phần nội dung và pin
+Chạy validator PowerShell 7 từ checkout toolkit đã duyệt lúc Work tiếp nhận,
+đối chiếu đầu vào đã duyệt và đúng bản nháp. Khi người dùng yêu cầu PASS trước
+khi bàn giao, chạy xác thực lúc bàn giao và đối chiếu lại cùng đầu vào đã
+duyệt và SHA-256 của bản nháp khi tiếp nhận. Mã thoát 0 (`PASS`) áp dụng cho phần nội dung và pin
 đã kiểm. Mã 1 (`FAIL`) yêu cầu sửa, 2 (`REVIEW_REQUIRED`) yêu cầu rà độc lập
 với yêu cầu gốc và quyền, 3 (`BLOCKED`) dừng triển khai. Giữ thực thi ở
 trạng thái chặn trong khi còn chờ rà độc lập. Sau khi người rà độc lập
@@ -275,4 +309,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: 4c23da12c5aa2869b36ddd8878166d4ec0c7aeb69ba308a3cbfdfe9d84bd39f0 -->
+<!-- source-sha256: 2fd144b7659c3641d97bc36cf301ecdf34becce6927086be7da8df9b87a37b16 -->

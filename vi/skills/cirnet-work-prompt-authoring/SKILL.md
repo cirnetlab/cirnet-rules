@@ -39,13 +39,11 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    Với dữ liệu bản ghi, ưu tiên inspector đã xác minh, có giới hạn, trả metadata
    cấu trúc mà không thực thi source. Đưa đúng lệnh gọi và giới hạn cho Work.
    Dừng khảo sát khi có thể bàn giao an toàn. Chuyển quy định riêng tư vào preflight.
-5. **Draft Adaptive Prompt.** Mở `references/chat-to-work-prompt.md` cạnh
-   Skill sau khi xác minh bundle và bản cài, hoặc dùng
-   `en/templates/chat-to-work-prompt.md` từ checkout được phép. Thiếu nguồn
-   mẫu đã xác minh thì trả `PROMPT_BLOCKED`.
-   Chọn `LIGHT`, `STANDARD` hoặc `DEEP` theo độ phức tạp, rủi ro, phụ thuộc,
-   bất định và khả năng truy cập nguồn. Xét đủ 12 trường ngữ nghĩa, gom thông
-   tin áp dụng vào các heading Markdown thông thường.
+5. **Draft Adaptive Prompt.** Dùng `references/chat-to-work-prompt.md` sau khi
+   xác minh bundle và bản cài, hoặc `en/templates/chat-to-work-prompt.md` từ
+   checkout đã duyệt hay revision GitHub đã xác minh và được duyệt. Thiếu
+   nguồn đã xác minh thì trả `PROMPT_BLOCKED`. Chọn `LIGHT`, `STANDARD` hoặc `DEEP` theo rủi ro, độ phức
+   tạp, phụ thuộc và bằng chứng. Xét đủ 12 trường trong Markdown thông thường.
 6. **Deduplicate.** Dùng context Required, Conditional và Already-loaded trong
    `en/docs/context.md`. Dùng lại bằng chứng khớp. Đặt mỗi dữ kiện, yêu cầu và
    phép kiểm tại một vị trí, kèm vị trí nguồn chính xác, điều kiện an toàn và
@@ -60,19 +58,19 @@ checkout local, nhánh, chỉ dẫn, quyền và bằng chứng trước khi tri
    ghi `NOT_INSPECTED` và giao Work kiểm tra trước đối với source chưa đọc,
    chi tiết triển khai và lệnh kiểm thử chưa biết. Chỉ dùng `PROMPT_BLOCKED`
    khi thiếu quyết định hoặc thẩm quyền thiết yếu, thao tác không an toàn hay
-   xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng bước chuẩn bị
-   tự động trong `en/docs/context.md`. Rà ý định theo mệnh đề và các loại trừ.
-   Để riêng tác động hạn chế. Chỉ dùng lại phê duyệt có nguồn gốc tin cậy.
-   Tạo lại một lần để sửa lỗi cơ học.
-8. **Hand Off.** Trả `PROMPT_READY` và một Work Prompt hoàn chỉnh có thể sao
-   chép theo định dạng được yêu cầu. Nêu riêng quyền thực thi đang chờ.
-   Chạy phép kiểm offline của bản đã duyệt khi Work tiếp nhận.
-   Báo `PROMPT_BLOCKED` cùng đầu vào, quyền hoặc quyết định còn thiếu nếu chưa
-   thể bàn giao an toàn. Nhiệm vụ tách riêng cần được cấp quyền riêng.
-   Giữ bước kiểm tra trước được phép của Work cùng giới hạn quyền riêng tư,
-   an toàn và quyền đọc theo nhiệm vụ ngay cả trong bản bàn giao bị chặn,
-   theo quy trình đọc an toàn của mẫu. Chặn triển khai không bảo vệ output
-   công cụ về sau.
+   xung đột chưa giải quyết cản trở bàn giao an toàn. Dùng bước chuẩn bị tự
+   động khi có công cụ local. Nếu thiếu, theo `en/docs/context.md#portable-chat-authoring`.
+   Rà ý định và các loại trừ, để riêng tác động hạn chế và xác minh nguồn gốc
+   phê duyệt được dùng lại. Tạo lại một lần để sửa lỗi cơ học.
+8. **Hand Off.** Trả một bản bàn giao `PROMPT_READY` hoàn chỉnh, có thể sao
+   chép theo định dạng yêu cầu khi được phép. Ghi `NOT_INSPECTED` cho checkout
+   local và bằng chứng thực thi chưa kiểm tra, `handoffStatus = NOT_RUN` khi
+   chưa xác thực và `authorizationStatus = PENDING` khi còn chờ phê duyệt.
+   Giữ điều kiện `handoffStatus = PASS` trước khi bàn giao nếu có. Work xác
+   thực từng owner và kiểm tra phê duyệt độc lập
+   khi tiếp nhận. Với `PROMPT_BLOCKED`, nêu điều kiện còn thiếu và bước kiểm
+   tra trước được phép cùng giới hạn riêng tư, an toàn và quyền đọc theo mẫu.
+   Nhiệm vụ tách riêng cần quyền riêng.
 
 Với công việc Codex hoặc Claude Code đang tiếp tục, ghi Task ID, vị trí
 checkpoint và loại agent được phép. Yêu cầu Work khôi phục ngữ cảnh và kiểm
@@ -109,4 +107,4 @@ công bố và triển khai. `PROMPT_READY` mô tả mức sẵn sàng của b�
 hoãn giữ `NOT_RUN` cùng lý do, gồm `DEFERRED_BY_USER_PHASE_1` khi áp dụng.
 
 <!-- source: en/skills/cirnet-work-prompt-authoring/SKILL.md -->
-<!-- source-sha256: d97324fb7912fec505de1ec36b5d6e8a7deebf3e430d2e99f9842d671be706db -->
+<!-- source-sha256: d5cce06459e865f5173479a5bf1ed0e4a79519cf739c6895ce75f44bfc07380b -->

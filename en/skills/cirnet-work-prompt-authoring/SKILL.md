@@ -39,12 +39,11 @@ checkout, branch, instructions, permissions and evidence before implementation.
    For record data, prefer a verified bounded inspector returning structural
    metadata without evaluating source. Give Work its exact invocation and limits.
    Stop discovery once you can hand off safely. Carry privacy controls into Work preflight.
-5. **Draft Adaptive Prompt.** Open `references/chat-to-work-prompt.md` beside the
-   installed Skill after bundle and installation verification, or use
-   `en/templates/chat-to-work-prompt.md` from an approved checkout. Missing verified
-   access yields `PROMPT_BLOCKED`. Choose `LIGHT`, `STANDARD` or `DEEP` by risk,
-   complexity, dependencies and evidence. Consider all 12 semantic
-   fields, grouping the applicable information into ordinary Markdown headings.
+5. **Draft Adaptive Prompt.** Use `references/chat-to-work-prompt.md` after
+   bundle and install verification, or `en/templates/chat-to-work-prompt.md`
+   from an approved checkout or verified, approved GitHub revision. Missing
+   verified access yields `PROMPT_BLOCKED`. Choose `LIGHT`, `STANDARD` or `DEEP` by risk, complexity,
+   dependencies and evidence. Consider all 12 fields in ordinary Markdown.
 
 6. **Deduplicate.** Use Required, Conditional and Already-loaded context from
    `en/docs/context.md`. Reuse matching evidence. Keep facts, requirements and
@@ -61,17 +60,19 @@ checkout, branch, instructions, permissions and evidence before implementation.
    preflight for unread source, unknown implementation details and test commands.
    Reserve `PROMPT_BLOCKED` for an indispensable missing decision, authority,
    unsafe operation or unresolved conflict that prevents a safe handoff.
-   Use autonomous preparation in `en/docs/context.md`. Review clause-level
-   intent and exclusions. Hold restricted effects separately. Reuse approval
-   only with trusted provenance. Regenerate once for mechanical corrections.
-8. **Hand Off.** Return `PROMPT_READY` and one complete copyable Work Prompt in
-   the requested format. State pending execution approval separately.
-   Run the approved offline validation at Work intake.
-   Report `PROMPT_BLOCKED` with the missing input, permission or decision when a
-   safe handoff is unavailable. A separable task needs its own authorization.
-   Include Work's permitted preflight and task-specific privacy, safety and read
-   boundaries even in a blocked handoff, following the template's safe-inspection
-   procedure. Blocking implementation does not protect later tool output.
+   Use local autonomous preparation when available and follow
+   `en/docs/context.md#portable-chat-authoring` otherwise. Review intent and
+   exclusions, hold restricted effects and verify reused approval provenance.
+   Regenerate once for mechanical corrections.
+8. **Hand Off.** Return one complete, copyable `PROMPT_READY` handoff in the
+   requested format when permitted. Mark unavailable local checkout and
+   execution evidence `NOT_INSPECTED`, unrun validation `handoffStatus = NOT_RUN`
+   and outstanding approval `authorizationStatus = PENDING`. Honor a required
+   pre-delivery `handoffStatus = PASS`.
+   Work validates each owner and verifies independent approval at intake.
+   For `PROMPT_BLOCKED`, give the missing prerequisite and permitted preflight
+   with privacy, safety and read limits from the template. Separable work
+   needs its own authorization.
 
 For a continuing Codex or Claude Code task, reference the authorized Task ID,
 checkpoint location and agent family. Ask Work to recover context and revalidate

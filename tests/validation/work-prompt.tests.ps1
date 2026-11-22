@@ -2,6 +2,15 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$context = [IO.File]::ReadAllText((Join-Path $repo 'en/docs/context.md'))
+$portable = [regex]::Match($context, '(?ms)^### Portable Chat authoring\r?\n(?<body>.*?)(?=^### )').Groups['body'].Value
+$strictDelivery = 'If the user requires\s+`handoffStatus = PASS` before delivery and it cannot be obtained, return\s+`PROMPT_BLOCKED`'
+if ($portable -cnotmatch 'NOT_INSPECTED' -or $portable -cnotmatch '`handoffStatus = NOT_RUN`' -or
+    $portable -cnotmatch '`authorizationStatus = PENDING`' -or $portable -cnotmatch '`executionStatus = NOT_RUN`' -or
+    $portable -cnotmatch '`PROMPT_READY`' -or $portable -cnotmatch $strictDelivery -or $portable -cnotmatch 'per-owner' -or
+    $context -cmatch 'Run the validator from the approved toolkit checkout before delivery and again') {
+    throw 'Authoring guidance must allow an unvalidated portable handoff while preserving a user-required pre-delivery PASS.'
+}
 Import-Module (Join-Path $repo 'scripts/shared/WorkPrompt.psm1')
 Import-Module (Join-Path $repo 'scripts/shared/Bundle.psm1')
 & (Join-Path $PSScriptRoot 'repository-discovery.tests.ps1')
@@ -395,6 +404,16 @@ $auditDraft = $body.Replace(($body -split '\n')[2], "Authorization: $pin").Repla
     Replace("Owner: $repo","Owner: $auditRepo").Replace("write: $source",'modify: labels.mjs')
 [IO.File]::WriteAllText($draft,$auditDraft)
 $intake = @{ Prompt=$draft; OriginalTask=$original; Authorization=$approval; AuthorizationSha256=$pin; Repository=$auditRepo }
+$unapprovedIntake = $intake.Clone()
+$unapprovedIntake.AuthorizationSha256 = '0' * 64
+$unapproved = Test-CirnetWorkPromptFile @unapprovedIntake -ExecutionPreflight
+$wrongOwnerIntake = $intake.Clone()
+$wrongOwnerIntake.Repository = $repo
+$wrongOwner = Test-CirnetWorkPromptFile @wrongOwnerIntake -ExecutionPreflight
+if ($unapproved.handoffStatus -cne 'BLOCKED' -or $unapproved.executionStatus -cne 'NOT_RUN' -or
+    $wrongOwner.handoffStatus -cne 'FAIL' -or $wrongOwner.executionStatus -cne 'NOT_RUN') {
+    throw 'Local intake authorized an unapproved handoff or reused one owner approval in another checkout.'
+}
 if ((Test-CirnetWorkPromptFile @intake -CaptureScope).status -cne 'BLOCKED') {
     throw 'A CLI switch alone authorized a worktree-wide audit.'
 }

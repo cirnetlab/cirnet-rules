@@ -40,6 +40,24 @@ foreach ($name in $names) {
         throw "Discovery failed for $name."
     }
 }
+$coordinator = "Review and reorganize $($names -join ', '). Preserve each owner's public contracts. Verify imports and builds after moving files."
+$unrouted = Prepare $coordinator @{NoLocalDiscovery=$true}
+if ($unrouted.readiness -cne 'PROMPT_BLOCKED' -or $unrouted.handoffStatus -cne 'NOT_RUN') {
+    throw 'Single-owner preparation assigned an entire coordinator request to one checkout.'
+}
+foreach ($name in $names) {
+    $ownerTask = "Refactor the directory layout in $name. Preserve public contracts and verify imports and builds for this owner."
+    $portable = Prepare $ownerTask @{NoLocalDiscovery=$true}
+    $local = Prepare $ownerTask
+    if ($portable.readiness -cne 'PROMPT_READY' -or $portable.repositoryName -cne $name -or $portable.proposedScope -cne 'Edit' -or
+        $portable.repository -or $portable.revision -or $portable.repositoryStatus -cne 'NOT_INSPECTED' -or
+        $portable.handoffStatus -cne 'NOT_RUN' -or $portable.executionStatus -cne 'NOT_RUN' -or
+        $portable.authorizationStatus -cne 'PENDING' -or $portable.approvalProposal.grants.Count -or
+        -not $portable.prompt.Contains($ownerTask) -or $local.repository -cne (Join-Path $main $name) -or
+        $local.authorizationStatus -cne 'PENDING' -or $local.approvalProposal.grants.Count) {
+        throw "Portable or local preparation lost owner isolation or declared a grant for $name."
+    }
+}
 foreach ($case in @(
     @('Fix Remote API validation.', 'cirnet-remote'),
     @('Update canonical shared schemas.', 'cirnet-contracts'),

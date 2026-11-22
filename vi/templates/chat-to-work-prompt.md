@@ -29,7 +29,25 @@ tiêu chí có một vị trí.
 
 Đối chiếu mục tiêu, phạm vi và nghiệm thu của bản nháp với thao tác, đích,
 phép đổi, kết quả, ràng buộc, ca âm tính và quyền người dùng yêu cầu. Khôi
-phục yêu cầu còn thiếu trước khi rút gọn. Giữ phép đối chiếu này ở nội bộ.
+phục yêu cầu còn thiếu trước khi rút gọn. Giữ phép đối chiếu này ở nội bộ và
+giữ nguyên câu chữ, thứ tự, ràng buộc và tiêu chí nghiệm thu gốc trong bản
+bàn giao. Theo `en/docs/context.md#portable-chat-authoring` khi thiếu công cụ
+chuẩn bị local. Ghi đường dẫn checkout đã xác minh nếu biết, hoặc giới hạn
+cách Work định vị local cho từng owner đã biết. Lấy đầu vào kỹ thuật từ các
+phép đọc được phép và giao phần chưa rõ cho Work kiểm tra trước. Giữ nguyên
+các điều kiện và loại trừ. Định tuyến các phụ thuộc riêng và liệt kê thao tác
+hạn chế còn cần phê duyệt. Tạo lại sau khi sửa lỗi cơ học. Ghi rõ owner, tác
+động trong phạm vi, tiêu chí nghiệm thu, cách báo cáo và quyền còn chờ. Work
+xác thực bản bàn giao đã được phê duyệt độc lập và đạt kiểm tra thực thi trước
+khi làm việc. Ghim baseline và yêu cầu đối chiếu sau khi thực hiện công việc
+có thể làm thay đổi trạng thái.
+
+Với bản soạn trong Chat, ghi `NOT_INSPECTED` cho trạng thái local và bằng
+chứng thực thi chưa kiểm tra, `handoffStatus = NOT_RUN` khi chưa xác thực
+chính thức và `authorizationStatus = PENDING` khi còn chờ phê duyệt thực thi.
+Giữ điều kiện `handoffStatus = PASS` trước khi bàn giao nếu người dùng yêu cầu.
+Nếu không thể chạy hoặc đạt xác thực theo điều kiện đó, báo `PROMPT_BLOCKED`
+và điều kiện tiên quyết còn thiếu.
 
 ### Chọn mức chi tiết theo nhiệm vụ
 
@@ -156,8 +174,10 @@ Với LIGHT hoặc STANDARD, có thể đưa các trường áp dụng vào các
 
 Với DEEP, tách Root Cause, Repository-by-Repository Plan, Contract Compatibility,
 Safety Gates hoặc Build/Test Matrix khi cần. Mục root cause giữ nhãn giả thuyết
-tới khi bằng chứng xác lập nguyên nhân. Công việc liên repo ghi riêng owner,
-ranh giới ghi/đọc và nghiệm thu từng repo.
+tới khi bằng chứng xác lập nguyên nhân. Công việc liên repo dùng một bản điều
+phối, ghi riêng ranh giới ghi/đọc đề xuất và nghiệm thu của từng owner. Work
+xác lập quyền riêng và giữ bằng chứng xác thực local riêng cho từng owner.
+Việc một repo xuất hiện trong bản điều phối không cấp quyền truy cập repo đó.
 
 Tham chiếu Skills/chỉ dẫn local áp dụng để Work thực hiện workflow chung.
 Giữ ca từ chối, kiểm tra quyền, cleanup và Stop. Kết luận E2E thật cần chuỗi
@@ -165,10 +185,9 @@ Giữ ca từ chối, kiểm tra quyền, cleanup và Stop. Kết luận E2E th�
 hoãn và lý do.
 
 Nêu quyền đã cấp và quyền riêng còn cần cho thay đổi Git, công bố, phát hành,
-triển khai và vận hành vật lý. Trả `PROMPT_READY` khi bàn giao có thể thực thi
-hoặc `PROMPT_BLOCKED` khi thiếu thẩm quyền thiết yếu. Bản bàn giao chuyển phạm
-vi người dùng đã cấp. Work cung cấp bằng chứng mới cho
-`IMPLEMENTATION_VERIFIED`.
+triển khai và vận hành vật lý. Trả `PROMPT_READY` khi có thể bàn giao an toàn
+theo điều kiện người dùng đặt ra. Dùng `PROMPT_BLOCKED` khi thiếu điều kiện
+tiên quyết thiết yếu. Work cung cấp bằng chứng mới cho `IMPLEMENTATION_VERIFIED`.
 
 Trước khi bàn giao, tự rà tính đầy đủ, khả năng truy cập và phần lặp. Bổ sung
 chi tiết quyết định còn thiếu hoặc chặn phần việc phụ thuộc. Chỉ trả bản bàn
@@ -176,4 +195,4 @@ giao chuyên biệt hoàn chỉnh và trạng thái sẵn sàng, bỏ chỉ dẫ
 Inspect → Plan → Implement → Test → Report chung bị lặp.
 
 <!-- source: en/templates/chat-to-work-prompt.md -->
-<!-- source-sha256: 6a3905cc9660fd21933cf5c66476fbbc5244811f8d3b9d5f017ed8df911de682 -->
+<!-- source-sha256: 69e0575cc815265112ec56b6f17d20eadf085404c35dd5ed35f4bc96bd254ed0 -->

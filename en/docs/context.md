@@ -37,8 +37,8 @@ loads that baseline once. A managed adapter should never import the library.
 ## Chat-to-Work
 
 When asked to prepare a prompt for another agent, select the authoring Skill
-and open the English template from a verified installation or approved checkout. Select applicable Work
-Skills from metadata and read only their bodies, relevant architecture, owner
+and open the approved English template from a verified source. Select applicable
+Work Skills from metadata and read their bodies, relevant architecture, owner
 instructions and evidence. Choose LIGHT, STANDARD or DEEP by complexity, risk,
 dependencies, uncertainty and source access. Consider all 12 semantic fields
 and group the applicable content into the headings the task needs.
@@ -52,6 +52,33 @@ Author's inspected facts can be cited; its in-memory context is not Work's cache
 Give Work a minimal first read and reopen only changed or missing decisive evidence.
 [Authoring Skill](../skills/cirnet-work-prompt-authoring/SKILL.md) ·
 [Template](../templates/chat-to-work-prompt.md) · [Bundle access](distribution.md#work-prompt-authoring)
+
+### Portable Chat authoring
+
+Use the approved English template and permitted, verified source evidence. A
+request to deliver a Work Prompt in Chat permits portable delivery unless the
+user sets a stricter delivery condition. When the owner, scope and evidence
+support safe local preflight, return one complete, copyable `PROMPT_READY`
+handoff even if Chat lacks PowerShell 7 or local checkout access. Preserve the
+original wording, order, constraints and acceptance criteria. Put unverified
+technical details in bounded Work preflight with the owner, permitted checks
+and conditions for stopping. The user need not provide local paths, authorization
+JSON or digests to receive this handoff.
+
+Mark uninspected local checkout state and execution evidence `NOT_INSPECTED`.
+Report `handoffStatus = NOT_RUN` when official validation has not run,
+`authorizationStatus = PENDING` while independent execution approval is
+outstanding, and `executionStatus = NOT_RUN` before local execution intake.
+`PROMPT_READY` records authoring readiness only. If the user requires
+`handoffStatus = PASS` before delivery and it cannot be obtained, return
+`PROMPT_BLOCKED` with the missing prerequisite. Portable delivery under that
+condition requires an explicit change approved by the user.
+
+For multi-repository work, use one portable coordinator with a per-owner task,
+scope, dependencies and acceptance checks. Preserve the full original request.
+Each affected owner needs independent approval and its own local validation
+evidence. A coordinator or another owner's approval supplies no write grant.
+Any required pre-delivery PASS must cover all owners in the required scope.
 
 ### Local repository discovery
 
@@ -87,17 +114,19 @@ A request with one clear target and separately mentioned dependencies can
 select its primary owner. Related repositories require their own permission.
 Confirm the primary owner when several targets remain plausible.
 
-When local discovery is unavailable, use verified owner or connector
-evidence. `-NoLocalDiscovery` can prepare a handoff for a known owner without
-claiming a local path or revision. Work resolves that owner's checkout with
-its approved registry before source access. If owner or scope is ambiguous,
-ask for that decision.
+When PowerShell is available without checkout access, `-NoLocalDiscovery` can
+prepare a draft for one known owner without claiming a local path or revision.
+Chat can follow [portable authoring](#portable-chat-authoring) without running
+the CLI. For a coordinator, resolve each explicitly identified owner separately
+at Work intake. Ask for a decision if ownership or scope remains ambiguous.
 
 ### Offline handoff validation
 
-Start with the user's request and their grant for an owner repository.
-Resolve the exact checkout and retain the original UTF-8 request bytes.
-For an ordinary non-sensitive task, Author prepares the handoff locally.
+For Codex Work intake, resolve each owner with the approved local registry.
+Verify checkout identity, branch, HEAD and Git state and read applicable local
+and nested instructions within the permitted read boundary. Retain the original
+UTF-8 request bytes. When local tools are available for an ordinary non-sensitive
+task, the CLI can also prepare an owner draft.
 
 ```powershell
 ./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask request.txt -Repository $ownerRoot -AuthorizedScope Edit -Risk LIGHT
@@ -157,7 +186,8 @@ The supplied runner has no restricted-read backend and blocks such inputs before
 opening the draft, original task or source. Use only an independently approved,
 isolated projection for a narrower task.
 
-To prepare the legacy approval worksheet for non-sensitive inputs, use
+For non-sensitive inputs, Work prepares exact paths, mappings, checks and pins
+from permitted local evidence for independent approval. Use the existing worksheet,
 `validate-work-prompt.ps1 -Prepare -OriginalTask request.txt -Repository $ownerRoot -SourcePath label.js`
 to get numbered lines and a `proposal` with the request, HEAD and source pins.
 Exit 2 means approval is pending. Keep the output local. Review every mapping,
@@ -214,9 +244,10 @@ Candidate headings apply only to benchmark fixtures.
 ./scripts/validate-work-prompt.ps1 -OriginalTask request.txt -Authorization approval.json -AuthorizationSha256 $approvedPin -Prompt handoff.md -Repository $ownerRoot
 ```
 
-Run the validator from the approved toolkit checkout before delivery and again
-at Work intake against the same approved
-inputs and draft SHA-256. Exit 0 (`PASS`) covers the checked text and pins.
+Run the PowerShell 7 validator from the approved toolkit checkout at Work intake
+against the approved inputs and exact draft. When the user requires PASS before
+delivery, validate at delivery and verify the same approved inputs and draft
+SHA-256 again at intake. Exit 0 (`PASS`) covers the checked text and pins.
 Exit 1 (`FAIL`) requires correction, 2 (`REVIEW_REQUIRED`) requires independent
 review against the original and grants, and 3 (`BLOCKED`) stops implementation.
 Keep execution blocked while independent review is outstanding.

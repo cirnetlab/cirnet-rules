@@ -44,8 +44,10 @@ Khi cài và xác minh, chọn `-Skills 'cirnet-work-prompt-authoring'` cùng c�
 khác cần dùng. Bundle giữ nguyên byte của
 [mẫu tiếng Anh chính thức](../../en/templates/chat-to-work-prompt.md) trong
 thư mục `references/` của Skill. Bước xác minh bundle và bản cài kiểm tra
-các byte này. Bản cài cũ có thể lấy mẫu từ checkout được phép. Nếu không có
-nguồn mẫu đã xác minh, Skill báo `PROMPT_BLOCKED`.
+các byte này. Có thể lấy mẫu từ checkout đã duyệt hoặc qua quyền truy cập
+GitHub cho phép xác minh repo, revision và đường dẫn mẫu đã duyệt. Khi không
+chạy được công cụ xác thực local, xem [soạn Work Prompt trong Chat](context.md#soạn-work-prompt-trong-chat).
+Nếu thiếu nguồn mẫu đã xác minh, Skill báo `PROMPT_BLOCKED`.
 
 ## Task Continuity
 
@@ -571,4 +573,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 188da3b41be79b8b950c5c1543da3198d16b081dd30e639e3c205ee3a346fe2b -->
+<!-- source-sha256: 22cc4776c4e432d3a7bb9ee3eff10c3cc140ff4fedae342dedc7bcaabc591a23 -->

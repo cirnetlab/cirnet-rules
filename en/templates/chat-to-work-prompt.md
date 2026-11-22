@@ -20,9 +20,11 @@ handoff. Each fact, constraint and criterion belongs in one place.
 Compare the draft goal, scope and acceptance against the user's requested
 action, target, transformation, outcome, constraints, negative cases and
 permissions. Restore any missing requirement before compressing. Keep this
-comparison internal. Use autonomous preparation in
-`en/docs/context.md#local-repository-discovery` before delivery. Include a
-verified checkout path, or give Work bounded local resolution for the known owner. Derive
+comparison internal and retain the original wording, order, constraints and
+acceptance criteria in the handoff. Follow portable authoring in
+`en/docs/context.md#portable-chat-authoring` when local preparation is unavailable.
+Include a verified checkout path when known and give Work bounded local
+resolution for each known owner otherwise. Derive
 technical inputs from authorized reads and defer unknowns to Work preflight.
 Keep conditions and exclusions. Route dependencies separately and list
 restricted operations that still need approval.
@@ -30,6 +32,12 @@ Regenerate after correcting mechanical issues. Keep owner, scoped effects,
 acceptance, reporting and pending approvals visible. Have Work validate the
 independently approved handoff and pass execution intake before acting. Include a
 pinned baseline and require reconciliation for potentially mutating Work.
+
+For a portable handoff, mark uninspected local state and execution evidence
+`NOT_INSPECTED`, unrun official validation `handoffStatus = NOT_RUN`, and
+outstanding execution approval `authorizationStatus = PENDING`. Honor a user
+requirement for `handoffStatus = PASS` before delivery. If validation cannot
+run or pass under that condition, report `PROMPT_BLOCKED` and the prerequisite.
 
 ### Choose detail by task
 
@@ -160,7 +168,9 @@ For LIGHT or STANDARD, these groups can carry the relevant fields.
 For DEEP, split Root Cause, Repository-by-Repository Plan, Contract Compatibility,
 Safety Gates or Build/Test Matrix when needed. A root-cause heading retains
 hypothesis labels until evidence establishes the cause. Multi-repo work names
-each owner's write/read boundaries and acceptance separately.
+each owner's proposed write/read boundaries and acceptance separately in one
+coordinator. Work obtains separate authorization and retains its own local
+validation evidence for each owner. Inclusion in the coordinator grants no access.
 
 Refer Work to applicable Skills/local instructions for the shared execution
 workflow. Preserve negative cases, authorization checks, cleanup and Stop.
@@ -169,9 +179,9 @@ scope. Keep any user-deferred checks explicit with their reason.
 
 State granted permissions and any separate authorization needed for Git changes,
 publication, release, deployment and physical operation. Return `PROMPT_READY`
-for an actionable handoff or `PROMPT_BLOCKED` for missing essential authority.
-The handoff conveys the user's granted scope. Work supplies fresh evidence for
-`IMPLEMENTATION_VERIFIED`.
+when the handoff is safe to deliver under the user's conditions. Use
+`PROMPT_BLOCKED` when an essential prerequisite is missing. Work supplies fresh
+evidence for `IMPLEMENTATION_VERIFIED`.
 
 Before handing off, review completeness, accessibility and repetition.
 Expand missing critical detail or block the dependent task. Return only the
