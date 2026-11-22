@@ -93,14 +93,19 @@ launching an authoring tool or fetching files. The supported profile is GLB
 2.0 with embedded buffer data, PNG/JPEG images when present, and static triangle
 primitives. It accepts correctly declared `KHR_materials_unlit` in optional
 or required form. Unsupported extensions and scan limits yield `BLOCKED`.
-The gate checks the container, selected scene tree and transform declaration
-shapes. For active primitives it checks attribute counts, buffer ranges,
-stride and alignment, finite float values, decoded index bounds and reserved
-index values. It compares POSITION bounds and declared index bounds with
-decoded values. The gate verifies material texture bindings, sampler
-references, required UV sets and declared PNG/JPEG signatures. It reserves
-image buffer views for image data. Distinct geometry scans have a cumulative
-32 MiB budget.
+The gate checks the container, selected scene tree, node name types and
+transform declaration shapes. Invalid camera references in the selected scene
+yield `FAIL`.
+A camera referenced by that scene is outside the static profile and yields
+`BLOCKED` when its reference is valid. For active primitives the gate checks
+attribute counts, buffer ranges, stride and alignment, finite float values,
+decoded index bounds and reserved index values. It compares POSITION bounds
+and declared index bounds with decoded values. For active materials it
+verifies core glTF factor types, lengths and ranges, alpha declarations,
+the double-sided flag, normal scale and occlusion strength. It also verifies
+material texture bindings, sampler references, required UV sets and declared
+PNG/JPEG signatures. It reserves image buffer views for image data. Distinct
+geometry scans have a cumulative 32 MiB budget.
 Each required name must occur once in the selected scene. The JSON report
 uses `PASS`/0, `FAIL`/1 or `BLOCKED`/3.
 

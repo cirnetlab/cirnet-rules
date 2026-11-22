@@ -79,3 +79,16 @@ buffer views separate from geometry. It reports unsupported texture
 extensions as `BLOCKED`. Both existing Interface GLBs passed with the
 owner-pinned hashes. The signature check confirms the declared format at
 the start of the embedded data. Image decoding remains an owner check.
+
+## Core material values and scene cameras
+
+At `ae896962e87be110359e4225cddfe4b05e82ac3f`, 24 pinned fixture cases
+reproduced false passes for malformed material properties, invalid camera
+references and a referenced camera outside the static profile. The updated
+gate rejects malformed values and references and blocks an active camera
+with a valid reference. Regression cases retain valid values at the material
+range limits, alpha thresholds above one and negative normal scales.
+An additional pinned fixture passed with a numeric node name that the
+installed Interface GLTFLoader rejected. The gate now requires string
+names when present in the selected scene and accepts omitted or empty names.
+Both Interface reference GLBs still pass with the same owner-pinned hashes.

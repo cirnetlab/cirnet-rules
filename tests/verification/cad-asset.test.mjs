@@ -175,6 +175,81 @@ test('checks finite UV values without interpreting optional texture bounds', t =
   assert.equal(run(make(true)).status, 'FAIL');
 });
 
+test('checks optional node name types in the active scene', t => {
+  const { run } = fixture(t);
+  const make = node => candidate(doc => {
+    doc.nodes.push(node);
+    doc.scenes[0].nodes.push(2);
+  });
+  assert.equal(run(make({})).status, 'PASS');
+  assert.equal(run(make({ name: '' })).status, 'PASS');
+  const { status, reason } = run(make({ name: 42 }));
+  assert.deepEqual({ status, reason }, { status: 'FAIL', reason: 'invalid-node-name' });
+});
+
+test('checks core declarations on materials used by active primitives', async t => {
+  const { run } = fixture(t);
+  const make = (material, pbr = {}) => candidate(doc => {
+    doc.materials = [{ ...material, pbrMetallicRoughness: pbr }];
+    doc.meshes[0].primitives[0].material = 0;
+  });
+  const factors = { baseColorFactor: [0, 1, 0.5, 1], metallicFactor: 1, roughnessFactor: 0 };
+  for (const alphaMode of ['OPAQUE', 'MASK', 'BLEND']) {
+    assert.equal(run(make({ alphaMode, alphaCutoff: 1.5, emissiveFactor: [1, 0, 0.5], doubleSided: true }, factors)).status,
+      'PASS');
+  }
+  assert.equal(run(make({ alphaMode: 'MASK' })).status, 'PASS');
+  for (const [name, material, pbr] of [
+    ['short base color factor', {}, { baseColorFactor: [0, 1, 0] }],
+    ['nonnumeric base color component', {}, { baseColorFactor: [0, '1', 0, 1] }],
+    ['out-of-range base color component', {}, { baseColorFactor: [0, 1.1, 0, 1] }],
+    ['out-of-range metallic factor', {}, { metallicFactor: 1.1 }],
+    ['nonnumeric metallic factor', {}, { metallicFactor: '0.5' }],
+    ['negative roughness factor', {}, { roughnessFactor: -0.1 }],
+    ['nonnumeric roughness factor', {}, { roughnessFactor: null }],
+    ['long emissive factor', { emissiveFactor: [0, 0, 0, 0] }],
+    ['out-of-range emissive component', { emissiveFactor: [-0.1, 0, 0] }],
+    ['unknown alpha mode', { alphaMode: 'ADD' }],
+    ['nonnumeric alpha cutoff', { alphaMode: 'MASK', alphaCutoff: '0.5' }],
+    ['negative alpha cutoff', { alphaMode: 'MASK', alphaCutoff: -0.1 }],
+    ['alpha cutoff without an explicit mode', { alphaCutoff: 0.5 }],
+    ['nonboolean double-sided declaration', { doubleSided: 1 }],
+  ]) await t.test(name, () => assert.equal(run(make(material, pbr)).status, 'FAIL'));
+});
+
+test('checks camera references in the active scene', async t => {
+  const { run } = fixture(t);
+  const camera = { type: 'perspective', perspective: { yfov: 0.7, znear: 0.1 } };
+  const make = (index, cameras = [camera]) => candidate(doc => {
+    if (cameras !== null) doc.cameras = cameras;
+    doc.nodes[1].camera = index;
+  });
+  for (const [name, index, cameras] of [
+    ['null camera index', null],
+    ['fractional camera index', 0.5],
+    ['negative camera index', -1],
+    ['camera index beyond the array', 1],
+    ['camera array missing', 0, null],
+    ['camera entry is not an object', 0, [null]],
+  ]) {
+    await t.test(name, () => {
+      const { status, reason } = run(make(index, cameras));
+      assert.deepEqual({ status, reason }, { status: 'FAIL', reason: 'invalid-gltf-reference' });
+    });
+  }
+  await t.test('active camera is unsupported', () => {
+    const { status, reason } = run(make(0));
+    assert.deepEqual({ status, reason }, { status: 'BLOCKED', reason: 'unsupported-camera' });
+  });
+  await t.test('camera in an inactive scene is outside the intake', () => {
+    assert.equal(run(candidate(doc => {
+      doc.cameras = [camera];
+      doc.nodes.push({ camera: 0 });
+      doc.scenes.push({ nodes: [2] });
+    })).status, 'PASS');
+  });
+});
+
 test('checks active material texture bindings and embedded image signatures', async t => {
   const { run } = fixture(t);
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jP1sAAAAASUVORK5CYII=', 'base64');
@@ -196,6 +271,10 @@ test('checks active material texture bindings and embedded image signatures', as
     image.copy(binary, 68);
   }, Math.ceil((68 + image.length) / 4) * 4);
   assert.equal(run(make()).status, 'PASS');
+  assert.equal(run(make(doc => {
+    doc.materials[0].normalTexture = { index: 0, scale: -2 };
+    doc.materials[0].occlusionTexture = { index: 0, strength: 0 };
+  })).status, 'PASS');
   assert.equal(run(make((doc, primitive) => {
     primitive.attributes.TEXCOORD_1 = 2;
     doc.materials[0].pbrMetallicRoughness.baseColorTexture.texCoord = 1;
@@ -211,6 +290,9 @@ test('checks active material texture bindings and embedded image signatures', as
     'missing default UV': (_doc, primitive) => { delete primitive.attributes.TEXCOORD_0; },
     'missing explicit UV': doc => { doc.materials[0].normalTexture = { index: 0, texCoord: 1 }; },
     'invalid UV declaration': doc => { doc.materials[0].pbrMetallicRoughness.baseColorTexture.texCoord = null; },
+    'nonnumeric normal scale': doc => { doc.materials[0].normalTexture = { index: 0, scale: '1' }; },
+    'nonnumeric occlusion strength': doc => { doc.materials[0].occlusionTexture = { index: 0, strength: null }; },
+    'out-of-range occlusion strength': doc => { doc.materials[0].occlusionTexture = { index: 0, strength: 1.1 }; },
     'invalid PBR declaration': doc => { doc.materials[0].pbrMetallicRoughness = null; },
     'embedded image view marked as geometry': doc => { doc.bufferViews[3].target = 34962; },
     'geometry reuses the embedded image view': doc => { doc.accessors[2].bufferView = 3; },

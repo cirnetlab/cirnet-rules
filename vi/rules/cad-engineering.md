@@ -92,12 +92,18 @@ công cụ tạo mẫu hay tải tệp. Phạm vi hỗ trợ là GLB 2.0 với b
 ảnh PNG/JPEG nếu có và primitive tam giác tĩnh. Cổng chấp nhận
 `KHR_materials_unlit` được khai báo đúng ở dạng tùy chọn hoặc bắt buộc.
 Extension ngoài hỗ trợ và trường hợp vượt giới hạn quét trả `BLOCKED`.
-Cổng kiểm tra container, cây cảnh được chọn và cấu trúc khai báo phép biến
-đổi. Với primitive đang dùng, cổng kiểm tra số lượng thuộc tính, phạm vi
-bộ đệm, stride và căn chỉnh, số thực hữu hạn, phạm vi chỉ số đã giải mã và
-các giá trị chỉ số dành riêng. Cổng đối chiếu cận POSITION và cận chỉ số đã
-khai báo với giá trị giải mã. Cổng kiểm tra liên kết giữa vật liệu và texture,
-tham chiếu sampler, tập UV bắt buộc và chữ ký định dạng PNG/JPEG đã khai báo.
+Cổng kiểm tra container, cây cảnh được chọn, kiểu tên node và cấu trúc
+khai báo phép biến đổi. Tham chiếu camera không hợp lệ trong cảnh được
+chọn trả `FAIL`.
+Camera được cảnh đó tham chiếu nằm ngoài phạm vi tĩnh và trả `BLOCKED`
+khi tham chiếu hợp lệ. Với primitive đang dùng, cổng kiểm tra số lượng
+thuộc tính, phạm vi bộ đệm, stride và căn chỉnh, số thực hữu hạn, phạm vi
+chỉ số đã giải mã và các giá trị chỉ số dành riêng. Cổng đối chiếu cận
+POSITION và cận chỉ số đã khai báo với giá trị giải mã. Với vật liệu đang
+dùng, cổng kiểm tra kiểu, độ dài và miền giá trị của các hệ số glTF lõi,
+khai báo alpha, cờ hai mặt, hệ số normal và cường độ occlusion. Cổng cũng
+kiểm tra liên kết giữa vật liệu và texture, tham chiếu sampler, tập UV
+bắt buộc và chữ ký định dạng PNG/JPEG đã khai báo.
 Buffer view chứa ảnh dành riêng cho dữ liệu ảnh. Tổng ngân sách cho các lần
 quét hình học riêng là 32 MiB. Mỗi tên bắt buộc xuất hiện đúng một lần
 trong cảnh đã chọn.
@@ -212,4 +218,4 @@ workbench, đồ thị chịu ảnh hưởng. (`tests/gltf-assets.test.ts`,
 `tests/oscilloscope.test.ts:128–173`, `e2e/assets.spec.ts`.)
 
 <!-- source: en/rules/cad-engineering.md -->
-<!-- source-sha256: 443bd24c5f2059fe9a946c935a80afa40142bee115c1f65f1ab2956bf86717bf -->
+<!-- source-sha256: 54c8dfd32ec3b6c96b1855430e27e90ccf7bcdb3e3f76f420de860f629b13929 -->

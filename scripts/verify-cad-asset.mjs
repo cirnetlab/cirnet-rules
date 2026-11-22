@@ -22,6 +22,7 @@ const isDigest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(va
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const uint = value => Number.isSafeInteger(value) && value >= 0;
 const positive = value => uint(value) && value > 0;
+const unitInterval = value => Number.isFinite(value) && value >= 0 && value <= 1;
 const defined = (object, field, fallback) => Object.hasOwn(object, field) ? object[field] : fallback;
 const hasFields = (value, fields) => isObject(value) && Object.keys(value).length === fields.length &&
   fields.every(field => Object.hasOwn(value, field));
@@ -187,11 +188,26 @@ function checkCoreTextureExtensions(record) {
   if (Object.keys(extensions).length) blocked('unsupported-texture-extension');
 }
 
-function checkMaterialTextures(doc, index, attributes) {
+function checkMaterial(doc, index, attributes) {
   const material = getAt(doc.materials, index);
   const pbr = defined(material, 'pbrMetallicRoughness', {});
   if (!isObject(pbr)) invalid('invalid-pbr-material');
   checkCoreTextureExtensions(pbr);
+  for (const [record, field, length] of [[pbr, 'baseColorFactor', 4], [material, 'emissiveFactor', 3]]) {
+    if (!Object.hasOwn(record, field)) continue;
+    const factor = record[field];
+    if (!Array.isArray(factor) || factor.length !== length || !factor.every(unitInterval)) {
+      invalid('invalid-material-factor');
+    }
+  }
+  for (const field of ['metallicFactor', 'roughnessFactor']) {
+    if (!unitInterval(defined(pbr, field, 1))) invalid('invalid-material-factor');
+  }
+  const alphaMode = defined(material, 'alphaMode', 'OPAQUE');
+  if (!['OPAQUE', 'MASK', 'BLEND'].includes(alphaMode)) invalid('invalid-material-alpha');
+  if (Object.hasOwn(material, 'alphaCutoff') && (!Object.hasOwn(material, 'alphaMode') ||
+      !Number.isFinite(material.alphaCutoff) || material.alphaCutoff < 0)) invalid('invalid-material-alpha');
+  if (typeof defined(material, 'doubleSided', false) !== 'boolean') invalid('invalid-material-double-sided');
   for (const [record, field] of [
     [pbr, 'baseColorTexture'], [pbr, 'metallicRoughnessTexture'], [material, 'normalTexture'],
     [material, 'occlusionTexture'], [material, 'emissiveTexture'],
@@ -200,6 +216,8 @@ function checkMaterialTextures(doc, index, attributes) {
     const info = record[field];
     if (!isObject(info)) invalid('invalid-texture-info');
     checkCoreTextureExtensions(info);
+    if (field === 'normalTexture' && !Number.isFinite(defined(info, 'scale', 1))) invalid('invalid-normal-scale');
+    if (field === 'occlusionTexture' && !unitInterval(defined(info, 'strength', 1))) invalid('invalid-occlusion-strength');
     const texCoord = defined(info, 'texCoord', 0);
     if (!uint(texCoord) || !Object.hasOwn(attributes, `TEXCOORD_${texCoord}`)) invalid('invalid-texture-coordinate');
     const texture = getAt(doc.textures, info.index);
@@ -324,7 +342,7 @@ function countMesh(doc, mesh, context) {
       count = layout.accessor.count;
     }
     if (count % 3) invalid('incomplete-triangle');
-    if (Object.hasOwn(primitive, 'material')) checkMaterialTextures(doc, primitive.material, attributes);
+    if (Object.hasOwn(primitive, 'material')) checkMaterial(doc, primitive.material, attributes);
     triangles += count / 3;
   }
   return { triangles, primitiveInstances: mesh.primitives.length };
@@ -338,12 +356,18 @@ function checkScene(doc, expectation, binary, views) {
   const names = new Map(expectation.requiredNodes.map(name => [name, 0]));
   const meshes = new Map();
   const context = { binary, views, scanned: new Map(), remaining: maximumGlbBytes };
+  let hasCamera = false;
   let triangles = 0, meshNodes = 0, primitiveInstances = 0;
   while (pending.length) {
     const index = pending.pop();
     const node = getAt(doc.nodes, index);
     if (visited.has(index)) invalid('scene-is-not-a-tree');
     visited.add(index);
+    if (Object.hasOwn(node, 'camera')) {
+      getAt(doc.cameras, node.camera);
+      hasCamera = true;
+    }
+    if (Object.hasOwn(node, 'name') && typeof node.name !== 'string') invalid('invalid-node-name');
     if (names.has(node.name)) names.set(node.name, names.get(node.name) + 1);
     if (node.extensions || Object.hasOwn(node, 'skin') || Object.hasOwn(node, 'weights')) blocked('unsupported-node');
     for (const [key, length] of [['matrix', 16], ['translation', 3], ['rotation', 4], ['scale', 3]]) {
@@ -366,6 +390,7 @@ function checkScene(doc, expectation, binary, views) {
       invalid('geometry-budget-exceeded');
     }
   }
+  if (hasCamera) blocked('unsupported-camera');
   if (!meshNodes) invalid('missing-scene-meshes');
   if ([...names.values()].some(count => count !== 1)) invalid('required-node-missing-or-ambiguous');
   return { triangles, meshNodes, primitiveInstances };

@@ -79,5 +79,18 @@ Extension texture ngoài hỗ trợ trả `BLOCKED`. Cả hai GLB Interface hi�
 đều qua với hash do chủ sở hữu ghim. Kiểm tra chữ ký xác nhận định dạng
 ở đầu dữ liệu nhúng. Giải mã ảnh thuộc phép kiểm của chủ sở hữu.
 
+## Giá trị vật liệu lõi và camera trong cảnh
+
+Tại `ae896962e87be110359e4225cddfe4b05e82ac3f`, 24 trường hợp fixture đã ghim
+tái hiện kết quả `PASS` sai cho thuộc tính vật liệu sai, tham chiếu camera
+không hợp lệ và camera được tham chiếu nằm ngoài phạm vi tĩnh. Cổng sau khi
+sửa trả `FAIL` cho giá trị và tham chiếu sai, đồng thời trả `BLOCKED` cho
+camera đang dùng có tham chiếu hợp lệ. Kiểm thử hồi quy giữ các giá trị hợp
+lệ ở biên của miền vật liệu, ngưỡng alpha lớn hơn một và hệ số normal âm.
+Một fixture ghim bổ sung đã qua cổng với tên node dạng số mà GLTFLoader
+đang cài ở Interface từ chối. Cổng yêu cầu tên node là chuỗi khi có khai
+báo trong cảnh được chọn và vẫn chấp nhận tên bị lược bỏ hoặc chuỗi rỗng.
+Cả hai GLB tham chiếu của Interface vẫn qua với hash do chủ sở hữu ghim.
+
 <!-- source: en/plans/cirnet-rules/cad-engineering/plan.md -->
-<!-- source-sha256: 71084c9509f4206bcb6ef9a9711a8906ddfa43d3260e79f394ddf4a744b899da -->
+<!-- source-sha256: b79847416be3a20866dfff18b19094e6f4002e1ad94556100f5a8edbbe4a438a -->
