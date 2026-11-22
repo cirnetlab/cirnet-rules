@@ -12,6 +12,7 @@ const focusedSkills = [
   'cirnet-task-continuity',
   'cirnet-plan-spec-authoring',
   'cirnet-candidate-evaluation',
+  'cirnet-cad-engineering',
   'cirnet-engineering-workspace-ui',
   'cirnet-repository-structure',
 ];
@@ -35,6 +36,7 @@ const pairs = [
   refactoring,
   template,
   ...focusedSkills.map(name => `skills/${name}/SKILL.md`),
+  'rules/cad-engineering.md',
   'rules/engineering-workspace-ui.md',
   'rules/repository-organization.md',
   'skills/README.md',
@@ -44,7 +46,9 @@ const pairs = [
   'docs/model-compatibility.md',
   'docs/setup.md',
   'plans/cirnet-rules/adaptive-stable/plan.md',
+  'plans/cirnet-rules/cad-engineering/plan.md',
   'specs/cirnet-rules/adaptive-stable/spec.md',
+  'specs/cirnet-rules/cad-engineering/spec.md',
 ];
 
 test('Vietnamese footer identifies the exact English source bytes', () => {

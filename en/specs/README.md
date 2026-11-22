@@ -20,4 +20,5 @@ Task records: [initial rebuild](cirnet-rules/rules-common/spec.md) (historical),
 [engineering behavior](cirnet-rules/engineering-behavior/spec.md),
 [Adaptive Stable integration](cirnet-rules/adaptive-stable/spec.md) (historical),
 [Task Continuity](cirnet-rules/task-continuity/spec.md),
-[Reliability evidence](cirnet-rules/reliability-evidence/spec.md).
+[Reliability evidence](cirnet-rules/reliability-evidence/spec.md),
+[CAD engineering](cirnet-rules/cad-engineering/spec.md).

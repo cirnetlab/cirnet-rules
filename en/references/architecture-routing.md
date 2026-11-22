@@ -72,3 +72,9 @@ guidance and distribution, `about-cirnetlab` for profile, branding and approved
 public documentation, and `.github` for GitHub organization configuration and
 automation metadata. Product APIs and physical approvals remain with their
 product owners.
+
+For CAD model authoring and asset preflight, use the shared
+[CAD engineering rule](../rules/cad-engineering.md). Interface owns its
+Three.js asset contract and product acceptance. Use the
+[engineering workspace UI rule](../rules/engineering-workspace-ui.md)
+for interactive selection, editing and persistence in the workbench.

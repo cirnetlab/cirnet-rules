@@ -20,7 +20,8 @@ Hồ sơ task: [rebuild ban đầu](cirnet-rules/rules-common/spec.md) (lịch s
 [hành vi kỹ thuật](cirnet-rules/engineering-behavior/spec.md),
 [tích hợp Adaptive Stable](cirnet-rules/adaptive-stable/spec.md) (lịch sử),
 [Task Continuity](cirnet-rules/task-continuity/spec.md),
-[Bằng chứng độ tin cậy](cirnet-rules/reliability-evidence/spec.md).
+[Bằng chứng độ tin cậy](cirnet-rules/reliability-evidence/spec.md),
+[Kỹ thuật CAD](cirnet-rules/cad-engineering/spec.md).
 
 <!-- source: en/specs/README.md -->
-<!-- source-sha256: 54218eb3e402e46d88e7d00cfcfd4fc1c2d648df6d941740905c013fc92275a9 -->
+<!-- source-sha256: 23eedc067336d4285f325c53e1fcff9367e11422b8583d7c0b3ba611dec2f8f2 -->

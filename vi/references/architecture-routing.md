@@ -72,5 +72,11 @@ phối agent, `about-cirnetlab` về hồ sơ, thương hiệu và tài liệu c
 duyệt, và `.github` về cấu hình tổ chức GitHub và metadata tự động hóa. Chủ sở
 hữu sản phẩm giữ API sản phẩm và quyền phê duyệt thao tác vật lý.
 
+Để dựng mô hình CAD và kiểm tra tài sản trước khi tích hợp, dùng
+[Rule kỹ thuật CAD dùng chung](../rules/cad-engineering.md). Interface sở hữu
+hợp đồng tài sản Three.js và quyết định nghiệm thu sản phẩm. Dùng
+[Rule giao diện không gian làm việc kỹ thuật](../rules/engineering-workspace-ui.md)
+cho việc chọn đối tượng, chỉnh sửa và lưu trạng thái trong workbench tương tác.
+
 <!-- source: en/references/architecture-routing.md -->
-<!-- source-sha256: eb5b10ac42541219cfcc4d5cac77ab900f3f1e2d1fbf38d2b938c4c377a80cf5 -->
+<!-- source-sha256: 13677834636400d5c034ca85556ae3650ef14612a71f8594cdcffe5c67fd4f91 -->

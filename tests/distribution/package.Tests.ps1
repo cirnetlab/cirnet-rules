@@ -198,6 +198,7 @@ Read [Checklist][check].
         'cirnet-task-continuity'
         'cirnet-plan-spec-authoring'
         'cirnet-candidate-evaluation'
+        'cirnet-cad-engineering'
         'cirnet-engineering-workspace-ui'
         'cirnet-repository-structure'
     )
@@ -213,11 +214,16 @@ Read [Checklist][check].
     foreach ($skill in $optionalSkills) {
         Assert-BundleTest ($paths -ccontains "skills/$skill/SKILL.md") "Opt-in Skill '$skill' is missing from the bundle."
     }
+    $cadRule = 'en/rules/cad-engineering.md'
+    Assert-BundleTest (Test-Path -LiteralPath (Resolve-CirnetPath -Root $repo -Relative $cadRule) -PathType Leaf) 'The canonical CAD Rule is missing from the toolkit checkout.'
+    Assert-BundleTest (-not ($paths | Where-Object { $_ -clike '*/cad-engineering.md' -or $_ -clike '*/verify-cad-asset.mjs' })) 'Checkout-only CAD resources entered the bundle.'
     $selectedSkills = $defaults + $optionalSkills + 'cirnet-work-prompt-authoring'
     & $install -Source $extracted @destination -Skills $selectedSkills -Apply | Out-Null
     & $verify -Source $extracted @destination -Skills $selectedSkills | Out-Null
     $installedUiSkill = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $fakeClientHome ".agents/$uiSkill")
     Assert-BundleTest ($installedUiSkill.Contains($uiRule, [StringComparison]::Ordinal)) 'The installed UI Skill lost its canonical checkout Rule reference.'
+    $installedCadSkill = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $fakeClientHome '.agents/skills/cirnet-cad-engineering/SKILL.md')
+    Assert-BundleTest ($installedCadSkill.Contains($cadRule, [StringComparison]::Ordinal)) 'The installed CAD Skill lost its canonical checkout Rule reference.'
     foreach ($skill in $optionalSkills) {
         $relative = "skills/$skill/SKILL.md"
         $sourceHash = Get-CirnetHash (Join-Path $repo "en/$relative")

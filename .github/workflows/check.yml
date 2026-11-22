@@ -31,6 +31,8 @@ jobs:
       - run: node --test ./tests/benchmark/source.test.mjs ./tests/benchmark/rtl.test.mjs
       - name: Test verification preview and retry decisions
         run: node --test ./tests/verification/preview-owner-checks.test.mjs ./tests/verification/retry-policy.test.mjs
+      - name: Test static CAD asset intake
+        run: node --test ./tests/verification/cad-asset.test.mjs
       - name: Test pinned claim evidence
         shell: pwsh
         run: ./tests/verification/verify-claim.tests.ps1
