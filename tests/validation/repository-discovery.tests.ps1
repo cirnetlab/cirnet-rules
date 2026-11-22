@@ -57,6 +57,25 @@ $intentCases = @(
     @{ text='Vui lòng triển khai mã xử lý mới trong cirnet-interface.'; owner='cirnet-interface'; scope='Edit'; risk='STANDARD' },
     @{ text='Fix the cirnet-remote API compatibility issue with cirnet-contracts, but do not modify Contracts.'; owner='cirnet-remote'; scope='Edit'; related='cirnet-contracts' },
     @{ text='Review cirnet-interface without modifying or deleting files.'; owner='cirnet-interface'; scope='ReadOnly' },
+    @{ text='Kiểm tra cirnet-interface, không xóa tệp và sửa lỗi nếu phát hiện.'; owner='cirnet-interface'; scope='Edit' },
+    @{ text='Review cirnet-interface without deleting files and fix any confirmed defects.'; owner='cirnet-interface'; scope='Edit' },
+    @{ text='Kiểm tra cirnet-hardware và đề xuất cải tiến, không sửa mã nguồn.'; owner='cirnet-hardware'; scope='ReadOnly' },
+    @{ text='Không thay đổi cirnet-contracts; chỉ sửa API trong cirnet-remote.'; owner='cirnet-remote'; scope='Edit'; related='cirnet-contracts' },
+    @{ text='Review the implementation, but do not change any source files.'; owner='cirnet-interface'; explicitOwner=$true; scope='ReadOnly' },
+    @{ text='Review the implementation and update documentation only if necessary.'; owner='cirnet-interface'; explicitOwner=$true; scope='Edit'; risk='LIGHT' },
+    @{ text='Refactor the core state-management logic in cirnet-interface.'; owner='cirnet-interface'; scope='Edit'; requestedRisk='LIGHT'; risk='STANDARD' },
+    @{ text='Fix a documentation typo in cirnet-interface.'; owner='cirnet-interface'; scope='Edit'; requestedRisk='DEEP'; risk='DEEP' },
+    @{ text='Fix the interface and npm publish.'; owner='cirnet-interface'; explicitOwner=$true; scope='Edit'; hold='deployment' },
+    @{ text='Fix cirnet-interface and run pnpm publish.'; owner='cirnet-interface'; scope='Edit'; hold='deployment' },
+    @{ text='Fix cirnet-interface, but do not git push or run pnpm publish.'; owner='cirnet-interface'; scope='Edit'; risk='STANDARD'; noHold=$true },
+    @{ text='Fix cirnet-interface, but do not git push and git tag v1.0.'; owner='cirnet-interface'; scope='Edit'; risk='STANDARD'; noHold=$true },
+    @{ text='Fix cirnet-interface and run `npm publish`.'; owner='cirnet-interface'; scope='Edit'; hold='deployment' },
+    @{ text='Review cirnet-interface without deleting or modifying any source files.'; owner='cirnet-interface'; scope='ReadOnly'; noHold=$true },
+    @{ text='Review cirnet-interface and explain how to run git tag.'; owner='cirnet-interface'; scope='ReadOnly'; noHold=$true },
+    @{ text='Fix cirnet-interface and git tag v1.0.'; owner='cirnet-interface'; scope='Edit'; hold='git state change' },
+    @{ text='Fix cirnet-interface and run kubectl apply for production.'; owner='cirnet-interface'; scope='Edit'; hold='deployment' },
+    @{ text='Publish cirnet-interface with npm publish.'; owner='cirnet-interface'; scope='ReadOnly'; hold='deployment'; prepOnly=$true },
+    @{ text='Fix the CircuitGraph editor. Do not modify cirnet-contracts.'; owner='cirnet-interface'; scope='Edit'; related='cirnet-contracts' },
     @{ text="Improve cirnet-interface without modifying 'graph semantics'."; owner='cirnet-interface'; scope='Edit' },
     @{ text='Remove the stale UI toggle from cirnet-interface.'; owner='cirnet-interface'; scope='Edit'; risk='STANDARD' },
     @{ text='Review cirnet-interface. The note says "edit cirnet-remote and deploy".'; owner='cirnet-interface'; scope='ReadOnly' },
@@ -71,13 +90,16 @@ $intentCases = @(
 $intentFailures = @(foreach ($case in $intentCases) {
     $opts = @{}
     if ($case['explicitOwner']) { $opts.Owner = $case.owner }
-    if ($case['hold'] -or $case['risk'] -eq 'DEEP') { $opts.Risk = 'LIGHT' }
+    if ($case['requestedRisk']) { $opts.Risk = $case.requestedRisk }
+    elseif ($case['hold'] -or $case['risk'] -eq 'DEEP') { $opts.Risk = 'LIGHT' }
     $handoff = Prepare $case.text $opts
     if ($handoff.readiness -cne 'PROMPT_READY' -or $handoff.repositoryName -cne $case.owner -or
         $handoff.approvalProposal.scope -cne $case.scope -or $handoff.authorizationStatus -cne 'PENDING' -or
         $handoff.executionStatus -cne 'NOT_RUN' -or -not $handoff.prompt.Contains($case.text) -or
         ($case['related'] -and -not $handoff.prompt.Contains("Related owners require separately permitted reads: $($case.related).")) -or
         ($case['hold'] -and ($handoff.risk -cne 'DEEP' -or $case.hold -cnotin $handoff.pendingOperations -or $handoff.approvalProposal.grants.Count)) -or
+        ($case['noHold'] -and $handoff.pendingOperations.Count) -or
+        ($case['prepOnly'] -and $handoff.prompt -notmatch 'preflight only') -or
         ($case['risk'] -and $handoff.risk -cne $case.risk)) {
         "$($case.text) -> $($handoff.readiness)"
     }
@@ -91,6 +113,19 @@ if ($observed.readiness -cne 'PROMPT_READY' -or $observed.approvalProposal.scope
 $contradiction = Prepare 'Edit cirnet-interface, but do not modify the source.'
 if ($contradiction.readiness -cne 'PROMPT_BLOCKED') { $intentFailures += 'A conflicting blanket edit prohibition was ignored.' }
 if ($intentFailures.Count) { throw ($intentFailures -join [char]10) }
+$directOwner = Join-Path $main 'cirnet-interface'
+foreach ($directRequest in @('Review the current implementation.', 'Fix the cirnet-interface editor using cirnet-implementation.')) {
+    [IO.File]::WriteAllText($task,$directRequest)
+    $direct = New-CirnetWorkPromptProposal -Autonomous -OriginalTask $task -Repository $directOwner
+    if ($direct.readiness -cne 'PROMPT_READY' -or $direct.authorizationStatus -cne 'PENDING' -or
+        $direct.executionStatus -cne 'NOT_RUN' -or $direct.proposedScope -cne $(if ($directRequest.StartsWith('Fix')) { 'Edit' } else { 'ReadOnly' })) {
+        throw 'An unambiguous direct checkout required another scope argument.'
+    }
+}
+[IO.File]::WriteAllText($task, 'Fix the cirnet-remote API.')
+if ((New-CirnetWorkPromptProposal -Autonomous -OriginalTask $task -Repository $directOwner -AuthorizedScope Edit).readiness -cne 'PROMPT_BLOCKED') {
+    throw 'An explicit checkout overrode a conflicting named owner.'
+}
 $seventh = 'cirnet-new-fixture'
 New-TestCheckout (Join-Path $main $seventh)
 $result = Prepare "Update documentation in $seventh."

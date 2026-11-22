@@ -85,6 +85,10 @@ $resolvedApproval = New-CirnetWorkPromptProposal -Autonomous -OriginalTask $orig
 if ($resolvedApproval.authorizationStatus -cne 'RECORD_CHECKED' -or $resolvedApproval.prompt -cne $approved.prompt) {
     throw 'An independently pinned approval required an extra local checkout argument.'
 }
+$approvedWithLight = New-CirnetWorkPromptProposal @preparation -Authorization $approval -AuthorizationSha256 $pin -Risk LIGHT
+if ($approvedWithLight.risk -cne 'STANDARD' -or $approvedWithLight.prompt -cne $approved.prompt) {
+    throw 'The risk override lowered the approved draft risk floor or rewrote the pinned content.'
+}
 if ((New-CirnetWorkPromptProposal @preparation -Authorization $approval -AuthorizationSha256 ('0' * 64)).readiness -cne 'PROMPT_BLOCKED') {
     throw 'An incorrect approval pin was accepted.'
 }
@@ -96,7 +100,7 @@ $deferred = New-CirnetWorkPromptProposal @preparation -AuthorizedScope Edit -Sou
 if ($deferred.readiness -cne 'PROMPT_READY' -or $deferred.evidence[0].status -cne 'NOT_INSPECTED' -or
     -not $deferred.prompt.Contains('Work preflight') -or -not $deferred.prompt.Contains('Preserve all code files.') -or
     -not $deferred.prompt.Contains("Check the changed Markdown.")) { throw 'Unknown evidence or commands blocked a scoped handoff.' }
-if ((New-CirnetWorkPromptProposal @preparation).readiness -cne 'PROMPT_BLOCKED' -or
+if ((New-CirnetWorkPromptProposal @preparation).readiness -cne 'PROMPT_READY' -or
     (New-CirnetWorkPromptProposal @preparation -AuthorizedScope readonly).readiness -cne 'PROMPT_BLOCKED' -or
     (New-CirnetWorkPromptProposal @preparation -AuthorizedScope Edit -WritePath '../outside.md').readiness -cne 'PROMPT_BLOCKED') {
     throw 'Missing or invalid grant accepted.'
@@ -228,6 +232,15 @@ Expect BLOCKED ($body.Replace($pin,$badCheck)) $badCheck
 $record.permissions.test += 'npm publish'
 $misclassified = Save-Approval
 Expect BLOCKED ($body.Replace($pin,$misclassified).Replace('test: node --test','test: npm publish')) $misclassified
+$rejectedCommands = [Collections.Generic.List[string]]::new()
+foreach ($restrictedCheck in @('pnpm publish', 'git tag v1.0', 'node --test && kubectl apply -f manifest.yaml')) {
+    $record.permissions.test = @($restrictedCheck)
+    $record.checks.'3' = @("test: $restrictedCheck")
+    $restrictedPin = Save-Approval
+    try { Expect BLOCKED ($body.Replace($pin,$restrictedPin).Replace('test: node --test',"test: $restrictedCheck")) $restrictedPin }
+    catch { $rejectedCommands.Add($restrictedCheck) }
+}
+if ($rejectedCommands.Count) { throw "Restricted commands passed as tests: $($rejectedCommands -join ', ')" }
 $record.permissions.test = @('node --test')
 $record.checks.'3' = @('test: node --test')
 $record.permissions.write = @()

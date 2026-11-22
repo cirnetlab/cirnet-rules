@@ -103,7 +103,11 @@ For an ordinary non-sensitive task, Author prepares the handoff locally.
 ./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask request.txt -Repository $ownerRoot -AuthorizedScope Edit -Risk LIGHT
 ```
 
-Select `ReadOnly` or `Edit` from the user's grant. Use `-ReadPath` or
+For unambiguous requests, the CLI proposes `ReadOnly` or `Edit` even
+with an explicit `-Repository`. A clearly named owner must match that
+checkout's local Git origin or, without a recognized origin, its directory
+name. Use the registry for an independently configured relocated alias.
+Use `-AuthorizedScope` to supply the user's exact scope when needed. Use `-ReadPath` or
 `-WritePath` for grants limited to exact files. Use `-SourcePath` to select
 authorized evidence reads.
 Preparation locates directly named files, pins selected bytes and defers
@@ -111,9 +115,12 @@ unknown details and checks to Work preflight. Author reviews intent and
 constraints. Clause-level hints cover common English and Vietnamese requests,
 including conditional edits, negation and quoted examples. The entire original
 request remains attached. The hints propose scope for authoring.
-Recognized security, physical, destructive, export and deployment signals
-raise risk even with `-Risk LIGHT`. Hold restricted operations separately
-when routine preflight is safe. An essential protected read requires an
+Effective risk is the higher of the inferred floor and any explicit
+`-Risk`. Restricted operations such as package publication, production
+deployment and Git mutations stay pending while routine work is prepared.
+A restricted-only handoff is for read-only preflight. Explicit restricted
+commands cannot be substituted for build or test grants.
+An essential protected read requires an
 approved preventive boundary before discovery.
 
 With `-Autonomous`, exit 0 and `authoringStatus = PASS` mean `PROMPT_READY`.

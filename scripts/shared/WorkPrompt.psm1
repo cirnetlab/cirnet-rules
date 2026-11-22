@@ -9,6 +9,10 @@ Import-Module (Join-Path $PSScriptRoot 'RepositoryRegistry.psm1')
 $permissionKinds = @('read','write','test','build','export','privileged')
 $requirementFields = @('action','target','transformation','outcome','scope','negative','acceptance')
 $reportLine = 'Report: deliverables, changed paths, actual verification, failures, and unresolved limitations.'
+$gitMutation = 'git(?:\.exe)?\s+(?:push|commit|merge|reset|clean|stash|tag(?=\s+(?!-(?:l\b|-list\b))))\b'
+$releaseCommand = '(?:(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+(?:npm\s+)?publish|gh(?:\.exe)?\s+release\s+create)\b'
+$deployCommand = '(?:kubectl(?:\.exe)?\s+(?:apply|create|delete|patch|replace|scale|rollout\s+restart)|terraform(?:\.exe)?\s+(?:apply|destroy)|helm(?:\.exe)?\s+(?:upgrade|install|uninstall)|vercel(?:\.cmd|\.exe)?\s+--prod)\b'
+$riskLevels = @{ LIGHT=0; STANDARD=1; DEEP=2 }
 
 function New-PromptResult([string]$Status, [string[]]$Diagnostics) {
     [pscustomobject]@{
@@ -60,10 +64,22 @@ function Get-PromptViolation([string]$Line, [string[]]$Allowed) {
         if ($verb -in @('remove-item', 'rm')) { $verb = 'delete' }
         $effect = '{0}: {1}' -f $verb,$path
     }
-    elseif ($statement -match '^(?:git(?:\.exe)? (?:push|commit|merge|reset|clean|stash)|deploy|publish)(?:\s|$)') {
+    elseif ($statement -match "^(?:$gitMutation|$releaseCommand|$deployCommand|deploy\b|publish\b)") {
         $effect = 'privileged: ' + $statement
     }
     if ($effect -and [Array]::IndexOf($Allowed,$effect) -lt 0) { return 'requests an action outside the approved permissions' }
+}
+
+function Get-WorkPromptRestrictedOperation([string]$Action) {
+    $action = $Action -replace '^(?:run|execute|chạy)\s+', ''
+    switch -Regex ($action) {
+        "^(?:$releaseCommand|$deployCommand|(?:deploy|release|publish|triển khai(?!\s+mã\b)|phát hành|công bố)\b)" { 'deployment'; break }
+        '^(?:export|share|upload|disclose|xuất|chia sẻ)\b' { 'export'; break }
+        '^(?:erase|wipe|destroy|rm|remove-item|move-item|mv)\b|^(?:delete|remove|xóa|xoá)\b.*\b(?:files?|folders?|director(?:y|ies)|repositories|branches|databases?|records?|tệp|thư mục|cơ sở dữ liệu)\b' { 'destructive'; break }
+        '^(?:flash|energize|power on|program.*\b(?:fpga|hardware|board)\b|nạp(?: firmware| bitstream)?|cấp điện|vận hành)\b' { 'physical'; break }
+        '^(?:sudo|escalate|change global|install system|cài toàn cục)\b' { 'privileged'; break }
+        "^(?:$gitMutation|(?:commit|push|merge|reset|clean|stash)\b)" { 'git state change'; break }
+    }
 }
 
 function Get-PromptProse([string[]]$Lines) {
@@ -105,37 +121,50 @@ function Get-WorkPromptIntent([string[]]$Lines) {
     $visible = (Get-PromptProse $Lines) -join [char]10
     $visible = [regex]::Replace($visible, '"[^"\r\n]*"|“[^”\r\n]*”|(?<!\w)''[^''\r\n]*''|`[^`\r\n]*`', {
         param($quoted)
+        $inner = $quoted.Value.Substring(1, $quoted.Length - 2)
+        if ($quoted.Value[0] -eq [char]96 -and $inner -match "^(?:$gitMutation|$releaseCommand|$deployCommand)") {
+            return $inner
+        }
         if ($quoted.Value -match '^.([\w.-]+).$') { $Matches[1] } else { ' quoted text ' }
     })
     $parts = $visible -split '(?i)([\r\n;!?]+|\.(?=\s|$)|,|\b(?:and then|and|or|but|then|without|while|và|hoặc|nhưng|rồi|đồng thời)\b)'
     $targets = [Collections.Generic.List[string]]::new()
+    $restrictedTargets = [Collections.Generic.List[string]]::new()
     $pending = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $edit = $read = $deep = $protectedRead = $noEdits = $false
     $documentationOnly = $true
     $negative = $false
+    $negativeList = $false
+    $negatedOperation = $null
     for ($i = 0; $i -lt $parts.Count; $i += 2) {
         $clause = $parts[$i].Trim() -replace '^(?:[-*+]\s+|\d+[.)]\s+)', ''
         $clause = $clause -replace '^(?:(?:please|kindly|hãy|giúp tôi|vui lòng|tôi muốn|i want to|i would like to)\s+)+', ''
         if (-not $clause) { continue }
         $connector = if ($i) { $parts[$i-1] } else { '' }
-        $negativePrefix = $clause -match '^(?:do not|don''t|never|avoid|without|không được|không|đừng|tránh)\b'
-        $negative = $negativePrefix -or $connector -eq 'without' -or ($negative -and $connector -match '^(?:or|and|hoặc|và)$')
+        $prohibition = '^(?:do not|don''t|never|avoid|without|không được|không|đừng|tránh)\b'
+        $negativePrefix = $clause -match $prohibition
+        $operation = Get-WorkPromptRestrictedOperation (($clause -replace $prohibition, '').TrimStart())
+        if ($negativePrefix -or $connector -eq 'without') { $negativeList = $connector -eq 'without' }
+        # A coordinated gerund continues a "without" list. A new imperative
+        # after "and" can instead request a separate positive action.
+        $negative = $negativePrefix -or $connector -eq 'without' -or ($negative -and
+            ($connector -match '^(?:or|hoặc)$' -or
+             ($connector -match '^(?:and|và)$' -and
+              (($negativeList -and $clause -match '^\w+ing\b') -or ($operation -and $operation -ceq $negatedOperation)))))
         if ($negative) {
-            if ($clause -match '^(?:do not|don''t|never|avoid|without|không được|không|đừng|tránh)?\s*(?:modify|modifying|edit|editing|change|changing|write|writing|chỉnh sửa|sửa|thay đổi)(?:\s+(?:the\s+)?(?:source(?: code)?|code|files|anything|mã nguồn))?$') {
+            $negatedOperation = $operation
+            if ($clause -match '^(?:do not|don''t|never|avoid|without|không được|không|đừng|tránh)?\s*(?:modify|modifying|edit|editing|change|changing|write|writing|chỉnh sửa|sửa|thay đổi)(?:\s+(?:(?:the|any)\s+)?(?:source(?: code| files)?|code|files|anything|mã nguồn))?$') {
                 $noEdits = $true
             }
             continue
         }
         $action = $clause -replace '^(?:if\b.*?\bthen\s+|nếu\b.*?\bthì\s+|only\s+|chỉ\s+)', ''
-        $risk = switch -Regex ($action) {
-            '^(?:deploy|release|publish|triển khai(?!\s+mã\b)|phát hành|công bố)\b' { 'deployment'; break }
-            '^(?:export|share|upload|disclose|xuất|chia sẻ)\b' { 'export'; break }
-            '^(?:erase|wipe|destroy|rm|remove-item)\b|^(?:delete|remove|xóa|xoá)\b.*\b(?:files?|folders?|director(?:y|ies)|repositories|branches|databases?|records?|tệp|thư mục|cơ sở dữ liệu)\b' { 'destructive'; break }
-            '^(?:flash|energize|power on|program.*\b(?:fpga|hardware|board)\b|nạp(?: firmware| bitstream)?|cấp điện|vận hành)\b' { 'physical'; break }
-            '^(?:sudo|escalate|change global|install system|cài toàn cục)\b' { 'privileged'; break }
-            '^(?:git(?:\.exe)?\s+)?(?:commit|push|merge|reset|clean|stash)\b' { 'git state change'; break }
+        $risk = if ($action -ceq $clause) { $operation } else { Get-WorkPromptRestrictedOperation $action }
+        if ($risk) {
+            [void]$pending.Add($risk)
+            $restrictedTargets.Add($clause)
+            continue
         }
-        if ($risk) { [void]$pending.Add($risk) }
         $isRead = $action -match '^(?:inspect|review|check|audit|explain|read|propose|report|investigate|kiểm tra|rà soát|đọc|đề xuất|xem)\b'
         if ($isRead) {
             $read = $true
@@ -143,7 +172,7 @@ function Get-WorkPromptIntent([string[]]$Lines) {
                 $protectedRead = $true
             }
         }
-        if (-not $risk -and $action -match '^(?:fix|edit|improve|update|correct|refactor|add|change|modify|create|write|implement|remove|delete|chỉnh sửa|sửa|cải thiện|cập nhật|thêm|thay đổi|xóa|xoá|triển khai mã)\b') {
+        if ($action -match '^(?:fix|edit|improve|update|correct|refactor|add|change|modify|create|write|implement|remove|delete|chỉnh sửa|sửa|cải thiện|cập nhật|thêm|thay đổi|xóa|xoá|triển khai mã)\b') {
             $edit = $true
             if ($action -notmatch '\b(?:documentation|readme|typo|spelling|tài liệu|chính tả)\b') { $documentationOnly = $false }
         }
@@ -152,14 +181,14 @@ function Get-WorkPromptIntent([string[]]$Lines) {
         }
         # Keep conjunctive targets such as "Fix A and B" ambiguous. A
         # compatibility clause can name a consumer or dependency after "with".
-        if (-not $risk) {
-            $targets.Add(($clause -replace '(?i)\b(?:compatibility|compatible|tương thích)\b.*?\b(?:with|against|với)\b.*$', ''))
-        }
+        $targets.Add(($clause -replace '(?i)\b(?:compatibility|compatible|tương thích)\b.*?\b(?:with|against|với)\b.*$', ''))
     }
+    $preflightOnly = (-not ($edit -or $read) -and $pending.Count -gt 0)
     [pscustomobject]@{
-        visible=$visible; targetText=($targets -join ' ')
+        visible=$visible; targetText=$(if ($preflightOnly) { $restrictedTargets -join ' ' } else { $targets -join ' ' })
         scope=$(if ($edit) { 'Edit' } elseif ($read -or $pending.Count) { 'ReadOnly' })
         conflict=($edit -and $noEdits); noEdits=$noEdits; protectedRead=$protectedRead
+        preflightOnly=$preflightOnly
         risk=$(if ($deep -or $pending.Count) { 'DEEP' } elseif ($edit -and $documentationOnly) { 'LIGHT' } else { 'STANDARD' })
         pending=@($pending | Sort-Object)
     }
@@ -372,6 +401,12 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
             }
         }
         $violation = Get-PromptViolation $statement $allowed
+        # Natural release requests can be described as pending. Keep legacy
+        # explicit Git effects and typed approval directives fail-closed.
+        if ($violation -and $statement -notmatch '^(?:git|privileged:|export:|delete:)' -and
+            $statement -match "^(?:$releaseCommand|$deployCommand|(?:publish|deploy)\s+)" -and 'deployment' -cin $Intent.pending) {
+            $violation = $null
+        }
         if ($violation -or $statement -match '^(?:(?:also|then)\s+)?(?:delete|remove-item|move-item|rm|mv|sudo|flash|energize|npm(?:\.cmd)?\s+publish|kubectl|terraform\s+(?:apply|destroy))\s+' -or
             $statement -match '^(?:ignore|override|bypass)\b.*\b(?:instructions|policy|scope|approval|authorization)\b') {
             return New-PreparationResult BLOCKED "Resolve the action, scope or evidence conflict on request line $($i + 1) before handoff."
@@ -441,6 +476,8 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
             foreach ($path in ($WritePath | Sort-Object -CaseSensitive -Unique)) { "- ``$path``" }
         } elseif ($Scope -eq 'Edit') {
             'Prepare changes for this owner only. Identify exact paths from the original requirements during Work preflight.'
+        } elseif ($Intent.preflightOnly) {
+            'Prepare read-only preflight only. Do not execute the requested restricted operation without independent approval.'
         } else { 'Prepare read-only inspection of this owner.' }
         'Keep all explicit exclusions. Additional repositories, destructive actions, protected data, privileged operations and release actions require separate authority.'
         if ($Intent.pending.Count) {
@@ -473,6 +510,7 @@ function New-ScopedPromptDraft($Owner, [string]$Head, [byte[]]$Bytes, [string[]]
         repository = $Owner.root
         revision = $(if ($Head) { $Head })
         risk = $Risk.ToUpperInvariant()
+        proposedScope = $Scope
         evidence = $evidence
         pendingOperations = $Intent.pending
     }
@@ -534,13 +572,15 @@ function New-CirnetWorkPromptProposal {
                 $blocked = New-PreparationResult BLOCKED $result.diagnostics[0]
                 return $blocked
             }
-            $result | Add-Member -NotePropertyMembers @{ authoringStatus='PASS'; readiness='PROMPT_READY'; authorizationStatus='RECORD_CHECKED'; risk=$Risk.ToUpperInvariant() }
+            if ($PSBoundParameters.ContainsKey('Risk') -and $riskLevels[$Risk] -gt $riskLevels[$result.risk]) {
+                $result.risk = $Risk.ToUpperInvariant()
+            }
+            $result | Add-Member -NotePropertyMembers @{ authoringStatus='PASS'; readiness='PROMPT_READY'; authorizationStatus='RECORD_CHECKED' }
             return $result
         }
         if ($Repository -and ($Registry -or $Owner -or $NoLocalDiscovery)) {
             return New-PreparationResult BLOCKED 'Use either a direct repository path or registry resolution.'
         }
-        if ($Repository -and -not ($AuthorizedScope -or $Policy)) { return New-PreparationResult BLOCKED 'Confirm the owner repository and whether Work may inspect or edit it.' }
     } elseif ($AuthorizedScope -or $ReadPath.Count -or $WritePath.Count -or $Authorization -or $AuthorizationSha256 -or $Registry -or $Owner -or $NoLocalDiscovery -or $Policy -or $PolicySha256) {
         return New-PromptResult BLOCKED 'Use autonomous preparation for a declared scope or an existing approval.'
     }
@@ -563,7 +603,7 @@ function New-CirnetWorkPromptProposal {
                 ($AuthorizedScope -eq 'Edit' -and $intent.noEdits)) {
                 return New-PreparationResult BLOCKED 'Confirm whether the conflicting source edits are in scope.'
             }
-            if ($intent.risk -ceq 'DEEP' -or (-not $PSBoundParameters.ContainsKey('Risk') -and $intent.risk -ceq 'LIGHT')) {
+            if (-not $PSBoundParameters.ContainsKey('Risk') -or $riskLevels[$intent.risk] -gt $riskLevels[$Risk]) {
                 $Risk = $intent.risk
             }
             $declaredScope = [bool]$AuthorizedScope
@@ -580,10 +620,10 @@ function New-CirnetWorkPromptProposal {
                     }
                     $Risk = 'DEEP'
                 }
-                if (-not $AuthorizedScope) { $AuthorizedScope = $intent.scope }
-                if (-not $AuthorizedScope) {
-                    return New-PreparationResult BLOCKED 'Confirm whether the task requests changes or read-only inspection.'
-                }
+            }
+            if (-not $AuthorizedScope -or $intent.preflightOnly) { $AuthorizedScope = $intent.scope }
+            if (-not $AuthorizedScope) {
+                return New-PreparationResult BLOCKED 'Confirm whether the task requests changes or read-only inspection.'
             }
         }
         $checkout = if ($resolution) { $resolution.checkout ?? @{root=$null} }
@@ -594,6 +634,10 @@ function New-CirnetWorkPromptProposal {
         $head = if ($checkout.root) { Get-ContinuityHead $checkout }
         if ($checkout.root -and -not $head) { throw 'Owner needs a pinned HEAD.' }
         if ($Autonomous) {
+            if ($Repository) {
+                try { Confirm-CirnetPromptCheckout -Checkout $checkout -TargetText $intent.targetText }
+                catch { return New-PreparationResult BLOCKED $_.Exception.Message }
+            }
             if ($Policy) {
                 if (-not $checkout.root -or $AuthorizedScope -eq 'Edit' -or $Risk -eq 'DEEP') {
                     return New-PreparationResult BLOCKED 'Use a verified owner and obtain task approval for effects outside the recurring read policy.'
@@ -605,7 +649,6 @@ function New-CirnetWorkPromptProposal {
                 }
                 if (-not $ReadPath.Count) { $ReadPath = $policyPaths }
                 $AuthorizedScope = 'ReadOnly'
-                $Risk = 'LIGHT'
             }
             return New-ScopedPromptDraft $checkout $head $bytes $lines $AuthorizedScope $ReadPath $WritePath $SourcePath $Risk $resolution $intent -ReadPolicyIntegrityChecked:([bool]$Policy)
         }
@@ -729,7 +772,7 @@ function Test-CirnetWorkPromptFile {
             foreach ($value in $values) {
                 if ($value -isnot [string] -or -not $value.Trim() -or $value -match '[\x00-\x1f]') { throw 'Invalid permission.' }
                 if ($record.readiness -ceq 'PROMPT_BLOCKED' -and $kind -cne 'read') { throw 'Invalid blocked scope.' }
-                if ($kind -cin @('test','build') -and $value -match '(?:^|[;&|]\s*)(?:git(?:\.exe)?\s+(?:push|commit|merge|reset|clean|stash)|npm(?:\.cmd)?\s+publish|deploy|publish|Remove-Item|Move-Item|rm|mv)(?:\s|$)') {
+                if ($kind -cin @('test','build') -and $value -match "(?:^|[;&|]\s*)(?:$gitMutation|$releaseCommand|$deployCommand|(?:deploy|publish|Remove-Item|Move-Item|rm|mv)\b)") {
                     throw 'An explicit destructive or privileged command is not a test or build grant.'
                 }
                 if ($kind -cin @('read','write')) {
@@ -841,6 +884,7 @@ function Test-CirnetWorkPromptFile {
             if ((Get-ContinuityHead $owner) -cne $record.revision) { return New-PromptResult FAIL 'HEAD changed during preparation.' }
             $result | Add-Member -NotePropertyMembers @{
                 prompt = $rendered; originalSha256 = $record.originalSha256; repository = $root; revision = $record.revision
+                risk = (Get-WorkPromptIntent $task).risk
             }
         }
         if ($result.status -ceq 'PASS' -and $phase) {

@@ -104,7 +104,11 @@ thông thường không nhạy cảm, Author chuẩn bị bản bàn giao cục 
 ./scripts/validate-work-prompt.ps1 -Prepare -Autonomous -OriginalTask request.txt -Repository $ownerRoot -AuthorizedScope Edit -Risk LIGHT
 ```
 
-Chọn `ReadOnly` hoặc `Edit` theo quyền được cấp. Dùng `-ReadPath` hoặc
+Với yêu cầu rõ ràng, CLI đề xuất `ReadOnly` hoặc `Edit` kể cả khi truyền
+`-Repository`. Owner được nêu rõ phải khớp Git origin cục bộ của checkout
+hoặc tên thư mục nếu origin không nhận diện được. Dùng registry cho bí danh
+đã cấu hình độc lập của checkout di chuyển. Dùng `-AuthorizedScope` khi
+cần truyền chính xác phạm vi người dùng đã cấp. Dùng `-ReadPath` hoặc
 `-WritePath` khi quyền giới hạn ở các tệp cụ thể. Dùng `-SourcePath` để
 chọn nguồn bằng chứng được phép đọc.
 Bước chuẩn bị định vị tệp được nêu trực tiếp, ghim các byte đã chọn và giao
@@ -112,9 +116,12 @@ chi tiết hoặc phép kiểm chưa biết cho Work kiểm tra trước. Author
 và ràng buộc. Gợi ý theo mệnh đề hỗ trợ yêu cầu tiếng Anh và tiếng Việt phổ
 biến, kể cả sửa có điều kiện, phủ định và ví dụ trích dẫn. Yêu cầu gốc được
 giữ đầy đủ. Các gợi ý phục vụ đề xuất phạm vi khi soạn bàn giao.
-Dấu hiệu bảo mật, vận hành vật lý, phá hủy, xuất dữ liệu hoặc triển khai
-nâng mức rủi ro kể cả khi chọn `-Risk LIGHT`. Để riêng các thao tác hạn chế
-khi phần preflight thông thường có thể làm an toàn. Đọc dữ liệu bảo vệ
+Mức rủi ro thực tế lấy mức cao hơn giữa mức tối thiểu suy ra và `-Risk`
+tường minh. Thao tác hạn chế như phát hành package, triển khai production
+và thay đổi Git vẫn chờ duyệt trong khi chuẩn bị phần thông thường.
+Bản bàn giao chỉ có thao tác hạn chế chỉ dùng cho preflight đọc.
+Lệnh hạn chế tường minh không thể thay quyền chạy build hoặc test.
+Đọc dữ liệu bảo vệ
 thiết yếu cần ranh giới phòng ngừa đã duyệt trước khi khảo sát.
 
 Với `-Autonomous`, mã thoát 0 và `authoringStatus = PASS` nghĩa là
@@ -268,4 +275,4 @@ hoặc 250 dòng cho thân skill. Giữ quy tắc an toàn rõ ràng. Checker b�
 văn bản và cảnh báo tham khảo cho người bảo trì.
 
 <!-- source: en/docs/context.md -->
-<!-- source-sha256: e5e41a56d3d7bd24ca17977dc2948e8afd39b4a96819edeb7fe7c295bc7ca80f -->
+<!-- source-sha256: 4c23da12c5aa2869b36ddd8878166d4ec0c7aeb69ba308a3cbfdfe9d84bd39f0 -->

@@ -66,6 +66,15 @@ function Read-RepositoryRegistry([string]$Path) {
     @{ explicit=$explicit; children=$children }
 }
 
+function Get-RegistryOrigin($Checkout) {
+    $null = Resolve-CirnetPath $Checkout.commonDirectory 'config'
+    $urls = @(Get-ContinuityLocalOrigin $Checkout)
+    if ($urls.Count -gt 1) { throw [RepositoryRegistryException]::new('The checkout has multiple Git origin URLs. Review its owner identity.') }
+    if ($urls.Count -eq 1 -and $urls[0] -match "^(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)(?<slug>${originPattern})/?\z") {
+        $Matches.slug -replace '\.git\z', ''
+    }
+}
+
 function Resolve-RegistryOwner([string]$Name, $Registry, [string]$CanonicalOrigin) {
     $mapping = if ($Registry.explicit.ContainsKey($Name)) { $Registry.explicit[$Name] }
     $paths = @(if ($mapping) { $mapping.path }
@@ -83,18 +92,11 @@ function Resolve-RegistryOwner([string]$Name, $Registry, [string]$CanonicalOrigi
     $owner.identityStatus = 'PATH_ONLY'
     $expected = if ($mapping -and $mapping.origin) { $mapping.origin } else { $CanonicalOrigin }
     if ($expected) {
-        $null = Resolve-CirnetPath $git 'config'
-        $origins = @(Get-ContinuityLocalOrigin $owner)
-        $slugs = @(foreach ($origin in $origins) {
-            if ($origin -match "^(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)(?<slug>${originPattern})/?\z") {
-                $Matches.slug -replace '\.git\z', ''
-            }
-        })
-        if ($origins.Count -gt 1 -or ($slugs.Count -and $slugs[0] -ne $expected) -or
-            ($mapping -and $mapping.origin -and $slugs.Count -ne 1)) {
+        $origin = Get-RegistryOrigin $owner
+        if (($origin -and $origin -ne $expected) -or ($mapping -and $mapping.origin -and -not $origin)) {
             throw [RepositoryRegistryException]::new('The checkout Git origin conflicts with the expected owner identity. Review the registry mapping.')
         }
-        if ($slugs.Count -eq 1) { $owner.identityStatus = 'ORIGIN_MATCH' }
+        if ($origin) { $owner.identityStatus = 'ORIGIN_MATCH' }
     }
     $owner
 }
@@ -115,13 +117,12 @@ function Find-PromptOwner {
     $named = @(Get-RegistryNames $Request $known -AllowUnmapped:$NoLocalDiscovery)
     $targeted = @(Get-RegistryNames $TargetText $known -AllowUnmapped:$NoLocalDiscovery)
     if ($OwnerName -and $OwnerName -notmatch $namePattern) { throw [RepositoryRegistryException]::new('Select a valid owner name or alias.') }
-    if ($OwnerName -and $named.Count -and $OwnerName -notin $named) {
+    if ($OwnerName -and $targeted.Count -and $OwnerName -notin $targeted) {
         throw [RepositoryRegistryException]::new('The selected owner conflicts with the repository named in the request.')
     }
     $choice = if ($OwnerName) { $OwnerName }
         elseif ($targeted.Count -eq 1) { $targeted[0] }
-        elseif (-not $targeted.Count -and $named.Count -eq 1) { $named[0] }
-        elseif (-not $named.Count) {
+        elseif (-not $targeted.Count) {
             $matchesByDomain = @(foreach ($domain in $domains) {
                 $contextWords = $domain.context -split '\s+'
                 $anchors = @($domain.context) + @([regex]::Matches($domain.owned,'\b[A-Za-z][A-Za-z0-9]{4,}\b') |
@@ -143,7 +144,7 @@ function Find-PromptOwner {
     $checkout = if ($locations) { Resolve-RegistryOwner $choice $locations $(if ($canonical) { "cirnetlab/$choice" }) }
     [pscustomobject]@{
         name=$choice.ToLowerInvariant(); checkout=$checkout; related=$related
-        uniqueTarget=($targeted.Count -eq 1 -and $choice -eq $targeted[0])
+        uniqueTarget=($targeted.Count -eq 1 -and $choice -eq $targeted[0]) -or (-not $OwnerName -and -not $targeted.Count)
         routing=if ($canonical) { 'en/references/architecture-routing.md' }
     }
 }
@@ -151,7 +152,25 @@ function Find-PromptOwner {
 function Get-RegistryNames([string]$Text, $Known, [switch]$AllowUnmapped) {
     [regex]::Matches($Text, '[a-zA-Z0-9._-]+') |
         ForEach-Object { $_.Value.TrimEnd('.') -replace '\.git\z', '' } |
-        Where-Object { $Known.Contains($_) -or ($AllowUnmapped -and $_ -match '^cirnet-[a-z0-9-]+\z') } | Sort-Object -Unique
+        Where-Object { $Known.Contains($_) -or ($AllowUnmapped -and $_ -match '^cirnet[-_][a-z0-9-]+\z') } | Sort-Object -Unique
+}
+
+function Confirm-CirnetPromptCheckout {
+    param($Checkout, [string]$TargetText)
+    $known = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $directoryName = [IO.Path]::GetFileName($Checkout.root)
+    $skills = Join-Path $PSScriptRoot '../../en/skills'
+    $named = @(Get-RegistryNames $TargetText $known -AllowUnmapped | Where-Object {
+        $_ -eq $directoryName -or -not [IO.Directory]::Exists((Join-Path $skills $_))
+    })
+    if (-not $named.Count) { return }
+    if ($named.Count -gt 1) { throw 'Confirm the primary owner for the supplied checkout.' }
+    try { $origin = Get-RegistryOrigin $Checkout }
+    catch { throw 'Cannot verify the named owner against the supplied checkout metadata.' }
+    if (($origin -and $origin -ne "cirnetlab/$($named[0])") -or
+        (-not $origin -and $directoryName -ne $named[0])) {
+        throw 'The owner named in the request does not match the supplied checkout. Select its registered checkout.'
+    }
 }
 
 function Resolve-CirnetPromptOwner {
@@ -162,4 +181,4 @@ function Resolve-CirnetPromptOwner {
     catch { throw 'Cannot verify the repository registry or checkout. Check its local paths, links and JSON schema.' }
 }
 
-Export-ModuleMember -Function Resolve-CirnetPromptOwner
+Export-ModuleMember -Function Resolve-CirnetPromptOwner, Confirm-CirnetPromptCheckout
