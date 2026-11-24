@@ -222,7 +222,7 @@ fn validate_routing(
             );
             continue;
         }
-        let expected = if repo == "cirnet-fpga" {
+        let expected = if repo == "cirnet-embedded-hardware" {
             "`ecosystem`, `lab-first`, `fpga`"
         } else if lab_first.contains(repo) {
             "`ecosystem`, `lab-first`"
@@ -346,6 +346,12 @@ pub(super) fn check(checker: &mut Checker, is_toolkit: bool) {
             path,
             "Lab-First owners must be in the Ecosystem matrix and include cirnet-fpga",
         );
+    }
+    // The pinned architecture snapshots record the original repository name.
+    for owners in [&mut ecosystem, &mut lab_first] {
+        if owners.remove("cirnet-fpga") {
+            owners.insert("cirnet-embedded-hardware".into());
+        }
     }
     for route in ROUTES {
         let path = Path::new(route);

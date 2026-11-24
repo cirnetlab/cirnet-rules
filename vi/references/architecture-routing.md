@@ -44,7 +44,7 @@ khi tác vụ vượt một trong các ranh giới đó. Mũi tên chỉ chiều
 | `cirnet-remote` | `ecosystem`, `lab-first` | Điều phối Lab | API/WS có phân quyền, thí nghiệm, kế hoạch, lease, sự kiện thao tác, metadata bản ghi đo, bộ phát hành Lab | Interface → Remote → Hardware. Remote → client được cấp quyền. | Kiểm quyền thao tác Lab, lease và nội dung tiết lộ. Hardware sở hữu driver, LMS sở hữu điểm, Platform sở hữu định danh chung sau chuyển giao. |
 | `cirnet-hardware` | `ecosystem`, `lab-first` | HardwareStation ảo và vật lý | RPC Rust riêng, giám sát worker, khả năng, Stop an toàn, bảo vệ trạm và truyền tải | Remote → Hardware → Simulator hoặc FPGA. Hardware → Remote trạng thái và bản ghi đo. | Giữ RPC trạm ở vùng riêng và cưỡng chế bảo vệ tại chỗ. Xác nhận trạng thái an toàn hoặc cách ly. |
 | `cirnet-simulator` | `ecosystem`, `lab-first` | Mô phỏng điện tử | Worker C++ mặc định cho số và DC có giới hạn, giao thức riêng, adapter SPICE và kết quả mô phỏng | Hardware → worker Simulator đã ghim → Hardware. Gói SPICE native tùy chọn → Simulator. | Giới hạn thực thi và gắn nhãn mô phỏng. Thao tác FPGA vật lý và quyền người dùng thuộc bên khác. |
-| `cirnet-fpga` | `ecosystem`, `lab-first`, `fpga` | RTL và vận hành bo trạm Lab | Định tuyến bảo vệ, timing, trigger/capture, SDRAM/CDC, ICD, bitstream và artifact timing/HIL | Driver Hardware ↔ FPGA. FPGA cung cấp artifact bo đã xác minh. | Giữ điều khiển Lab tin cậy, bảo vệ tại chỗ và chỉ định tuyến hạ tầng. API Web, IAM và lịch thuộc bên khác. |
+| `cirnet-embedded-hardware` | `ecosystem`, `lab-first`, `fpga` | RTL và vận hành bo trạm Lab | Định tuyến bảo vệ, timing, trigger/capture, SDRAM/CDC, ICD, bitstream và artifact timing/HIL | Driver Hardware ↔ FPGA. FPGA cung cấp artifact bo đã xác minh. | Giữ điều khiển Lab tin cậy, bảo vệ tại chỗ và chỉ định tuyến hạ tầng. API Web, IAM và lịch thuộc bên khác. |
 | `cirnet-nhspice` | `ecosystem` | Đóng gói SPICE native có điều kiện | Build/patch và gói ghim độc lập, nguồn gốc model/giấy phép và bằng chứng tương thích | Gói tùy chọn → Simulator | Simulator sở hữu giao thức worker, adapter và việc thực thi. Xác nhận quyết định đóng gói và đặt tên trước khi sửa. |
 
 ## Công cụ phát triển, tính toán và mở rộng
@@ -79,4 +79,4 @@ hợp đồng tài sản Three.js và quyết định nghiệm thu sản phẩm.
 cho việc chọn đối tượng, chỉnh sửa và lưu trạng thái trong workbench tương tác.
 
 <!-- source: en/references/architecture-routing.md -->
-<!-- source-sha256: 13677834636400d5c034ca85556ae3650ef14612a71f8594cdcffe5c67fd4f91 -->
+<!-- source-sha256: 5e52061d38393c827a38976a52ac65cf09dc13e4374c9f397737cae2a5558ff6 -->

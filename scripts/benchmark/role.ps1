@@ -725,7 +725,7 @@ for ($level = 0; $level -lt 3 -and $workspaceParent.Parent; $level++) {
     $workspaceParent = $workspaceParent.Parent
 }
 $protectedPaths = @($repo.Replace('\', '/'))
-foreach ($name in @('cirnet-remote', 'cirnet-interface', 'cirnet-contracts', 'cirnet-hardware', 'cirnet-simulator', 'cirnet-fpga')) {
+foreach ($name in @('cirnet-remote', 'cirnet-interface', 'cirnet-contracts', 'cirnet-hardware', 'cirnet-simulator', 'cirnet-embedded-hardware')) {
     $protectedPaths += (Join-Path $workspaceParent.FullName $name).Replace('\', '/')
 }
 

@@ -28,7 +28,7 @@ report actual results and limits.
 ## Development priority
 
 `LAB_FIRST_PRIMARY` is the default. Prioritize `cirnet-interface`, `cirnet-remote`,
-`cirnet-contracts`, `cirnet-hardware`, `cirnet-simulator` and `cirnet-fpga`.
+`cirnet-contracts`, `cirnet-hardware`, `cirnet-simulator` and `cirnet-embedded-hardware`.
 First prove the real path Web → Rust Remote → Rust Hardware → C++ Simulator →
 Web. Within the platform's production scope, use Rust for Backend, Contracts
 runtime and Hardware, C++ for the default Simulator, TypeScript for Web and

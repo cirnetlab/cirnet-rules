@@ -335,7 +335,7 @@ Use these examples to find the guide within each approved owner checkout.
 | `cirnet-interface` | In `package.json`, select `npm:test`, `npm:check:boundaries`, or `npm:test:e2e:platform` as required. `docs/en/contributing/verification.md` specifies the CI Node version, reviewed SDK and Remote OpenAPI, and the pinned Chromium lane. Browser verification against the installed native product requires its own pinned host and fixtures. |
 | `cirnet-remote` | `Cargo.toml` exposes explicit targets such as `cargo:test:cli` and `cargo:test:db_readonly`. Use `docs/en/contributing/rust-verification.md` for the exact Cargo invocation, pinned toolchain and Contracts, owned external output paths and isolated fixtures. Use that guide for implicit targets and ignored tests as well. |
 | `cirnet-simulator` | `CMakeLists.txt` without `CMakePresets.json` is outside preview coverage. Select the C++ worker workflow in `docs/en/contributing/verification.md` and review the matching MSVC tools, allocated output and installed artifact checks there. |
-| `cirnet-fpga` | `scripts/check_rtl.py` uses an extension outside preview coverage. The isolated RTL section in `docs/en/verification.md` defines the required toolchain and inputs and requires both `LAB_FIRST_RTL_PASS` and `PERMIT_MATRIX_RTL_PASS` from simulation. |
+| `cirnet-embedded-hardware` | `scripts/check_rtl.py` uses an extension outside preview coverage. The isolated RTL section in `docs/en/verification.md` defines the required toolchain and inputs and requires both `LAB_FIRST_RTL_PASS` and `PERMIT_MATRIX_RTL_PASS` from simulation. |
 
 UI interaction, performance, exact selected-chain E2E and physical/HIL
 results each require their own owner workflow and evidence.

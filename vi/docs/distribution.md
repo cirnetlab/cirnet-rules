@@ -332,7 +332,7 @@ Các ví dụ dưới đây chỉ đến hướng dẫn trong từng checkout đ
 | `cirnet-interface` | Trong `package.json`, chọn `npm:test`, `npm:check:boundaries` hoặc `npm:test:e2e:platform` theo yêu cầu. `docs/en/contributing/verification.md` quy định phiên bản Node dùng trong CI, SDK và Remote OpenAPI đã rà soát, cùng quy trình Chromium đã ghim. Kiểm chứng trình duyệt trên sản phẩm native đã cài cần host và fixture đã ghim riêng. |
 | `cirnet-remote` | `Cargo.toml` khai báo các target như `cargo:test:cli` và `cargo:test:db_readonly`. Dùng `docs/en/contributing/rust-verification.md` để xác định chính xác lệnh Cargo, toolchain và Contracts đã ghim, đường dẫn đầu ra ngoài repo do chủ sở hữu cấp phát, cùng fixture biệt lập. Dùng cùng hướng dẫn cho target ngầm định và test đánh dấu bỏ qua. |
 | `cirnet-simulator` | `CMakeLists.txt` thiếu `CMakePresets.json` nằm ngoài phạm vi xem trước. Chọn quy trình C++ worker trong `docs/en/contributing/verification.md` và kiểm tra công cụ MSVC tương ứng, đầu ra đã cấp phát và phép kiểm artifact đã cài theo hướng dẫn đó. |
-| `cirnet-fpga` | Phần mở rộng của `scripts/check_rtl.py` nằm ngoài phạm vi xem trước. Mục kiểm chứng RTL biệt lập trong `docs/en/verification.md` quy định toolchain và đầu vào bắt buộc, đồng thời yêu cầu mô phỏng tạo cả `LAB_FIRST_RTL_PASS` và `PERMIT_MATRIX_RTL_PASS`. |
+| `cirnet-embedded-hardware` | Phần mở rộng của `scripts/check_rtl.py` nằm ngoài phạm vi xem trước. Mục kiểm chứng RTL biệt lập trong `docs/en/verification.md` quy định toolchain và đầu vào bắt buộc, đồng thời yêu cầu mô phỏng tạo cả `LAB_FIRST_RTL_PASS` và `PERMIT_MATRIX_RTL_PASS`. |
 
 Kết quả tương tác UI, hiệu năng, E2E trên đúng chuỗi artifact đã chọn và
 kiểm chứng vật lý/HIL đều cần quy trình và bằng chứng riêng của chủ sở hữu.
@@ -573,4 +573,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 22cc4776c4e432d3a7bb9ee3eff10c3cc140ff4fedae342dedc7bcaabc591a23 -->
+<!-- source-sha256: 272ae6dfac15fae9af6168bd0484f4116383895dbb19206d1c423636a1d1c89c -->

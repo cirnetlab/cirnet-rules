@@ -210,7 +210,7 @@ const SPECIALIST_EN: &str = "docs/tai-lieu-kien-tuc-chuyen-biet/cirnetlab-archit
 const ROUTE_WEB: &str =
     "| `cirnet_web` | `ecosystem` | Public pages | Static site | Readers | No private data |\n";
 const ROUTE_FPGA: &str =
-    "| `cirnet-fpga` | `ecosystem`, `lab-first`, `fpga` | RTL | Bitstream | Hardware | No IAM |\n";
+    "| `cirnet-embedded-hardware` | `ecosystem`, `lab-first`, `fpga` | RTL | Bitstream | Hardware | No IAM |\n";
 
 fn architecture_fixture() -> Fixture {
     let fixture = Fixture::new();
@@ -331,9 +331,9 @@ fn architecture_routes_use_the_owner_matrix_and_select_the_right_domains() {
     let report = fixture.check(1);
     assert!(report.contains("missing route for `cirnet_web`"));
     assert!(report.contains("repository `foreign-repository` is outside the Ecosystem matrix"));
-    assert!(
-        report.contains("repository `cirnet-fpga` must select `ecosystem`, `lab-first`, `fpga`")
-    );
+    assert!(report.contains(
+        "repository `cirnet-embedded-hardware` must select `ecosystem`, `lab-first`, `fpga`"
+    ));
 }
 
 #[test]

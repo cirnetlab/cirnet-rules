@@ -27,7 +27,7 @@ kết quả thực tế và giới hạn.
 ## Ưu tiên phát triển
 
 `LAB_FIRST_PRIMARY` là mặc định. Ưu tiên `cirnet-interface`, `cirnet-remote`,
-`cirnet-contracts`, `cirnet-hardware`, `cirnet-simulator` và `cirnet-fpga`.
+`cirnet-contracts`, `cirnet-hardware`, `cirnet-simulator` và `cirnet-embedded-hardware`.
 Trước hết cần chứng minh luồng thật Web → Rust Remote → Rust Hardware → C++
 Simulator → Web. Trong phạm vi vận hành production của nền tảng, dùng Rust cho
 Backend, runtime Contracts và Hardware, C++ cho Simulator mặc định, TypeScript
@@ -83,4 +83,4 @@ Phân biệt các quyết định trên với trạng thái triển khai đã qu
 cứu ban đầu và xác minh trạng thái hiện tại từ checkout repo sở hữu và bộ đã chọn.
 
 <!-- source: en/policies/architecture.md -->
-<!-- source-sha256: 9c3f96a63facf44b3b8a0c369c0e81dfef2f777f28ca2eaebd5c37d488cfe481 -->
+<!-- source-sha256: 8a8f9bf1f98e8e5452bdae4579462f4df059c4dfc149d393ba8b97505ce1c39b -->
