@@ -8,7 +8,6 @@ matches the task and open another only when its trigger applies.
 - [Engineering workspace UI](cirnet-engineering-workspace-ui/SKILL.md) for interactive circuit, CAD/3D, IDE or Analyze workbenches
 - [Debugging](cirnet-debugging/SKILL.md)
 - [Verification](cirnet-verification/SKILL.md)
-- [Work Prompt authoring](cirnet-work-prompt-authoring/SKILL.md) for a requested handoff
 - [Task Continuity](cirnet-task-continuity/SKILL.md) for checkpoint recovery, resumption or session handoff
 - [Plan and Spec authoring](cirnet-plan-spec-authoring/SKILL.md) for implementation plans, architectural specifications or acceptance criteria
 - [Single Candidate evaluation](cirnet-candidate-evaluation/SKILL.md) for planning, running or reviewing a Candidate evaluation

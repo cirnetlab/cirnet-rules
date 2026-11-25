@@ -6,9 +6,6 @@ $bundleRootFiles = @('AGENTS.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md')
 $skillNamePattern = '^cirnet-[a-z0-9]+(?:-[a-z0-9]+)*\z'
 $versionPattern = '^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\z'
 $strictUtf8 = [Text.UTF8Encoding]::new($false, $true)
-$authoringSkill = 'skills/cirnet-work-prompt-authoring/SKILL.md'
-$authoringTemplate = 'skills/cirnet-work-prompt-authoring/references/chat-to-work-prompt.md'
-
 function Assert-CirnetName([string]$Name) {
     if ($Name -eq '' -or $Name -match '[\x00-\x1f<>:"/\\|?*]|[ .]\z' -or
         ($Name -split '\.', 2)[0].TrimEnd(' ') -match '^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|(?:COM|LPT)[1-9¹²³])\z') {
@@ -228,7 +225,6 @@ function Get-CirnetSkillEntries([string]$Root, [string]$SkillRoot) {
 }
 
 function Get-CirnetPayloadSourcePath([string]$Path, [string]$SkillRoot = 'en/skills') {
-    if ($Path -ceq $authoringTemplate -and $SkillRoot -ceq 'en/skills') { return 'en/templates/chat-to-work-prompt.md' }
     if ($Path.StartsWith('skills/', [StringComparison]::Ordinal)) { return "$SkillRoot/$($Path.Substring(7))" }
     $Path
 }
@@ -255,9 +251,6 @@ function Get-CirnetPayload {
             if ($isMarkdown) {
                 $md = Get-CirnetText $payload[$path] $path
                 if ($path -cmatch '^skills/([^/]+)/SKILL\.md\z') { Assert-CirnetSkillMetadata $md $path $Matches[1] }
-                if ($path -ceq $authoringSkill -and $md -cmatch '(?m)^<!-- bundle-resource: references/chat-to-work-prompt\.md -->\r?$') {
-                    $pending.Enqueue([pscustomobject]@{ Path = $authoringTemplate; Fragment = ''; From = $path })
-                }
                 foreach ($link in Get-MarkdownReferences $md $path) {
                     $reference = Resolve-CirnetReference $path $link
                     if ($reference) {

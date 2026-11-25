@@ -9,13 +9,13 @@ const definition = source.match(/^function hasSuccessfulRtlStage\(stages, stage,
 assert.ok(definition, 'Reporter must expose its internal RTL evidence predicate for isolated regression checks');
 const supports = new Script(`(${definition[0]})`).runInNewContext();
 const completed = { tool: 'observed', stage: 'simulation', exitCode: 0, error: null, signal: null };
-const evidence = ['Work/observed'];
+const evidence = ['Direct/observed'];
 
 test('actual numeric child success requires the requested stage and cited command', () => {
   assert.equal(supports([completed], 'simulation', evidence), true);
   assert.equal(supports([{ tool: 'observed', stage: 'compile', exitCode: 0, error: null }], 'compile', evidence), true);
   assert.equal(supports([completed], 'compile', evidence), false);
-  assert.equal(supports([completed], 'simulation', ['Work/other']), false);
+  assert.equal(supports([completed], 'simulation', ['Direct/other']), false);
   assert.equal(supports([], 'simulation', evidence), false);
 });
 

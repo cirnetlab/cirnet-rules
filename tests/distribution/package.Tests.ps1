@@ -176,11 +176,7 @@ Read [Checklist][check].
     Assert-BundleTest (-not ($paths | Where-Object { $_ -cnotmatch '^(?:AGENTS\.md|LICENSE|THIRD_PARTY_NOTICES\.md|skills/cirnet-.+)$' })) 'Payload escaped the allowlist.'
     Assert-BundleTest ($extractedBundle.Manifest.revision -ceq $revision -and $extractedBundle.Manifest.dirty -eq [bool]$status) 'Invalid bundle provenance.'
     $examples = 'skills/cirnet-implementation/references/engineering-examples.md'
-    $authoringTemplate = 'skills/cirnet-work-prompt-authoring/references/chat-to-work-prompt.md'
     Assert-BundleTest ($paths -ccontains $examples) 'Implementation examples are missing from the extracted bundle.'
-    Assert-BundleTest ($paths -ccontains $authoringTemplate) 'The canonical Work Prompt template is missing from the bundle.'
-    $templateHash = Get-CirnetHash (Join-Path $repo 'en/templates/chat-to-work-prompt.md')
-    Assert-BundleTest ((Get-CirnetHash (Join-Path $extracted $authoringTemplate)) -ceq $templateHash) 'Packaged Work Prompt template differs from its canonical source.'
     $sourceExample = Join-Path $repo ('en/' + $examples)
     Assert-BundleTest ((Get-CirnetHash (Join-Path $extracted $examples)) -ceq (Get-CirnetHash $sourceExample)) 'Packaged examples differ from the reviewed source.'
     Assert-BundleTest (-not ($paths | Where-Object { $_ -match '^vi/|^tests/|^scripts/|(?i)cases\.json|\.jsonl$' })) 'Evaluator or translation material escaped the bundle boundary.'
@@ -217,26 +213,29 @@ Read [Checklist][check].
     $cadRule = 'en/rules/cad-engineering.md'
     Assert-BundleTest (Test-Path -LiteralPath (Resolve-CirnetPath -Root $repo -Relative $cadRule) -PathType Leaf) 'The canonical CAD Rule is missing from the toolkit checkout.'
     Assert-BundleTest (-not ($paths | Where-Object { $_ -clike '*/cad-engineering.md' -or $_ -clike '*/verify-cad-asset.mjs' })) 'Checkout-only CAD resources entered the bundle.'
-    $selectedSkills = $defaults + $optionalSkills + 'cirnet-work-prompt-authoring'
+    $selectedSkills = @(Get-ChildItem -LiteralPath (Join-Path $repo 'en/skills') -Directory |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md') -PathType Leaf } |
+        Sort-Object Name | ForEach-Object Name)
+    Assert-BundleTest ($selectedSkills.Count -eq 17) 'Expected all 17 retained Skill definitions.'
+    $packagedSkills = @($paths | Where-Object { $_ -cmatch '^skills/[^/]+/SKILL\.md$' })
+    Assert-BundleTest ($packagedSkills.Count -eq $selectedSkills.Count) 'Unexpected Skill inventory in the bundle.'
     & $install -Source $extracted @destination -Skills $selectedSkills -Apply | Out-Null
     & $verify -Source $extracted @destination -Skills $selectedSkills | Out-Null
     $installedUiSkill = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $fakeClientHome ".agents/$uiSkill")
     Assert-BundleTest ($installedUiSkill.Contains($uiRule, [StringComparison]::Ordinal)) 'The installed UI Skill lost its canonical checkout Rule reference.'
     $installedCadSkill = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $fakeClientHome '.agents/skills/cirnet-cad-engineering/SKILL.md')
     Assert-BundleTest ($installedCadSkill.Contains($cadRule, [StringComparison]::Ordinal)) 'The installed CAD Skill lost its canonical checkout Rule reference.'
-    foreach ($skill in $optionalSkills) {
+    foreach ($skill in $selectedSkills) {
         $relative = "skills/$skill/SKILL.md"
         $sourceHash = Get-CirnetHash (Join-Path $repo "en/$relative")
         $installedHash = Get-CirnetHash (Join-Path $fakeClientHome ".agents/$relative")
         Assert-BundleTest ($installedHash -ceq $sourceHash) "Installed opt-in Skill '$skill' differs from its canonical source."
     }
     $installed = Join-Path $fakeClientHome ('.agents/' + $examples)
-    $installedTemplate = Join-Path $fakeClientHome ('.agents/' + $authoringTemplate)
-    Assert-BundleTest ((Get-CirnetHash $installedTemplate) -ceq $templateHash) 'Installed Work Prompt template differs from its canonical source.'
-    $templateBytes = [IO.File]::ReadAllBytes($installedTemplate)
-    [IO.File]::AppendAllText($installedTemplate, 'Unexpected bytes.')
+    $exampleBytes = [IO.File]::ReadAllBytes($installed)
+    [IO.File]::AppendAllText($installed, 'Unexpected bytes.')
     Assert-BundleRejected { & $verify -Source $extracted @destination -Skills $selectedSkills } 'validation|differ|conflict|verify|drift'
-    [IO.File]::WriteAllBytes($installedTemplate, $templateBytes)
+    [IO.File]::WriteAllBytes($installed, $exampleBytes)
     Assert-BundleTest ((Get-CirnetHash $installed) -ceq (Get-CirnetHash $sourceExample)) 'Installed examples differ from the reviewed source.'
     $receipts = @(Get-ChildItem -LiteralPath (Join-Path $fakeClientHome '.cirnet-toolkit/codex/backups') -Filter receipt.json -File -Recurse)
     Assert-BundleTest ($receipts.Count -eq 1) 'Expected a single fake-home receipt.'

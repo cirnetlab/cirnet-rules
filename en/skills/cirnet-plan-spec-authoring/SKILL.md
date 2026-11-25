@@ -24,7 +24,6 @@ Keep each document in the repository that owns its requirements or work.
    In the Plan, link to the Spec and order the work by dependency. Give each
    milestone a verification step and map each acceptance criterion to the
    owner check and expected result that can establish it. Use
-   `cirnet-work-prompt-authoring` for a requested execution assignment and
    `cirnet-task-continuity` for an interrupted task or checkpoint handoff.
 3. **Review the change.** Compare the draft with approved requirements,
    architecture, scope and acceptance criteria. Obtain authorization for any

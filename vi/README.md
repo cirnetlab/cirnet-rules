@@ -8,7 +8,6 @@ rule và [Skill](skills/README.md) liên quan đến tác vụ.
 | --- | --- |
 | Chọn context cho tác vụ | [Nạp context](docs/context.md) |
 | Chọn kiến trúc, tìm chủ sở hữu và rà soát ưu tiên Lab-First | [Chính sách kiến trúc](policies/architecture.md) · [Định tuyến repository](references/architecture-routing.md) |
-| Soạn Work Prompt LIGHT, STANDARD hoặc DEEP | [Skill biên soạn](skills/cirnet-work-prompt-authoring/SKILL.md) · [Mẫu Chat-to-Work](templates/chat-to-work-prompt.md) |
 | Triển khai, gỡ lỗi, refactor và kiểm chứng trong phạm vi | [Skills thực thi](skills/README.md) · [Kiểm thử](rules/testing.md) |
 | Kiểm tra quyền và ràng buộc cụ thể | [Quyền](policies/permissions.md) · [Coding](rules/coding.md) · [Bảo mật](rules/security.md) · [Liên repo](rules/cross-repo.md) |
 | So phiên bản, contract và artifact được chọn | [Bằng chứng tương thích](docs/compatibility.md) |
@@ -29,4 +28,4 @@ ghi lại các lượt chạy lịch sử.
 [Giấy phép](../LICENSE) · [Thông báo bên thứ ba](../THIRD_PARTY_NOTICES.md)
 
 <!-- source: en/README.md -->
-<!-- source-sha256: 94a83a4f306e1c72e6aa2774b26068fe455dc1333124f6523c9bef4d6d8082fc -->
+<!-- source-sha256: 0536a2b535194f5e636b558af179a39d143f9e3a4f83cdf12651a502ebe945c7 -->

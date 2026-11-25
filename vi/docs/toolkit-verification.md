@@ -153,6 +153,8 @@ này. Checker không chứng minh hành vi, an toàn sản phẩm hay sự tuân
 
 ## Biên soạn Chat-to-Work
 
+Kết quả lịch sử của quy trình soạn đã ngừng sử dụng.
+
 Trên `rules-common` ở `9b17b8b`, bản bàn giao baseline thiếu cấu trúc và nhãn
 bằng chứng thống nhất. Với ca sửa dây qua FPGA, baseline nhận ra xung đột rồi
 đề xuất một nhiệm vụ thực thi khác dù chưa có yêu cầu riêng. Các Agent Codex
@@ -209,4 +211,4 @@ do hết quota Native và bàn giao giữa các tài khoản là `NOT_RUN`. Nh�
 này cần tài khoản được cấp quyền cho từng loại agent ở giai đoạn nghiệm thu độc lập.
 
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: c06e776b896fc16087d30f2ded5279cf13dadbcc3c53946dde8c935a3f8b10ee -->
+<!-- source-sha256: aef24e943e8b5acbb0b3c7b71cee20b24fef205d2ba8e24f9cd4d39844f18394 -->

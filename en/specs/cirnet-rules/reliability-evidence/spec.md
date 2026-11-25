@@ -4,10 +4,9 @@
 
 Add three small checks for scoped engineering work in `cirnet-rules`. Use the
 [owner's workflows and architecture](../../../policies/architecture.md) for
-product commands, contracts, output allocation and acceptance. Use the existing
-[handoff validation](../../../docs/context.md#offline-handoff-validation) and
+product commands, contracts, output allocation and acceptance. Use
 [Task Continuity](../../../docs/distribution.md#task-continuity) where applicable.
-Preserve their schemas and execution behavior, the package contract and sealed
+Preserve its schemas and execution behavior, the package contract and sealed
 Candidate evidence.
 
 The operator approves scope, effects and sources. Owners supply command

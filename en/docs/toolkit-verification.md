@@ -154,6 +154,8 @@ agent compliance.
 
 ## Chat-to-Work authoring
 
+Historical results from the retired authoring workflow.
+
 On `rules-common` at `9b17b8b`, baseline handoffs had inconsistent structure
 and evidence labels. In the FPGA repair scenario, the baseline recognized the
 conflict and proposed another executable task without a separate request.

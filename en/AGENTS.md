@@ -11,8 +11,6 @@ review or when requested.
 - Locate paths and symbols before reading source, callers, tests and owning
   contracts. Use Skill metadata to select a workflow and its references. Expand
   context as dependencies and risk warrant.
-- For a requested Work Prompt, choose `cirnet-work-prompt-authoring` and read
-  its English template from an approved checkout. Leave execution to Work.
 - For architecture decisions, open
   `en/policies/architecture.md` from an approved `cirnet-rules` checkout or a
   verified architecture artifact. Read relevant sections and get facts from

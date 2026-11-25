@@ -5,9 +5,8 @@
 Bổ sung ba phép kiểm nhỏ cho công việc kỹ thuật có phạm vi trong `cirnet-rules`.
 Dùng [quy trình và kiến trúc của chủ sở hữu](../../../policies/architecture.md)
 để xác định lệnh sản phẩm, contract, vị trí đầu ra và nghiệm thu. Dùng
-[kiểm tra bàn giao](../../../docs/context.md) và
 [Task Continuity](../../../docs/distribution.md#task-continuity) hiện có khi
-phù hợp. Giữ schema và hành vi thực thi của hai cơ chế, hợp đồng đóng gói
+phù hợp. Giữ schema và hành vi thực thi của cơ chế này, hợp đồng đóng gói
 và bằng chứng Candidate đã niêm phong.
 
 Người vận hành duyệt phạm vi, tác động và nguồn. Chủ sở hữu cung cấp quan sát
@@ -61,4 +60,4 @@ Ghi kết quả rà soát, quyết định tái sử dụng và quan sát trong
 [kế hoạch triển khai](../../../plans/cirnet-rules/reliability-evidence/plan.md).
 
 <!-- source: en/specs/cirnet-rules/reliability-evidence/spec.md -->
-<!-- source-sha256: 00a28edd7dedcf0cd9a7799dad3b505accccd4ea94ba6cb5f4566f992cb9cfe5 -->
+<!-- source-sha256: f648dc003ddb8d1e1a0ce978be85db9cd55cd745988f8aa08c3b15d386a24573 -->

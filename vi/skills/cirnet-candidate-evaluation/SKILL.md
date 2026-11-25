@@ -5,7 +5,7 @@ description: Dùng khi lập kế hoạch, chạy, rà soát hoặc báo cáo đ
 
 # Đánh giá một Candidate CIRNET
 
-Dùng quy trình Single Candidate Evaluation hiện có cho chuỗi Author → Work.
+Dùng Single Candidate Evaluation để chạy trực tiếp từng ca kỹ thuật đã chọn.
 Dùng phép kiểm của chủ sở hữu để nghiệm thu sản phẩm.
 
 1. **Chọn theo rủi ro.** Xác định hành vi, công cụ hoặc ranh giới tin cậy bị
@@ -16,15 +16,14 @@ Dùng phép kiểm của chủ sở hữu để nghiệm thu sản phẩm.
    phiên mới trong phạm vi sở hữu. Xác minh revision source, hash của Rules,
    Skills, bộ đánh giá và fixture gốc trong bản đóng băng. Bảo toàn báo cáo
    lịch sử, bằng chứng gốc E01–E08 và tài liệu lưu trữ về A/B và Adaptive
-   Stable Orchestrator. Trước khi gọi native, lấy quyền riêng và giới hạn
-   chính xác số lần gọi theo vai trò. Áp dụng quy trình rà soát bàn giao
-   độc lập hiện có trước khi chạy Work native.
+   Stable Orchestrator. Trước khi chạy native, lấy quyền riêng và xác nhận đúng
+   giới hạn lượt gọi. Rà phạm vi và fixture đã ghim.
 3. **Chấm theo bằng chứng.** Kiểm tra thực thi, kết quả khách quan, kiểm tra
    phạm vi, quyền riêng tư và bằng chứng đã niêm phong. Kết quả shim chỉ bao
    phủ phần bộ chạy kiểm thử đã thực thi. `OBJECTIVE_PASS_REVIEW_REQUIRED`
    nghĩa là vẫn đang chờ rà soát hành vi. Người rà soát độc lập đối chiếu
    bằng chứng chạy native thực tế với tiêu chí đã đóng băng và các artifact
-   trong chỉ mục bằng chứng. Dùng đầu ra của Author và Work làm bằng chứng
+   trong chỉ mục bằng chứng. Dùng đầu ra của lượt chạy trực tiếp làm bằng chứng
    cho việc rà soát đó. Chỉ kết luận hành vi native đạt PASS khi kết quả
    chất lượng cuối cùng ghi PASS cho các tiêu chí trong phạm vi.
 4. **Báo cáo phạm vi.** Ghi các ca, revision, hash, cấu hình runtime và vị trí
@@ -42,4 +41,4 @@ Quy trình Single Candidate (`vi/docs/behavioral-evaluation.md`) ·
 Tương thích theo rủi ro (`vi/docs/model-compatibility.md`)
 
 <!-- source: en/skills/cirnet-candidate-evaluation/SKILL.md -->
-<!-- source-sha256: 0f1545f6ca25a314ec6a54de6d0fc64820c4abf5125f3f9b9d4bc687e8933ca3 -->
+<!-- source-sha256: d9e9f7c1dcd9eedb316d8636276a938956a0833044b01862e80b4d07d871317b -->

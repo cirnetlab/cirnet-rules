@@ -1,8 +1,7 @@
 # Risk-based model compatibility
 
-The CIRNET authoring Skill and its single EN/VI template define one behavioral
-contract across model releases. Set model and reasoning effort at runtime.
-Select checks for the behavior and boundaries affected by the change.
+Set the model and reasoning effort at runtime. Select checks for the
+engineering behavior and boundaries affected by the change.
 
 ## Choose checks by risk
 
@@ -10,7 +9,6 @@ Select checks for the behavior and boundaries affected by the change.
 | --- | --- | --- |
 | Model or effort only, with the same tools and permissions | Candidate-only E01 and E06 | Exercised smoke cases |
 | Tool API, sandbox, prompts or tool mapping | Adapter or CLI checks and targeted native cases | Changed tool behavior |
-| Authoring Skill or template behavior | Focused regressions and architecture and documentation checks | Affected behavior |
 | Architecture, contracts, safety boundaries or broad Skill changes | Owner checks, contract and negative-path tests, and authorized focused cases for remaining risks | Exercised boundaries |
 | Missing prerequisites, partner fixtures or quota | Record `BLOCKED` or `NOT_RUN` | Coverage remains open |
 
@@ -25,7 +23,7 @@ runtime configuration as the fallback.
 Use the [single-session benchmark](behavioral-evaluation.md) with the original
 E01 and E06 fixtures for a focused runtime change. E01 exercises read-only
 export clarification and E06 checks the scoped label refactor. Preview freezes
-the current source and plans up to four role calls. Native execution needs
+the current source and plans up to two scenario calls. Native execution needs
 separate authorization and the exact call cap.
 
 Select E05 for regression ordering, `python-retry-count-refactor` for error
@@ -36,8 +34,8 @@ runtime configuration.
 
 Require observed red-before-green evidence for E05 and the owner suite
 before and after the Python edit. Verify that E06 preserves the existing user
-edits, untracked and ignored files and shared helper. Review byte-exact
-handoff, objective changes and tests before accepting the applicable behavior.
+edits, untracked and ignored files and shared helper. Review the frozen task input,
+objective changes and tests before accepting the applicable behavior.
 
 ## Record compatibility
 
@@ -45,7 +43,7 @@ Report task success, architecture compliance, verification coverage and privacy
 for the cases exercised. Record the snapshot and the requested model and
 effort, with effective settings when the runtime reports them. A shim result
 covers the harness. Native compatibility requires actual run evidence and
-independent review. Review tool calls, host duration and errors for each role.
+independent review. Review tool calls, host duration and errors for each scenario.
 Follow the [evaluation procedure](behavioral-evaluation.md) for initial input measurement.
 
 Keep historical A/B/B2 evidence with its original scoring, model, effort,

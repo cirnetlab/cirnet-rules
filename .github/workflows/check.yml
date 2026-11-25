@@ -25,9 +25,6 @@ jobs:
       - name: Test Task Continuity discovery and bootstrap
         shell: pwsh
         run: ./tests/continuity/bootstrap.tests.ps1
-      - name: Validate Work Prompt handoffs offline
-        shell: pwsh
-        run: ./tests/validation/work-prompt.tests.ps1
       - run: node --test ./tests/benchmark/source.test.mjs ./tests/benchmark/rtl.test.mjs
       - name: Test verification preview and retry decisions
         run: node --test ./tests/verification/preview-owner-checks.test.mjs ./tests/verification/retry-policy.test.mjs

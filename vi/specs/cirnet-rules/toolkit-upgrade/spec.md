@@ -50,8 +50,10 @@ sử E01–E08 nằm ngoài thay đổi này.
 
 ## Biên soạn Chat-to-Work
 
-Một [mẫu](../../../templates/chat-to-work-prompt.md) quy định bản bàn giao
-12 mục và một [Skill](../../../skills/cirnet-work-prompt-authoring/SKILL.md)
+Đặc tả lịch sử ở `dedc2e2`. Quy trình soạn hiện dùng công cụ bên ngoài.
+
+Một mẫu quy định bản bàn giao
+12 mục và một Skill
 áp dụng mẫu khi người dùng yêu cầu Work Prompt. Dùng mẫu tiếng Anh từ checkout
 được phép, tách bằng chứng quan sát khỏi giả định và giữ các ràng buộc CIRNET
 áp dụng về chủ sở hữu, kiến trúc và quyền. Trả bản bàn giao hoặc điểm chặn
@@ -64,4 +66,4 @@ giả lập cho bàn giao thông thường, thiếu bằng chứng và yêu cầ
 Bundle chuyển Skill, checkout đã được phép cung cấp mẫu.
 
 <!-- source: en/specs/cirnet-rules/toolkit-upgrade/spec.md -->
-<!-- source-sha256: 841ef2d4ef840930be66d7d04334d462bc41fdd832caeb73467c1f56e9acd49b -->
+<!-- source-sha256: d93cee40e103bcab72322fdd6d49fb8e30944ee3c9c1b2e33f6c1e8ab253f24b -->

@@ -42,18 +42,6 @@ bundle installs guidance and leaves the architecture sources outside the
 installed payload. If an approved reference is unavailable, record that limit
 before making architecture decisions.
 
-## Work Prompt authoring
-
-Select `-Skills 'cirnet-work-prompt-authoring'` when installing and verifying,
-along with any other selected Skills. The bundle includes the exact
-[canonical English template](../templates/chat-to-work-prompt.md) under the
-Skill's `references/` directory. Bundle and installation verification check
-its bytes. The template is also available from an approved checkout or from
-authorized GitHub access that verifies the approved repository, revision and
-template path. Follow [portable Chat authoring](context.md#portable-chat-authoring)
-when local validation cannot run. Without verified template access, the Skill
-reports `PROMPT_BLOCKED`.
-
 ## Task Continuity
 
 Run `scripts/task-continuity.ps1` and its modules with PowerShell 7 from an

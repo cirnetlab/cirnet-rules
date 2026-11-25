@@ -8,7 +8,6 @@ chỉ mở vai trò khác khi trigger áp dụng.
 - [Giao diện không gian làm việc kỹ thuật](cirnet-engineering-workspace-ui/SKILL.md) cho workbench tương tác về mạch, CAD/3D, IDE hoặc Analyze
 - [Chẩn đoán lỗi](cirnet-debugging/SKILL.md)
 - [Kiểm chứng](cirnet-verification/SKILL.md)
-- [Biên soạn Work Prompt](cirnet-work-prompt-authoring/SKILL.md) khi có yêu cầu bàn giao
 - [Task Continuity](cirnet-task-continuity/SKILL.md) khi cần khôi phục checkpoint, tiếp tục công việc hoặc bàn giao giữa các phiên
 - [Soạn Plan và Spec](cirnet-plan-spec-authoring/SKILL.md) cho kế hoạch triển khai, đặc tả kiến trúc hoặc tiêu chí nghiệm thu
 - [Đánh giá Single Candidate](cirnet-candidate-evaluation/SKILL.md) khi lập kế hoạch, chạy hoặc rà soát một đánh giá Candidate
@@ -26,4 +25,4 @@ Implementation, debugging và verification được cài mặc định. Các ski
 được chọn rõ ràng. Xem [nạp context](../docs/context.md).
 
 <!-- source: en/skills/README.md -->
-<!-- source-sha256: 65acd16a08fe7ba2ead2971d76f666aa0b269e20f705a0c5ae9c39f844c95a8c -->
+<!-- source-sha256: 3458ee4990edb22e42ce229e5e5b53a4eecc258536312c4eff0065f1e169985d -->

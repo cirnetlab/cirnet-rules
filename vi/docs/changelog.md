@@ -2,6 +2,7 @@
 
 ## 0.2.0 (candidate)
 
+- Gỡ tính năng soạn Work Prompt nội bộ và chạy trực tiếp các ca kỹ thuật Candidate. Việc soạn Work Prompt hiện dùng `SKILL-en.md` trong ChatGPT Project.
 - Thêm [xem trước phép kiểm, bằng chứng từng bước được ghim và giới hạn lần sửa](distribution.md#bằng-chứng-kiểm-chứng)
   cho quy trình kiểm chứng hiện có.
 
@@ -66,4 +67,4 @@ Repo có baseline song ngữ, ba skill portable và checker tài liệu local.
 Checker và test đã chuyển từ Python sang Rust.
 
 <!-- source: en/docs/changelog.md -->
-<!-- source-sha256: 96a6e4629e86df9f9c26e7249a09b435c5af509a963123da8874bb0b8e8ca9ca -->
+<!-- source-sha256: 0dc6aea717ff6ccda68e97f231859ff5d63305e06fe990e278acd9bfba360145 -->

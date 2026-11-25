@@ -24,8 +24,7 @@ Lưu mỗi tài liệu trong repo sở hữu các yêu cầu hoặc công việc
    quan sát được. Trong Plan, liên kết đến Spec và sắp xếp công việc theo
    phụ thuộc. Gắn mỗi mốc với một bước kiểm chứng và ánh xạ từng tiêu chí
    nghiệm thu tới phép kiểm của chủ sở hữu cùng kết quả kỳ vọng dùng để xác
-   nhận tiêu chí đó. Dùng `cirnet-work-prompt-authoring` khi được yêu cầu
-   soạn nhiệm vụ thực thi, và `cirnet-task-continuity` khi khôi phục việc
+   nhận tiêu chí đó. Dùng `cirnet-task-continuity` khi khôi phục việc
    bị gián đoạn hoặc bàn giao checkpoint.
 3. **Rà soát thay đổi.** Đối chiếu bản thảo với yêu cầu, kiến trúc, phạm vi
    và tiêu chí nghiệm thu đã được duyệt. Xin quyền trước khi áp dụng đề xuất
@@ -40,4 +39,4 @@ Chính sách kiến trúc (`vi/policies/architecture.md`) ·
 Chính sách tài liệu (`vi/policies/documentation.md`)
 
 <!-- source: en/skills/cirnet-plan-spec-authoring/SKILL.md -->
-<!-- source-sha256: 5919e3e6319023af0ad82574c30bf57a3dc2956c2197e5fdd72b84d7adbd8804 -->
+<!-- source-sha256: 16995d306315ded2945b41c07503d0a510303af30954e10ee2994da9f03be14b -->

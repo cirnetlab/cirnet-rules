@@ -38,17 +38,6 @@ chiếu byte cần dùng với [`docs/architecture-sources.tsv`](../../docs/arch
 Bundle cài hướng dẫn, còn các nguồn kiến trúc nằm ngoài payload cài đặt.
 Nếu không có nguồn tham chiếu được phép, báo giới hạn trước khi quyết định về kiến trúc.
 
-## Soạn Work Prompt
-
-Khi cài và xác minh, chọn `-Skills 'cirnet-work-prompt-authoring'` cùng các Skill
-khác cần dùng. Bundle giữ nguyên byte của
-[mẫu tiếng Anh chính thức](../../en/templates/chat-to-work-prompt.md) trong
-thư mục `references/` của Skill. Bước xác minh bundle và bản cài kiểm tra
-các byte này. Có thể lấy mẫu từ checkout đã duyệt hoặc qua quyền truy cập
-GitHub cho phép xác minh repo, revision và đường dẫn mẫu đã duyệt. Khi không
-chạy được công cụ xác thực local, xem [soạn Work Prompt trong Chat](context.md#soạn-work-prompt-trong-chat).
-Nếu thiếu nguồn mẫu đã xác minh, Skill báo `PROMPT_BLOCKED`.
-
 ## Task Continuity
 
 Chạy `scripts/task-continuity.ps1` cùng các module bằng PowerShell 7 từ checkout
@@ -573,4 +562,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 272ae6dfac15fae9af6168bd0484f4116383895dbb19206d1c423636a1d1c89c -->
+<!-- source-sha256: 1bc3496f4acf4f213d960777201f96aa80f2a5b8b69c3aff428d74b525c27e8f -->

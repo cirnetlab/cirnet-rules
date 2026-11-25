@@ -8,7 +8,6 @@ Read the relevant owner source, rule and [Skill](skills/README.md) for the task.
 | --- | --- |
 | Choose context for the task | [Context loading](docs/context.md) |
 | Select architecture, find the owner and check Lab-First priority | [Architecture policy](policies/architecture.md) · [Repository routing](references/architecture-routing.md) |
-| Author a LIGHT, STANDARD or DEEP Work Prompt | [Authoring Skill](skills/cirnet-work-prompt-authoring/SKILL.md) · [Chat-to-Work template](templates/chat-to-work-prompt.md) |
 | Implement, debug, refactor and verify the scoped change | [Execution Skills](skills/README.md) · [Testing](rules/testing.md) |
 | Check authorization and specific constraints | [Permissions](policies/permissions.md) · [Coding](rules/coding.md) · [Security](rules/security.md) · [Cross-repo](rules/cross-repo.md) |
 | Compare versions, contracts and selected artifacts | [Compatibility evidence](docs/compatibility.md) |

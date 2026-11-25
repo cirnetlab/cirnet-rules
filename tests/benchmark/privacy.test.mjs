@@ -17,9 +17,9 @@ test('literal and escaped output/error/export detection stays separate from prev
   for (const value of values) {
     const unicode = [...value].map(char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
     const hex = [...value].map(char => '\\x' + char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
-    for (const role of ['Author', 'Work']) for (const kind of ['output', 'error', 'export', 'handoff']) {
+    for (const kind of ['output', 'error', 'export', 'final']) {
       for (const encoded of [value, unicode, unicode.replaceAll('\\', '\\\\'), hex, value.slice(0, 2) + unicode.slice(12)]) {
-        assert.ok(containsProtectedValue(JSON.stringify({ role, kind, content: encoded }), values), 'Known synthetic exposure must be detected without echoing it.');
+        assert.ok(containsProtectedValue(JSON.stringify({ kind, content: encoded }), values), 'Known synthetic exposure must be detected without echoing it.');
       }
     }
   }

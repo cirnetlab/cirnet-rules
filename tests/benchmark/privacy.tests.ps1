@@ -18,8 +18,7 @@ $definition = $ast.Find({ param($node)
 $values = @(Get-E01AuditValues $source)
 if ($values.Count -ne 4) { throw 'Both protected fields in both E01 records must be audited.' }
 $issues = [Collections.Generic.List[string]]::new()
-foreach ($role in @('Author', 'Work')) {
-    foreach ($channel in @('command output', 'error', 'final handoff', 'export')) {
+    foreach ($channel in @('command output', 'error', 'final result', 'export')) {
         foreach ($encoding in @('plain', 'unicode', 'nested-unicode', 'hex', 'mixed')) {
             foreach ($value in $values) {
                 $encoded = switch ($encoding) {
@@ -30,15 +29,14 @@ foreach ($role in @('Author', 'Work')) {
                     mixed { $value.Substring(0, 2) + (($value.Substring(2).ToCharArray() | ForEach-Object { '\u{0:x4}' -f [int]$_ }) -join '') }
                 }
                 if (-not (Test-EvidenceValue "synthetic $channel $encoded" $values)) {
-                    $issues.Add("$role/$channel/$encoding not detected")
+                    $issues.Add("direct/$channel/$encoding not detected")
                 }
             }
         }
     }
-}
 if (Test-EvidenceValue 'readPreferences recoveryCode identifiers only' $values) { $issues.Add('Safe identifiers were rejected') }
 if ($issues.Count) { throw ('Protected-value boundary regression: ' + ($issues -join '; ')) }
-Write-Host 'PASS: both-role plain/escaped output, error, handoff and export audit fixtures (not native execution).'
+Write-Host 'PASS: direct plain/escaped output, error, final result and export audit fixtures (not native execution).'
 
 Import-Module (Join-Path $repo 'scripts/shared/Bundle.psm1')
 foreach ($name in @('Get-Snapshot', 'Get-E01ReadBoundaryArgs')) {

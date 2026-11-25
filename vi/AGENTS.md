@@ -11,8 +11,6 @@ bản dịch hoặc theo yêu cầu.
 - Tìm đường dẫn và ký hiệu trước khi đọc mã, nơi gọi, test và contract của
   bên sở hữu. Dùng metadata của Skill để chọn quy trình và tài liệu tham
   chiếu. Mở rộng context theo phụ thuộc và rủi ro.
-- Khi được yêu cầu soạn Work Prompt, chọn `cirnet-work-prompt-authoring` và
-  đọc mẫu tiếng Anh từ checkout được phép. Giao phần thực thi cho Work Agent.
 - Khi cần quyết định kiến trúc, mở
   `en/policies/architecture.md` từ checkout `cirnet-rules` được phép hoặc artifact
   kiến trúc đã xác minh. Đọc phần liên quan và lấy thông tin từ chủ sở hữu.
@@ -78,4 +76,4 @@ bản dịch hoặc theo yêu cầu.
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: 14b0e0cda4359d28f46284019c68b1a250cd553454f0a663abc50159c1fab1e7 -->
+<!-- source-sha256: e1622a104b9b55ad3f884d18966e215cf87c8c5c6c150245a419db363c882f7f -->

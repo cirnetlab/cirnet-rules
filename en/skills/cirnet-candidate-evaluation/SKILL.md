@@ -5,8 +5,7 @@ description: Use when planning, running, reviewing, or reporting a CIRNET Single
 
 # Evaluate a single CIRNET Candidate
 
-Use the existing Single Candidate Evaluation workflow for the Author → Work
-chain. Use product-owner checks for product acceptance.
+Use Single Candidate Evaluation to run each selected engineering scenario directly. Use product-owner checks for product acceptance.
 
 1. **Select by risk.** Identify the affected behavior, tool or trust boundary.
    Select the smallest set of catalog scenarios that exercises it. Record the
@@ -16,14 +15,13 @@ chain. Use product-owner checks for product acceptance.
    session. Verify the source revision, frozen Rules, Skills, evaluator and
    original fixture hashes. Keep historical reports, original E01–E08
    evidence and archived A/B and Adaptive Stable Orchestrator material intact.
-   For native calls, obtain separate authorization and the exact role call
-   cap. Apply the existing independent handoff review before native Work.
+   For native calls, obtain separate authorization and the exact scenario call
+   cap. Review the frozen scope and fixtures before native execution.
 3. **Grade the evidence.** Check execution, objective results, scope audit,
    privacy and the sealed evidence. A shim result covers the exercised
    harness. `OBJECTIVE_PASS_REVIEW_REQUIRED` leaves behavioral review pending.
    An independent reviewer assesses actual native evidence against the frozen
-   criteria and indexed artifacts. Treat Author and Work outputs as evidence
-   for that review. Claim native behavioral PASS only when the final quality
+   criteria and indexed artifacts. Use the direct run’s output and tool trace as evidence. Claim native behavioral PASS only when the final quality
    verdict records PASS for the criteria in scope.
 4. **Report the scope.** Record scenarios, revision, hashes, runtime settings
    and evidence locators. Use `PASS` for supported criteria, `FAIL` for observed

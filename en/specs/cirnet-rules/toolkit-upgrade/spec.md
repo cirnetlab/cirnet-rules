@@ -50,8 +50,10 @@ historical E01–E08 evidence are outside this change.
 
 ## Chat-to-Work authoring
 
-One [template](../../../templates/chat-to-work-prompt.md) defines a 12-section
-handoff and one [Skill](../../../skills/cirnet-work-prompt-authoring/SKILL.md)
+Historical specification from `dedc2e2`. The current authoring workflow is external.
+
+One template defines a 12-section
+handoff and one Skill
 applies it when the user requests a Work Prompt. Use the English template
 from an approved checkout, separate observed evidence from assumptions, and
 carry forward applicable CIRNET ownership, architecture and permissions.

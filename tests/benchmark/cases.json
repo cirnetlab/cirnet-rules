@@ -3,7 +3,6 @@
     "id": "E01",
     "language": "javascript",
     "default": true,
-    "readiness": "PROMPT_BLOCKED",
     "prompt": "Add a user data export feature.",
     "skills": ["cirnet-implementation"],
     "prerequisites": [],
@@ -59,7 +58,7 @@
   {
     "id": "E04",
     "language": "javascript",
-    "readiness": "PROMPT_BLOCKED",
+    "readOnly": true,
     "gitRoots": ["consumer", "producer"],
     "cwd": "consumer",
     "prompt": "Display the new badgeLabel field from the API in the consumer. Change only this consumer repository.",

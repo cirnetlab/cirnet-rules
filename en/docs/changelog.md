@@ -2,6 +2,7 @@
 
 ## 0.2.0 (candidate)
 
+- Retire internal Work Prompt authoring and run Candidate engineering scenarios directly. Work Prompt authoring now uses the ChatGPT Project’s `SKILL-en.md`.
 - Add [owner-check preview, pinned stage evidence and bounded correction](distribution.md#verification-evidence)
   for the existing verification workflow.
 
