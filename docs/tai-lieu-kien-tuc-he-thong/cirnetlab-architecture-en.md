@@ -121,7 +121,7 @@ On 2026-11-15 the accessible GitHub inventory contained **33 repositories**. Thi
 
 | Repository | Organizational role | Runtime status |
 |---|---|---|
-| `cirnet-rules` | Shared engineering baseline, task continuity, and verification tools | Development governance only; not a CIRNET business runtime |
+| `cirnet-rules` | Baseline AI Agent rules, task-specific Skills, policies and verification/distribution guidance | Development governance only; not a CIRNET business runtime |
 | `about-cirnetlab` | Organization profile, brand and approved high-level documentation; possible canonical architecture host after approval | Not a product runtime |
 | `.github` | GitHub organization/profile/configuration/automation metadata | Not a CIRNET product runtime |
 
@@ -515,7 +515,7 @@ Distinguish `RTL simulation PASS` from electrical safety, `Contract tests PASS` 
 
 The GitHub organization maintains **independent repositories**. Local clones under `E:\ALL_PROJECTS\LUAN_VAN_TOT_NGHIEP\REPO` do not constitute a monorepo or implicitly grant an agent permission to modify all descendants.
 
-1. Read organization-wide CIRNET architecture; then read the relevant specialist architecture (`Lab-First`, FPGA), the owning repository's instructions and the [CIRNET baseline](../../AGENTS.md).
+1. Read organization-wide CIRNET architecture; then read the relevant specialist architecture (`Lab-First`, FPGA), the repository `AGENTS.md` and task-specific rules/Skills from `cirnet-rules`.
 2. Identify the owning bounded context, exact current selected contracts/artifact versions and permitted change scope.
 3. Prefer the smallest maintainable change in the owning repository; do not duplicate schemas, engines or source files in consumers.
 4. Write cross-repo change/compatibility tests before claiming an integrated capability.
@@ -526,7 +526,7 @@ The GitHub organization maintains **independent repositories**. Local clones und
 
 ### 18.1 Architecture document ownership
 
-This EN/VI pair is the canonical Ecosystem reference for organization boundaries and integration. See the [architecture index](../../en/README.md#architecture) for related sources. Approval and the long-term Organization publication location remain open (§21). Domain repositories link to this reference and the applicable Lab-First or FPGA architecture. Keep the paired editions aligned by meaning and retain historical revisions in Git.
+This EN/VI pair is the toolkit's [canonical Ecosystem reference](../../en/policies/architecture.md) for organization boundaries and integration. Approval and the long-term Organization publication location remain open (§21). Domain repositories link to this reference and the applicable Lab-First or FPGA architecture. Keep the paired editions aligned by meaning and retain historical revisions in Git.
 
 ---
 

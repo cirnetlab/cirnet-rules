@@ -59,6 +59,7 @@ impl Fixture {
             "README.md",
             "# Index\n\n[Guide](en/guide.md#first-heading)\n",
         );
+        fixture.pair("AGENTS.md", "# Agent rules\n");
         fixture.pair("guide.md", GUIDE);
         fixture.pair("docs/changelog.md", "# Changelog\n\n## 2.4.0 (candidate)\n");
         fixture.write(
@@ -68,6 +69,14 @@ impl Fixture {
                 sha256::hex(b"# Changelog\n\n## 2.4.0 (candidate)\n")
             ),
         );
+        for name in ["implementation", "debugging", "verification"] {
+            fixture.pair(
+                &format!("skills/{name}/SKILL.md"),
+                format!(
+                    "---\nname: {name}\ndescription: Use when work needs {name}.\n---\n\n# Skill\n"
+                ),
+            );
+        }
         fixture
     }
 
@@ -737,6 +746,7 @@ fn hygiene_keeps_intentional_copies_in_separate_roles() {
     );
     fixture.pair("plans/network/plan.md", &source);
     fixture.pair("specs/network/spec.md", &source);
+    fixture.pair("templates/retry.md", &source);
     fixture.pair("docs/samples/retry.md", &source);
     fixture.pair("docs/fixtures/retry.md", &source);
     fixture.pair("docs/components/README.md", "# Setup\n");
@@ -762,9 +772,9 @@ fn hygiene_keeps_intentional_copies_in_separate_roles() {
         0,
         &[
             "--new-file",
-            "AGENTS.md",
+            "en/AGENTS.md",
             "--new-file=CLAUDE.md",
-            "--new-file=en/docs/samples/retry.md",
+            "--new-file=en/templates/retry.md",
         ],
     );
     assert!(!report.contains("DOC_EXACT_DUPLICATE"), "{report}");
@@ -842,7 +852,7 @@ fn wrong_source_metadata_fails() {
     let original = fs::read_to_string(fixture.root.join("vi/guide.md")).unwrap();
     fixture.write(
         "vi/guide.md",
-        original.replace("source: en/guide.md", "source: en/docs/changelog.md"),
+        original.replace("source: en/guide.md", "source: en/AGENTS.md"),
     );
     fixture.check(1);
 }
@@ -924,6 +934,194 @@ fn heading_inline_code_keeps_its_text_in_fragment() {
 }
 
 #[test]
+fn frontmatter_is_not_a_heading() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "README.md",
+        "[Metadata](en/skills/debugging/SKILL.md#description-use-when-work-needs-debugging)\n",
+    );
+    fixture.check(1);
+}
+
+#[test]
+fn skill_frontmatter_requires_two_supported_single_line_strings() {
+    let fixture = Fixture::new();
+    for source in [
+        "# Missing metadata\n",
+        "---\nname: debugging\ndescription: Debug work.\nextra: value\n---\n",
+        "---\nname: wrong-name\ndescription: Debug work.\n---\n",
+        "---\nname: debugging\ndescription: [nested, values]\n---\n",
+        "---\nname: debugging\ndescription:  [nested, values]\n---\n",
+        "---\nname: debugging\ndescription: - nested value\n---\n",
+        "---\nname: debugging\ndescription: true\n---\n",
+        "---\nname: debugging\ndescription: .NaN\n---\n",
+        "---\nname: debugging\ndescription: -3.14e5\n---\n",
+        "---\nname: debugging\ndescription: 0xFF\n---\n",
+        "---\nname: debugging\ndescription: \n---\n",
+    ] {
+        fixture.pair("skills/debugging/SKILL.md", source);
+        fixture.check(1);
+    }
+}
+
+#[test]
+fn fourth_skill_and_ordinary_neighbor_directory_are_accepted() {
+    let fixture = Fixture::new();
+    fixture.pair(
+        "skills/extra/SKILL.md",
+        "---\nname: extra\ndescription: Extra.\n---\n",
+    );
+    fixture.pair("skills/notes/overview.md", "# Library notes\n");
+    fixture.check(0);
+}
+
+#[test]
+fn misnamed_or_nested_skill_file_is_rejected() {
+    let fixture = Fixture::new();
+    fixture.pair("skills/misc/skill.md", "# Wrong case\n");
+    assert!(fixture.check(1).contains("exactly SKILL.md"));
+    fs::remove_file(fixture.root.join("en/skills/misc/skill.md")).unwrap();
+    fs::remove_file(fixture.root.join("vi/skills/misc/skill.md")).unwrap();
+    fixture.pair("skills/misc/nested/SKILL.md", "# Wrong depth\n");
+    assert!(fixture.check(1).contains("direct skill directory"));
+}
+
+#[test]
+fn skill_name_and_description_limits_are_enforced() {
+    for name in ["Mixed-Case", "double--hyphen", "-leading", "a_b", "ending-"] {
+        let fixture = Fixture::new();
+        fixture.pair(
+            &format!("skills/{name}/SKILL.md"),
+            format!("---\nname: {name}\ndescription: Description.\n---\n"),
+        );
+        assert!(fixture.check(1).contains("invalid skill name"), "{name}");
+    }
+
+    let fixture = Fixture::new();
+    let name = "a".repeat(65);
+    fixture.pair(
+        &format!("skills/{name}/SKILL.md"),
+        format!("---\nname: {name}\ndescription: Description.\n---\n"),
+    );
+    assert!(fixture.check(1).contains("invalid skill name"));
+    let fixture = Fixture::new();
+    let description = "é".repeat(1025);
+    fixture.pair(
+        "skills/testing/SKILL.md",
+        format!("---\nname: testing\ndescription: {description}\n---\n"),
+    );
+    assert!(fixture.check(1).contains("1024 characters"));
+}
+
+#[test]
+fn quoted_string_for_numeric_skill_name_is_accepted() {
+    let fixture = Fixture::new();
+    fixture.pair(
+        "skills/123/SKILL.md",
+        "---\nname: '123'\ndescription: 'Choose this for rule 123: its checks are focused.'\n---\n",
+    );
+    fixture.check(0);
+}
+
+#[test]
+fn duplicate_skill_metadata_name_is_rejected() {
+    let fixture = Fixture::new();
+    fixture.pair(
+        "skills/z-copy/SKILL.md",
+        "---\nname: debugging\ndescription: A second skill using the same name.\n---\n",
+    );
+    assert!(fixture.check(1).contains("duplicate skill name"));
+}
+
+#[test]
+fn skill_name_must_match_its_folder() {
+    let fixture = Fixture::new();
+    fixture.pair(
+        "skills/portable/SKILL.md",
+        "---\nname: mismatch\ndescription: Description.\n---\n",
+    );
+    assert!(fixture.check(1).contains("must match the parent directory"));
+}
+
+#[test]
+fn skill_resource_can_use_portable_local_links() {
+    let fixture = Fixture::new();
+    fixture.pair(
+        "skills/debugging/SKILL.md",
+        "---\nname: debugging\ndescription: Debug work.\n---\n\n[Read](<references/Tiếng Việt.md#details>)\n",
+    );
+    fixture.pair(
+        "skills/debugging/references/Tiếng Việt.md",
+        "# Details\n\n![Diagram](../assets/diagram.txt)\n\n[Web](https://example.invalid/docs)\n",
+    );
+    fixture.write("en/skills/debugging/assets/diagram.txt", "Diagram\n");
+    fixture.check(0);
+    fs::remove_file(fixture.root.join("en/skills/debugging/assets/diagram.txt")).unwrap();
+    let report = fixture.check(1);
+    assert!(report.contains("references/Tiếng Việt.md"));
+    assert!(report.contains("target does not exist"));
+}
+
+#[test]
+fn skill_resource_cannot_escape_its_packaged_directory() {
+    let fixture = Fixture::new();
+    fixture.write("en/skills/debugging/assets/diagram.txt", "Diagram\n");
+    for target in [
+        "../../guide.md",
+        "%2e%2e/%2e%2e/guide.md",
+        "../debugging/SKILL.md",
+        "/en/skills/debugging/SKILL.md",
+        "C:/checkout/guide.md",
+        "file:///checkout/guide.md",
+        "assets%5cdiagram.txt",
+        "diagram.txt:stream",
+        "assets/diagram.txt:stream",
+        "assets/COM1.txt",
+        "assets//diagram.txt",
+        "assets/",
+        "assets",
+    ] {
+        fixture.pair(
+            "skills/debugging/SKILL.md",
+            format!("---\nname: debugging\ndescription: Debug work.\n---\n\n[Read][r]\n\n[r]: {target}\n"),
+        );
+        let report = fixture.check(1);
+        assert!(
+            report.contains("portable skill resource"),
+            "{target}: {report}"
+        );
+    }
+}
+
+#[test]
+fn eager_import_warning_counts_distinct_skills() {
+    let fixture = Fixture::new();
+    let repeated = "# Agent rules\n\n@en/skills/debugging/SKILL.md\n@en/skills/debugging/SKILL.md\n@en/skills/debugging/SKILL.md\n";
+    fixture.write("AGENTS.md", repeated);
+    fixture.pair("AGENTS.md", repeated);
+    let report = fixture.check(0);
+    assert!(report.contains("duplicate startup"));
+    assert!(!report.contains("eager startup"));
+    let eager = "# Agent rules\n\n@en/skills/debugging/SKILL.md\n@en/skills/implementation/SKILL.md\n@en/skills/verification/SKILL.md\n";
+    fixture.write("AGENTS.md", eager);
+    fixture.pair("AGENTS.md", eager);
+    let report = fixture.check(0);
+    assert!(report.contains("eager startup imports name every Skill"));
+}
+
+#[test]
+fn skill_resource_path_is_case_sensitive_on_every_platform() {
+    let fixture = Fixture::new();
+    fixture.write("en/skills/debugging/assets/Diagram.txt", "Diagram\n");
+    fixture.pair(
+        "skills/debugging/SKILL.md",
+        "---\nname: debugging\ndescription: Debug work.\n---\n\n![Diagram](assets/diagram.txt)\n",
+    );
+    let report = fixture.check(1);
+    assert!(report.contains("portable skill resource"));
+}
+
+#[test]
 fn version_file_must_be_one_canonical_triplet() {
     let fixture = Fixture::new();
     fixture.write("VERSION", "2.04.0\n");
@@ -962,11 +1160,28 @@ fn context_budget_warnings_remain_advisory() {
     let fixture = Fixture::new();
     let baseline = format!("# Agent rules\n\n{}!\n", "word ".repeat(510));
     fixture.write("AGENTS.md", &baseline);
-    let report = fixture.check(0);
-    assert!(
-        report.contains("WARN: AGENTS.md: context budget exceeded"),
-        "{report}"
+    fixture.pair("AGENTS.md", baseline);
+    fixture.pair(
+        "skills/README.md",
+        format!("# Router\n\n{}!\n", "word ".repeat(310)),
     );
+    fixture.pair(
+        "skills/debugging/SKILL.md",
+        format!(
+            "---\nname: debugging\ndescription: {}\n---\n\n#!\n{}!\n",
+            "x".repeat(241),
+            "word ".repeat(901)
+        ),
+    );
+    let report = fixture.check(0);
+    for path in [
+        "AGENTS.md",
+        "en/skills/README.md",
+        "en/skills/debugging/SKILL.md",
+    ] {
+        assert!(report.contains(&format!("WARN: {path}:")), "{report}");
+    }
+    assert!(report.contains("INFO: en/skills: metadata total"));
 }
 
 #[test]
@@ -974,9 +1189,10 @@ fn repeated_imports_and_conflicting_rules_warn_without_failing() {
     let fixture = Fixture::new();
     let paragraph = "Before completing work, review the project test results with the person who approved the work, then record any missing evidence in the report for the people who will maintain this project.";
     let baseline = format!(
-        "# Agent rules\n\n@AGENTS.md\n@en/\n\n{paragraph}\n\n{paragraph}\n\nAlways run the local test.\n\nNever run the local test.\n"
+        "# Agent rules\n\n@en/AGENTS.md\n@en/skills/\n\n{paragraph}\n\n{paragraph}\n\nAlways run the local test.\n\nNever run the local test.\n"
     );
     fixture.write("AGENTS.md", &baseline);
+    fixture.pair("AGENTS.md", baseline);
     fixture.write("AGENTS.override.md", "# User override\n");
     let report = fixture.check(0);
     for reason in [
@@ -998,22 +1214,23 @@ fn repeated_imports_and_conflicting_rules_warn_without_failing() {
 #[test]
 fn example_imports_and_rule_text_in_code_blocks_do_not_warn() {
     let fixture = Fixture::new();
-    let baseline = "# Example\n\n```md\n@en/\n@AGENTS.md\nAlways open all documents.\nNever open all documents.\n```\n";
+    let baseline = "# Example\n\n```md\n@en/skills/\n@en/AGENTS.md\nAlways open all documents.\nNever open all documents.\n```\n";
     fixture.write("AGENTS.md", baseline);
+    fixture.pair("AGENTS.md", baseline);
     assert!(!fixture.check(0).contains("WARN:"));
 }
 
 #[test]
-fn root_agent_baseline_is_required() {
+fn root_agent_mirror_drift_fails() {
     let fixture = Fixture::new();
-    fs::remove_file(fixture.root.join("AGENTS.md")).unwrap();
+    fixture.write("AGENTS.md", "# Drift\n");
     fixture.check(1);
 }
 
 #[test]
 fn adapter_is_exact() {
     let fixture = Fixture::new();
-    fixture.write("CLAUDE.md", "@missing.md\n");
+    fixture.write("CLAUDE.md", "@en/AGENTS.md\n");
     fixture.check(1);
 }
 
@@ -1054,7 +1271,7 @@ fn code_and_external_links_are_ignored() {
 fn directory_and_non_markdown_targets_exist() {
     let fixture = Fixture::new();
     fixture.write("asset.txt", "Asset\n");
-    fixture.write("README.md", "[Directory](en/docs/)\n[Asset](asset.txt)\n");
+    fixture.write("README.md", "[Directory](en/skills/)\n[Asset](asset.txt)\n");
     fixture.check(0);
 }
 

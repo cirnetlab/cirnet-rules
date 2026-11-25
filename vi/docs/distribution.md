@@ -1,12 +1,59 @@
-# Duy trì tác vụ và kiểm chứng
+# Bundle và nâng cấp
 
-[English](../../en/docs/operations.md)
+`VERSION` là phiên bản toolkit. Checker Cargo và mục release đầu ở changelog
+mỗi ngôn ngữ dùng cùng version. Phiên bản sản phẩm tách riêng. Version 0.2.0
+là candidate vì đổi tên skill mặc định và thêm định dạng phân phối local.
+
+## Chuẩn bị bundle local
+
+Chạy checker toolkit trước. Dùng PowerShell 7, Git và thư mục output do bạn sở hữu.
+Với bundle release, chọn revision đã review trùng HEAD sạch của checkout.
+Ví dụ thứ hai tạo bundle development từ checkout dirty.
+Script mặc định preview. Thêm `-Apply` để tạo archive.
+
+```powershell
+./scripts/package.ps1 -Output $output -Revision $reviewedRevision -Apply
+./scripts/package.ps1 -Output $output -AllowDirty -Apply
+```
+
+`$output` là thư mục archive đích và `$reviewedRevision` là mã commit Git đủ
+40 ký tự hoặc tag local. Chọn lệnh hợp trạng thái nguồn. Manifest development ghi revision
+và trạng thái dirty thực tế. Xem `Archive` trong kết quả lệnh, giải nén vào
+thư mục khác, rồi đặt `$bundle` là thư mục đã giải nén chứa manifest.
+
+```powershell
+./scripts/package.ps1 -Verify -Source $bundle
+```
+
+Định dạng 1 chứa path và hash SHA-256 từng file, phiên bản toolkit, revision
+Git và trạng thái dirty. Payload gồm baseline, license, thông báo, cùng skill
+tiếng Anh và tài nguyên local liên kết. Checksum khớp giúp phát hiện thay đổi
+nội dung. Chọn bundle từ nguồn tin cậy. Manifest mô tả byte payload.
+Timestamp và metadata container ZIP có thể khác giữa hai lần build.
+
+Chỉ đọc kiến trúc khi cần. Với Codex, Claude Code hoặc Antigravity, cung cấp
+checkout toolkit hoặc artifact kiến trúc đã giải nén, có phê duyệt. Bắt đầu từ
+[chính sách kiến trúc](../policies/architecture.md); giữ revision nguồn và đối
+chiếu byte cần dùng với [`docs/architecture-sources.tsv`](../../docs/architecture-sources.tsv).
+Bundle cài hướng dẫn, còn các nguồn kiến trúc nằm ngoài payload cài đặt.
+Nếu không có nguồn tham chiếu được phép, báo giới hạn trước khi quyết định về kiến trúc.
+
+## Soạn Work Prompt
+
+Khi cài và xác minh, chọn `-Skills 'cirnet-work-prompt-authoring'` cùng các Skill
+khác cần dùng. Bundle giữ nguyên byte của
+[mẫu tiếng Anh chính thức](../../en/templates/chat-to-work-prompt.md) trong
+thư mục `references/` của Skill. Bước xác minh bundle và bản cài kiểm tra
+các byte này. Có thể lấy mẫu từ checkout đã duyệt hoặc qua quyền truy cập
+GitHub cho phép xác minh repo, revision và đường dẫn mẫu đã duyệt. Khi không
+chạy được công cụ xác thực local, xem [soạn Work Prompt trong Chat](context.md#soạn-work-prompt-trong-chat).
+Nếu thiếu nguồn mẫu đã xác minh, Skill báo `PROMPT_BLOCKED`.
 
 ## Task Continuity
 
 Chạy `scripts/task-continuity.ps1` cùng các module bằng PowerShell 7 từ checkout
-`cirnet-rules` được phép ở revision đã duyệt. Cấp quyền đọc checkout và
-các tệp tác vụ đã duyệt. Đặt `Repository` là thư mục gốc của worktree
+`cirnet-rules` được phép ở revision đã duyệt. Bundle đã cài cung cấp baseline và
+Skills. Cấp riêng quyền đọc checkout. Đặt `Repository` là thư mục gốc của worktree
 sở hữu và dùng `AgentFamily` hiện tại (`codex` hoặc `claude-code`). Với thao tác
 trên task đã xác định, dùng `TaskId` viết thường ban đầu.
 
@@ -219,7 +266,9 @@ Cùng loại agent có thể dùng `verify -HandoffFile` với `-AgentFamily` d�
 ràng, dùng `resume -HandoffFile` với các tùy chọn đó và `-ConfirmScope`. Gói
 có thể báo `IntegrityStatus: PASS` trong khi kiểm chứng trên trạng thái thực tế
 vẫn là `NOT_RUN`. Việc kiểm tra Git hiện tại, quyền, tham chiếu và hiệu lực
-bằng chứng cần worktree gốc và checkpoint cục bộ.
+bằng chứng cần worktree gốc và checkpoint cục bộ. Việc khôi phục sau gián đoạn
+Native và bàn giao giữa các tài khoản được cấp quyền của cả hai loại agent được
+quy định trong [tiêu chí nghiệm thu](../specs/cirnet-rules/task-continuity/spec.md#11-kiểm-chứng-và-tiêu-chí-nghiệm-thu).
 
 ## Bằng chứng kiểm chứng
 
@@ -494,19 +543,34 @@ cho Task Continuity. Khóa theo task và kiểm tra ID chỉ cho tối đa một
 cạnh tranh được chạy với checkpoint đó. Dùng nhóm lỗi và lịch sử gốc đã
 rà soát độc lập khi đối chiếu yêu cầu còn lại.
 
-### Kiểm tra tài sản CAD tĩnh
+## Cập nhật và restore
 
-Chạy Node từ checkout được duyệt và cung cấp mã băm của tệp kỳ vọng đã được
-lưu riêng. Đường dẫn tệp kỳ vọng và tài sản tương đối với thư mục soạn thảo
-được duyệt.
+Giữ bundle đã review trước đó và receipt trả về khi apply. Dùng cùng lệnh
+install cho bundle mới đã review, xem trước đích, rồi apply và verify.
+Lặp lại bundle và lựa chọn giống nhau không phát sinh ghi. Ownership cài đặt
+áp dụng cho file managed. Đổi lựa chọn giữ lại skill đã cài trước đó.
+File liên kết không còn dùng trong skill được cập nhật vẫn nằm trên đĩa và
+được báo để review.
+Review ownership trước khi tự gỡ `implementation`, `debugging` và
+`verification` cũ để tránh workflow trùng.
+
+Đặt `$receipt` là đường dẫn từ dòng `Backup receipt` và dùng cùng agent,
+home và Codex home ban đầu. Xem trước restore trước khi apply.
 
 ```powershell
-node ./scripts/verify-cad-asset.mjs --root $approvedAuthoringRoot --expectation intake.json --sha256 $expectationPin
+./scripts/restore.ps1 -Backup $receipt -Agent $agent
+./scripts/restore.ps1 -Backup $receipt -Agent $agent -Apply
 ```
 
-Phép kiểm đọc hình học tĩnh GLB 2.0 và các giới hạn đã khai báo. Kết quả bao
-gồm cấu trúc và phép đo mà công cụ hỗ trợ. Phần cứng và an toàn điện cần bằng
-chứng riêng của bên sở hữu.
+Receipt ghi hash byte trước/sau của file bị ảnh hưởng. Restore kiểm tra trạng
+thái sau cài hiện tại trước khi phục hồi. Nếu người dùng sửa đích sau apply,
+review xung đột và khôi phục thủ công từ backup. Update và restore thao tác
+nhiều file. Lỗi ghi sẽ báo vấn đề rollback để bạn kiểm tra file được nêu.
+Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 
-<!-- source: en/docs/operations.md -->
-<!-- source-sha256: f15456002a83882a224af9fdcf8a1f65f79728360b75cb7a9bbc5493d6986620 -->
+Đọc [changelog](changelog.md) để xem thay đổi và [thiết lập](setup.md) để xem
+đích client. Chọn revision ổn định đã review để dùng thường xuyên và giữ bundle
+đã thử trước đó để phục hồi.
+
+<!-- source: en/docs/distribution.md -->
+<!-- source-sha256: 272ae6dfac15fae9af6168bd0484f4116383895dbb19206d1c423636a1d1c89c -->

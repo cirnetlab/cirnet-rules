@@ -358,3 +358,85 @@ pub(super) fn anchors(text: &str) -> HashSet<String> {
     }
     slugs
 }
+
+fn plain_scalar(value: &str) -> bool {
+    let Some(first) = value.chars().next() else {
+        return false;
+    };
+    if value.trim() != value
+        || "[]{}'\"&*!|>@`#%".contains(first)
+        || value.contains(char::is_control)
+        || value.contains(": ")
+        || value.ends_with(':')
+        || value.contains(" #")
+        || matches!(value, "-" | "?")
+        || (matches!(first, '-' | '?' | ':')
+            && value.chars().nth(1).is_some_and(char::is_whitespace))
+        || matches!(
+            value.to_ascii_lowercase().as_str(),
+            "true"
+                | "false"
+                | "yes"
+                | "no"
+                | "on"
+                | "off"
+                | "null"
+                | "~"
+                | ".nan"
+                | ".inf"
+                | "+.inf"
+                | "-.inf"
+        )
+    {
+        return false;
+    }
+    let number = value.replace('_', "");
+    if number.parse::<f64>().is_ok() {
+        return false;
+    }
+    let number = number.strip_prefix(['-', '+']).unwrap_or(&number);
+    ![("0b", 2), ("0o", 8), ("0x", 16)]
+        .iter()
+        .any(|(prefix, radix)| {
+            number.strip_prefix(prefix).is_some_and(|digits| {
+                !digits.is_empty() && digits.chars().all(|digit| digit.is_digit(*radix))
+            })
+        })
+}
+
+fn skill_scalar(value: &str) -> Option<&str> {
+    // Support literal single-quoted strings without escapes as well as plain
+    // scalars. In particular a digits-only name needs quoting to be a string.
+    if let Some(value) = value.strip_prefix('\'') {
+        return value
+            .strip_suffix('\'')
+            .filter(|value| !value.contains('\'') && !value.contains(char::is_control));
+    }
+    plain_scalar(value).then_some(value)
+}
+
+pub(super) fn skill_metadata(text: &str) -> Result<(&str, &str, &str), String> {
+    let (metadata, body) = frontmatter(text).ok_or("missing --- delimited frontmatter")?;
+    let mut name = None;
+    let mut description = None;
+    for line in metadata.lines() {
+        let (key, value) = line
+            .split_once(": ")
+            .ok_or("expected an unindented key: value frontmatter line")?;
+        let field = match key {
+            "name" => &mut name,
+            "description" => &mut description,
+            _ => return Err(format!("unsupported frontmatter field {key:?}")),
+        };
+        let value = skill_scalar(value)
+            .ok_or_else(|| format!("{key} must be a supported single-line string"))?;
+        if field.replace(value).is_some() {
+            return Err(format!("duplicate frontmatter field {key:?}"));
+        }
+    }
+    Ok((
+        name.ok_or("missing frontmatter name")?,
+        description.ok_or("missing frontmatter description")?,
+        body,
+    ))
+}

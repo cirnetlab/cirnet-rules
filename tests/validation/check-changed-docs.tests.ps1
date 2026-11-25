@@ -44,7 +44,9 @@ try {
     Write-Document 'Cargo.toml' "[package]`nname = 'fixture'`nversion = `"0.2.0`"`n"
     Write-Document 'AGENTS.md' "# Fixture instructions`n"
     Write-Document 'CLAUDE.md' "@AGENTS.md`n"
+    Write-Pair 'AGENTS.md' "# Fixture instructions`n" "# Chỉ dẫn thử nghiệm`n"
     Write-Pair 'docs/changelog.md' "# Changes`n`n## 0.2.0`n" "# Thay đổi`n`n## 0.2.0`n"
+    Write-Pair 'skills/test-skill/SKILL.md' "---`nname: test-skill`ndescription: Test skill.`n---`n`n# Skill`n" "# Kỹ năng thử nghiệm`n"
     Write-Document 'move-from.md' "# Rename example`n`nThis existing document will move with its contents unchanged.`n"
     Write-Document 'existing.md' "# Existing document`n`nThe earlier value is three bins.`n"
     Invoke-FixtureGit @('add', '--all')

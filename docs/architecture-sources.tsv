@@ -1,9 +1,9 @@
 # Source checkout revision: c00b282dd606dd887e460449fb80da9c4aa4c5c6
 # Revision identifies the original snapshot preserved in Git. Digests below identify the reviewed files at the listed paths.
 # source	language	path	sha256
-ecosystem	en	docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md	cdc4034002fc89aef27e40c7033b09ee89a2ab0deeb2c09d73925793aefd7b0d
-ecosystem	vi	docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-vi.md	fd74f492839b692b0399fe43b8e5cda78d3d52756e56f56f515573459f94cedb
-lab-first	en	docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-en.md	356520b07fb55b9b8083673c8555ab722bc88ebcbb0ed0ceab86e0fa27fbb902
-lab-first	vi	docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-vi.md	85d26b22ffd82b86b6d1b2e59b09707b9d8ed4fed9e128e22306be919556a13f
+ecosystem	en	docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md	702207c33c27f36153982fa7f34f11e6aa0d39cae1dcca628ca4d1319b059d9e
+ecosystem	vi	docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-vi.md	e74d706b3e7f83e7d75574d5ff93703314608bc5bed78e442beb6737a47308d0
+lab-first	en	docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-en.md	d92159c163ad25fc69adafca6fa297df1df876f62ec5d346c03feee79edee1f0
+lab-first	vi	docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-vi.md	ebf96122d8caa64e60f0bf3c50244f1f0a4243c84dc6852ea31ce53018752fc7
 fpga	en	docs/cirnetlab-FPGA-architecture-en.md	3f15048d03ec10c9baac15419c24feb70ed0bc9ce0635a07ed9a560007d0db4b
 fpga	vi	docs/cirnetlab-FPGA-architecture-vi.md	17c0efafdb45704c1a3b5d025bea575db37b1c0a4175adb31f3c40d38d2df119

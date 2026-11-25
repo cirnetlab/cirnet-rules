@@ -1148,7 +1148,7 @@ This is the **core acceptance scenario** for Lab-First. If the system uses a MUX
 
 ## 23. Canonical Documentation and Cross-Repository Update Process
 
-This EN/VI pair is the [canonical reference](../../en/README.md#architecture) for Lab execution and electrical safety. The [Ecosystem Architecture](cirnetlab-architecture-en.md) governs Organization boundaries and cross-domain integration. Owner documentation links to the applicable authority and records the contract or artifact revision it implements.
+The [toolkit architecture policy](../../en/policies/architecture.md) uses this EN/VI pair for Lab execution and electrical safety. The [Ecosystem Architecture](cirnetlab-architecture-en.md) governs Organization boundaries and cross-domain integration. Owner documentation links to the applicable authority and records the contract or artifact revision it implements.
 
 - Lab architecture: this document and the paired [Vietnamese edition](cirnet-architecture-lab-first-vi.md).
 - Implementation/API/system release authority: `cirnet-remote`.

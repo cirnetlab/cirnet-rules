@@ -1,40 +1,29 @@
-# CIRNET Rules
+# CIRNET Common Rules & Agent Skills Toolkit
 
-[Tiếng Việt](../vi/README.md) · [Engineering baseline](../AGENTS.md) · [Changelog](docs/changelog.md)
+Start with the [standalone baseline](AGENTS.md) and the target repository's
+applicable instructions. Use English for agent work and Vietnamese for review.
+Read the relevant owner source, rule and [Skill](skills/README.md) for the task.
 
-## Architecture
+| Need | Read |
+| --- | --- |
+| Choose context for the task | [Context loading](docs/context.md) |
+| Select architecture, find the owner and check Lab-First priority | [Architecture policy](policies/architecture.md) · [Repository routing](references/architecture-routing.md) |
+| Author a LIGHT, STANDARD or DEEP Work Prompt | [Authoring Skill](skills/cirnet-work-prompt-authoring/SKILL.md) · [Chat-to-Work template](templates/chat-to-work-prompt.md) |
+| Implement, debug, refactor and verify the scoped change | [Execution Skills](skills/README.md) · [Testing](rules/testing.md) |
+| Check authorization and specific constraints | [Permissions](policies/permissions.md) · [Coding](rules/coding.md) · [Security](rules/security.md) · [Cross-repo](rules/cross-repo.md) |
+| Compare versions, contracts and selected artifacts | [Compatibility evidence](docs/compatibility.md) |
+| Identify file ownership and check a move | [Proposed organization standard](rules/repository-organization.md) · [Repository map template](templates/repository-map.md) |
+| Set up a client, package or restore a local bundle | [Setup](docs/setup.md) · [Distribution](docs/distribution.md) |
+| Maintain bilingual documents and run checks | [Documentation policy](policies/documentation.md) · [Checks](hooks/README.md) |
+| Adapt local instructions or record task work | [Local AGENTS](templates/AGENTS.md) · [Plans](plans/README.md) · [Specs](specs/README.md) |
 
-- [Ecosystem](../docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md) for organization boundaries and integration.
-- [Lab-First](../docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-en.md) for Lab execution and electrical safety.
-- [FPGA](../docs/cirnetlab-FPGA-architecture-en.md) for board implementation.
-- [Repository ownership](references/architecture-routing.md) and [source SHA-256 pins](../docs/architecture-sources.tsv).
+Current candidate changes are in the [changelog](docs/changelog.md).
+Product evidence is dated in [references](references/README.md).
+See [toolkit verification](docs/toolkit-verification.md) for execution results
+and [earlier bilingual verification](docs/bilingual-verification.md) for history.
+Use [focused compatibility checks](docs/model-compatibility.md) and the
+[single-session Candidate benchmark](docs/behavioral-evaluation.md) when a model
+or tool boundary changes. The [benchmark archive](../reports/work-prompt-benchmark-history.md)
+records historical runs.
 
-## Local tools
-
-Run the tools from a reviewed checkout. PowerShell 7 runs Task Continuity and
-claim verification. Node runs owner check previews, retry decisions, and
-static CAD checks. See [operating instructions](docs/operations.md).
-
-## Documentation checks
-
-Use Rust 1.88 or later. The read-only checker validates bilingual source stamps,
-local links, version metadata, the baseline and Claude entrypoint, and pinned
-architecture sources and owner routing.
-
-```powershell
-cargo run --offline --locked --bin check-docs
-cargo test --offline --locked
-cargo clippy --offline --locked --all-targets -- -D warnings
-```
-
-Use `--root PATH` after `--` to select the checkout. Use repeatable
-`--new-file PATH` for duplicate review of new Markdown under the root,
-`en/` or `vi/`. CI uses [check-changed-docs.ps1](../scripts/check-changed-docs.ps1)
-with a local base commit to select added Markdown.
-
-## Migration
-
-Author Work Prompts in the ChatGPT Project with its `SKILL-en.md`. Update
-external references to [AGENTS.md](../AGENTS.md), the applicable architecture,
-or the retained operating instructions. Existing global client setups and
-local checkpoints are managed separately.
+[License](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md)

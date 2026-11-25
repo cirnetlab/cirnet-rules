@@ -1,11 +1,16 @@
 # Repository ownership and architecture routing
 
-Use the [Ecosystem Architecture](../../docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md#4-repository-responsibility-and-boundary-matrix)
-to find the owner, then verify the live contract and selected artifacts in
-that checkout. The rows describe target ownership. The core Lab repositories
-also use the [Lab-First Architecture](../../docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-en.md).
-Board implementations use the [FPGA Architecture](../../docs/cirnetlab-FPGA-architecture-en.md).
-Arrows indicate direct API, data, or artifact exchange.
+This index follows [Ecosystem Architecture §4](../../docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md).
+Use it to find the relevant owner, then verify the live contract, selected
+artifacts and availability in that checkout. The table records target ownership
+and integration paths. Verify implementation in the
+[product evidence](../docs/toolkit-verification.md#lab-first-product-evidence).
+
+Every row uses `ecosystem`. The six core Lab-First repositories also use
+`lab-first`. `fpga` applies to Lab board implementation. Select further overlays
+when the task crosses one of those boundaries. Arrows show the direction of
+the API call, data or artifact exchange between direct participants. See the
+[architecture policy](../policies/architecture.md) for controlling scope.
 
 ## Applications
 
@@ -63,11 +68,13 @@ Arrows indicate direct API, data, or artifact exchange.
 | `cirnet-ai` | `ecosystem` | Advisory tutoring and engineering assistance | Permission-scoped retrieval, suggestions, explanations and audit data | Authorized domain sources → AI → human or client review | Grade, flash, power and routing approvals remain with their owners. Scope retrieval to actor and resource. |
 
 Ecosystem §3 also assigns organization duties to `cirnet-rules` for shared agent
-guidance and local verification, `about-cirnetlab` for profile, branding and approved
+guidance and distribution, `about-cirnetlab` for profile, branding and approved
 public documentation, and `.github` for GitHub organization configuration and
 automation metadata. Product APIs and physical approvals remain with their
 product owners.
 
-Use the [static CAD asset check](../docs/operations.md#check-static-cad-assets)
-for local intake. Interface owns its Three.js asset contract, workbench
-interaction and product acceptance.
+For CAD model authoring and asset preflight, use the shared
+[CAD engineering rule](../rules/cad-engineering.md). Interface owns its
+Three.js asset contract and product acceptance. Use the
+[engineering workspace UI rule](../rules/engineering-workspace-ui.md)
+for interactive selection, editing and persistence in the workbench.

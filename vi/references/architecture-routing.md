@@ -1,11 +1,16 @@
 # Quyền sở hữu repository và định tuyến kiến trúc
 
-Dùng [Kiến trúc Ecosystem](../../docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-vi.md)
-để tìm bên sở hữu, rồi xác minh hợp đồng đang dùng và artifact được chọn trong
-checkout đó. Các dòng mô tả quyền sở hữu mục tiêu. Những repo Lab cốt lõi còn
-dùng [Kiến trúc Lab-First](../../docs/tai-lieu-kien-tuc-he-thong/cirnet-architecture-lab-first-vi.md).
-Triển khai bo mạch dùng [Kiến trúc FPGA](../../docs/cirnetlab-FPGA-architecture-vi.md).
-Mũi tên biểu thị trao đổi trực tiếp API, dữ liệu hoặc artifact.
+Bảng tra cứu dựa trên [Kiến trúc Ecosystem §4](../../docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-vi.md).
+Dùng bảng để tìm repo sở hữu, rồi xác minh hợp đồng đang dùng, artifact được
+chọn và khả năng sẵn có từ checkout đó. Bảng ghi quyền sở hữu và luồng tích hợp
+mục tiêu. Kiểm tra phần đã triển khai trong
+[bằng chứng sản phẩm](../docs/toolkit-verification.md#tuân-thủ-kiến-trúc).
+
+Mọi dòng dùng `ecosystem`. Sáu repository cốt lõi của Lab-First dùng thêm
+`lab-first`. `fpga` áp dụng cho triển khai bo Lab. Chọn thêm kiến trúc liên quan
+khi tác vụ vượt một trong các ranh giới đó. Mũi tên chỉ chiều gọi API hoặc trao
+đổi dữ liệu, artifact giữa các bên trực tiếp. Xem phạm vi thẩm quyền trong
+[chính sách kiến trúc](../policies/architecture.md).
 
 ## Ứng dụng
 
@@ -62,14 +67,16 @@ Mũi tên biểu thị trao đổi trực tiếp API, dữ liệu hoặc artifac
 | `cirnet-silicon` | `ecosystem` | Luồng ASIC giáo dục | RTL sang ASIC, luồng tổng hợp/STA/EDA/PDK và artifact thiết kế đã xác minh | Project và Toolchains đã ghim → Silicon → tham chiếu của Analyze hoặc LMS | Bảo vệ giấy phép PDK và bằng chứng sign-off. FPGA sở hữu RTL điều khiển Lab. |
 | `cirnet-ai` | `ecosystem` | Trợ giảng và hỗ trợ kỹ thuật mang tính tư vấn | Truy xuất theo quyền, đề xuất, giải thích và dữ liệu audit | Nguồn miền được cấp quyền → AI → người hoặc client rà soát | Quyền chấm điểm, nạp firmware, cấp nguồn và định tuyến thuộc bên sở hữu. Giới hạn truy xuất theo chủ thể và tài nguyên. |
 
-Ecosystem §3 còn giao nhiệm vụ tổ chức cho `cirnet-rules` về chỉ dẫn và
-kiểm chứng cục bộ, `about-cirnetlab` về hồ sơ, thương hiệu và tài liệu công khai đã
+Ecosystem §3 còn giao nhiệm vụ tổ chức cho `cirnet-rules` về chỉ dẫn và phân
+phối agent, `about-cirnetlab` về hồ sơ, thương hiệu và tài liệu công khai đã
 duyệt, và `.github` về cấu hình tổ chức GitHub và metadata tự động hóa. Chủ sở
 hữu sản phẩm giữ API sản phẩm và quyền phê duyệt thao tác vật lý.
 
-Dùng [phép kiểm tài sản CAD tĩnh](../docs/operations.md#kiểm-tra-tài-sản-cad-tĩnh)
-khi tiếp nhận tài sản cục bộ. Interface sở hữu hợp đồng tài sản Three.js,
-tương tác trong workbench và nghiệm thu sản phẩm.
+Để dựng mô hình CAD và kiểm tra tài sản trước khi tích hợp, dùng
+[Rule kỹ thuật CAD dùng chung](../rules/cad-engineering.md). Interface sở hữu
+hợp đồng tài sản Three.js và quyết định nghiệm thu sản phẩm. Dùng
+[Rule giao diện không gian làm việc kỹ thuật](../rules/engineering-workspace-ui.md)
+cho việc chọn đối tượng, chỉnh sửa và lưu trạng thái trong workbench tương tác.
 
 <!-- source: en/references/architecture-routing.md -->
-<!-- source-sha256: e9a5f7216b1a3942ff9ee6e067aa68c462f259e1236903a75eec37d3369d6847 -->
+<!-- source-sha256: 5e52061d38393c827a38976a52ac65cf09dc13e4374c9f397737cae2a5558ff6 -->
