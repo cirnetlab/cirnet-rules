@@ -1,5 +1,0 @@
-{
-  "version": "1.0.0",
-  "fields": { "id": "string", "title": "string" },
-  "sample": { "id": "c-01", "title": "Sample" }
-}

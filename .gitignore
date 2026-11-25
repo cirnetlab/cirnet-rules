@@ -1,11 +1,7 @@
 /target/
-/config/repositories.local.json
 /.cirnet/tasks/
-/.cnr/
 .superpowers/
-/.cirnetrules/
-/.openrules/
-/.cgacp/
-governance-cli-only.zip
-cirnet-rules.zip
-rules-common.zip
+
+# Local artifacts from previous versions.
+/config/repositories.local.json
+/cirnet-rules.zip

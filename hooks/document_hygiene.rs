@@ -112,12 +112,7 @@ fn scope(path: &Path, text: &str) -> Result<Scope, &'static str> {
         match directories.first().copied() {
             Some("plans") => "plans",
             Some("specs") => "specs",
-            Some("skills") if directories.contains(&"references") => "skill references",
-            Some("skills") => "skills",
             Some("references") => "references",
-            Some("hooks") => "hooks",
-            Some("rules") => "rules",
-            Some("policies") => "policies",
             _ => "docs",
         }
     };

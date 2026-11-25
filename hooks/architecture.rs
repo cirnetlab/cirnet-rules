@@ -253,7 +253,7 @@ fn validate_routing(
 fn validate_snapshot_links(checker: &mut Checker, path: &Path, text: &str) {
     let (links, undefined) = markdown::links(text);
     for destination in links {
-        if let Err(error) = checker.validate_link(path, &destination, None) {
+        if let Err(error) = checker.validate_link(path, &destination) {
             checker.fail(path, format!("invalid link {destination:?}: {error}"));
         }
     }

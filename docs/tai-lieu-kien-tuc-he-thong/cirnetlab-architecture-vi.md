@@ -112,7 +112,7 @@ ONE IDENTITY + ONE ENGINEERING PROJECT + VERSIONED CONTRACTS
 ### 3.1 33 Repository tại ngày rà soát
 
 - **30 Repository thuộc sản phẩm và công cụ** của hệ sinh thái được liệt kê đầy đủ ở §4.
-- **`cirnet-rules`:** quản lý baseline Rules, Agent Skills, policies, verification rules và gói phân phối quy tắc; **không** là runtime nghiệp vụ.
+- **`cirnet-rules`:** quản lý baseline kỹ thuật, công cụ duy trì tác vụ và kiểm chứng; **không** là runtime nghiệp vụ.
 - **`about-cirnetlab`:** hồ sơ thương hiệu/tài liệu Organization, có thể làm **nơi lưu tài liệu kiến trúc tổng thể** nếu được phê duyệt; **không** chạy trong sản phẩm.
 - **`.github`:** GitHub Organization profile/configuration/automation metadata; **không** là ứng dụng.
 
@@ -189,7 +189,7 @@ Mỗi Repo dưới đây có **một vùng trách nhiệm chính**. Trường *O
 
 | Repository | Vai trò | Ranh giới |
 |---|---|---|
-| **[`cirnet-rules`](https://github.com/cirnetlab/cirnet-rules)** | Nguồn Rules, Skills, Policies, agent instructions và checks dùng xuyên Repo | Không gọi business APIs, không giữ project/user data; tham chiếu kiến trúc chuẩn chứ không sao chép toàn bộ |
+| **[`cirnet-rules`](https://github.com/cirnetlab/cirnet-rules)** | Baseline kỹ thuật, công cụ duy trì tác vụ và kiểm chứng dùng chung | Không gọi business APIs, không giữ project/user data; tham chiếu kiến trúc chuẩn chứ không sao chép toàn bộ |
 | **[`about-cirnetlab`](https://github.com/cirnetlab/about-cirnetlab)** | Organization identity, branding và tài liệu kiến trúc/chính sách cấp Organization | Không tham gia runtime, compile hay điều phối project; phù hợp làm nơi lưu file kiến trúc canonical nếu được duyệt |
 | **[`.github`](https://github.com/cirnetlab/.github)** | Organization profile, GitHub templates/config chung | Không chứa domain logic hoặc thư viện runtime |
 
@@ -622,13 +622,13 @@ Unit/domain tests đặt gần code owner. Cross-repo conformance fixtures do Co
 
 ### 18.1 Một tài liệu kiến trúc chuẩn, nhiều đặc tả chuyên sâu
 
-Cặp Anh–Việt này là [tài liệu Ecosystem chuẩn của bộ quy tắc](../../vi/policies/architecture.md) về ranh giới tổ chức và tích hợp. Phê duyệt và nơi công bố lâu dài cấp tổ chức vẫn là quyết định mở (§21). Repo sản phẩm liên kết đến tài liệu này và kiến trúc Lab-First hoặc FPGA tương ứng. Cập nhật cặp ngôn ngữ theo cùng nội dung và giữ các phiên bản lịch sử trong Git.
+Cặp Anh–Việt này là tài liệu Ecosystem chuẩn về ranh giới tổ chức và tích hợp. Xem [mục lục kiến trúc](../../vi/README.md#kiến-trúc) để tìm các nguồn liên quan. Phê duyệt và nơi công bố lâu dài cấp tổ chức vẫn là quyết định mở (§21). Repo sản phẩm liên kết đến tài liệu này và kiến trúc Lab-First hoặc FPGA tương ứng. Cập nhật cặp ngôn ngữ theo cùng nội dung và giữ các phiên bản lịch sử trong Git.
 
 ### 18.2 Quy tắc cho AI Agents
 
 ```text
 Read Organization architecture
-  → identify owning Repository + its AGENTS/Rules/Skills
+  → identify the owning repository and its instructions
   → inspect canonical schema and selected artifacts
   → select smallest scoped change in source owner
   → update consumers using versioned contract
@@ -637,7 +637,7 @@ Read Organization architecture
   → report evidence/NOT_RUN and request human approval for release
 ```
 
-`cirnet-rules` quản Agent rules/skills; **không** lưu một bản sao diverge của toàn bộ kiến trúc. New Repo README cần scope, owner, language/runtime, API contracts, data ownership, dependencies, non-goals, acceptance criteria và status thật; tránh README chỉ chứa tên sau khi bắt đầu implementation.
+`cirnet-rules` duy trì [baseline kỹ thuật](../../AGENTS.md); **không** lưu một bản sao diverge của toàn bộ kiến trúc. New Repo README cần scope, owner, language/runtime, API contracts, data ownership, dependencies, non-goals, acceptance criteria và status thật; tránh README chỉ chứa tên sau khi bắt đầu implementation.
 
 ### 18.3 Monorepo vs multi-repo
 

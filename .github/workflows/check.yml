@@ -1,4 +1,4 @@
-name: Check toolkit
+name: Check CIRNET Rules
 
 on:
   push:
@@ -25,10 +25,6 @@ jobs:
       - name: Test Task Continuity discovery and bootstrap
         shell: pwsh
         run: ./tests/continuity/bootstrap.tests.ps1
-      - name: Validate Work Prompt handoffs offline
-        shell: pwsh
-        run: ./tests/validation/work-prompt.tests.ps1
-      - run: node --test ./tests/benchmark/source.test.mjs ./tests/benchmark/rtl.test.mjs
       - name: Test verification preview and retry decisions
         run: node --test ./tests/verification/preview-owner-checks.test.mjs ./tests/verification/retry-policy.test.mjs
       - name: Test static CAD asset intake
@@ -45,9 +41,6 @@ jobs:
       - name: Test claim and process status reporting
         shell: pwsh
         run: ./tests/verification/report-claim.tests.ps1
-      - name: Test RTL trace evidence collection
-        shell: pwsh
-        run: ./tests/benchmark/rtl.tests.ps1
       - run: cargo test --offline --locked
       - name: Check documentation and added Markdown files
         shell: pwsh
@@ -58,19 +51,3 @@ jobs:
         shell: pwsh
         run: ./tests/validation/check-changed-docs.tests.ps1
       - run: cargo clippy --offline --locked --all-targets -- -D warnings
-      - if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          ./tests/distribution/package.Tests.ps1
-          ./tests/distribution/install.tests.ps1
-          ./tests/benchmark/role.tests.ps1
-          ./tests/benchmark/followup.tests.ps1
-      - name: Test unified fixture checks on Ubuntu
-        if: runner.os == 'Linux'
-        shell: pwsh
-        run: |
-          $env:CIRNET_TEST_OUTPUT = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'cirnet-fixture-tests')).FullName
-          node --test ./tests/benchmark/checks.test.mjs ./tests/benchmark/privacy.test.mjs
-      - name: Test single Candidate session with a local shim
-        shell: pwsh
-        run: ./tests/benchmark/session.tests.ps1

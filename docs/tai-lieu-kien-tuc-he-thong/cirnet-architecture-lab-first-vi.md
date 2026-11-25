@@ -1151,7 +1151,7 @@ Mạch sinh viên khác vị trí giảng viên, cố tình đấu sai một dâ
 
 ## 23. Tài liệu chuẩn và quy trình cập nhật xuyên Repo
 
-[Chính sách kiến trúc của bộ quy tắc](../../vi/policies/architecture.md) dùng cặp Anh–Việt này cho thực thi Lab và an toàn điện. [Kiến trúc Ecosystem](cirnetlab-architecture-vi.md) quy định ranh giới tổ chức và tích hợp giữa các miền. Tài liệu của từng chủ sở hữu liên kết tới nguồn có thẩm quyền và ghi revision hợp đồng hoặc artifact đang áp dụng.
+Cặp Anh–Việt này là [tài liệu chuẩn](../../vi/README.md#kiến-trúc) về thực thi Lab và an toàn điện. [Kiến trúc Ecosystem](cirnetlab-architecture-vi.md) quy định ranh giới tổ chức và tích hợp giữa các miền. Tài liệu của từng chủ sở hữu liên kết tới nguồn có thẩm quyền và ghi revision hợp đồng hoặc artifact đang áp dụng.
 
 - Kiến trúc Lab: tài liệu này và [bản tiếng Anh](cirnet-architecture-lab-first-en.md).
 - Implementation/API/system release authority: `cirnet-remote`.
