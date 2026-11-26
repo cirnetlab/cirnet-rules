@@ -10,7 +10,7 @@ param(
     [switch]$ConfirmRelatedRead,
     [string]$TrustedReviewPath,
     [string]$TrustedReviewSha256,
-    [string]$CheckpointRoot = '.cirnet/tasks'
+    [ValidateNotNullOrEmpty()][string]$CheckpointRoot
 )
 
 Set-StrictMode -Version Latest

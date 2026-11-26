@@ -27,6 +27,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '../shared/Bundle.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Scenarios.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot '../continuity/Repository.psm1')
+Import-Module (Join-Path $PSScriptRoot '../continuity/Repository.psm1')
 
 $utf8 = [Text.UTF8Encoding]::new($false)
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -572,9 +573,13 @@ if (-not $bounded -and $Execute -and ($AuthHome -or $UseApiKey) -and [IO.Path]::
 
 $rules = Resolve-LocalRoot $RulesRoot
 $output = Resolve-LocalRoot $OutputRoot
-$temp = Resolve-LocalRoot ([IO.Path]::GetTempPath())
+$temp = if ($null -eq $env:CIRNET_LOCAL_STORAGE_ROOT) {
+    Resolve-LocalRoot ([IO.Path]::GetTempPath())
+} else {
+    Get-ContinuityLocalStorage (Get-ContinuityRepository $repo) artifacts
+}
 if (-not (Test-Beneath $temp $output) -or (Test-Beneath $repo $output) -or (Test-Beneath $rules $output)) {
-    throw '-OutputRoot must be in the OS temporary directory and outside the worktree and rules snapshot.'
+    throw '-OutputRoot must be under the approved benchmark root outside the worktree and rules snapshot.'
 }
 Assert-NoProfileInputs $output @('.git', 'AGENTS.md', 'AGENTS.override.md', '.agents', '.codex')
 $sessionRoot = Resolve-CirnetPath -Root $output -Relative $Session

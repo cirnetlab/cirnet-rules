@@ -46,12 +46,25 @@ Skills. Cấp riêng quyền đọc checkout. Đặt `Repository` là thư mục
 sở hữu và dùng `AgentFamily` hiện tại (`codex` hoặc `claude-code`). Với thao tác
 trên task đã xác định, dùng `TaskId` viết thường ban đầu.
 
-Dùng quy ước lưu trữ cục bộ của bên sở hữu. Trước khi chọn `.cirnet/tasks/`,
-xác nhận Git chưa theo dõi và đã bỏ qua đường dẫn qua quy tắc của repo được
-duyệt hoặc tệp loại trừ cục bộ của checkout. Dùng `CheckpointRoot` mỗi lần gọi
-nếu chọn đường dẫn bị bỏ qua khác hoặc thư mục do bạn sở hữu ngoài worktree.
-Lưu ghi chú đầu vào và gói bàn giao ngoài đường dẫn Git theo dõi, chỉ cấp quyền
-cho người thực hiện có thẩm quyền.
+Đặt biến cấp tiến trình `CIRNET_LOCAL_STORAGE_ROOT` thành thư mục cục bộ
+hiện hữu ngoài checkout, worktree và thư mục quản trị Git. Với origin
+CIRNETLAB chính tắc, lệnh checkpoint mặc định dùng
+`<root>/.cirnet/tasks/<repository-id>`. Benchmark cục bộ và đầu ra phát triển do
+Contracts cấp phát dùng `<root>/.cirnet-build-output/<repository-id>`.
+Đặt TEMP, TMP và TMPDIR vào thư mục tạm sở hữu trong tiến trình chạy test.
+
+`-CheckpointRoot` chỉ định kho khác hoặc kho lịch sử đã được phép. Khi không
+cấu hình cả hai, mặc định cũ là `.cirnet/tasks` đã được Git bỏ qua. Worktree liên
+kết dùng namespace của repo. Dùng Task ID khác nhau giữa các worktree. Cơ chế
+định danh hiện có chặn khôi phục hoặc sửa checkpoint của worktree khác. Ghi
+claim nghiêm ngặt truyền đường dẫn checkpoint đã phân giải vào trình xác minh
+cô lập. Giữ hồ sơ claim đã review trong worktree sở hữu theo quy ước hiện có.
+
+Khi khôi phục dữ liệu cũ, chạy verify và resume trên worktree ban đầu với
+`-CheckpointRoot` cũ. Trước khi sao chép, kiểm tra con trỏ, băm snapshot, worktree,
+Task Key và xung đột ở đích task lẫn binding. Xác minh lại bản sao từ worktree
+ban đầu với thư mục gốc mới. Giữ bản gốc và đường dẫn tuyệt đối của artifact
+session đã ghi.
 
 Trong `<CheckpointRoot>/<task-id>/`, `current.json` xác định snapshot đã công bố.
 Thư mục `snapshots/<checkpoint-id>/` của snapshot đó chứa `task.md`,
@@ -562,4 +575,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 1bc3496f4acf4f213d960777201f96aa80f2a5b8b69c3aff428d74b525c27e8f -->
+<!-- source-sha256: ffaf2b3524a77ba6da5d68ddb03dc250238bccdec96b228d79a2846a7c24b6dc -->

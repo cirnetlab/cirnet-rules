@@ -102,18 +102,20 @@ function historyDigest(attempts) {
 // Reads the original local Task Continuity store. The resulting anchor is a
 // candidate for independent operator review and retention across sessions.
 export function readCorrectionHistory(options) {
-  const { repository, taskId, clusterId, agentFamily, checkpointRoot = '.cirnet/tasks', relatedRoots = {}, confirmScope } = options ?? {};
+  const { repository, taskId, clusterId, agentFamily, checkpointRoot, relatedRoots = {}, confirmScope } = options ?? {};
   if (confirmScope !== true) return { reason: 'read-scope-unconfirmed' };
   if (!isAbsolutePath(repository) || !isId(taskId) || !isId(clusterId) || clusterId.length > 59 ||
-      !['codex', 'claude-code'].includes(agentFamily) || typeof checkpointRoot !== 'string' ||
-      !checkpointRoot || checkpointRoot.startsWith('-') || !relatedRoots || typeof relatedRoots !== 'object' ||
+      !['codex', 'claude-code'].includes(agentFamily) ||
+      (checkpointRoot !== undefined && (typeof checkpointRoot !== 'string' || !checkpointRoot || checkpointRoot.startsWith('-'))) ||
+      !relatedRoots || typeof relatedRoots !== 'object' ||
       Array.isArray(relatedRoots) || !Object.entries(relatedRoots).every(([key, path]) => isId(key) && isAbsolutePath(path))) {
     return { reason: 'invalid-evidence' };
   }
   try {
     const args = ['-NoProfile', '-NonInteractive', '-File', historyReader,
       '-Repository', repository, '-TaskId', taskId, '-AgentFamily', agentFamily,
-      '-ClusterId', clusterId, '-CheckpointRoot', checkpointRoot, '-RelatedRootsJson', JSON.stringify(relatedRoots), '-ConfirmScope'];
+      '-ClusterId', clusterId, '-RelatedRootsJson', JSON.stringify(relatedRoots), '-ConfirmScope'];
+    if (checkpointRoot !== undefined) args.push('-CheckpointRoot', checkpointRoot);
     const read = spawnSync('pwsh', args, {
       cwd: toolkitDirectory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 30_000, maxBuffer: 256 * 1024, windowsHide: true,

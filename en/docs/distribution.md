@@ -51,12 +51,26 @@ Set `Repository` to the owning worktree root and use the current
 `AgentFamily` (`codex` or `claude-code`). Use the original lowercase
 `TaskId` for operations on an identified task.
 
-Use the owner's existing local storage convention. Before using the default
-`.cirnet/tasks/`, confirm it is untracked and ignored, using an owner approved
-repository ignore rule or the checkout's local Git exclude file. Set
-`CheckpointRoot` on every call for a different ignored path or an owned directory
-outside a worktree. Keep input notes and handoff files out of tracked paths and
-restrict access to authorized operators.
+Set the process variable `CIRNET_LOCAL_STORAGE_ROOT` to an existing local
+directory outside Git checkouts, worktrees and administration directories.
+For a canonical CIRNETLAB Git origin, checkpoint commands default to
+`<root>/.cirnet/tasks/<repository-id>`. Local benchmarks and Contracts-owned
+development outputs use `<root>/.cirnet-build-output/<repository-id>`.
+Set TEMP, TMP and TMPDIR in the test process to an owned scratch directory.
+
+An explicit `-CheckpointRoot` selects an authorized alternate or historical
+store. Without either setting, the legacy Git-ignored `.cirnet/tasks` default
+applies. A linked worktree uses its repository namespace. Use distinct Task IDs
+across worktrees. The existing checkpoint identity rejects foreign recovery
+and updates. Strict claim capture passes the resolved checkpoint argument to
+the isolated verifier. Keep reviewed structured claim records in the owning
+worktree under the existing evidence convention.
+
+Recover historical data on the original worktree by passing `-CheckpointRoot`
+to verify and resume. Before copying a historical task, verify the pointer,
+snapshot hashes, worktree and Task Key, and check task and binding destinations
+for collisions. Reverify the copy with the original worktree and explicit new
+root. Retain original data and preserve owned artifact session absolute paths.
 
 Under `<CheckpointRoot>/<task-id>/`, `current.json` identifies the published
 snapshot. Its `snapshots/<checkpoint-id>/` directory contains `task.md`,

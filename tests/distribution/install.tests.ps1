@@ -7,7 +7,7 @@ $install = Join-Path $repo 'scripts/install.ps1'
 $restore = Join-Path $repo 'scripts/restore.ps1'
 $verify = Join-Path $repo 'scripts/verify-install.ps1'
 Import-Module (Join-Path $repo 'scripts/shared/Bundle.psm1')
-$testRoot = Resolve-CirnetPath -Root $repo -Relative 'target/toolkit-tests'
+$testRoot = Resolve-CirnetPath -Root ([IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))) -Relative 'toolkit-tests'
 $session = Resolve-CirnetPath -Root $testRoot -Relative ('installer-' + [guid]::NewGuid().ToString('N'))
 $defaults = 'cirnet-implementation', 'cirnet-debugging', 'cirnet-verification'
 
@@ -221,7 +221,7 @@ try {
     Write-Host 'PASS exercised installer fixtures (client loading not exercised)'
 } finally {
     if (Test-Path -LiteralPath $session) {
-        $expected = Resolve-CirnetPath -Root $repo -Relative 'target/toolkit-tests'
+        $expected = Resolve-CirnetPath -Root ([IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))) -Relative 'toolkit-tests'
         $null = Resolve-CirnetRoot -Path $session
         $sessionItem = Get-Item -LiteralPath $session -Force
         if ($sessionItem.Parent.FullName -cne $expected -or $sessionItem.Name -cnotmatch '^installer-[0-9a-f]{32}$') {

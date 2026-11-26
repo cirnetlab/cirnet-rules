@@ -2,7 +2,7 @@
 [CmdletBinding(DefaultParameterSetName='Run')]
 param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9_-]{0,79}\z')][string]$Session,
-    [string]$OutputRoot = [IO.Path]::GetTempPath(),
+    [string]$OutputRoot,
     [Parameter(Mandatory, ParameterSetName='Review')][string]$ReviewFile,
     [Parameter(ParameterSetName='Run')][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}\z')][string]$Model = 'gpt-6.2-sol',
     [Parameter(ParameterSetName='Run')][string]$CaseId,
@@ -21,6 +21,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '../shared/Bundle.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Scenarios.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot '../continuity/Repository.psm1')
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $runner = Join-Path $PSScriptRoot 'role.ps1'
@@ -28,13 +29,20 @@ $reporter = Join-Path $PSScriptRoot 'report.mjs'
 $suiteSource = 'tests/benchmark'
 $utf8 = [Text.UTF8Encoding]::new($false, $true)
 
-$temp = (Get-Item -LiteralPath ([IO.Path]::GetTempPath())).FullName
+$temp = if ($null -eq $env:CIRNET_LOCAL_STORAGE_ROOT) {
+    (Get-Item -LiteralPath ([IO.Path]::GetTempPath())).FullName
+} else {
+    $owned = Get-ContinuityLocalStorage (Get-ContinuityRepository $repo) artifacts
+    [void][IO.Directory]::CreateDirectory($owned)
+    Resolve-CirnetRoot -Path $owned
+}
+if (!$OutputRoot) { $OutputRoot = $temp }
 $output = (Get-Item -LiteralPath $OutputRoot).FullName
 $relativeOutput = [IO.Path]::GetRelativePath($temp, $output).Replace('\', '/')
 $relativeRepo = [IO.Path]::GetRelativePath($repo, $output).Replace('\', '/')
 if ($relativeOutput -match '^\.\.(?:/|$)' -or [IO.Path]::IsPathRooted($relativeOutput) -or
     ($relativeRepo -notmatch '^\.\.(?:/|$)' -and -not [IO.Path]::IsPathRooted($relativeRepo))) {
-    throw 'OutputRoot must be an existing directory under OS temp outside the checkout.'
+    throw 'OutputRoot must be an existing directory under the approved benchmark root outside the checkout.'
 }
 $root = Resolve-CirnetPath -Root $output -Relative $Session
 if ($Execute -or $PSCmdlet.ParameterSetName -eq 'Review') {

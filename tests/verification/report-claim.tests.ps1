@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $reportEntry = Join-Path $repo 'scripts/report-claim.ps1'
 if (![IO.File]::Exists($reportEntry)) { throw 'The claim report entry point is missing.' }
-$target = (New-Item -ItemType Directory -Force -Path (Join-Path $repo 'target')).FullName
+$target = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))
 $fixture = Join-Path $target ('claim-report-test-' + [guid]::NewGuid().ToString('N'))
 $worktree = Join-Path $fixture 'worktree'
 $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source

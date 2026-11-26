@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $manager = Join-Path $repo 'scripts/task-continuity.ps1'
-$output = Join-Path $repo 'target'
+$output = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))
 $fixture = Join-Path $output ('continuity-test-' + [guid]::NewGuid().ToString('N'))
 $worktree = Join-Path $fixture 'primary'
 $utf8 = [Text.UTF8Encoding]::new($false)

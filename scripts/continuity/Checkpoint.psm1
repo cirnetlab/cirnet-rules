@@ -408,6 +408,10 @@ function Get-ContinuityCompletedBasis($State, [string]$Progress) {
 }
 
 function Get-ContinuityStorageRoot($Repository, [string]$CheckpointRoot) {
+    if (!$CheckpointRoot) {
+        $CheckpointRoot = Get-ContinuityLocalStorage $Repository checkpoints
+        if (!$CheckpointRoot) { $CheckpointRoot = '.cirnet/tasks' }
+    }
     if (-not [IO.Path]::IsPathFullyQualified($CheckpointRoot)) { $CheckpointRoot = Join-Path $Repository.root $CheckpointRoot }
     $root = Resolve-CirnetRoot -Path $CheckpointRoot
     Assert-ContinuityDestination $Repository $root -Directory

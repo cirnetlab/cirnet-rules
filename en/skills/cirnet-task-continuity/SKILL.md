@@ -7,7 +7,8 @@ description: Use when recovering an interrupted CIRNET task, resuming from a che
 
 Use `scripts/task-continuity.ps1` from an approved `cirnet-rules` checkout.
 The centralized engine operates on checkpoints stored locally by the owning
-repository. Use its approved, ignored checkpoint location.
+repository. Use the configured `CIRNET_LOCAL_STORAGE_ROOT` or the approved
+explicit checkpoint location.
 
 1. **Find the published checkpoint.** Confirm the owning worktree, agent
    family and read scope. Use `bootstrap -ConfirmScope -Compact` with the

@@ -7,7 +7,7 @@ $manager = Join-Path $repo 'scripts/task-continuity.ps1'
 $verify = Join-Path $repo 'scripts/verify-claim.ps1'
 Import-Module (Join-Path $repo 'scripts/continuity/Repository.psm1')
 Import-Module (Join-Path $repo 'scripts/continuity/Checkpoint.psm1')
-$target = Join-Path $repo 'target'
+$target = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))
 $root = Join-Path $target ('strict-claim-test-' + [guid]::NewGuid().ToString('N'))
 $taskId = 'strict-claim'
 $scope = @{ Repository = $root; TaskId = $taskId; AgentFamily = 'codex'; ConfirmScope = $true }

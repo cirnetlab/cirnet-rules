@@ -7,7 +7,7 @@ description: Dùng khi khôi phục công việc CIRNET bị gián đoạn, ti�
 
 Dùng `scripts/task-continuity.ps1` từ checkout `cirnet-rules` đã được duyệt.
 Công cụ tập trung thao tác trên checkpoint mà repo sở hữu lưu cục bộ.
-Dùng vị trí checkpoint đã được duyệt và được Git bỏ qua.
+Dùng `CIRNET_LOCAL_STORAGE_ROOT` đã cấu hình hoặc đường dẫn checkpoint đã được duyệt.
 
 1. **Tìm checkpoint đã công bố.** Xác nhận worktree sở hữu, họ agent và phạm
    vi đọc. Dùng `bootstrap -ConfirmScope -Compact` với repo và thư mục gốc
@@ -50,4 +50,4 @@ Lệnh Task Continuity (`vi/docs/distribution.md#task-continuity`) ·
 Đặc tả Task Continuity (`vi/specs/cirnet-rules/task-continuity/spec.md`)
 
 <!-- source: en/skills/cirnet-task-continuity/SKILL.md -->
-<!-- source-sha256: 94600949b7f53df3e7c53523042780fbb9e7d663b0ec919018de2877a7fb05f7 -->
+<!-- source-sha256: 29928d50c008687f345e6d9ef97dfa00b0c6ee7ebea54ee80333a9474b9948cf -->

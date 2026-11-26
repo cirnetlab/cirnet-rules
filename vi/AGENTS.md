@@ -47,7 +47,9 @@ bản dịch hoặc theo yêu cầu.
 - Với công việc Codex hoặc Claude Code được cấp quyền và có thể kéo dài qua
   nhiều phiên, khởi tạo checkpoint từ checkout `cirnet-rules` đã duyệt trước khi
   sửa mã. Dùng `scripts/task-continuity.ps1` và kho cục bộ được Git bỏ qua của
-  repo sở hữu. Ghi yêu cầu gốc, tiêu chí, phạm vi và tham chiếu tài liệu đã ghim.
+  repo sở hữu. Khi có thư mục ngoài repo đã duyệt, đặt `CIRNET_LOCAL_STORAGE_ROOT` và dùng
+  namespace của repo cho checkpoint và đầu ra phát triển. Ghi yêu cầu gốc,
+  tiêu chí, phạm vi và tham chiếu tài liệu đã ghim.
 - Lưu tiến độ và quyết định khi thay đổi. Khi có thể, chạy lệnh sửa, build và
   kiểm thử được phép qua `run`. Lưu lại trước khi bàn giao và chỉ cung cấp các
   trường được phép xuất cho người nhận có thẩm quyền thuộc cùng loại agent.
@@ -76,4 +78,4 @@ bản dịch hoặc theo yêu cầu.
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: e1622a104b9b55ad3f884d18966e215cf87c8c5c6c150245a419db363c882f7f -->
+<!-- source-sha256: 6aea516169767b7958ee023956f116c78a73c2bdbd5e1387067496f4f1a3de26 -->

@@ -7,7 +7,7 @@ param(
     [Parameter(Mandatory)][ValidatePattern('(?-i:^[a-f0-9]{32}\z)')][string]$ExpectedCheckpointId,
     [Parameter(Mandatory)][string]$ResultPath,
     [Parameter(Mandatory)][ValidatePattern('(?-i:^[a-f0-9]{64}\z)')][string]$ResultSha256,
-    [string]$CheckpointRoot = '.cirnet/tasks',
+    [ValidateNotNullOrEmpty()][string]$CheckpointRoot,
     [hashtable]$RelatedRoot = @{}
 )
 

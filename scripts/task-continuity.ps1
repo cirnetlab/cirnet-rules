@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory, Position = 0)]
     [ValidateSet('save', 'status', 'verify', 'resume', 'review', 'close', 'export', 'run', 'discover', 'bootstrap', 'bind')][string]$Action,
     [string]$Repository = (Get-Location).ProviderPath,
-    [string]$CheckpointRoot = '.cirnet/tasks',
+    [ValidateNotNullOrEmpty()][string]$CheckpointRoot,
     [string]$TaskId,
     [ValidateSet('codex', 'claude-code')][string]$AgentFamily,
     [hashtable]$RelatedRoot = @{},
@@ -225,7 +225,9 @@ if ($Action -cin @('status', 'verify', 'resume', 'bootstrap')) {
         $usingPrevious = $true
     }
     Assert-AgentFamily $checkpoint
-    if ($Action -cin @('resume', 'bootstrap')) { Assert-OriginalWorktree $checkpoint }
+    if ($Action -cin @('resume', 'bootstrap') -or (!$CheckpointRoot -and $null -ne $env:CIRNET_LOCAL_STORAGE_ROOT)) {
+        Assert-OriginalWorktree $checkpoint
+    }
     # A failed live capture is a recovery blocker, not a failure of the sealed notes.
     try { $git = Get-ContinuityGitSnapshot $checkout }
     catch { $git = $null }
@@ -388,6 +390,11 @@ try {
         Enable-TraceableReviews $state
         $progress = Get-UpdatedProgress $checkpoint $state
         Resolve-InterruptedMeasurements $state
+        if ($ClaimOutputPath -and ($CheckpointRoot -or $null -ne $env:CIRNET_LOCAL_STORAGE_ROOT) -and
+            '-CheckpointRoot' -notin $Arguments) {
+            # Claim children run with an allowlisted environment. Record the resolved argument.
+            $Arguments += @('-CheckpointRoot', [IO.Path]::GetDirectoryName($store))
+        }
         $measurement = New-ContinuityMeasurement $checkout $store $state $Kind $Executable $Arguments $InputPath $EnvironmentName
         if ($ClaimOutputPath) {
             $verifier = Join-Path $PSScriptRoot 'verify-claim.ps1'

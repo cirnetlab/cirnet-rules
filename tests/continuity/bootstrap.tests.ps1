@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $manager = Join-Path $repo 'scripts/task-continuity.ps1'
-$output = Join-Path $repo 'target'
+$output = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath()))
 $fixture = Join-Path $output ('bootstrap-test-' + [guid]::NewGuid().ToString('N'))
 $worktree = Join-Path $fixture 'primary'
 
@@ -83,6 +83,33 @@ Review the latest evidence.
     $referencesFile = Join-Path $fixture 'refs.json'
     [IO.File]::WriteAllText($referencesFile, '{"documents":[{"repository":"primary","kind":"plan","path":"plan.md"},{"repository":"primary","kind":"spec","path":"spec.md"},{"repository":"primary","kind":"architecture","path":"architecture.md"},{"repository":"primary","kind":"rules","path":"AGENTS.md"}],"relatedRepositories":[]}')
     $seed = @{ TaskFile=$taskFile; ProgressFile=$progressFile; ReferencesFile=$referencesFile; RequiredCheck=@('fixture-test') }
+
+    $configured = Join-Path $fixture 'central-storage'
+    [void][IO.Directory]::CreateDirectory($configured)
+    $linkedRoot = Join-Path $fixture 'linked'
+    $previousStorageRoot = $env:CIRNET_LOCAL_STORAGE_ROOT
+    Invoke-FixtureGit $worktree @('remote','add','origin','https://github.com/cirnetlab/cirnet-rules.git')
+    Invoke-FixtureGit $worktree @('worktree','add','--detach','--quiet',$linkedRoot)
+    try {
+        $env:CIRNET_LOCAL_STORAGE_ROOT = $configured
+        $central = & $manager save @scope @seed -TaskId central
+        $centralTask = Join-Path $configured '.cirnet/tasks/cirnet-rules/central'
+        Assert-True ([IO.File]::Exists((Join-Path $centralTask 'current.json'))) 'Canonical Git origin did not select the namespaced checkpoint.'
+        Assert-True ((& $manager bootstrap @scope -TaskId central).CheckpointId -ceq $central.CheckpointId) 'Central checkpoint recovery failed.'
+        $linked = @{ Repository=$linkedRoot; AgentFamily='codex'; ConfirmScope=$true }
+        Assert-Rejected { & $manager resume @linked -TaskId central } 'different worktree'
+        Assert-Rejected { & $manager save @linked @seed -TaskId central } 'different worktree'
+        Assert-True ((& $manager status @scope -TaskId central).CheckpointId -ceq $central.CheckpointId) 'Foreign save altered the checkpoint.'
+        $env:CIRNET_LOCAL_STORAGE_ROOT = Join-Path $configured 'missing'
+        Assert-Rejected { & $manager discover @scope } 'unavailable'
+        $env:CIRNET_LOCAL_STORAGE_ROOT = $linkedRoot
+        Assert-Rejected { & $manager discover @scope } 'outside Git checkouts'
+    }
+    finally {
+        $env:CIRNET_LOCAL_STORAGE_ROOT = $previousStorageRoot
+        Invoke-FixtureGit $worktree @('worktree','remove',$linkedRoot)
+        Invoke-FixtureGit $worktree @('remote','remove','origin')
+    }
 
     $first = & $manager save @scope @seed -TaskId first
     $discovery = & $manager discover @scope

@@ -106,6 +106,35 @@ function Get-ContinuityLocalOrigin($Repository) {
     Get-GitRecords (Invoke-ContinuityGit $Repository.root @('config', '--local', '--no-includes', '--null', '--get-all', 'remote.origin.url') @(0, 1))
 }
 
+function Get-ContinuityLocalStorage($Repository, [ValidateSet('checkpoints', 'artifacts')][string]$Kind) {
+    $configured = [Environment]::GetEnvironmentVariable('CIRNET_LOCAL_STORAGE_ROOT')
+    if ($null -eq $configured) { return }
+    if (!$configured -or ($IsWindows -and $configured -match '^[\\/]{2}')) {
+        throw 'CIRNET_LOCAL_STORAGE_ROOT must select an existing absolute local directory.'
+    }
+    $base = Resolve-CirnetRoot -Path $configured
+    if (![IO.Directory]::Exists($base)) { throw 'CIRNET_LOCAL_STORAGE_ROOT is unavailable.' }
+
+    $origins = @(Get-ContinuityLocalOrigin $Repository)
+    $ids = 'rules|contracts|remote|interface|simulator|hardware|embedded-hardware|cli'
+    if ($origins.Count -ne 1 -or $origins[0] -notmatch "^(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)cirnetlab/(cirnet-(?:$ids))(?:\.git)?\z") {
+        throw 'Centralized CIRNET storage requires one canonical CIRNETLAB origin in the owning Git repository.'
+    }
+    $id = $Matches[1].ToLowerInvariant()
+    $relative = if ($Kind -eq 'checkpoints') { ".cirnet/tasks/$id" } else { ".cirnet-build-output/$id" }
+    $destination = Resolve-CirnetPath -Root $base -Relative $relative
+    Assert-ContinuityDestination $Repository $destination -Directory
+    for ($ancestor = $destination; $ancestor; $ancestor = [IO.Path]::GetDirectoryName($ancestor)) {
+        if ((Get-ContinuityAttributes (Join-Path $ancestor '.git')) -or
+            ((Get-ContinuityAttributes (Join-Path $ancestor 'HEAD')) -and
+             (Get-ContinuityAttributes (Join-Path $ancestor 'objects')))) {
+            throw 'Centralized CIRNET storage must be outside Git checkouts and administrative directories.'
+        }
+    }
+    if ([IO.File]::Exists($destination)) { throw "CIRNET storage namespace is not a directory: $destination" }
+    $destination
+}
+
 function Get-ContinuityIndexEntries([string]$Root) {
     Invoke-ContinuityGit $Root @('ls-files', '--stage', '-z', '--')
 }
@@ -350,7 +379,7 @@ function Compare-ContinuityGit($Saved, $Current) {
     }
 }
 
-Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityLocalOrigin, Get-ContinuityValueHash, Test-ContinuityWorktree,
+Export-ModuleMember -Function Get-ContinuityRepository, Get-ContinuityHead, Get-ContinuityLocalOrigin, Get-ContinuityLocalStorage, Get-ContinuityValueHash, Test-ContinuityWorktree,
     Test-ContinuityReferenceConflict, Get-ContinuityIndexEntries, Get-ContinuityTextHash,
     Assert-ContinuityDestination, Test-ContinuityInside, Resolve-ContinuityFile, Get-ContinuityFileDigest,
     Get-ContinuityGitFingerprint, Get-ContinuityGitSnapshot, Get-ContinuityGitMetadataHash, Compare-ContinuityGit

@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory)][string]$TaskId,
     [Parameter(Mandatory)][string]$ClusterId,
     [Parameter(Mandatory)][ValidateSet('codex', 'claude-code')][string]$AgentFamily,
-    [string]$CheckpointRoot = '.cirnet/tasks',
+    [ValidateNotNullOrEmpty()][string]$CheckpointRoot,
     [string]$RelatedRootsJson = '{}',
     [switch]$ConfirmScope
 )

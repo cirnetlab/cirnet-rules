@@ -43,8 +43,9 @@ review or when requested.
 ## Task Continuity
 
 - For an authorized Codex or Claude Code task likely to span sessions, initialize
-  a checkpoint from an approved `cirnet-rules` checkout before edits. Use
-  `scripts/task-continuity.ps1` and the owning repo's ignored local storage.
+  a checkpoint before edits using `scripts/task-continuity.ps1` from the approved
+  toolkit. Use the owner namespace under `CIRNET_LOCAL_STORAGE_ROOT` or an
+  approved legacy checkpoint root.
   Record original requirements, criteria, scope and pinned document references.
 - Save progress and decisions as they change. Wrap authorized edit, build and test
   commands with `run` when possible. Save again before handoff and disclose only

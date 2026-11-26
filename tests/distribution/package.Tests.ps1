@@ -25,7 +25,7 @@ function Write-TestManifest {
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $fixture 'bundle.json') -Encoding utf8NoBOM
 }
 
-$target = Resolve-CirnetPath -Root $repo -Relative 'target'
+$target = Resolve-CirnetRoot -Path ([IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath([IO.Path]::GetTempPath())))
 $session = Resolve-CirnetPath -Root $target -Relative ('package-test-' + [guid]::NewGuid().ToString('N'))
 $fixture = Join-Path $session 'fixture Việt Nam'
 $resource = 'skills/cirnet-verification/references/chi tiết.md'
