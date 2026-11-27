@@ -119,7 +119,14 @@ Giữ bằng chứng CAD native, phê duyệt trực quan và bằng chứng s�
 SHA-256 đã rà soát độc lập ghim các byte. Ghi ai tạo tệp và cách chủ sở hữu
 xác lập xuất xứ.
 
-[Đặc tả kỹ thuật CAD](../specs/cirnet-rules/cad-engineering/spec.md)
+Hồ sơ nghiệm thu ghi mục đích CAD, đơn vị, hệ tọa độ, độ khớp, vật liệu,
+mốc tương tác, nguồn gốc nguồn và công cụ, ngân sách và lựa chọn chưa chốt.
+Rà riêng nguồn tham số, tạo hình, kiểm tra, xuất và trình bày. Thiếu điều kiện
+thì các bước phụ thuộc là `BLOCKED` hoặc `NOT_RUN`. Kiểm tra tĩnh dùng GLB
+đã chọn và yêu cầu dự kiến ghim độc lập. Phạm vi gồm primitive đang hoạt
+động, đỉnh hữu hạn, giới hạn, chỉ số và bố cục buffer, liên kết texture, bộ
+UV, chữ ký ảnh nhúng và khai báo `KHR_materials_unlit` được hỗ trợ. Nghiệm thu
+sản xuất vẫn cần chủ sở hữu kiểm tra nhập, fallback, tương tác và kết xuất.
 
 ## Chạy text-to-cad
 
@@ -226,4 +233,4 @@ workbench, đồ thị chịu ảnh hưởng. (`tests/gltf-assets.test.ts`,
 `tests/oscilloscope.test.ts:128–173`, `e2e/assets.spec.ts`.)
 
 <!-- source: en/rules/cad-engineering.md -->
-<!-- source-sha256: 8a4edb848dfa6be0cd4ecd9db9b6d097ed7cd0aa8932ddb2137cc92e672450dc -->
+<!-- source-sha256: c906462c8a391f4dbf0a4547685922ac398872137627d8e54fe090a772e84280 -->

@@ -118,7 +118,15 @@ visual approval and product evidence separately. An independently reviewed
 SHA-256 pins bytes. Record who produced the file and how the owner established
 that provenance.
 
-[CAD engineering specification](../specs/cirnet-rules/cad-engineering/spec.md)
+An acceptance record identifies the CAD use case, units, frame, fit, materials,
+interaction datums, source and tool provenance, budgets and unresolved choices.
+Review parametric source, construction, inspection, export and presentation
+separately. Missing prerequisites leave dependent stages `BLOCKED` or `NOT_RUN`.
+The static intake checks the selected GLB and independently pinned expectation.
+Its findings cover the active primitives, finite vertices, bounds, index and
+buffer layout, texture links, UV sets, embedded image signatures and supported
+`KHR_materials_unlit` declarations. Owner import, fallback, interaction and
+rendering verification remain part of production adoption.
 
 ## text-to-cad execution
 

@@ -46,10 +46,11 @@ Recover compatible artifact sessions using the original `TaskKey` and the
 recorded marker digest. Check build inputs before reuse. See the Task
 Continuity distribution guide for session inspection and authorized cleanup.
 
-Keep Plans and Specs in their owning repositories and reference them by
-path and revision or hash. Route any proposed document change through its
-owner's approval process. Use the existing engine and storage model.
+Keep the execution plan and acceptance in the checkpoint. Pin durable specs
+from their owners. If an SDD ledger exists, reconcile its plan identity,
+worktree, claims and evidence with the checkpoint. A missing ledger does not
+block recovery. Review conflicts before relying on the ledger.
 
 Use the applicable revision in the approved checkout.
 Task Continuity commands (`en/docs/distribution.md#task-continuity`) ·
-Task Continuity specification (`en/specs/cirnet-rules/task-continuity/spec.md`)
+Task Continuity specification (`en/docs/task-continuity.md`)

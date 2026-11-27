@@ -5,7 +5,7 @@ The review started with a clean Windows checkout of `master` at
 revision plus the local changes to `Checkpoint.psm1`, `Discovery.psm1`, and
 `bootstrap.tests.ps1`. The SHA-256 of their Git diff is
 `0bf1109a3ab0844b2dd319fe72567d4410f1351fb72a4177b7489c8406059d95`.
-The review used the [Unified Specification](../../en/specs/cirnet-rules/task-continuity/spec.md),
+The review used the [Unified Specification](https://github.com/cirnetlab/cirnet-rules/blob/a0780db9112346f6abf74d986fdd560e83dcdc95/en/specs/cirnet-rules/task-continuity/spec.md),
 [distribution guide](../../en/docs/distribution.md), and [repository rules](../../AGENTS.md).
 Logs and disposable fixtures are under the ignored
 `target/independent-bootstrap-acceptance/` directory.

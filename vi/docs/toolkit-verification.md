@@ -215,5 +215,20 @@ hết hạn mức, bàn giao giữa các tài khoản Codex chỉ bằng yêu c�
 chung, và dùng lại checkpoint cùng phiên Build Output hiện có. Bàn giao giữa
 các tài khoản Claude Code vẫn là `NOT_RUN`.
 
+## Hồ sơ Plan và Spec lịch sử
+
+Các Plan và Spec trước khi hợp nhất vẫn có tại revision Git gốc. Chúng ghi
+lại benchmark Adaptive Stable, chuyển đổi tài liệu song ngữ, kỹ thuật CAD,
+hành vi kỹ thuật, bằng chứng độ tin cậy, tái cấu trúc Common Rules, Task
+Continuity và nâng cấp Toolkit. Xem byte gốc khi cần bằng chứng lịch sử hoặc
+tham chiếu đã ghim trước khi hợp nhất. Tác vụ hiện tại dùng checkpoint. Khi
+khôi phục, đối chiếu tham chiếu với checkout đã duyệt và mã băm đã ghi trước
+khi thao tác. [Plans](https://github.com/cirnetlab/cirnet-rules/tree/a0780db9112346f6abf74d986fdd560e83dcdc95/vi/plans) · [Specs](https://github.com/cirnetlab/cirnet-rules/tree/a0780db9112346f6abf74d986fdd560e83dcdc95/vi/specs)
+
+Yêu cầu hiện hành thuộc [Task Continuity](task-continuity.md),
+[kỹ thuật CAD](../rules/cad-engineering.md), [quản trị tài liệu](../policies/documentation.md)
+và [quy trình kiểm chứng](distribution.md#bằng-chứng-kiểm-chứng).
+
+
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: 83f3fd97518b74f1b9e72c8de700acc1b573677b47cd94fb02a53ebe4daefc01 -->
+<!-- source-sha256: e0ab6471c588a9d1ad839af2acaa28f3dde35e64fe5faa95137cbc85d59dab71 -->

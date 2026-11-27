@@ -5,38 +5,24 @@ description: Dùng khi soạn hoặc sửa đặc tả kiến trúc, kế hoạc
 
 # Soạn Plan hoặc Spec cho CIRNET
 
-Lưu mỗi tài liệu trong repo sở hữu các yêu cầu hoặc công việc tương ứng.
+Dùng quy trình này cả khi thiếu Superpowers. Xác định repo sở hữu, phạm vi
+đã cấp quyền, yêu cầu đã duyệt và quy tắc CIRNET áp dụng.
 
-| Tài liệu hoặc bản ghi | Trách nhiệm |
-| --- | --- |
-| Spec | Yêu cầu, hành vi quan sát được, bất biến, ràng buộc và tiêu chí nghiệm thu đo được |
-| Plan | Trình tự triển khai, phụ thuộc, mốc và các bước kiểm chứng |
-| Work Prompt | Nhiệm vụ thực thi cụ thể, đã được cấp quyền cho Coding Agent |
-| Task Continuity | Tiến độ, quyết định, bằng chứng và trạng thái khôi phục |
-
-1. **Tìm chủ sở hữu và tài liệu có thẩm quyền.** Kiểm tra chỉ dẫn cục bộ
-   áp dụng, hướng dẫn về quyền sở hữu, các Plan và Spec hiện có cùng những
-   liên kết trỏ đến chúng. Xác định phiên bản tài liệu liên quan và phạm vi
-   đã được duyệt trước khi soạn. Cập nhật trực tiếp tài liệu có thẩm quyền
-   nếu cùng mục đích. Dùng quy ước của chủ sở hữu cho đầu ra có mục đích riêng.
-2. **Viết đúng trách nhiệm của từng tài liệu.** Trong Spec, nêu các điều kiện
-   phải đáp ứng, gồm các ca âm tính và tiêu chí nghiệm thu có kết quả kỳ vọng
-   quan sát được. Trong Plan, liên kết đến Spec và sắp xếp công việc theo
-   phụ thuộc. Gắn mỗi mốc với một bước kiểm chứng và ánh xạ từng tiêu chí
-   nghiệm thu tới phép kiểm của chủ sở hữu cùng kết quả kỳ vọng dùng để xác
-   nhận tiêu chí đó. Dùng `cirnet-task-continuity` khi khôi phục việc
-   bị gián đoạn hoặc bàn giao checkpoint.
-3. **Rà soát thay đổi.** Đối chiếu bản thảo với yêu cầu, kiến trúc, phạm vi
-   và tiêu chí nghiệm thu đã được duyệt. Xin quyền trước khi áp dụng đề xuất
-   thay đổi các quyết định đó. Bảo đảm có thể truy vết kết quả kiểm chứng tới
-   tiêu chí, revision source và bằng chứng quan sát được. Đồng bộ bản dịch
-   áp dụng theo chính sách của chủ sở hữu.
+1. Với tác vụ thực thi không đơn giản, khởi tạo Task Continuity trước khi sửa.
+   Ghi tác vụ gốc và giữ tiêu đề hiện có trong `task.md`. Đặt quyết định
+   thiết kế, các bước theo thứ tự và phụ thuộc trong `Plans & Specs`. Ghi
+   tệp bị ảnh hưởng, contract, ràng buộc, hành vi mong đợi và trường hợp lỗi.
+2. Đặt kết quả kiểm tra được cho mỗi mốc. Ánh xạ tiêu chí nghiệm thu với phép
+   kiểm của chủ sở hữu và bằng chứng bắt buộc. Ghi việc đã làm, việc còn lại,
+   vướng mắc, bước tiếp theo và quan sát trong `progress.md`. Công bố qua Task
+   Continuity. Rà thay đổi phạm vi hoặc tiêu chí trước khi áp dụng.
+3. Giữ đặc tả và quyết định có giá trị dài hạn tại repo sở hữu, ghim revision
+   và hash liên quan. Nếu Superpowers cần đầu vào ổn định, dẫn xuất từ tác vụ
+   hiện có bên ngoài snapshot niêm phong và đối chiếu sau thay đổi đã duyệt.
 
 Dùng revision áp dụng trong checkout đã được duyệt.
-Quy ước Plan (`vi/plans/README.md`) ·
-Quy ước Spec (`vi/specs/README.md`) ·
-Chính sách kiến trúc (`vi/policies/architecture.md`) ·
-Chính sách tài liệu (`vi/policies/documentation.md`)
+Task Continuity và Superpowers (`vi/docs/distribution.md#task-continuity`) ·
+Vòng đời tài liệu (`vi/policies/documentation.md#vòng-đời-tài-liệu`)
 
 <!-- source: en/skills/cirnet-plan-spec-authoring/SKILL.md -->
-<!-- source-sha256: 16995d306315ded2945b41c07503d0a510303af30954e10ee2994da9f03be14b -->
+<!-- source-sha256: c63c1e34111ceb3c91b97e961c5a297ac2e4cd13793fbae789c21d2a0de2886e -->

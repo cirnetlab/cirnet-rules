@@ -89,7 +89,8 @@ authorized, redacted task information. The required headings are:
 The references JSON has `documents` and `relatedRepositories` arrays. Each
 document has `kind` (`plan`, `spec`, `architecture`, or `rules`), `repository`
 (`primary` for the target worktree) and a repository-relative `path`. Include the
-applicable architecture and rules and any existing Plans/Specs. For a related
+applicable architecture, rules and any relevant durable specifications or
+decisions. For a related
 repo, record its `id`, full Git `revision` and approved `access` (`read` or `edit`)
 and pass `-RelatedRoot` with an ID-to-worktree mapping when using the checkpoint.
 
@@ -132,6 +133,57 @@ sections. The same save can replace `Next Action`. To revise earlier text in
 the other sections, add `-ConfirmProgressChange` with
 `-ProgressReason`. The confirmed snapshot history retains the previous notes.
 For v1, also record that reason in the new Decisions & Blockers section.
+
+### Use Superpowers with Task Continuity
+
+Use the official plugin through the agent's native discovery and load the
+skills relevant to the task. Superpowers supplies development methodology.
+CIRNET Rules and Skills govern engineering, compatibility, authorization,
+security and physical safety. Use the CIRNET authoring Skill with or without
+the plugin. Choose detailed planning or subagents when task complexity,
+availability, cost and authorization warrant them.
+
+For a new nontrivial task, analyze scope and initialize Task Continuity
+before implementation. Put requirements, decisions, ordered steps and
+acceptance in `task.md` under its existing headings. Record milestones,
+blockers, next action and verification in `progress.md`. Publish state and
+evidence using the existing commands. Pin durable specifications and
+decisions from their owning repository by revision and hash.
+
+Superpowers 7.0.1 suggests plans and designs under `docs/superpowers/`.
+Use the checkpoint for ordinary task records. If a workflow requires a
+stable file, derive the smallest necessary input under the existing
+`<task-id>/` directory, outside `snapshots/`. Use a stable basename that
+identifies the task. Reconcile it after approved checkpoint updates and
+keep the same Task ID.
+
+The upstream `sdd-workspace PLAN_FILE` Bash helper uses Git to find the
+executing worktree. It creates a per-plan directory under `.superpowers/sdd/`
+and records the normalized input path in `plan-path`. Reusing the input path
+in that worktree selects the same directory. Distinct inputs with the same
+basename use separate directories when markers exist. Review any existing
+markerless directory before running the helper because it can adopt it.
+Use this local, Git-ignored workspace for the detailed `progress.md` ledger,
+briefs and review packages only as required by the workflow.
+
+Resume the existing task through bootstrap or resume and reconcile Git,
+authorization, integrity and pinned references. Compare the ledger's
+worktree, plan path, Git baseline and completion claims with the checkpoint,
+diff and observed verification. A missing ledger leaves the checkpoint
+usable. Reconcile stale or conflicting records before relying on their claims.
+Report any unresolved discrepancy as an unverified milestone. Reuse
+compatible Build Output with the existing Task Key and marker digest.
+
+Reuse the current worktree when suitable. Commit, worktree creation,
+subagents and cleanup require applicable authorization. Use a compatible
+inline approach when the selected workflow requires an unauthorized step.
+Record the limitation and retain the ledger until authorized cleanup.
+Keep checkpoint state, build evidence and acceptance in their CIRNET systems.
+
+See the [official workspace helper](https://github.com/obra/superpowers/blob/v7.0.1/skills/subagent-driven-development/scripts/sdd-workspace)
+and the [user-attested Codex recovery](../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance).
+The latter covers checkpoint and build-session recovery observed in that task.
+Exercise combined native Superpowers recovery separately.
 
 ### Reuse a task's artifact session
 
@@ -200,7 +252,7 @@ data. The workflow requires the baseline and access to the approved toolkit.
 Use the recovered `Task`, `Progress`, `References`, `Git.Changes` and check
 summaries to read only what's needed for the next action. The Git summary
 includes the worktree and the recorded and current branch and HEAD. Review
-current local Rules, applicable pinned Plans/Specs and live reconciliation.
+current local Rules, applicable pinned references and live reconciliation.
 `-Compact` retains the original task and progress, references, acceptance
 criteria and effective check results. Use ordinary `bootstrap` to inspect full
 process and review evidence.
@@ -296,7 +348,7 @@ options and `-ConfirmScope`. A portable read can report `IntegrityStatus: PASS`
 while live verification stays `NOT_RUN`. Live Git, authorization, references
 and evidence freshness require the original worktree and its local checkpoint.
 For native interruption recovery and handoffs between authorized accounts in
-both families, see the [acceptance criteria](../specs/cirnet-rules/task-continuity/spec.md#11-verification--acceptance-criteria).
+both families, see the [acceptance criteria](task-continuity.md#11-verification--acceptance-criteria).
 
 ## Verification evidence
 

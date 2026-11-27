@@ -39,10 +39,11 @@ const pairs = [
   'docs/behavioral-evaluation.md',
   'docs/model-compatibility.md',
   'docs/setup.md',
-  'plans/cirnet-rules/adaptive-stable/plan.md',
-  'plans/cirnet-rules/cad-engineering/plan.md',
-  'specs/cirnet-rules/adaptive-stable/spec.md',
-  'specs/cirnet-rules/cad-engineering/spec.md',
+  'docs/distribution.md',
+  'docs/task-continuity.md',
+  'docs/toolkit-verification.md',
+  'skills/cirnet-plan-spec-authoring/SKILL.md',
+  'skills/cirnet-task-continuity/SKILL.md',
 ];
 
 test('Vietnamese footer identifies the exact English source bytes', () => {

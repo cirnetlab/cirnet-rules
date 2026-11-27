@@ -13,8 +13,9 @@ release history with the owning repository. Organization and website indexes
 link to those sources. Record the source revision, digest and purpose when
 offline use or compatibility requires a retained copy.
 
-Use [Task Continuity](../docs/distribution.md#task-continuity) for temporary
-task plans, progress and acceptance records. Keep independently useful
+Use [Task Continuity](../docs/distribution.md#task-continuity) for ordinary
+execution plans, task-specific specs, progress and acceptance. Keep a derived
+workflow input outside sealed snapshots when a selected tool needs a file. Keep independently useful
 design specifications and existing durable plans with their owners and
 pin them from the checkpoint. The owned artifact session holds build and
 test outputs.

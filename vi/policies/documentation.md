@@ -14,7 +14,8 @@ kết tới các nguồn đó. Ghi revision, mã băm và mục đích của b�
 để dùng ngoại tuyến hoặc bảo đảm tương thích.
 
 Dùng [Task Continuity](../docs/distribution.md#task-continuity) cho kế hoạch
-tạm thời, tiến độ và tiêu chí chấp nhận của tác vụ. Giữ đặc tả thiết kế có
+thực thi, đặc tả tác vụ, tiến độ và nghiệm thu. Khi công cụ đã chọn cần tệp,
+giữ đầu vào dẫn xuất bên ngoài snapshot niêm phong. Giữ đặc tả thiết kế có
 giá trị riêng và kế hoạch dài hạn hiện có tại repo sở hữu, rồi ghim chúng
 từ checkpoint. Phiên artifact được cấp quyền lưu đầu ra build và test.
 
@@ -119,4 +120,4 @@ metadata của nó.
   tạo cây song ngữ hoặc sửa repository khác.
 
 <!-- source: en/policies/documentation.md -->
-<!-- source-sha256: bf2c193a0263d1c0036174fc892edee25d3c12a04c37a1e563930e4e9501d27d -->
+<!-- source-sha256: faa28169005b63929212e4d7485059ae01b9bdc51f3e5461820b285a57d1ad12 -->

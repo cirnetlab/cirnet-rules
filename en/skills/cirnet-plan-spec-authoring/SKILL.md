@@ -5,34 +5,23 @@ description: Use when drafting or revising a CIRNET architectural specification,
 
 # Author a CIRNET Plan or Spec
 
-Keep each document in the repository that owns its requirements or work.
+Use this workflow with or without Superpowers. Identify the repository owner,
+authorized scope, approved requirements and applicable CIRNET rules.
 
-| Record | Owns |
-| --- | --- |
-| Spec | Requirements, observable behavior, invariants, constraints and measurable acceptance criteria |
-| Plan | Implementation sequence, dependencies, milestones and verification steps |
-| Work Prompt | A specific authorized execution assignment for a Coding Agent |
-| Task Continuity | Progress, decisions, evidence and recovery state |
-
-1. **Find the owner and authoritative documents.** Check applicable local
-   instructions, ownership guidance and existing Plans, Specs and incoming
-   links. Identify the relevant document versions and approved scope before
-   drafting. Update the authoritative document in place when its purpose
-   matches. Use the owner's document conventions for a distinct deliverable.
-2. **Write at the right level.** In the Spec, define what must hold, including
-   negative cases and acceptance criteria with observable expected outcomes.
-   In the Plan, link to the Spec and order the work by dependency. Give each
-   milestone a verification step and map each acceptance criterion to the
-   owner check and expected result that can establish it. Use
-   `cirnet-task-continuity` for an interrupted task or checkpoint handoff.
-3. **Review the change.** Compare the draft with approved requirements,
-   architecture, scope and acceptance criteria. Obtain authorization for any
-   proposed change to those decisions before applying it. Keep verification
-   results traceable to the criterion, source revision and observed evidence.
-   Synchronize applicable translations under the owner's policy.
+1. For a nontrivial execution task, initialize Task Continuity before edits.
+   Capture the original task and keep the existing headings in `task.md`.
+   Put the design decisions, ordered steps and dependencies under
+   `Plans & Specs`. Include affected files, contracts, constraints and expected
+   behavior, including failure cases.
+2. Give each milestone a checkable outcome. Map acceptance criteria to owner
+   checks and required evidence. Record completed and pending work, blockers,
+   next action and observations in `progress.md`. Publish through Task
+   Continuity. Review any change in scope or acceptance before applying it.
+3. Keep independently useful specifications and decisions with their owners
+   and pin the relevant revision and hash. If Superpowers needs a stable
+   input, derive it from the existing task outside sealed snapshots and
+   reconcile it after approved changes.
 
 Use the applicable revision in the approved checkout.
-Plan conventions (`en/plans/README.md`) ·
-Spec conventions (`en/specs/README.md`) ·
-Architecture policy (`en/policies/architecture.md`) ·
+Task Continuity and Superpowers (`en/docs/distribution.md#task-continuity`) ·
 Documentation lifecycle (`en/policies/documentation.md#documentation-lifecycle`)

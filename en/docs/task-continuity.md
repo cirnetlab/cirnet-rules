@@ -6,7 +6,7 @@ Develop a centralized **Task Continuity Engine** within the `cirnet-rules` repos
 
 The system must allow a new Agent to accurately recover the original requirements, implementation progress, technical decisions, Git state, verification results, and next action without depending on the previous Agent's conversation history.
 
-Task Continuity integration must preserve the existing Plans/Specs structures, workflows, and ownership of all CIRNETLAB repositories.
+Task Continuity integration preserves repository ownership and the existing recovery and verification contracts.
 
 ## 2. Architecture Principles
 
@@ -28,59 +28,28 @@ Adopt the **Centralized Engine — Decentralized Checkpoints** model.
 - The Engine must support configurable checkpoint storage locations according to the existing rules of each repository.
 - For cross-repository tasks, each repository retains ownership of its source code and documentation. The primary checkpoint must explicitly reference related repositories, revisions, and access permissions; unnecessary duplicate checkpoints must not be created.
 
-## 3. Plans & Specs Preservation
+## 3. Task records and durable specifications
 
-### 3.1. Preserve Existing Plans and Specs
+The checkpoint owns the execution plan, task-specific specification and
+acceptance criteria. Publish them through Task Continuity. Durable technical
+specifications and decisions stay with their owning repositories. Pin them
+by revision and hash and reconcile changes within approved scope. Preserve
+authorization, user changes, engineering contracts and evidence requirements.
 
-**The entire existing Plans/Specs system** of `cirnet-rules`, `cirnet-remote`, `cirnet-interface`, and other CIRNETLAB repositories **must be preserved**.
+Review a historical pinned document at its recorded Git revision. If the
+active checkout differs, follow the live reference reconciliation in the
+[operator guide](distribution.md#task-continuity) before continuing. A
+derived Superpowers execution input can support a selected workflow.
 
-Task Continuity must not independently:
-
-- Delete, move, rename, or overwrite Plans/Specs.
-- Change the conventions, directory structures, or storage locations of Plans/Specs.
-- Replace the existing planning and specification management system.
-- Create copies of Plans/Specs for use as checkpoints.
-- Modify requirements or acceptance criteria to justify implementation results.
-
-Any genuinely necessary changes to Plans/Specs must fall within an approved work scope or receive separate authorization.
-
-### 3.2. Separation of Responsibilities
-
-| Component | Responsibility |
-| --- | --- |
-| **Plans** | Define plans, implementation sequences, execution steps, and checks |
-| **Specs** | Define technical requirements, behaviors, constraints, and acceptance criteria |
-| **Task Continuity** | Record checkpoints, execution states, and task recovery processes |
-
-Checkpoints only reference the original Plans/Specs through appropriate paths, identifiers, and revisions/hashes.
-
-Plans/Specs remain the authoritative documents of their owning repositories. Checkpoints must not replace or automatically overwrite their contents.
-
-### 3.3. Backward Compatibility
-
-Task Continuity integration must not break or modify the following beyond the approved scope:
-
-- Existing development and testing workflows.
-- Repository rules, `AGENTS.md`, and the [current Skill inventory](../../../skills/README.md).
-- CIRNETLAB architecture, APIs, and cross-repository contracts.
-- Documentation systems and version management workflows.
-- User data and uncommitted source code changes.
 
 ## 4. Task Checkpoint Structure
 
-Proposed default structure:
-
-```text
-<target-repository>/
-└── .cirnet/
-    └── tasks/
-        └── <task-id>/
-            ├── task.md
-            ├── progress.md
-            └── state.json
-```
-
-This proposal shows the three payload files. The Engine must allow alternative configurable paths to comply with the target repository's rules, such as existing `.superpowers/` conventions. The [operator guide](../../../docs/distribution.md#task-continuity) describes their on-disk snapshot layout and the manager commands.
+Use `CIRNET_LOCAL_STORAGE_ROOT` with the supported resolver. The configured
+store is `.cirnet/tasks/<repository>/<task-id>/` beneath that root.
+The current and previous pointers select snapshots containing `task.md`,
+`progress.md`, `state.json` and `manifest.json`. See the
+[operator guide](distribution.md#task-continuity) for compatibility locations
+and manager commands.
 
 ### 4.1. Responsibilities of Each File
 
@@ -93,7 +62,7 @@ Stores foundational task information:
 - Acceptance Criteria.
 - Architecture & Rules.
 - Scope & Authorization.
-- References to the original Plans/Specs.
+- Plans & Specs, including task decisions, implementation steps and any pinned durable sources.
 
 **progress.md — Task Progress**
 
@@ -105,7 +74,8 @@ Stores progress status and handoff information:
 - Next Action.
 - Work requiring re-verification.
 
-Record only actual progress, evidence, or relevant references. Do not duplicate the entire Plans/Specs checklist.
+Record only actual progress, evidence or relevant references. Keep the
+implementation plan in `task.md` and record observed milestones in `progress.md`.
 
 **state.json — Machine-Verifiable State**
 
@@ -263,7 +233,7 @@ Do not automatically trust `Completed` states or `PASS` results recorded in chec
 
 Task Continuity is not intended to:
 
-- Replace Plans/Specs or Work Prompts.
+- Replace durable technical specifications or original Work Prompts.
 - Restore the Agent's entire conversation history or internal reasoning.
 - Restore AI account quotas or login sessions.
 - Automatically transfer tasks between different Agent types.
@@ -296,7 +266,7 @@ Task Continuity may only be accepted when all of the following requirements have
 
 Test results must accurately report `PASS`, `FAIL`, `NOT_RUN`, or `BLOCKED`. Simulated testing must not be treated as equivalent to actual Native verification.
 
-The [2026-11-27 Codex acceptance](../../../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) records
+The [2026-11-27 Codex acceptance](../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) records
 **PASS — User-Attested Native Acceptance** for quota-exhaustion recovery,
 handoff between Codex accounts with a generic resume instruction, and reuse
 of the existing checkpoint and Build Output session. Claude Code account
@@ -304,6 +274,6 @@ handoff remains `NOT_RUN`.
 
 ## Final Principle
 
-**The Task Continuity Engine is developed centrally within `cirnet-rules`; Task Checkpoints are managed separately by the repositories that own the tasks; existing Plans/Specs must be preserved.**
+**The Task Continuity Engine is developed centrally within `cirnet-rules`; Task Checkpoints are managed separately by the repositories that own the tasks; preserve durable technical requirements and historical evidence.**
 
 The new Agent must not depend on the previous Agent's memory. Instead, it must recover context from a trustworthy checkpoint, verify the actual state, and continue only actions that have been authorized.

@@ -215,3 +215,17 @@ The [2026-11-27 Codex acceptance](../../reports/task-continuity/native-codex-acc
 handoff between Codex accounts with a generic resume instruction, and reuse
 of the existing checkpoint and Build Output session. Claude Code account
 handoff remains `NOT_RUN`.
+
+## Historical Plan and Spec records
+
+The pre-consolidation Plans and Specs remain at their original Git revision.
+They record the Adaptive Stable benchmark, bilingual migration, CAD engineering,
+engineering behavior, reliability evidence, Common Rules rebuild, Task Continuity
+and Toolkit upgrade. Review exact old bytes for historical evidence or references
+pinned before consolidation. Current tasks use the checkpoint workflow. For live
+recovery, reconcile references against the approved checkout and recorded hashes
+before acting. [Plans](https://github.com/cirnetlab/cirnet-rules/tree/a0780db9112346f6abf74d986fdd560e83dcdc95/en/plans) · [Specs](https://github.com/cirnetlab/cirnet-rules/tree/a0780db9112346f6abf74d986fdd560e83dcdc95/en/specs)
+
+Current requirements are maintained by [Task Continuity](task-continuity.md),
+[CAD engineering](../rules/cad-engineering.md), [documentation governance](../policies/documentation.md)
+and the [verification workflow](distribution.md#verification-evidence).

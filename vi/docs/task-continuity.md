@@ -11,8 +11,8 @@ Agent mới phải khôi phục chính xác yêu cầu gốc, tiến độ tri�
 kỹ thuật, trạng thái Git, kết quả kiểm chứng và bước tiếp theo mà không phụ
 thuộc vào lịch sử hội thoại của agent trước.
 
-Việc tích hợp Task Continuity phải giữ nguyên cấu trúc Plans/Specs, quy trình
-làm việc và quyền sở hữu hiện có của mọi repo CIRNETLAB.
+Việc tích hợp Task Continuity giữ quyền sở hữu của repo và các contract
+khôi phục, kiểm chứng hiện có.
 
 ## 2. Nguyên tắc kiến trúc
 
@@ -39,67 +39,27 @@ làm việc và quyền sở hữu hiện có của mọi repo CIRNETLAB.
   và tài liệu của mình. Checkpoint chính phải tham chiếu rõ repo liên quan,
   revision và quyền truy cập. Tránh tạo checkpoint trùng lặp không cần thiết.
 
-## 3. Bảo toàn Plans/Specs
+## 3. Hồ sơ tác vụ và đặc tả dài hạn
 
-### 3.1. Giữ nguyên Plans và Specs hiện có
+Checkpoint sở hữu kế hoạch thực thi, đặc tả của tác vụ và tiêu chí nghiệm thu.
+Công bố chúng qua Task Continuity. Giữ đặc tả kỹ thuật dài hạn và quyết định
+trong repo sở hữu. Ghim chúng bằng revision và hash rồi đối chiếu thay đổi
+trong phạm vi đã duyệt. Bảo toàn quyền đã cấp, thay đổi của người dùng,
+contract kỹ thuật và yêu cầu về bằng chứng.
 
-**Phải giữ nguyên toàn bộ hệ thống Plans/Specs hiện có** của `cirnet-rules`,
-`cirnet-remote`, `cirnet-interface` và các repo khác thuộc CIRNETLAB.
+Xem tài liệu ghim lịch sử tại revision Git đã ghi. Khi checkout đang dùng
+khác revision đó, đối chiếu tham chiếu thực tế theo
+[hướng dẫn vận hành](distribution.md#task-continuity) trước khi tiếp tục.
+Đầu vào dẫn xuất của Superpowers có thể phục vụ workflow đã chọn.
 
-Task Continuity không được tự ý:
-
-- Xóa, di chuyển, đổi tên hoặc ghi đè Plans/Specs.
-- Đổi quy ước, cấu trúc thư mục hoặc nơi lưu Plans/Specs.
-- Thay thế hệ thống quản lý kế hoạch và đặc tả hiện có.
-- Sao chép Plans/Specs để làm checkpoint.
-- Sửa yêu cầu hoặc tiêu chí nghiệm thu để hợp thức hóa kết quả triển khai.
-
-Thay đổi Plans/Specs thực sự cần thiết phải thuộc phạm vi đã duyệt hoặc được
-cho phép riêng.
-
-### 3.2. Phân định trách nhiệm
-
-| Thành phần | Trách nhiệm |
-| --- | --- |
-| **Plans** | Xác định kế hoạch, trình tự triển khai, các bước thực hiện và kiểm tra |
-| **Specs** | Xác định yêu cầu kỹ thuật, hành vi, ràng buộc và tiêu chí nghiệm thu |
-| **Task Continuity** | Ghi checkpoint, trạng thái thực thi và quy trình khôi phục công việc |
-
-Checkpoint chỉ tham chiếu Plans/Specs gốc qua đường dẫn, định danh và
-revision hoặc hash phù hợp.
-
-Plans/Specs vẫn là tài liệu có thẩm quyền của repo sở hữu. Checkpoint không
-thay thế hoặc tự động ghi đè nội dung của chúng.
-
-### 3.3. Tương thích ngược
-
-Việc tích hợp Task Continuity không được làm hỏng hoặc thay đổi các mục sau
-ngoài phạm vi đã duyệt:
-
-- Quy trình phát triển và kiểm thử hiện có.
-- Quy tắc của repo, `AGENTS.md` và [danh mục Skill hiện hành](../../../skills/README.md).
-- Kiến trúc, API và contract giữa các repo CIRNETLAB.
-- Hệ thống tài liệu và quy trình quản lý phiên bản.
-- Dữ liệu người dùng và thay đổi mã nguồn chưa commit.
 
 ## 4. Cấu trúc checkpoint công việc
 
-Cấu trúc mặc định đề xuất:
-
-```text
-<target-repository>/
-└── .cirnet/
-    └── tasks/
-        └── <task-id>/
-            ├── task.md
-            ├── progress.md
-            └── state.json
-```
-
-Sơ đồ đề xuất thể hiện ba tệp nội dung. Công cụ phải cho phép cấu hình đường dẫn
-khác để tuân theo quy tắc của repo đích, ví dụ quy ước `.superpowers/` hiện có.
-[Hướng dẫn vận hành](../../../docs/distribution.md#task-continuity) mô tả cách lưu
-các tệp trong snapshot trên đĩa và các lệnh của công cụ.
+Dùng `CIRNET_LOCAL_STORAGE_ROOT` với cơ chế phân giải hiện có. Kho đã cấu hình
+nằm tại `.cirnet/tasks/<repository>/<task-id>/` dưới root đó. Con trỏ hiện hành
+và trước đó chọn snapshot chứa `task.md`, `progress.md`, `state.json` và
+`manifest.json`. Xem [hướng dẫn vận hành](distribution.md#task-continuity)
+về các vị trí tương thích và lệnh của công cụ.
 
 ### 4.1. Trách nhiệm của từng tệp
 
@@ -112,7 +72,7 @@ Lưu các thông tin nền tảng:
 - Tiêu chí nghiệm thu.
 - Kiến trúc và quy tắc.
 - Phạm vi và quyền được cấp.
-- Tham chiếu đến Plans/Specs gốc.
+- Plans & Specs, gồm quyết định của tác vụ, các bước triển khai và nguồn dài hạn đã ghim.
 
 **progress.md — Tiến độ công việc**
 
@@ -124,8 +84,8 @@ Lưu tiến độ và thông tin bàn giao:
 - Bước tiếp theo.
 - Công việc cần kiểm chứng lại.
 
-Chỉ ghi tiến độ thực tế, bằng chứng hoặc tham chiếu liên quan. Không sao chép
-toàn bộ checklist của Plans/Specs.
+Chỉ ghi tiến độ thực tế, bằng chứng hoặc tham chiếu liên quan. Giữ kế hoạch
+trong `task.md` và ghi các mốc đã quan sát trong `progress.md`.
 
 **state.json — Trạng thái có thể kiểm chứng bằng công cụ**
 
@@ -305,7 +265,7 @@ checkpoint khi thiếu bằng chứng tương ứng.
 
 Task Continuity không nhằm:
 
-- Thay thế Plans/Specs hoặc Work Prompts.
+- Thay thế đặc tả kỹ thuật dài hạn hoặc Work Prompt gốc.
 - Khôi phục toàn bộ lịch sử hội thoại hoặc suy luận nội bộ của agent.
 - Khôi phục hạn mức tài khoản AI hoặc phiên đăng nhập.
 - Tự động chuyển giao công việc giữa các loại agent khác nhau.
@@ -344,7 +304,7 @@ Kết quả kiểm thử phải báo chính xác `PASS`, `FAIL`, `NOT_RUN` hoặ
 `BLOCKED`. Không xem kiểm thử mô phỏng là tương đương với kiểm chứng thực tế
 trên agent.
 
-[Nghiệm thu Codex ngày 2026-11-27](../../../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) ghi nhận
+[Nghiệm thu Codex ngày 2026-11-27](../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) ghi nhận
 **PASS — User-Attested Native Acceptance** cho việc khôi phục sau khi
 hết hạn mức, bàn giao giữa các tài khoản Codex chỉ bằng yêu cầu tiếp tục
 chung, và dùng lại checkpoint cùng phiên Build Output hiện có. Bàn giao giữa
@@ -353,12 +313,11 @@ các tài khoản Claude Code vẫn là `NOT_RUN`.
 ## Nguyên tắc cuối
 
 **Công cụ Task Continuity được phát triển tập trung trong `cirnet-rules`.
-Mỗi repo sở hữu công việc tự quản lý checkpoint tương ứng. Phải giữ nguyên
-Plans/Specs hiện có.**
+Mỗi repo sở hữu công việc tự quản lý checkpoint tương ứng. Giữ yêu cầu kỹ thuật dài hạn và bằng chứng lịch sử.**
 
 Agent mới không được phụ thuộc vào bộ nhớ của agent trước. Agent phải khôi
 phục ngữ cảnh từ checkpoint đáng tin cậy, xác minh trạng thái thực tế và chỉ
 tiếp tục các hành động đã được phép.
 
-<!-- source: en/specs/cirnet-rules/task-continuity/spec.md -->
-<!-- source-sha256: f302e5bb0e9301359f5ed4da0f42c0fe0bf1705116e9af2b0cc988443132c71d -->
+<!-- source: en/docs/task-continuity.md -->
+<!-- source-sha256: 2ffdc591cb55ee5c212737d095437f0402cf12498d421dda6b9163adee27ad6f -->

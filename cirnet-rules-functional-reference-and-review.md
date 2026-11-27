@@ -43,7 +43,7 @@ Giữ nguyên các nguyên tắc Lab-First, Native-First, Contract-Driven, Compa
 | `en/policies/`, `vi/policies/` | 3 chính sách kiến trúc, tài liệu và quyền hạn. |
 | `docs/`, `en/references/`, `vi/references/` | Kiến trúc canonical, biến thể chuyên biệt, manifest nguồn, bảng owner và snapshot lịch sử. |
 | `en/docs/`, `vi/docs/` | Context, setup, phân phối, compatibility, model compatibility, behavioral evaluation, changelog và bằng chứng kiểm chứng. |
-| `en/plans/`, `en/specs/` và bản VI | Quy ước lưu kế hoạch/đặc tả, mẫu công việc và tài liệu lịch sử; không phải task database đang chạy. |
+| `en/plans/`, `en/specs/` và bản VI | Hồ sơ lịch sử trước khi hợp nhất. Xem [bản Plan](https://github.com/cirnetlab/cirnet-rules/blob/a0780db9112346f6abf74d986fdd560e83dcdc95/en/plans/README.md), [bản Spec](https://github.com/cirnetlab/cirnet-rules/blob/a0780db9112346f6abf74d986fdd560e83dcdc95/en/specs/README.md) và [quy trình Task Continuity hiện hành](en/docs/distribution.md#task-continuity). |
 | `en/templates/`, `vi/templates/` | Mẫu AGENTS, plan, spec, compatibility matrix và repository map. |
 | `hooks/`, `Cargo.toml`, `Cargo.lock` | Chương trình kiểm tra tài liệu bằng Rust, không có thư viện Rust bên thứ ba trong checker. |
 | `scripts/continuity/`, `scripts/task-continuity.ps1` | Quản lý checkpoint, Git, khám phá tác vụ, kiểm chứng và handoff. |

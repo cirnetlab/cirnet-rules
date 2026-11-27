@@ -1,6 +1,7 @@
 # Mẫu đặc tả task
 
-Chỉ là mẫu. Thay các gợi ý bằng yêu cầu trước khi áp dụng.
+Dùng gợi ý này cho yêu cầu tác vụ trong checkpoint Task Continuity hoặc
+cho đặc tả có giá trị độc lập tại repo sở hữu.
 
 - Vấn đề và hành vi mong muốn, có ví dụ cụ thể khi hữu ích.
 - Mục tiêu, ngoài mục tiêu, ranh giới owner và phạm vi được phép.
@@ -14,4 +15,4 @@ Giữ spec và bản dịch khớp khi quyết định thay đổi. Ghi kết qu
 riêng; một yêu cầu không phải bằng chứng kiểm tra đã pass.
 
 <!-- source: en/templates/spec.md -->
-<!-- source-sha256: ecb919709b7c805eaae96b3a66f02a920aed0ac5e9fab83f67ddddcce991b258 -->
+<!-- source-sha256: 6d18f6bcfc81a816b62884e8037a3a23e59e928fc16953565ce9631780f46e98 -->

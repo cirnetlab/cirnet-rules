@@ -129,6 +129,53 @@ và kiểm chứng lại. Cùng lệnh lưu đó có thể thay nội dung mục
 nhận giữ các ghi chú trước đó. Với v1, ghi thêm lý do vào phần
 Decisions & Blockers mới.
 
+### Dùng Superpowers với Task Continuity
+
+Dùng plugin chính thức qua cơ chế khám phá gốc của agent và nạp các Skill
+phù hợp với tác vụ. Superpowers cung cấp phương pháp phát triển. CIRNET Rules
+và Skills quản lý kỹ thuật, tương thích, cấp quyền, bảo mật và an toàn vật lý.
+Dùng Skill soạn thảo của CIRNET cả khi thiếu plugin. Chọn lập kế hoạch chi tiết
+hoặc dùng subagent tùy độ phức tạp, khả năng, chi phí và quyền đã cấp.
+
+Với công việc mới không đơn giản, phân tích phạm vi và khởi tạo Task Continuity
+trước khi triển khai. Ghi yêu cầu, quyết định, trình tự và tiêu chí nghiệm thu
+trong `task.md` theo tiêu đề hiện có. Ghi mốc, vướng mắc, bước tiếp theo và
+kiểm chứng trong `progress.md`. Dùng lệnh hiện có để công bố trạng thái và
+bằng chứng. Ghim đặc tả dài hạn và quyết định từ repo sở hữu bằng revision và hash.
+
+Superpowers 7.0.1 đề xuất lưu plan và thiết kế trong `docs/superpowers/`.
+Dùng checkpoint để lưu hồ sơ tác vụ thông thường. Nếu workflow cần tệp cố
+định, tạo đầu vào tối thiểu dưới thư mục `<task-id>/` hiện có, bên ngoài
+`snapshots/`. Dùng tên tệp ổn định nhận diện tác vụ. Đối chiếu đầu vào sau
+mỗi lần cập nhật checkpoint được duyệt và giữ cùng Task ID.
+
+Helper Bash `sdd-workspace PLAN_FILE` dùng Git để tìm worktree đang thực thi.
+Lệnh tạo thư mục theo plan dưới `.superpowers/sdd/` và ghi đường dẫn đầu vào
+đã chuẩn hóa vào `plan-path`. Cùng đường dẫn trong cùng worktree chọn lại đúng
+thư mục. Các đầu vào trùng tên tệp dùng thư mục riêng khi đã có marker. Rà
+soát thư mục cũ thiếu marker trước khi chạy vì helper có thể nhận thư mục đó.
+Dùng workspace cục bộ được Git bỏ qua cho ledger `progress.md` chi tiết, brief
+và gói review khi workflow yêu cầu.
+
+Khôi phục tác vụ hiện có bằng bootstrap hoặc resume, rồi đối chiếu Git, quyền,
+tính toàn vẹn và tham chiếu đã ghim. Đối chiếu worktree, đường dẫn plan, mốc Git
+và kết luận đã làm trong ledger với checkpoint, diff và các phép kiểm đã quan
+sát. Thiếu ledger vẫn có thể dùng checkpoint. Đối chiếu dữ liệu cũ hoặc mâu
+thuẫn trước khi dựa vào kết luận trong ledger. Ghi sai khác chưa giải quyết
+là mốc chưa xác minh. Dùng lại Build Output tương thích bằng Task Key và mã
+băm marker hiện có.
+
+Dùng lại worktree hiện tại khi phù hợp. Commit, tạo worktree, dùng subagent và
+dọn dẹp đều cần quyền tương ứng. Dùng cách thực thi trực tiếp phù hợp khi
+workflow đã chọn có bước chưa được cấp quyền. Ghi giới hạn và giữ ledger đến
+khi được phép dọn dẹp. Giữ trạng thái checkpoint, bằng chứng build và nghiệm
+thu trong các hệ thống CIRNET tương ứng.
+
+Xem [helper workspace chính thức](https://github.com/obra/superpowers/blob/v7.0.1/skills/subagent-driven-development/scripts/sdd-workspace)
+và [nghiệm thu Codex do người dùng xác nhận](../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance).
+Nghiệm thu đó ghi nhận khôi phục checkpoint và phiên build trong tác vụ đã quan
+sát. Kiểm chứng riêng việc khôi phục native khi kết hợp Superpowers.
+
 ### Dùng lại phiên artifact của task
 
 Khôi phục cùng Task ID trên worktree gốc. Sau khi review checkpoint và xác nhận
@@ -191,7 +238,7 @@ cập. Phiên dùng quy trình này cần nạp baseline và có quyền vào to
 
 Dùng `Task`, `Progress`, `References`, `Git.Changes` và tóm tắt kiểm tra để
 chỉ đọc ngữ cảnh cần cho bước tiếp theo. Tóm tắt Git gồm worktree, nhánh và
-HEAD đã ghi nhận và hiện tại. Rà Rules cục bộ hiện tại, Plans/Specs
+HEAD đã ghi nhận và hiện tại. Rà Rules cục bộ hiện tại, tài liệu
 đã ghim có liên quan và kết quả đối chiếu. `-Compact` giữ yêu cầu gốc, tiến độ,
 tham chiếu, tiêu chí nghiệm thu và kết quả kiểm tra còn hiệu lực. Dùng
 `bootstrap` thông thường để xem đầy đủ bằng chứng tiến trình và rà soát.
@@ -289,7 +336,7 @@ có thể báo `IntegrityStatus: PASS` trong khi kiểm chứng trên trạng th
 vẫn là `NOT_RUN`. Việc kiểm tra Git hiện tại, quyền, tham chiếu và hiệu lực
 bằng chứng cần worktree gốc và checkpoint cục bộ. Việc khôi phục sau gián đoạn
 Native và bàn giao giữa các tài khoản được cấp quyền của cả hai loại agent được
-quy định trong [tiêu chí nghiệm thu](../specs/cirnet-rules/task-continuity/spec.md#11-kiểm-chứng-và-tiêu-chí-nghiệm-thu).
+quy định trong [tiêu chí nghiệm thu](task-continuity.md#11-kiểm-chứng-và-tiêu-chí-nghiệm-thu).
 
 ## Bằng chứng kiểm chứng
 
@@ -594,4 +641,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 75738fb151cba151c91b18b259cd1d5a7172ec2728f8374931a91cc332aaf471 -->
+<!-- source-sha256: c8a8bd6907c27143d7fca567c400c421a6f929bda541a33ae3c6d3e311f92c83 -->

@@ -103,5 +103,8 @@ kiểm tra thực sự chạy. Task này quan sát hành vi file trong home gi�
 Discovery và hành vi native là NOT_RUN. Xem [phân phối](distribution.md)
 để cập nhật và restore.
 
+Dùng [plugin Superpowers chính thức](https://github.com/obra/superpowers) qua cơ chế khám phá gốc của client khi phù hợp. Xem [hướng dẫn tích hợp](distribution.md#dùng-superpowers-với-task-continuity) về workflow tùy chọn, quyền sở hữu checkpoint và cách thực thi cục bộ tương thích.
+
+
 <!-- source: en/docs/setup.md -->
-<!-- source-sha256: 7cf89690d39ef71991e5552a2a6cc24b850ff08c61c8d3035a671d576d866855 -->
+<!-- source-sha256: 7cc76460d9fd0d74fb936b96a6bb1f7e22ec241df3b53c71f316a4d2bc49398d -->

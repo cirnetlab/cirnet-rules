@@ -14,7 +14,7 @@ rule và [Skill](skills/README.md) liên quan đến tác vụ.
 | Xác định ownership file và kiểm tra di chuyển | [Đề xuất tiêu chuẩn tổ chức](rules/repository-organization.md) · [Mẫu bản đồ repository](templates/repository-map.md) |
 | Thiết lập client, đóng gói hoặc restore bundle local | [Thiết lập](docs/setup.md) · [Phân phối](docs/distribution.md) |
 | Bảo trì tài liệu song ngữ và chạy checker | [Policy tài liệu](policies/documentation.md) · [Kiểm tra](hooks/README.md) |
-| Soạn chỉ dẫn local hoặc ghi hồ sơ task | [AGENTS local](templates/AGENTS.md) · [Plan](plans/README.md) · [Spec](specs/README.md) |
+| Soạn chỉ dẫn local hoặc ghi hồ sơ task | [AGENTS local](templates/AGENTS.md) · [Task Continuity](docs/distribution.md#task-continuity) |
 
 Thay đổi candidate nằm trong [changelog](../CHANGELOG.md).
 Bằng chứng sản phẩm có ngày trong [reference](references/README.md).
@@ -28,4 +28,4 @@ ghi lại các lượt chạy lịch sử.
 [Giấy phép](../LICENSE) · [Thông báo bên thứ ba](../THIRD_PARTY_NOTICES.md)
 
 <!-- source: en/README.md -->
-<!-- source-sha256: 7d3da4eee82a7d61b086906e665d90b2ecbfeb92606dab09a703bb70094d73a3 -->
+<!-- source-sha256: 7a366a62ff2c021d067807c66343693bfaafbc0005ffe952ff356f485ce54eb6 -->

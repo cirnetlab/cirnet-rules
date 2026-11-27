@@ -14,7 +14,7 @@ Read the relevant owner source, rule and [Skill](skills/README.md) for the task.
 | Identify file ownership and check a move | [Proposed organization standard](rules/repository-organization.md) · [Repository map template](templates/repository-map.md) |
 | Set up a client, package or restore a local bundle | [Setup](docs/setup.md) · [Distribution](docs/distribution.md) |
 | Maintain bilingual documents and run checks | [Documentation policy](policies/documentation.md) · [Checks](hooks/README.md) |
-| Adapt local instructions or record task work | [Local AGENTS](templates/AGENTS.md) · [Plans](plans/README.md) · [Specs](specs/README.md) |
+| Adapt local instructions or record task work | [Local AGENTS](templates/AGENTS.md) · [Task Continuity](docs/distribution.md#task-continuity) |
 
 Current candidate changes are in the [changelog](../CHANGELOG.md).
 Product evidence is dated in [references](references/README.md).

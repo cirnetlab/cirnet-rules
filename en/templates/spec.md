@@ -1,6 +1,7 @@
 # Task specification template
 
-Template only. Replace the prompts with requirements before adopting it.
+Use these prompts for task-specific requirements in the Task Continuity
+checkpoint or for an independently useful specification in its owning repository.
 
 - Problem and intended behavior, with a concrete example when helpful.
 - Goals, non-goals, owner boundaries and authorized scope.

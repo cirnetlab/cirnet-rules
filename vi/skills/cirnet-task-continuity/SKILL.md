@@ -45,13 +45,14 @@ Phục hồi phiên artifact tương thích bằng `TaskKey` gốc và hash mark
 Kiểm tra đầu vào build trước khi dùng lại. Xem hướng dẫn phân phối Task
 Continuity để kiểm tra phiên và dọn dẹp khi được phép.
 
-Giữ các Plan và Spec trong repo sở hữu và tham chiếu bằng đường dẫn cùng
-revision hoặc hash. Đưa mọi đề xuất sửa tài liệu qua quy trình phê duyệt
-của chủ sở hữu. Dùng công cụ và mô hình lưu trữ hiện có.
+Giữ kế hoạch thực thi và nghiệm thu trong checkpoint. Ghim đặc tả dài hạn
+từ repo sở hữu. Nếu có ledger SDD, đối chiếu danh tính plan, worktree, kết
+luận và bằng chứng với checkpoint. Thiếu ledger vẫn có thể khôi phục.
+Rà mâu thuẫn trước khi dựa vào ledger.
 
 Dùng revision áp dụng trong checkout đã được duyệt.
 Lệnh Task Continuity (`vi/docs/distribution.md#task-continuity`) ·
-Đặc tả Task Continuity (`vi/specs/cirnet-rules/task-continuity/spec.md`)
+Đặc tả Task Continuity (`vi/docs/task-continuity.md`)
 
 <!-- source: en/skills/cirnet-task-continuity/SKILL.md -->
-<!-- source-sha256: beb2c59ebb5d6c8ef1b3aae510724a10b514f8f882ab4cd614c2587460917868 -->
+<!-- source-sha256: 48db0f51323d78855e730afb87336dc6cd512fe3ecc36a733e4c70d60e3bb6d8 -->

@@ -1,9 +1,10 @@
 # Mẫu kế hoạch task
 
-Chỉ là mẫu. Thay các gợi ý bằng dữ kiện task trước khi áp dụng.
+Dùng gợi ý dưới `Plans & Specs` trong checkpoint tác vụ. Chỉ dùng tệp Plan
+riêng cho hồ sơ dài hạn của chủ sở hữu hoặc đầu vào workflow dẫn xuất.
 
 - Mục tiêu và phạm vi repository/file được phép.
-- Liên kết tới spec tiếng Anh và tài liệu tiếng Việt tương ứng.
+- Ghim đặc tả và quyết định dài hạn liên quan bằng revision và hash.
 - Các bước triển khai theo thứ tự, có kết quả kiểm tra được.
 - Lệnh kiểm chứng, prerequisites và vị trí output được phép.
 - Ảnh hưởng tài liệu: các cặp Anh–Việt cần đổi, hoặc lý do không cần cập nhật.
@@ -14,4 +15,4 @@ thiếu prerequisites là BLOCKED. Ghi thay đổi plan mà không ngụ ý có 
 ghi, release hoặc cấu hình global.
 
 <!-- source: en/templates/plan.md -->
-<!-- source-sha256: 817462ab83cb2c03bd27757322374f6f1ab44904d742609d0ec6b9a6dd0b06ad -->
+<!-- source-sha256: 63d26e565fece4800fee27618d8c21248c32f204355c69236c90b48d12b639f3 -->

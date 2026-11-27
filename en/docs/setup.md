@@ -106,3 +106,5 @@ For all three, choose one relevant skill, check the local/nested rules, and
 report the checks actually run. This task observed file behavior only in fake
 homes. Native discovery and behavior are NOT_RUN. For update and restore, see
 [distribution](distribution.md).
+
+Use the official [Superpowers plugin](https://github.com/obra/superpowers) through native client discovery when appropriate. Follow the [integration guidance](distribution.md#use-superpowers-with-task-continuity) for optional workflow use, checkpoint ownership and compatible local execution.
