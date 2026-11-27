@@ -826,6 +826,58 @@ fn hygiene_new_file_selector_rejects_paths_outside_the_document_inventory() {
 }
 
 #[test]
+fn product_layout_checks_pairs_links_and_changelog_without_toolkit_metadata() {
+    let fixture = Fixture::new();
+    let product = fixture.root.join("product");
+    fixture.write(
+        "product/README.md",
+        "# Product\n\n[Guide](docs/en/index.md#usage)\n",
+    );
+    fixture.write(
+        "product/docs/en/index.md",
+        "# English\r\n\r\n## Usage\r\n\r\nLine with hard break.  \r\nSecond line.\r\n",
+    );
+    fixture.write("product/docs/vi/index.md", "# Tiếng Việt\n");
+    fixture.write(
+        "product/docs/changelogs/README.md",
+        "# Changelog\n\n[Version 0](CHANGELOG_V0.md)\n",
+    );
+    fixture.write("product/docs/changelogs/CHANGELOG_V0.md", "# Version 0\n");
+    Fixture::check_root(
+        &product,
+        0,
+        &["--product", "--new-file", "docs/changelogs/CHANGELOG_V0.md"],
+    );
+    fixture.write("product/docs/en/extra.md", "# Extra\n");
+    fixture.write("product/docs/vi/other.md", "# Other\n");
+    fixture.write(
+        "product/docs/vi/index.md",
+        format!(
+            "# Tiếng Việt\n\n<!-- source: docs/en/index.md -->\n<!-- source-sha256: {} -->\n",
+            "0".repeat(64)
+        ),
+    );
+    fixture.write(
+        "product/README.md",
+        "# Product\n\n[Guide](docs/EN/index.md#usage)\n",
+    );
+    fixture.write(
+        "product/docs/changelogs/README.md",
+        "# Changelog\n\n[Version 1](CHANGELOG_V1.md)\n",
+    );
+    let report = Fixture::check_root(&product, 1, &["--product"]);
+    for expected in [
+        "missing Vietnamese translation",
+        "orphan Vietnamese translation",
+        "source hash is stale",
+        "specified spelling and case",
+        "CHANGELOG_V1.md",
+    ] {
+        assert!(report.contains(expected), "{report}");
+    }
+}
+
+#[test]
 fn missing_translation_fails() {
     let fixture = Fixture::new();
     fs::remove_file(fixture.root.join("vi/guide.md")).unwrap();

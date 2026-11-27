@@ -4,6 +4,20 @@ Tiếng Anh dưới `en/` là nguồn chuẩn. Cùng đường dẫn tương đ�
 bản dịch tiếng Việt cho người đọc. Agent mặc định đọc tiếng Anh; bản Việt không
 thêm yêu cầu hoặc ghi đè bản Anh. Khi dịch, cần đọc cả hai.
 
+## Quyền sở hữu tài liệu
+
+Giữ chính sách kỹ thuật và các bản chụp kiến trúc chuẩn trong CIRNET Rules.
+Dùng [bảng định tuyến kiến trúc](../references/architecture-routing.md)
+để tìm chủ sở hữu từng sản phẩm. Giữ mô tả triển khai hiện hành, vận hành
+và lịch sử phát hành tại repo sở hữu. Chỉ mục của tổ chức và website liên
+kết tới các nguồn đó. Ghi revision, mã băm và mục đích của bản sao cần giữ
+để dùng ngoại tuyến hoặc bảo đảm tương thích.
+
+Dùng [Task Continuity](../docs/distribution.md#task-continuity) cho kế hoạch
+tạm thời, tiến độ và tiêu chí chấp nhận của tác vụ. Giữ đặc tả thiết kế có
+giá trị riêng và kế hoạch dài hạn hiện có tại repo sở hữu, rồi ghim chúng
+từ checkpoint. Phiên artifact được cấp quyền lưu đầu ra build và test.
+
 ## Vòng đời tài liệu
 
 1. **Tìm trước khi tạo.** Xác định mục đích và chủ sở hữu. Tìm trong repository
@@ -89,4 +103,4 @@ metadata của nó.
   tạo cây song ngữ hoặc sửa repository khác.
 
 <!-- source: en/policies/documentation.md -->
-<!-- source-sha256: 0f7d91f56d1d838f30a972b86b91da1b5123b1d610fb996472509fd7c1e117d8 -->
+<!-- source-sha256: 82f332dd7f02fa7d8a6d359c16537a39e2d8a638e875bd43ceff02e3d145d032 -->

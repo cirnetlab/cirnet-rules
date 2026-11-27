@@ -9,7 +9,8 @@ Use the repository's documentation policy for the affected scope.
 
 1. Identify the purpose. Search the authorized repository by filename, title,
    heading, topic, issue ID, related text and incoming links. Update the
-   canonical document in place. Create only for a distinct purpose or required
+   canonical document in place. Follow ownership across repositories and link
+   to the owning source. Create only for a distinct purpose or required
    evidence, and record why it belongs there.
 2. For overlap, propose the canonical file, material to retain and links to
    update. Consolidate within scope and preserve separate plans and specs,

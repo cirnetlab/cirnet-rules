@@ -9,7 +9,7 @@ Dùng chính sách tài liệu của repository cho phạm vi bị ảnh hưởn
 
 1. Xác định mục đích. Tìm trong repository được phép theo tên tệp, tiêu đề,
    heading, chủ đề, mã issue, nội dung liên quan và liên kết trỏ tới. Cập nhật
-   tài liệu chuẩn tại chỗ. Chỉ tạo tệp cho mục đích riêng hoặc bằng chứng bắt
+   tài liệu chuẩn tại chỗ. Xác định repo sở hữu và liên kết tới nguồn của repo đó. Chỉ tạo tệp cho mục đích riêng hoặc bằng chứng bắt
    buộc, rồi ghi lý do chọn vị trí đó.
 2. Khi có phần trùng, đề xuất tệp chuẩn, nội dung cần giữ và liên kết cần
    cập nhật. Hợp nhất trong phạm vi được phép, giữ kế hoạch và đặc tả có
@@ -30,4 +30,4 @@ trong `docs/architecture-sources.tsv`. Rà soát các bản có nội dung khác
 và giữ lịch sử khi đề xuất thay liên kết.
 
 <!-- source: en/skills/cirnet-documentation-sync/SKILL.md -->
-<!-- source-sha256: ee2c50e017af64235936fc47cc19d233d576a5b495f0722b5510778a4af37d0a -->
+<!-- source-sha256: a8f91643f8e70b4e41b06e364c812fb9c48f3f778340124be992e6ba40af1adb -->

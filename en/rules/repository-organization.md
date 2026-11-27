@@ -46,8 +46,8 @@ ownership boundary, test need or maintainability problem.
 
 Create categories when work requires them. Use names that describe behavior or
 responsibility and follow local language and framework conventions. Keep one
-canonical document per purpose and preserve repository-specific task records,
-including existing `.superpowers/plans/` and `.superpowers/specs/` conventions.
+canonical document per purpose. Use Task Continuity for temporary task records
+and preserve plans and specifications with durable value in the owning repository.
 Follow the [documentation lifecycle](../policies/documentation.md#documentation-lifecycle)
 and regenerate derived outputs through their authoritative producer.
 

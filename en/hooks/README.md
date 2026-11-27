@@ -58,6 +58,15 @@ WARN includes context budgets and similarity findings. INFO includes
 measurements and file review guidance. A missing Rust toolchain leaves the
 executable check BLOCKED. Record manual review separately.
 
+To check a product checkout, pass `--product --root PATH`. This mode checks
+root Markdown and the existing `docs/en`, `docs/vi` and `docs/changelogs`
+trees with the same link, formatting and duplicate checks. It checks exact
+target path casing and pairs files when the product uses bilingual trees.
+Product files can use CRLF and Markdown hard line breaks made with two
+spaces. Products can adopt translation hashes under their own policies. Existing
+source metadata is verified when present. The default toolkit mode retains
+its full Rules, Skills, version and architecture checks.
+
 ## Review new Markdown
 
 After searching for the owning document, list each new Markdown path explicitly

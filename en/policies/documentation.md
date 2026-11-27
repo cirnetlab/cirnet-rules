@@ -4,6 +4,21 @@ English under `en/` is canonical. The same relative path under `vi/` is the
 Vietnamese human translation. Agents read English by default; Vietnamese does not
 add requirements or override English. Translation work necessarily reads both.
 
+## Documentation ownership
+
+Keep engineering policy and canonical architecture snapshots in CIRNET Rules.
+Use the [architecture routing table](../references/architecture-routing.md)
+to find each product owner. Keep current implementation, operations and
+release history with the owning repository. Organization and website indexes
+link to those sources. Record the source revision, digest and purpose when
+offline use or compatibility requires a retained copy.
+
+Use [Task Continuity](../docs/distribution.md#task-continuity) for temporary
+task plans, progress and acceptance records. Keep independently useful
+design specifications and existing durable plans with their owners and
+pin them from the checkpoint. The owned artifact session holds build and
+test outputs.
+
 ## Documentation lifecycle
 
 1. **Search before creating.** Identify the purpose and owner. Search within

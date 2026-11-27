@@ -46,8 +46,8 @@ cấu trúc khi cần cho năng lực, ranh giới sở hữu, kiểm thử ho�
 
 Chỉ tạo nhóm khi công việc cần đến. Dùng tên mô tả hành vi hoặc trách nhiệm
 và theo quy ước ngôn ngữ, framework tại repo. Giữ một tài liệu chuẩn cho
-mỗi mục đích và bảo toàn vị trí hồ sơ công việc riêng của repo, gồm quy
-ước `.superpowers/plans/` và `.superpowers/specs/` hiện có. Theo
+mỗi mục đích. Dùng Task Continuity cho hồ sơ tác vụ tạm thời và giữ kế hoạch,
+đặc tả có giá trị lâu dài trong repo sở hữu. Theo
 [vòng đời tài liệu](../policies/documentation.md) và dùng bên sinh có
 thẩm quyền để tạo lại đầu ra dẫn xuất.
 
@@ -141,4 +141,4 @@ Dùng [Skill cấu trúc repository](../skills/cirnet-repository-structure/SKILL
 cho quy trình rà soát và kiểm chứng.
 
 <!-- source: en/rules/repository-organization.md -->
-<!-- source-sha256: b7aa3b937d91fabc7e50db8c7193108f0729251b73f317809970272912d9128f -->
+<!-- source-sha256: 6f5db767e83726ce935d0145cdb3093b35465b40c380d5edd60ed40b6a617d2a -->

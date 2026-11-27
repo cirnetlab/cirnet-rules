@@ -11,7 +11,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: check-docs [--root PATH] [--new-file PATH ...]";
+const USAGE: &str = "Usage: check-docs [--root PATH] [--product] [--new-file PATH ...]";
 const HELP: &str = "Read-only, offline bilingual documentation check.
 
 Checks root Markdown and the en/vi trees. Supports simple inline links,
@@ -30,6 +30,9 @@ The checker uses the paths you list. Unprotected byte or normalized duplicates
 fail when either or both paths are listed. Near matches remain advisory.
 
 Use --root PATH to select a checkout. The default is the build checkout.
+Use --product for root Markdown and the existing docs/en, docs/vi and
+docs/changelogs trees. Product mode checks bilingual paths and verifies source
+metadata when present. Toolkit-specific checks apply in the default mode.
 Exit 0: PASS. Exit 1: failed checks. Exit 2: invalid invocation.";
 
 fn excluded(name: &str) -> bool {
@@ -224,7 +227,6 @@ fn stamp(text: &str) -> Option<(&str, &str)> {
         && hash
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        && source.starts_with("en/")
         && source.ends_with(".md")
     {
         Some((source, hash))
@@ -235,6 +237,7 @@ fn stamp(text: &str) -> Option<(&str, &str)> {
 
 struct Checker {
     root: PathBuf,
+    product: bool,
     documents: BTreeMap<PathBuf, String>,
     errors: Vec<String>,
     warnings: Vec<String>,
@@ -353,10 +356,29 @@ impl Checker {
                     return None;
                 }
             };
-            if text.contains('\r') || (!text.is_empty() && !text.ends_with('\n')) {
-                self.fail(path, "use LF line endings and a final newline");
+            let invalid_endings = if self.product {
+                text.as_bytes()
+                    .iter()
+                    .enumerate()
+                    .any(|(i, &byte)| byte == b'\r' && text.as_bytes().get(i + 1) != Some(&b'\n'))
+            } else {
+                text.contains('\r')
+            };
+            if invalid_endings || (!text.is_empty() && !text.ends_with('\n')) {
+                self.fail(
+                    path,
+                    if self.product {
+                        "use LF or CRLF line endings and a final newline"
+                    } else {
+                        "use LF line endings and a final newline"
+                    },
+                );
             }
-            if text.lines().any(|line| line.ends_with([' ', '\t'])) {
+            if text.lines().any(|line| {
+                let body = line.trim_end_matches([' ', '\t']);
+                let spacing = &line[body.len()..];
+                !spacing.is_empty() && !(self.product && !body.is_empty() && spacing == "  ")
+            }) {
                 self.fail(path, "trailing whitespace");
             }
             self.documents.insert(path.to_path_buf(), text);
@@ -371,18 +393,32 @@ impl Checker {
         fs::read_to_string(self.root.join(path)).map_err(|error| error.to_string())
     }
 
-    fn translations(&mut self, english: &BTreeSet<PathBuf>, vietnamese: &BTreeSet<PathBuf>) {
+    fn translations(
+        &mut self,
+        english: &BTreeSet<PathBuf>,
+        vietnamese: &BTreeSet<PathBuf>,
+        language_root: &Path,
+    ) {
+        let en = language_root.join("en");
+        let vi = language_root.join("vi");
         for source in english {
-            let translation = Path::new("vi").join(source.strip_prefix("en").unwrap());
+            let translation = vi.join(source.strip_prefix(&en).unwrap());
             if !vietnamese.contains(&translation) {
                 self.fail(source, "missing Vietnamese translation");
                 continue;
             }
-            let metadata = self
-                .documents
-                .get(&translation)
-                .and_then(|text| stamp(text));
-            match metadata {
+            let text = self.documents.get(&translation);
+            if self.product
+                && text.is_some_and(|text| {
+                    !text.lines().any(|line| {
+                        line.trim_start().starts_with("<!-- source:")
+                            || line.trim_start().starts_with("<!-- source-sha256:")
+                    })
+                })
+            {
+                continue;
+            }
+            match text.and_then(|text| stamp(text)) {
                 None => self.fail(
                     &translation,
                     "end with source and source-sha256 metadata comments",
@@ -405,7 +441,7 @@ impl Checker {
             }
         }
         for translation in vietnamese {
-            let source = Path::new("en").join(translation.strip_prefix("vi").unwrap());
+            let source = en.join(translation.strip_prefix(&vi).unwrap());
             if !english.contains(&source) {
                 self.fail(translation, "orphan Vietnamese translation");
             }
@@ -689,7 +725,8 @@ impl Checker {
         };
         architecture::check_link(&target)?;
         let snapshot = architecture::is_snapshot(&target);
-        let metadata = self.path_metadata(&target, skill_root.is_some() || snapshot)?;
+        let metadata =
+            self.path_metadata(&target, self.product || skill_root.is_some() || snapshot)?;
         if skill_root.is_some() && !metadata.is_file() {
             return Err("expected a regular resource file".into());
         }
@@ -715,13 +752,34 @@ impl Checker {
         let root_files = self.entries(Path::new("")).map_err(RunError::Read)?;
         let mut english = BTreeSet::new();
         let mut vietnamese = BTreeSet::new();
-        self.collect(Path::new("en"), &mut english);
-        self.collect(Path::new("vi"), &mut vietnamese);
+        let language_root = if self.product {
+            Path::new("docs")
+        } else {
+            Path::new("")
+        };
+        let en = language_root.join("en");
+        let vi = language_root.join("vi");
+        let changelogs = Path::new("docs/changelogs");
+        let directory_present = |path: &Path| {
+            !fs::symlink_metadata(self.root.join(path))
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+        };
+        let has_languages = !self.product || directory_present(&en) || directory_present(&vi);
+        let has_changelogs = self.product && directory_present(changelogs);
+        let mut changelog_files = BTreeSet::new();
+        if has_languages {
+            self.collect(&en, &mut english);
+            self.collect(&vi, &mut vietnamese);
+        }
+        if has_changelogs {
+            self.collect(changelogs, &mut changelog_files);
+        }
         for path in root_files
             .iter()
             .filter(|path| is_markdown(path))
             .chain(&english)
             .chain(&vietnamese)
+            .chain(&changelog_files)
         {
             self.read(path);
         }
@@ -731,16 +789,21 @@ impl Checker {
         {
             return Err(RunError::InvalidNewFile(path.clone()));
         }
-        self.translations(&english, &vietnamese);
-        self.entrypoints();
-        let cargo_manifest = self.version_file(Path::new("Cargo.toml"));
-        self.versions(cargo_manifest.as_deref());
-        let is_toolkit = cargo_manifest
-            .as_deref()
-            .and_then(|text| cargo_package_field(text, "name"))
-            == Some("cirnet-rules");
-        let skills = self.skills(&english);
-        self.context_checks(&root_files, &skills);
+        self.translations(&english, &vietnamese, language_root);
+        let (is_toolkit, skills) = if self.product {
+            (false, BTreeSet::new())
+        } else {
+            self.entrypoints();
+            let cargo_manifest = self.version_file(Path::new("Cargo.toml"));
+            self.versions(cargo_manifest.as_deref());
+            let is_toolkit = cargo_manifest
+                .as_deref()
+                .and_then(|text| cargo_package_field(text, "name"))
+                == Some("cirnet-rules");
+            let skills = self.skills(&english);
+            self.context_checks(&root_files, &skills);
+            (is_toolkit, skills)
+        };
         let inventory: Vec<_> = self.documents.keys().cloned().collect();
         let mut incoming = BTreeMap::<PathBuf, BTreeSet<PathBuf>>::new();
         for path in &inventory {
@@ -781,7 +844,9 @@ impl Checker {
         // Keep those link targets out of similarity and new-file review.
         self.documents
             .retain(|path, _| inventory.binary_search(path).is_ok());
-        architecture::check(self, is_toolkit);
+        if !self.product {
+            architecture::check(self, is_toolkit);
+        }
         for diagnostic in document_hygiene::review(&self.documents, new_files, &incoming) {
             use document_hygiene::Diagnostic;
             match diagnostic {
@@ -818,13 +883,16 @@ fn new_file_path(arg: &str) -> Option<PathBuf> {
 fn main() -> ExitCode {
     let mut root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut new_files = BTreeSet::new();
+    let mut product = false;
     let mut args = env::args_os().skip(1);
     while let Some(arg) = args.next() {
         if arg == "--help" || arg == "-h" {
             println!("{USAGE}\n\n{HELP}");
             return ExitCode::SUCCESS;
         }
-        if arg == "--root" {
+        if arg == "--product" {
+            product = true;
+        } else if arg == "--root" {
             match args.next() {
                 Some(value) if !value.is_empty() && !value.to_string_lossy().starts_with('-') => {
                     root = PathBuf::from(value);
@@ -866,6 +934,7 @@ fn main() -> ExitCode {
     };
     let mut checker = Checker {
         root,
+        product,
         documents: BTreeMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),

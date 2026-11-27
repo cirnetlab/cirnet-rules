@@ -56,6 +56,16 @@ ngân sách context và phát hiện tương đồng. INFO gồm số đo và h�
 soát tệp. Thiếu bộ công cụ Rust thì kiểm tra thực thi ở trạng thái BLOCKED.
 Ghi kết quả rà soát thủ công riêng.
 
+Để kiểm tra checkout sản phẩm, truyền `--product --root PATH`. Chế độ này
+dùng cùng bộ kiểm tra liên kết, định dạng và nội dung trùng lặp cho Markdown
+ở thư mục gốc và các cây `docs/en`, `docs/vi`, `docs/changelogs` hiện có.
+Tệp sản phẩm có thể dùng CRLF và dấu ngắt dòng Markdown bằng hai dấu cách.
+Checker đối chiếu chính xác chữ hoa, chữ thường trong đường dẫn đích và
+ghép cặp tệp khi sản phẩm dùng cây song ngữ. Sản phẩm có thể áp dụng hash
+bản dịch theo chính sách riêng. Checker kiểm chứng metadata nguồn nếu có.
+Chế độ toolkit mặc định giữ đầy đủ các bước kiểm tra Rules, Skills, phiên
+bản và kiến trúc.
+
 ## Rà soát Markdown mới
 
 Sau khi tìm tài liệu sở hữu nội dung, liệt kê rõ từng đường dẫn Markdown mới
@@ -118,4 +128,4 @@ entrypoint của common-rules. Kiểm tra sản phẩm và bộ cấp phát outp
 Xem [chính sách tài liệu](../policies/documentation.md) về nghĩa vụ cập nhật.
 
 <!-- source: en/hooks/README.md -->
-<!-- source-sha256: b760597545dfeca4909534de48ccb24008f883b04954fa4ba6bfaa3c3146ae8b -->
+<!-- source-sha256: f614cad8b5c768f3961fe651f09db7f6fe4bc3d273e61e387c02da85ccb439e4 -->
