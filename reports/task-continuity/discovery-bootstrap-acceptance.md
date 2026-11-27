@@ -127,3 +127,11 @@ to the disposable worktree. Its SHA-256 is
 | --- | --- |
 | Actual quota-exhaustion recovery | `NOT_RUN` |
 | Native Claude Code-to-Claude Code handoff | `NOT_RUN` |
+
+## 2026-11-27 field acceptance follow-up
+
+The [Codex user-attested observation](native-codex-acceptance.md#2026-11-27-native-acceptance)
+records PASS — User-Attested Native Acceptance for quota-exhaustion recovery, handoff between
+Codex accounts with a generic resume instruction, and Build Output session
+reuse. The fixture results above remain historical. Claude Code account
+handoff remains `NOT_RUN`.

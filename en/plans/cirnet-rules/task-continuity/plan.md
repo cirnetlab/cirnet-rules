@@ -53,3 +53,11 @@ returned 1. Hosted CI was pending at that point. The linked CI record includes t
 - NOT_RUN during the source phase recorded in `6ca1dcf`: local build and test suites, CI, benchmarks and
   Native interruption recovery and handoff. Earlier results above describe
   earlier revisions. Acceptance remains open.
+
+## Current Native acceptance
+
+The [2026-11-27 Codex acceptance](../../../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) records
+**PASS — User-Attested Native Acceptance** for quota-exhaustion recovery,
+handoff between Codex accounts with a generic resume instruction, and reuse
+of the existing checkpoint and Build Output session. Claude Code account
+handoff remains `NOT_RUN`.

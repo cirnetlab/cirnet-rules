@@ -206,9 +206,14 @@ cho Windows Server 2022 và Ubuntu 24.04 như sau.
 [Bộ kiểm thử hồi quy](../../tests/continuity/task-continuity.tests.ps1) dùng
 worktree tạm, tiến trình con thực và loại agent được khai báo. Bộ test kiểm
 tra gián đoạn khi công bố checkpoint và khi chạy lệnh, schema cũ, xung đột
-Git, tham chiếu đã ghim, hiệu lực của bằng chứng và gói bàn giao. Khôi phục
-do hết quota Native và bàn giao giữa các tài khoản là `NOT_RUN`. Những bước
-này cần tài khoản được cấp quyền cho từng loại agent ở giai đoạn nghiệm thu độc lập.
+Git, tham chiếu đã ghim, hiệu lực của bằng chứng và gói bàn giao.
+Trong bộ hồi quy này, khôi phục sau khi hết hạn mức và bàn giao tài khoản thực tế là `NOT_RUN`.
+
+[Nghiệm thu Codex ngày 2026-11-27](../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) ghi nhận
+**PASS — User-Attested Native Acceptance** cho việc khôi phục sau khi
+hết hạn mức, bàn giao giữa các tài khoản Codex chỉ bằng yêu cầu tiếp tục
+chung, và dùng lại checkpoint cùng phiên Build Output hiện có. Bàn giao giữa
+các tài khoản Claude Code vẫn là `NOT_RUN`.
 
 <!-- source: en/docs/toolkit-verification.md -->
-<!-- source-sha256: aef24e943e8b5acbb0b3c7b71cee20b24fef205d2ba8e24f9cd4d39844f18394 -->
+<!-- source-sha256: 83f3fd97518b74f1b9e72c8de700acc1b573677b47cd94fb02a53ebe4daefc01 -->

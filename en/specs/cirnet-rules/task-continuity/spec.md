@@ -296,6 +296,12 @@ Task Continuity may only be accepted when all of the following requirements have
 
 Test results must accurately report `PASS`, `FAIL`, `NOT_RUN`, or `BLOCKED`. Simulated testing must not be treated as equivalent to actual Native verification.
 
+The [2026-11-27 Codex acceptance](../../../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) records
+**PASS — User-Attested Native Acceptance** for quota-exhaustion recovery,
+handoff between Codex accounts with a generic resume instruction, and reuse
+of the existing checkpoint and Build Output session. Claude Code account
+handoff remains `NOT_RUN`.
+
 ## Final Principle
 
 **The Task Continuity Engine is developed centrally within `cirnet-rules`; Task Checkpoints are managed separately by the repositories that own the tasks; existing Plans/Specs must be preserved.**

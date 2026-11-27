@@ -60,5 +60,13 @@ Bảng CI được liên kết ở trên ghi kết quả cho bản sửa `67594e
   và khôi phục sau gián đoạn cùng bàn giao Native. Các kết quả ở trên
   thuộc những revision trước. Nghiệm thu vẫn đang mở.
 
+## Nghiệm thu Native hiện tại
+
+[Nghiệm thu Codex ngày 2026-11-27](../../../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) ghi nhận
+**PASS — User-Attested Native Acceptance** cho việc khôi phục sau khi
+hết hạn mức, bàn giao giữa các tài khoản Codex chỉ bằng yêu cầu tiếp tục
+chung, và dùng lại checkpoint cùng phiên Build Output hiện có. Bàn giao giữa
+các tài khoản Claude Code vẫn là `NOT_RUN`.
+
 <!-- source: en/plans/cirnet-rules/task-continuity/plan.md -->
-<!-- source-sha256: f30da062ea489de9a13b61cbd58c017d83f9dc08bee5e36264472c7c1cf49a49 -->
+<!-- source-sha256: c21b4a1c9c89663d4565cef47bf824e3e7f8e5256357a6b0359ce8389760adfe -->

@@ -53,3 +53,20 @@ and are needed to repeat live verification.
 
 - Actual quota-exhaustion recovery: `NOT_RUN`.
 - Native Claude Code to Claude Code handoff: `NOT_RUN`.
+
+## 2026-11-27 Native acceptance
+
+The user confirmed that Codex exhausted its quota during an ongoing build.
+They switched to another Codex account and gave the receiving Agent only the
+instruction “Hãy tiếp tục thực thi tác vụ dang dở” (“Resume the unfinished task”).
+
+| Scenario | Result | User-attested observation |
+| --- | --- | --- |
+| Recovery after quota exhaustion | PASS — User-Attested Native Acceptance | The receiving Agent recovered and continued the original task from the existing checkpoint. |
+| Handoff between Codex accounts | PASS — User-Attested Native Acceptance | The receiving Agent resumed after the account switch using only the generic resume instruction. |
+| Build Output session reuse | PASS — User-Attested Native Acceptance | The receiving Agent reused the existing session and created no redundant artifact directory. |
+
+These results are based on the user's account of the observed behavior.
+The earlier fixture results above retain their original scope and status.
+Claude Code account handoff and other scenarios outside this observation
+remain `NOT_RUN`.

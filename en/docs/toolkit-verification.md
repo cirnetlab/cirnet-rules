@@ -208,5 +208,10 @@ The [regression suite](../../tests/continuity/task-continuity.tests.ps1) uses
 disposable worktrees, real child processes and declared agent families. It
 exercises interrupted publication and execution, historical schemas, Git
 conflicts, pinned references, evidence freshness and portable handoffs.
-Native quota loss and account-to-account handoffs are `NOT_RUN`. These
-require authorized accounts in each family during independent acceptance.
+Native quota recovery and account handoff were `NOT_RUN` in this regression suite.
+
+The [2026-11-27 Codex acceptance](../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) records
+**PASS — User-Attested Native Acceptance** for quota-exhaustion recovery,
+handoff between Codex accounts with a generic resume instruction, and reuse
+of the existing checkpoint and Build Output session. Claude Code account
+handoff remains `NOT_RUN`.

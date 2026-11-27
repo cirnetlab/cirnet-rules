@@ -344,6 +344,12 @@ Kết quả kiểm thử phải báo chính xác `PASS`, `FAIL`, `NOT_RUN` hoặ
 `BLOCKED`. Không xem kiểm thử mô phỏng là tương đương với kiểm chứng thực tế
 trên agent.
 
+[Nghiệm thu Codex ngày 2026-11-27](../../../../reports/task-continuity/native-codex-acceptance.md#2026-11-27-native-acceptance) ghi nhận
+**PASS — User-Attested Native Acceptance** cho việc khôi phục sau khi
+hết hạn mức, bàn giao giữa các tài khoản Codex chỉ bằng yêu cầu tiếp tục
+chung, và dùng lại checkpoint cùng phiên Build Output hiện có. Bàn giao giữa
+các tài khoản Claude Code vẫn là `NOT_RUN`.
+
 ## Nguyên tắc cuối
 
 **Công cụ Task Continuity được phát triển tập trung trong `cirnet-rules`.
@@ -355,4 +361,4 @@ phục ngữ cảnh từ checkpoint đáng tin cậy, xác minh trạng thái th
 tiếp tục các hành động đã được phép.
 
 <!-- source: en/specs/cirnet-rules/task-continuity/spec.md -->
-<!-- source-sha256: 5c346e447f50c3761a206c3c700417aeb0645dee5978584249204e572065b8ca -->
+<!-- source-sha256: f302e5bb0e9301359f5ed4da0f42c0fe0bf1705116e9af2b0cc988443132c71d -->
