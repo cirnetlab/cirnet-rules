@@ -38,6 +38,31 @@ login, accounts, LMS, scheduling and administration.
    visible focus, discoverable commands, meaningful labels, resize behavior,
    graphics lifecycle and loading, error and unsupported states.
 
+## CIRNET Engineering Design Language
+
+Keep the circuit, schematic or other active artifact visually dominant. Use
+deep navy for application chrome, cyan for the CIRNET brand, light blue-gray
+workbench surfaces and blue for commands, focus and selection. Scope this
+appearance to engineering editors. Define semantic tokens for surfaces, text,
+density, controls, separators and feedback. Keep keyboard focus and selection
+distinct. Use compact offline typography with Vietnamese glyph support and
+tabular figures for measured values. Distinguish error, warning, unavailable
+and acknowledged operation state with text as well as color.
+
+Keep the header, grouped Ribbon, tools and status bar predictable. Project
+Explorer reflects real objects and selection. PropertyManager reflects
+supported properties and actual edit semantics. Use one icon identity per
+command. Reuse the existing licensed common icons and original engineering
+SVG paths. Use consistent sizing, stroke, alignment, accessible labels and
+feedback. Preserve asset provenance. Treat reference imagery as design input.
+
+Give each panel an independent, discoverable way to hide and return. Focus
+Mode restores the previous layout and leaves the circuit, selection, camera
+and unsaved editing state intact. At narrower widths, keep the viewport usable
+and restore commands by keyboard. Keep simulation, measured evidence and
+physical authority distinct. The product owns concrete tokens and component
+behavior. Introduce schematic editing only through an approved product model.
+
 ## Acceptance boundary
 
 Exercise at least one representative task on the identified primary surface.

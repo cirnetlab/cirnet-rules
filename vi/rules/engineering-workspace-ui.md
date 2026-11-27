@@ -39,6 +39,30 @@ khoản, LMS, lập lịch và quản trị.
    bị trỏ, chỉ báo focus, lệnh dễ tìm, nhãn rõ nghĩa, hành vi khi đổi kích
    thước, vòng đời đồ họa và trạng thái đang tải, lỗi hoặc không hỗ trợ.
 
+## Ngôn ngữ thiết kế kỹ thuật CIRNET
+
+Ưu tiên hiển thị mạch, schematic hoặc đối tượng đang làm việc. Dùng xanh navy
+đậm cho khung ứng dụng, cyan cho nhận diện CIRNET, xanh xám sáng cho bề mặt
+workbench và xanh dương cho lệnh, focus và lựa chọn. Áp dụng giao diện này
+cho trình chỉnh sửa kỹ thuật. Dùng token theo ý nghĩa cho bề mặt, chữ, mật độ,
+điều khiển, đường phân chia và phản hồi. Phân biệt focus bàn phím với lựa chọn.
+Dùng kiểu chữ ngoại tuyến gọn, hỗ trợ tiếng Việt và chữ số đều chiều rộng khi
+hiển thị số đo. Phân biệt lỗi, cảnh báo, không khả dụng và thao tác đã xác nhận
+bằng cả chữ và màu.
+
+Giữ header, nhóm Ribbon, công cụ và thanh trạng thái nhất quán. Project Explorer
+phản ánh đối tượng và lựa chọn thực tế. PropertyManager phản ánh các thuộc tính
+được hỗ trợ và cách chỉnh sửa thực tế. Dùng một định danh biểu tượng cho mỗi
+lệnh. Dùng lại biểu tượng chung có giấy phép và nét SVG kỹ thuật gốc. Giữ kích
+thước, nét, căn chỉnh, nhãn truy cập và phản hồi nhất quán. Bảo toàn nguồn gốc
+tài sản. Dùng hình tham chiếu làm đầu vào thiết kế.
+
+Mỗi panel có cách ẩn và hiện lại độc lập, dễ tìm. Focus Mode khôi phục bố cục cũ
+và giữ mạch, lựa chọn, camera cùng trạng thái chưa lưu. Ở chiều rộng nhỏ, giữ
+viewport thao tác được và có thể gọi lại lệnh bằng bàn phím. Phân biệt mô phỏng,
+bằng chứng đo và quyền thao tác vật lý. Sản phẩm sở hữu token cụ thể và hành vi
+component. Chỉ triển khai chỉnh sửa schematic qua mô hình sản phẩm đã được duyệt.
+
 ## Phạm vi nghiệm thu
 
 Thử ít nhất một tác vụ đại diện trên vùng làm việc chính đã xác định. Chọn
@@ -61,4 +85,4 @@ Dùng [Skill giao diện không gian làm việc kỹ thuật](../skills/cirnet-
 cho quy trình triển khai và rà soát.
 
 <!-- source: en/rules/engineering-workspace-ui.md -->
-<!-- source-sha256: f7945abbd2d9f5f1df7ad7342531435a76de602fc67fdc0ea1dba45d3342b63a -->
+<!-- source-sha256: a77671f3dd24889b54d15d20aff7b45b6cd6976eb4ca8e289517364a79b618c1 -->

@@ -39,3 +39,11 @@ instructions, source and contracts within the applicable
    operation feedback as relevant.
    Report visual review, functional test results and observed browser
    interactions with their evidence. Mark unexecuted checks `NOT_RUN`.
+
+Before editing, inspect the approved references, the real command entry points and
+asset provenance. Use the Rule for mandatory design invariants. On the running
+application, capture the primary editor, selected-object properties, each hidden
+panel, both panels hidden and Focus Mode. Compare 1280×720 and 1920×1080 when
+available. Check displayed units, focus, clipping, disabled reasons and contrast.
+Exercise the affected placement, editing, error and save paths. Store screenshots
+in the owned Build Output and describe observed results for operator review.

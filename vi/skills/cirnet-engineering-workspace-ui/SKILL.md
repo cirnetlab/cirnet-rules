@@ -44,5 +44,13 @@ phạm vi ràng buộc áp dụng tại `en/policies/architecture.md`.
    giao diện, kiểm thử chức năng và tương tác trình duyệt đã quan sát kèm
    bằng chứng. Đánh dấu các phép kiểm chưa chạy là `NOT_RUN`.
 
+Trước khi sửa, xem tham chiếu đã duyệt, điểm vào lệnh thực tế và nguồn gốc tài
+sản. Áp dụng Rule cho các yêu cầu thiết kế bắt buộc. Trên ứng dụng đang chạy,
+chụp trình chỉnh sửa chính, thuộc tính đối tượng đã chọn, từng trạng thái ẩn
+panel, ẩn cả hai panel và Focus Mode. So sánh 1280×720 và 1920×1080 khi có thể.
+Rà đơn vị, focus, cắt nội dung, lý do không khả dụng và độ tương phản. Thử các
+luồng đặt, sửa, lỗi và lưu bị ảnh hưởng. Lưu ảnh vào Build Output đã cấp và
+mô tả kết quả quan sát để người vận hành xem xét.
+
 <!-- source: en/skills/cirnet-engineering-workspace-ui/SKILL.md -->
-<!-- source-sha256: e89a18dda94df243cbd7fa830665782d030387f42f89c26dee23502a16001aea -->
+<!-- source-sha256: 9d404e7dcd2f364fb4eec18f80677061b614d2fc451e2d2714c3eca53a31f37d -->
