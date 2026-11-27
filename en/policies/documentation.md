@@ -68,6 +68,22 @@ prevents synchronization, label the affected step BLOCKED, identify the missing
 counterpart and continue independent authorized work. A passing build cannot
 substitute for required documentation updates.
 
+## Links and changelogs
+
+Link to current documents in the same repository with relative Markdown
+paths. Use canonical GitHub HTTPS links for current cross-repository guidance
+and commit-pinned permalinks for exact historical evidence or snapshots.
+Verify the target path, case, revision and fragment. Read required offline
+context from an approved checkout or a verified artifact.
+
+Maintain one English changelog per major version under `docs/changelogs/`.
+Use the root `CHANGELOG.md` and the directory index for navigation. Keep
+Unreleased first in the newest major file, then full Semantic Versioning
+entries in newest-first order. Record a verified publication date for published
+versions and an explicit status for development milestones, pre-releases and
+candidates. Keep unique facts when translating older entries. Changelogs and
+their indexes are shared English documents with no Vietnamese counterpart.
+
 ## Pair metadata
 
 End every Markdown document under `vi/` with these two comments. Use the path

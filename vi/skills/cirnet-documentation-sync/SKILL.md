@@ -24,10 +24,15 @@ Dùng chính sách tài liệu của repository cho phạm vi bị ảnh hưởn
    đích, phần trùng, liên kết và độ mới của bản dịch. Rà soát đề xuất trùng
    lặp rồi báo các cặp đã đổi, quyết định và giới hạn kiểm chứng.
 
+Dùng liên kết Markdown tương đối trong cùng repo. Dùng URL GitHub HTTPS chính
+thức giữa các repo và ghim commit cho bằng chứng lịch sử. Duy trì changelog và
+chỉ mục dùng chung bằng tiếng Anh. Soát bản dịch hiện có và đưa các dữ kiện
+phát hành riêng vào nội dung tiếng Anh.
+
 Với bản lưu tài liệu kiến trúc, làm theo `en/policies/architecture.md`. Giữ
 nội dung nguồn được cung cấp và xác nhận đường dẫn cùng digest của cặp EN/VI
 trong `docs/architecture-sources.tsv`. Rà soát các bản có nội dung khác nhau
 và giữ lịch sử khi đề xuất thay liên kết.
 
 <!-- source: en/skills/cirnet-documentation-sync/SKILL.md -->
-<!-- source-sha256: a8f91643f8e70b4e41b06e364c812fb9c48f3f778340124be992e6ba40af1adb -->
+<!-- source-sha256: e7f8add63cfe79103279351ce711165f55664a7efcbbca8b38659218d6c86e4d -->

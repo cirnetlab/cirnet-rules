@@ -68,8 +68,8 @@ the API call, data or artifact exchange between direct participants. See the
 | `cirnet-ai` | `ecosystem` | Advisory tutoring and engineering assistance | Permission-scoped retrieval, suggestions, explanations and audit data | Authorized domain sources → AI → human or client review | Grade, flash, power and routing approvals remain with their owners. Scope retrieval to actor and resource. |
 
 Ecosystem §3 also assigns organization duties to `cirnet-rules` for shared agent
-guidance and distribution, `about-cirnetlab` for profile, branding and approved
-public documentation, and `.github` for GitHub organization configuration and
+guidance, distribution and canonical architecture, `about-cirnetlab` for independent archives,
+and `.github` for GitHub organization configuration and
 automation metadata. Product APIs and physical approvals remain with their
 product owners.
 

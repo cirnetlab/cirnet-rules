@@ -290,14 +290,16 @@ fn atx_title(line: &str) -> Option<&str> {
     (!title.is_empty()).then(|| title.trim_end_matches('#').trim_end())
 }
 
-pub(super) fn first_level_two_heading(text: &str) -> Option<String> {
-    prose(text, false).lines().find_map(|line| {
-        let title = unindent(line)?.strip_prefix("##")?;
-        if !title.starts_with(char::is_whitespace) {
-            return None;
-        }
-        atx_title(line).map(str::to_owned)
-    })
+pub(super) fn level_headings(text: &str, level: usize) -> Vec<String> {
+    markup(text)
+        .lines()
+        .filter_map(|line| {
+            let line = unindent(line)?;
+            let content = line.trim_start_matches('#');
+            (line.len() - content.len() == level).then_some(atx_title(line)?)
+        })
+        .map(str::to_owned)
+        .collect()
 }
 
 fn setext_underline(line: &str) -> bool {

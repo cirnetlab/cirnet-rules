@@ -66,6 +66,13 @@ bản dịch theo chính sách riêng. Checker kiểm chứng metadata nguồn n
 Chế độ toolkit mặc định giữ đầy đủ các bước kiểm tra Rules, Skills, phiên
 bản và kiến trúc.
 
+Chế độ toolkit và sản phẩm kiểm tra chỉ mục changelog tiếng Anh dùng chung và
+các tệp major khi có. Toolkit còn đối chiếu mục mới nhất với `VERSION`.
+Checker ngoại tuyến phát hiện liên kết theo nhánh tới kiến trúc đã xóa khỏi
+Remote và chấp nhận tham chiếu lịch sử ghim commit đầy đủ. Kiểm tra riêng sự
+tồn tại của đường dẫn và revision GitHub. Soát ngôn ngữ changelog và ý nghĩa
+tương đương của bản dịch khi review.
+
 ## Rà soát Markdown mới
 
 Sau khi tìm tài liệu sở hữu nội dung, liệt kê rõ từng đường dẫn Markdown mới
@@ -128,4 +135,4 @@ entrypoint của common-rules. Kiểm tra sản phẩm và bộ cấp phát outp
 Xem [chính sách tài liệu](../policies/documentation.md) về nghĩa vụ cập nhật.
 
 <!-- source: en/hooks/README.md -->
-<!-- source-sha256: f614cad8b5c768f3961fe651f09db7f6fe4bc3d273e61e387c02da85ccb439e4 -->
+<!-- source-sha256: 46ac7662434eff473e331f456eef631179111a3d072e61a8f00667f70cfa6d98 -->

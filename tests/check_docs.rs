@@ -61,13 +61,17 @@ impl Fixture {
         );
         fixture.pair("AGENTS.md", "# Agent rules\n");
         fixture.pair("guide.md", GUIDE);
-        fixture.pair("docs/changelog.md", "# Changelog\n\n## 2.4.0 (candidate)\n");
         fixture.write(
-            "vi/docs/changelog.md",
-            format!(
-                "# Nhật ký thay đổi\n\n## 2.4.0 (candidate)\n\n<!-- source: en/docs/changelog.md -->\n<!-- source-sha256: {} -->\n",
-                sha256::hex(b"# Changelog\n\n## 2.4.0 (candidate)\n")
-            ),
+            "CHANGELOG.md",
+            "# Changelog\n\n[Versions](docs/changelogs/README.md)\n",
+        );
+        fixture.write(
+            "docs/changelogs/README.md",
+            "# Versions\n\n[Version 2](CHANGELOG_V2.md)\n",
+        );
+        fixture.write(
+            "docs/changelogs/CHANGELOG_V2.md",
+            "# Version 2\n\n## Unreleased\n\n## v2.4.0 — Candidate\n",
         );
         for name in ["implementation", "debugging", "verification"] {
             fixture.pair(
@@ -842,7 +846,14 @@ fn product_layout_checks_pairs_links_and_changelog_without_toolkit_metadata() {
         "product/docs/changelogs/README.md",
         "# Changelog\n\n[Version 0](CHANGELOG_V0.md)\n",
     );
-    fixture.write("product/docs/changelogs/CHANGELOG_V0.md", "# Version 0\n");
+    fixture.write(
+        "product/CHANGELOG.md",
+        "# Changelog\n\n[Versions](docs/changelogs/README.md)\n",
+    );
+    fixture.write(
+        "product/docs/changelogs/CHANGELOG_V0.md",
+        "# Version 0\n\n## Unreleased\n\n## v0.2.0 — Candidate\n",
+    );
     Fixture::check_root(
         &product,
         0,
@@ -875,6 +886,92 @@ fn product_layout_checks_pairs_links_and_changelog_without_toolkit_metadata() {
     ] {
         assert!(report.contains(expected), "{report}");
     }
+}
+
+#[test]
+fn product_changelog_enforces_major_files_versions_and_navigation() {
+    let fixture = Fixture::new();
+    let root = fixture.root.join("product");
+    fixture.write("product/README.md", "# Product\n");
+    fixture.write(
+        "product/CHANGELOG.md",
+        "# Changelog\n\n[Versions](docs/changelogs/README.md)\n",
+    );
+    fixture.write(
+        "product/docs/changelogs/README.md",
+        "# Versions\n\n[Version 1](CHANGELOG_V1.md)\n[Version 0](CHANGELOG_V0.md)\n",
+    );
+    fixture.write("product/docs/changelogs/CHANGELOG_V1.md", "# Version 1\n\n## Unreleased\n\n### Fixed\n\n- Repair integration links.\n\n## v1.2.3 — Candidate\n\n### Changed\n\n- Verify integration inputs.\n");
+    fixture.write(
+        "product/docs/changelogs/CHANGELOG_V0.md",
+        "# Version 0\n\n## v0.9.0 — Development\n\n### Added\n\n- Add an initial tool.\n",
+    );
+    Fixture::check_root(&root, 0, &["--product"]);
+    fixture.write("product/docs/changelogs/CHANGELOG_V0.9.md", "# Minor\n");
+    fixture.write("product/docs/changelogs/CHANGELOG_V1.md", "# Version 1\n\n## Unreleased\n\n## v0.9.0 — Development\n\n## v1.2.3 — Candidate\n\n## v1.2.3 — Candidate\n\n### Changed\n\n- Duplicate.\n- Duplicate.\n");
+    fixture.write(
+        "product/docs/changelogs/README.md",
+        "# Versions\n\n[Version 0](CHANGELOG_V0.md)\n",
+    );
+    let report = Fixture::check_root(&root, 1, &["--product"]);
+    for expected in [
+        "one file per major",
+        "wrong major",
+        "duplicate version",
+        "duplicate changelog bullet",
+        "missing index link",
+    ] {
+        assert!(report.contains(expected), "{report}");
+    }
+}
+
+#[test]
+fn product_changelog_is_shared_without_a_vietnamese_counterpart() {
+    let fixture = Fixture::new();
+    let root = fixture.root.join("product");
+    fixture.write(
+        "product/CHANGELOG.md",
+        "# Changelog\n\n[Versions](docs/changelogs/README.md)\n",
+    );
+    fixture.write(
+        "product/docs/changelogs/README.md",
+        "# Versions\n\n[Version 0](CHANGELOG_V0.md)\n",
+    );
+    fixture.write("product/docs/changelogs/CHANGELOG_V0.md", "# Version 0\n\n## Unreleased\n\n## v0.2.0 — Candidate\n\n### Fixed\n\n- Repair navigation.\n");
+    Fixture::check_root(&root, 0, &["--product"]);
+    fixture.write("product/docs/vi/changelog.md", "# Changelog\n");
+    fixture.write("product/docs/changelogs/CHANGELOG_V0.md", "# Version 0\n\n## Unreleased\n\n## v0.2.0 — Candidate\n\n### Changed\n\n- Update guidance.\n  - VI · Cập nhật hướng dẫn.\n");
+    let report = Fixture::check_root(&root, 1, &["--product"]);
+    assert!(report.contains("shared English changelog"), "{report}");
+    assert!(report.contains("translation marker"), "{report}");
+}
+
+#[test]
+fn product_architecture_links_reject_removed_remote_branch_paths_but_allow_pins() {
+    let fixture = Fixture::new();
+    let root = fixture.root.join("product");
+    let path = "docs/cirnet-architecture-lab-first-en.md";
+    let remote = "https://github.com/cirnetlab/cirnet-remote/blob";
+    fixture.write(
+        "product/README.md",
+        format!("# Product\n\n[Current]({remote}/master/{path})\n"),
+    );
+    let report = Fixture::check_root(&root, 1, &["--product"]);
+    assert!(
+        report.contains("removed Remote architecture path"),
+        "{report}"
+    );
+    fixture.write(
+        "product/README.md",
+        "# Product\n\n[Archive](https://github.com/cirnetlab/about-cirnetlab/blob/main/Architecture%20cirnetlab/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md)\n",
+    );
+    let report = Fixture::check_root(&root, 1, &["--product"]);
+    assert!(report.contains("archival architecture path"), "{report}");
+    fixture.write(
+        "product/README.md",
+        format!("# Product\n\n[Archived]({remote}/ca839dd895c4bb4e7c19d8577424cab45b54c2b9/{path})\n\n[Current](https://github.com/cirnetlab/cirnet-rules/blob/master/{ECOSYSTEM_EN})\n"),
+    );
+    Fixture::check_root(&root, 0, &["--product"]);
 }
 
 #[test]
@@ -1195,16 +1292,18 @@ fn version_is_checked_against_selected_checkout_manifest() {
 }
 
 #[test]
-fn both_changelogs_must_start_with_the_toolkit_version() {
+fn shared_toolkit_changelog_must_start_with_the_toolkit_version() {
     let fixture = Fixture::new();
-    fixture.pair(
-        "docs/changelog.md",
-        "# Changelog\n\n```md\n## 2.4.0\n```\n\n## 2.3.0\n\n## 2.4.0\n",
+    fixture.write(
+        "docs/changelogs/CHANGELOG_V2.md",
+        "# Changelog\n\n## Unreleased\n\n```md\n## v2.4.0 — Candidate\n```\n\n## v2.3.0 — Candidate\n\n## v2.4.0 — Candidate\n",
     );
     let report = fixture.check(1);
-    for prefix in ["en", "vi"] {
-        assert!(report.contains(&format!("ERROR: {prefix}/docs/changelog.md:")));
-    }
+    assert!(
+        report.contains("latest version entry must match VERSION (2.4.0)"),
+        "{report}"
+    );
+    assert!(report.contains("out of newest-first order"), "{report}");
 }
 
 #[test]

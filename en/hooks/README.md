@@ -67,6 +67,13 @@ spaces. Products can adopt translation hashes under their own policies. Existing
 source metadata is verified when present. The default toolkit mode retains
 its full Rules, Skills, version and architecture checks.
 
+The toolkit and product modes validate the shared English changelog index and
+major files when present. The toolkit also matches its latest entry to
+`VERSION`. The offline checker detects retired Remote architecture branch
+links and permits full-commit historical references. Verify the existence of
+GitHub paths and revisions separately. Review changelog prose and translation
+equivalence during review.
+
 ## Review new Markdown
 
 After searching for the owning document, list each new Markdown path explicitly

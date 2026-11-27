@@ -62,6 +62,13 @@ tính toán khoa học và các phần khác của Ecosystem có thể làm đ�
 vi của mình khi Lab-First vẫn được ưu tiên, miễn là giữ luồng Lab hoạt động, tôn
 trọng quyền sở hữu hiện có và giữ một nguồn có thẩm quyền cho mỗi miền.
 
+## Thẩm quyền kiến trúc cấp tổ chức
+
+CIRNET Rules sở hữu kiến trúc Ecosystem, Lab-First và FPGA chuẩn cùng manifest
+nguồn gốc. Repo sản phẩm dẫn tới nguồn có thẩm quyền và sở hữu chi tiết triển khai.
+Khi ngoại tuyến, dùng checkout Rules đã duyệt hoặc artifact đã ghim và xác minh.
+`about-cirnetlab` là kho lưu trữ độc lập có nguồn gốc riêng.
+
 ## Nguồn chuẩn và các bản chuyên biệt
 
 Hai cặp EN/VI của Ecosystem và Lab-First trong `docs/tai-lieu-kien-tuc-he-thong/`
@@ -83,4 +90,4 @@ Phân biệt các quyết định trên với trạng thái triển khai đã qu
 cứu ban đầu và xác minh trạng thái hiện tại từ checkout repo sở hữu và bộ đã chọn.
 
 <!-- source: en/policies/architecture.md -->
-<!-- source-sha256: 8a8f9bf1f98e8e5452bdae4579462f4df059c4dfc149d393ba8b97505ce1c39b -->
+<!-- source-sha256: d460cbcb8594eed45f3a7f3ca27e195ceb84ec42f9c3d8fcf5a4508c86cb3736 -->

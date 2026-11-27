@@ -24,6 +24,11 @@ Use the repository's documentation policy for the affected scope.
    freshness manually within scope. Review duplicate suggestions and report
    changed pairs, decisions and verification limits.
 
+Use relative Markdown links within the repository. Use authoritative GitHub
+HTTPS URLs across repositories and commit pins for historical evidence.
+Maintain changelogs and their indexes as shared English documents. Review
+existing translations for unique release facts and keep those facts in English.
+
 For architecture snapshots, follow `en/policies/architecture.md`. Preserve the
 supplied source text and confirm the EN/VI paths and digests in
 `docs/architecture-sources.tsv`. Review divergent copies and retain their history

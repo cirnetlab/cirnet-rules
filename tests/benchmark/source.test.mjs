@@ -35,7 +35,6 @@ const pairs = [
   'rules/engineering-workspace-ui.md',
   'rules/repository-organization.md',
   'skills/README.md',
-  'docs/changelog.md',
   'docs/context.md',
   'docs/behavioral-evaluation.md',
   'docs/model-compatibility.md',

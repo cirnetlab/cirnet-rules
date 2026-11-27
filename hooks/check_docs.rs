@@ -1,4 +1,5 @@
 mod architecture;
+mod changelog;
 mod context;
 mod document_hygiene;
 mod markdown;
@@ -21,7 +22,9 @@ Nested brackets/parentheses, multiline destinations, HTML links/anchors
 and renderer-specific anchor rules are outside this subset.
 
 Checks direct English Skill metadata and portable local resources, and
-matches VERSION to Cargo.toml and the first release heading in both changelogs.
+matches VERSION to Cargo.toml and the latest shared English changelog entry.
+Both modes check shared English major-version changelogs and retired Remote
+architecture branch links.
 In the toolkit, checks architecture source integrity and Markdown links,
 owner routes in both languages, superseded links and divergent copies.
 Context and cross-document similarity warnings are advisory. Use repeatable
@@ -475,11 +478,9 @@ impl Checker {
         }
     }
 
-    fn versions(&mut self, manifest: Option<&str>) {
+    fn versions(&mut self, manifest: Option<&str>) -> Option<String> {
         let version_path = Path::new("VERSION");
-        let Some(file) = self.version_file(version_path) else {
-            return;
-        };
+        let file = self.version_file(version_path)?;
         let Some(version) = file
             .strip_suffix('\n')
             .filter(|version| valid_version(version))
@@ -488,7 +489,7 @@ impl Checker {
                 version_path,
                 "expected one MAJOR.MINOR.PATCH line ending in LF, with no leading zeros",
             );
-            return;
+            return None;
         };
         if let Some(contents) = manifest {
             if cargo_package_field(contents, "version") != Some(version) {
@@ -498,25 +499,7 @@ impl Checker {
                 );
             }
         }
-        let candidate = format!("{version} (candidate)");
-        let mut english_heading = None;
-        for path in ["en/docs/changelog.md", "vi/docs/changelog.md"] {
-            let path = Path::new(path);
-            let first = self
-                .documents
-                .get(path)
-                .and_then(|text| markdown::first_level_two_heading(text));
-            if !matches!(first.as_deref(), Some(heading) if heading == version || heading == candidate)
-            {
-                self.fail(path, format!("first level-two ATX heading must be {version:?} or {candidate:?} from VERSION"));
-            } else if let Some(ref english) = english_heading {
-                if first.as_ref() != Some(english) {
-                    self.fail(path, "candidate status must match the English changelog");
-                }
-            } else {
-                english_heading = first;
-            }
-        }
+        Some(version.to_owned())
     }
 
     fn skills(&mut self, english: &BTreeSet<PathBuf>) -> BTreeSet<PathBuf> {
@@ -765,7 +748,7 @@ impl Checker {
                 .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
         };
         let has_languages = !self.product || directory_present(&en) || directory_present(&vi);
-        let has_changelogs = self.product && directory_present(changelogs);
+        let has_changelogs = !self.product || directory_present(changelogs);
         let mut changelog_files = BTreeSet::new();
         if has_languages {
             self.collect(&en, &mut english);
@@ -790,19 +773,19 @@ impl Checker {
             return Err(RunError::InvalidNewFile(path.clone()));
         }
         self.translations(&english, &vietnamese, language_root);
-        let (is_toolkit, skills) = if self.product {
-            (false, BTreeSet::new())
+        let (is_toolkit, skills, toolkit_version) = if self.product {
+            (false, BTreeSet::new(), None)
         } else {
             self.entrypoints();
             let cargo_manifest = self.version_file(Path::new("Cargo.toml"));
-            self.versions(cargo_manifest.as_deref());
+            let version = self.versions(cargo_manifest.as_deref());
             let is_toolkit = cargo_manifest
                 .as_deref()
                 .and_then(|text| cargo_package_field(text, "name"))
                 == Some("cirnet-rules");
             let skills = self.skills(&english);
             self.context_checks(&root_files, &skills);
-            (is_toolkit, skills)
+            (is_toolkit, skills, version)
         };
         let inventory: Vec<_> = self.documents.keys().cloned().collect();
         let mut incoming = BTreeMap::<PathBuf, BTreeSet<PathBuf>>::new();
@@ -846,6 +829,14 @@ impl Checker {
             .retain(|path, _| inventory.binary_search(path).is_ok());
         if !self.product {
             architecture::check(self, is_toolkit);
+        }
+        if has_changelogs || self.documents.contains_key(Path::new("CHANGELOG.md")) {
+            changelog::check(
+                self,
+                &changelog_files,
+                &incoming,
+                toolkit_version.as_deref(),
+            );
         }
         for diagnostic in document_hygiene::review(&self.documents, new_files, &incoming) {
             use document_hygiene::Diagnostic;

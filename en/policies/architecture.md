@@ -62,6 +62,14 @@ Independent IDE, LMS, Studio, scientific or other Ecosystem work may proceed
 within its own bounds while Lab-First remains primary, provided it keeps the
 Lab path intact, respects existing owners and preserves one authority per domain.
 
+## Organization architecture authority
+
+CIRNET Rules owns the canonical Ecosystem, Lab-First and FPGA architecture and
+its provenance manifest. Product repositories link to the applicable authority
+and own their implementation details. Use an approved local Rules checkout or
+verified pinned artifact for offline context. `about-cirnetlab` is an independent
+archive with its own provenance.
+
 ## Canonical sources and specialist variants
 
 The EN/VI Ecosystem and Lab-First pairs under `docs/tai-lieu-kien-tuc-he-thong/`

@@ -65,6 +65,22 @@ Thiếu tài liệu Anh/Việt bắt buộc nghĩa là công việc chưa xong. 
 hoặc phạm vi ngăn đồng bộ, đánh dấu bước liên quan BLOCKED, chỉ rõ bản còn thiếu
 và tiếp tục phần độc lập được phép. Build pass không thay thế cập nhật tài liệu cần thiết.
 
+## Liên kết và changelog
+
+Dùng đường dẫn Markdown tương đối cho tài liệu hiện hành trong cùng repo.
+Dùng liên kết GitHub HTTPS chính thức cho hướng dẫn giữa các repo và permalink
+ghim commit cho bằng chứng lịch sử hoặc bản chụp cần đúng revision. Xác minh
+đường dẫn, chữ hoa thường, revision và fragment. Đọc ngữ cảnh bắt buộc khi
+ngoại tuyến từ checkout đã duyệt hoặc artifact đã kiểm chứng.
+
+Duy trì mỗi changelog tiếng Anh theo một phiên bản chính trong `docs/changelogs/`.
+Dùng `CHANGELOG.md` ở thư mục gốc và chỉ mục của thư mục changelog để điều hướng.
+Đặt Unreleased đầu tệp major mới nhất, sau đó xếp các mục Semantic Versioning
+đầy đủ từ mới tới cũ. Ghi ngày công bố đã kiểm chứng cho bản phát hành và nêu
+trạng thái của mốc phát triển, bản tiền phát hành và ứng viên. Giữ dữ kiện riêng
+khi dịch lại mục cũ. Changelog và chỉ mục dùng chung tiếng Anh, không có bản dịch
+tiếng Việt tương ứng.
+
 ## Metadata của cặp tài liệu
 
 Kết thúc mỗi tài liệu Markdown dưới `vi/` bằng hai comment sau. Dùng đường dẫn
@@ -103,4 +119,4 @@ metadata của nó.
   tạo cây song ngữ hoặc sửa repository khác.
 
 <!-- source: en/policies/documentation.md -->
-<!-- source-sha256: 82f332dd7f02fa7d8a6d359c16537a39e2d8a638e875bd43ceff02e3d145d032 -->
+<!-- source-sha256: bf2c193a0263d1c0036174fc892edee25d3c12a04c37a1e563930e4e9501d27d -->

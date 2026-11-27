@@ -591,6 +591,6 @@ restores operate across multiple files. A failing write reports any rollback
 problem so you can inspect the named files. Receipts and empty directories may
 remain after a successful restore.
 
-Read the [changelog](changelog.md) for changes and [setup](setup.md) for client
+Read the [changelog](../../CHANGELOG.md) for changes and [setup](setup.md) for client
 destinations. Select a stable reviewed revision for regular use and retain a
 tested previous bundle for recovery.

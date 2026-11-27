@@ -68,8 +68,8 @@ khi tác vụ vượt một trong các ranh giới đó. Mũi tên chỉ chiều
 | `cirnet-ai` | `ecosystem` | Trợ giảng và hỗ trợ kỹ thuật mang tính tư vấn | Truy xuất theo quyền, đề xuất, giải thích và dữ liệu audit | Nguồn miền được cấp quyền → AI → người hoặc client rà soát | Quyền chấm điểm, nạp firmware, cấp nguồn và định tuyến thuộc bên sở hữu. Giới hạn truy xuất theo chủ thể và tài nguyên. |
 
 Ecosystem §3 còn giao nhiệm vụ tổ chức cho `cirnet-rules` về chỉ dẫn và phân
-phối agent, `about-cirnetlab` về hồ sơ, thương hiệu và tài liệu công khai đã
-duyệt, và `.github` về cấu hình tổ chức GitHub và metadata tự động hóa. Chủ sở
+phối agent và kiến trúc chuẩn, `about-cirnetlab` về lưu trữ độc lập, và
+`.github` về cấu hình tổ chức GitHub và metadata tự động hóa. Chủ sở
 hữu sản phẩm giữ API sản phẩm và quyền phê duyệt thao tác vật lý.
 
 Để dựng mô hình CAD và kiểm tra tài sản trước khi tích hợp, dùng
@@ -79,4 +79,4 @@ hợp đồng tài sản Three.js và quyết định nghiệm thu sản phẩm.
 cho việc chọn đối tượng, chỉnh sửa và lưu trạng thái trong workbench tương tác.
 
 <!-- source: en/references/architecture-routing.md -->
-<!-- source-sha256: 5e52061d38393c827a38976a52ac65cf09dc13e4374c9f397737cae2a5558ff6 -->
+<!-- source-sha256: f023c347dbc5337a0ae3909aa59e5c554f75d51fc43b3de366781201e1377e8e -->

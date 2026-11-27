@@ -16,7 +16,7 @@ Read the relevant owner source, rule and [Skill](skills/README.md) for the task.
 | Maintain bilingual documents and run checks | [Documentation policy](policies/documentation.md) · [Checks](hooks/README.md) |
 | Adapt local instructions or record task work | [Local AGENTS](templates/AGENTS.md) · [Plans](plans/README.md) · [Specs](specs/README.md) |
 
-Current candidate changes are in the [changelog](docs/changelog.md).
+Current candidate changes are in the [changelog](../CHANGELOG.md).
 Product evidence is dated in [references](references/README.md).
 See [toolkit verification](docs/toolkit-verification.md) for execution results
 and [earlier bilingual verification](docs/bilingual-verification.md) for history.

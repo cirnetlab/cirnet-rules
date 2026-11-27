@@ -43,7 +43,7 @@ function Invoke-ReadOnlyGit([string[]]$GitArgs) {
 function Select-CheckedMarkdown([string]$Path) {
     $parts = $Path.Split('/')
     if ($parts[-1] -notmatch '.+\.md\z' -or
-        ($parts.Count -gt 1 -and $parts[0] -cnotin @('en', 'vi')) -or
+        ($parts.Count -gt 1 -and $parts[0] -cnotin @('en', 'vi') -and $Path -cnotlike 'docs/changelogs/*') -or
         ($parts | Where-Object { $_ -in @('.git', '.superpowers') })) {
         return
     }

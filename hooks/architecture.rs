@@ -70,6 +70,42 @@ pub(super) fn check_github_link(destination: &str) -> Result<(), String> {
     let Some((host, path)) = rest.split_once('/') else {
         return Ok(());
     };
+    let normalized_path = path.to_ascii_lowercase();
+    let known_architecture_link = |repo: &str| {
+        if host.eq_ignore_ascii_case("github.com") {
+            ["blob", "tree"]
+                .into_iter()
+                .find_map(|kind| normalized_path.strip_prefix(&format!("cirnetlab/{repo}/{kind}/")))
+        } else if host.eq_ignore_ascii_case("raw.githubusercontent.com") {
+            normalized_path.strip_prefix(&format!("cirnetlab/{repo}/"))
+        } else {
+            None
+        }
+    };
+    let is_pinned =
+        |revision: &str| revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit());
+    if let Some((revision, file)) =
+        known_architecture_link("cirnet-remote").and_then(|rest| rest.split_once("/docs/"))
+    {
+        if !is_pinned(revision) && !file.contains('/') {
+            if let Some(source) = source_of_same_name(Path::new(file)) {
+                return Err(format!(
+                    "removed Remote architecture path; use cirnet-rules/{source}"
+                ));
+            }
+        }
+    }
+    if let Some((revision, file)) = known_architecture_link("about-cirnetlab")
+        .and_then(|rest| rest.split_once("/architecture cirnetlab/"))
+    {
+        if !is_pinned(revision) {
+            if let Some(source) = source_of_same_name(Path::new(file)) {
+                return Err(format!(
+                    "archival architecture path; use cirnet-rules/{source}"
+                ));
+            }
+        }
+    }
     let prefix = if host.eq_ignore_ascii_case("github.com") {
         "cirnetlab/cirnet-rules/blob/"
     } else if host.eq_ignore_ascii_case("raw.githubusercontent.com") {

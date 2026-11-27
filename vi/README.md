@@ -16,7 +16,7 @@ rule và [Skill](skills/README.md) liên quan đến tác vụ.
 | Bảo trì tài liệu song ngữ và chạy checker | [Policy tài liệu](policies/documentation.md) · [Kiểm tra](hooks/README.md) |
 | Soạn chỉ dẫn local hoặc ghi hồ sơ task | [AGENTS local](templates/AGENTS.md) · [Plan](plans/README.md) · [Spec](specs/README.md) |
 
-Thay đổi candidate nằm trong [changelog](docs/changelog.md).
+Thay đổi candidate nằm trong [changelog](../CHANGELOG.md).
 Bằng chứng sản phẩm có ngày trong [reference](references/README.md).
 Xem [kiểm chứng toolkit](docs/toolkit-verification.md) để biết kết quả chạy
 và [kiểm chứng song ngữ trước đây](docs/bilingual-verification.md) về lịch sử.
@@ -28,4 +28,4 @@ ghi lại các lượt chạy lịch sử.
 [Giấy phép](../LICENSE) · [Thông báo bên thứ ba](../THIRD_PARTY_NOTICES.md)
 
 <!-- source: en/README.md -->
-<!-- source-sha256: 0536a2b535194f5e636b558af179a39d143f9e3a4f83cdf12651a502ebe945c7 -->
+<!-- source-sha256: 7d3da4eee82a7d61b086906e665d90b2ecbfeb92606dab09a703bb70094d73a3 -->

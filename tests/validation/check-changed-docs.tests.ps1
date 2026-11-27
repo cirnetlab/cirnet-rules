@@ -40,12 +40,14 @@ function Invoke-Bridge([string]$Base, [int]$ExpectedCode) {
 try {
     New-Item -ItemType Directory -Path $fixture | Out-Null
     Invoke-FixtureGit @('init', '--quiet', '--template=')
-    Write-Document 'VERSION' "0.2.0`n"
-    Write-Document 'Cargo.toml' "[package]`nname = 'fixture'`nversion = `"0.2.0`"`n"
+    Write-Document 'VERSION' "1.2.0`n"
+    Write-Document 'Cargo.toml' "[package]`nname = 'fixture'`nversion = `"1.2.0`"`n"
     Write-Document 'AGENTS.md' "# Fixture instructions`n"
     Write-Document 'CLAUDE.md' "@AGENTS.md`n"
     Write-Pair 'AGENTS.md' "# Fixture instructions`n" "# Chỉ dẫn thử nghiệm`n"
-    Write-Pair 'docs/changelog.md' "# Changes`n`n## 0.2.0`n" "# Thay đổi`n`n## 0.2.0`n"
+    Write-Document 'CHANGELOG.md' "# Changes`n`n[Versions](docs/changelogs/README.md)`n"
+    Write-Document 'docs/changelogs/README.md' "# Versions`n`n[Version 1](CHANGELOG_V1.md)`n"
+    Write-Document 'docs/changelogs/CHANGELOG_V1.md' "# Version 1`n`n## Unreleased`n`n## v1.2.0 — Candidate`n"
     Write-Pair 'skills/test-skill/SKILL.md' "---`nname: test-skill`ndescription: Test skill.`n---`n`n# Skill`n" "# Kỹ năng thử nghiệm`n"
     Write-Document 'move-from.md' "# Rename example`n`nThis existing document will move with its contents unchanged.`n"
     Write-Document 'existing.md' "# Existing document`n`nThe earlier value is three bins.`n"
@@ -54,6 +56,8 @@ try {
     $base = Invoke-FixtureGit @('rev-parse', 'HEAD')
 
     Invoke-FixtureGit @('mv', '--', 'move-from.md', 'move-to.md')
+    Write-Document 'docs/changelogs/CHANGELOG_V0.md' "# Version 0`n`n## v0.5.0 — Historical baseline`n`n### Changed`n`n- Preserve older compatibility documentation.`n"
+    Write-Document 'docs/changelogs/README.md' "# Versions`n`n[Version 1](CHANGELOG_V1.md)`n[Version 0](CHANGELOG_V0.md)`n"
     Write-Document 'existing.md' "# Existing document`n`nThe current value is four bins.`n"
     $unicodeName = 'docs/Đường dẫn $tên ; & bản mới.md'
     Write-Pair $unicodeName "# Local printer`n`nSpecify the connection and paper trays.`n" "# Máy in cục bộ`n`nNêu kết nối và khay giấy.`n"
@@ -73,12 +77,12 @@ try {
     $before = Invoke-FixtureGit @('status', '--porcelain=v1', '--untracked-files=all')
 
     $review = Invoke-Bridge -Base $base -ExpectedCode 0
-    foreach ($path in @("en/$unicodeName", "vi/$unicodeName", '--looks-like-an-option.md')) {
+    foreach ($path in @("en/$unicodeName", "vi/$unicodeName", '--looks-like-an-option.md', 'docs/changelogs/CHANGELOG_V0.md')) {
         if ($review -notmatch ('NEW_DOCUMENT_REVIEW\s+file: ' + [regex]::Escape($path) + '\s')) {
             throw "New Markdown path did not reach the checker: $path`n$review"
         }
     }
-    if ([regex]::Matches($review, 'NEW_DOCUMENT_REVIEW\s+file:').Count -ne 3) {
+    if ([regex]::Matches($review, 'NEW_DOCUMENT_REVIEW\s+file:').Count -ne 4) {
         throw "An unsupported path was nominated for new-file review.`n$review"
     }
     if (-not $IsWindows -and $review -notmatch 'unsupported Markdown path') {

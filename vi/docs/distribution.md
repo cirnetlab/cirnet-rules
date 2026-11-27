@@ -589,9 +589,9 @@ review xung đột và khôi phục thủ công từ backup. Update và restore 
 nhiều file. Lỗi ghi sẽ báo vấn đề rollback để bạn kiểm tra file được nêu.
 Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 
-Đọc [changelog](changelog.md) để xem thay đổi và [thiết lập](setup.md) để xem
+Đọc [changelog](../../CHANGELOG.md) để xem thay đổi và [thiết lập](setup.md) để xem
 đích client. Chọn revision ổn định đã review để dùng thường xuyên và giữ bundle
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: 40768a0f750e5a9c3e72f402a518990843d2b96caaf84835c75685120edaf63e -->
+<!-- source-sha256: 75738fb151cba151c91b18b259cd1d5a7172ec2728f8374931a91cc332aaf471 -->
