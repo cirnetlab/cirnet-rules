@@ -133,6 +133,27 @@ the other sections, add `-ConfirmProgressChange` with
 `-ProgressReason`. The confirmed snapshot history retains the previous notes.
 For v1, also record that reason in the new Decisions & Blockers section.
 
+### Reuse a task's artifact session
+
+Resume the same Task ID on the original worktree. After reviewing the recovered
+checkpoint and confirming current scope, use its `TaskKey` as
+`CIRNET_ARTIFACTS_TASK_KEY` for a new allocation or a later invocation. Record
+`node $allocator --session-info` output and the build parameters in the existing
+progress notes. A no-change save retains the current snapshot.
+
+For recovery, use the same Task Key, restore the recorded
+`CIRNET_ARTIFACTS_SESSION`, and run `--session-info` from the owning
+checkout. Compare the marker SHA-256 and context with the checkpoint. Verify
+toolchain, profile, generator and dependency configuration before using the
+cache. Review the build and evidence independently. If the session is missing or
+differs, leave its evidence intact and record a newly authorized allocation.
+
+Use `--session-info` before reviewing a cleanup. Check candidate/profile
+pointers, checkpoint notes, evidence, optional offline inputs and active
+processes. Only after separate cleanup authorization, run
+`node $allocator --cleanup $session` with the verified owner context and Task
+Key. Preserve incomplete and historical sessions while references are unresolved.
+
 ### Find and recover an unfinished task
 
 For a short request such as “Resume unfinished task,” use the approved owning

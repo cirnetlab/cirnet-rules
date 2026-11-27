@@ -129,6 +129,25 @@ và kiểm chứng lại. Cùng lệnh lưu đó có thể thay nội dung mục
 nhận giữ các ghi chú trước đó. Với v1, ghi thêm lý do vào phần
 Decisions & Blockers mới.
 
+### Dùng lại phiên artifact của task
+
+Khôi phục cùng Task ID trên worktree gốc. Sau khi review checkpoint và xác nhận
+phạm vi hiện tại, dùng `TaskKey` của task làm `CIRNET_ARTIFACTS_TASK_KEY`
+khi cấp phát hoặc chạy lại. Ghi đầu ra `node $allocator --session-info` và
+tham số build trong tiến độ hiện có. Lưu khi không đổi sẽ giữ snapshot hiện tại.
+
+Khi phục hồi, dùng cùng Task Key, khôi phục `CIRNET_ARTIFACTS_SESSION` đã ghi
+và chạy `--session-info` từ checkout sở hữu. So sánh SHA-256 của marker và
+ngữ cảnh với checkpoint. Kiểm tra toolchain, profile, bộ sinh và cấu hình phụ
+thuộc trước khi dùng cache. Kiểm tra riêng bản build và bằng chứng. Nếu thiếu
+phiên hoặc thông tin không khớp, giữ bằng chứng và ghi phiên mới đã được phép.
+
+Chạy `--session-info` trước khi review dọn dẹp. Kiểm tra con trỏ candidate và
+profile, ghi chú checkpoint, bằng chứng, đầu vào offline và tiến trình đang chạy.
+Chỉ khi được phép dọn dẹp riêng, chạy `node $allocator --cleanup $session` với
+ngữ cảnh sở hữu và Task Key đã xác minh. Giữ phiên dở dang và lịch sử khi còn
+tham chiếu chưa rõ.
+
 ### Tìm và khôi phục task chưa hoàn tất
 
 Với yêu cầu ngắn như “Resume unfinished task”, dùng worktree sở hữu và kho
@@ -575,4 +594,4 @@ Receipt và thư mục rỗng có thể còn lại sau khi restore thành công.
 đã thử trước đó để phục hồi.
 
 <!-- source: en/docs/distribution.md -->
-<!-- source-sha256: ffaf2b3524a77ba6da5d68ddb03dc250238bccdec96b228d79a2846a7c24b6dc -->
+<!-- source-sha256: 40768a0f750e5a9c3e72f402a518990843d2b96caaf84835c75685120edaf63e -->

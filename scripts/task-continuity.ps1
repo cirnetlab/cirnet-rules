@@ -204,6 +204,7 @@ function Resolve-InterruptedMeasurements($State) {
 function Get-SavedResult($Saved) {
     [pscustomobject]@{
         TaskId = $Saved.State.taskId
+        TaskKey = $Saved.State.taskKey
         CheckpointId = $Saved.State.checkpointId
         Lifecycle = $Saved.State.lifecycle
         CheckpointDirectory = $Saved.Directory
@@ -260,6 +261,7 @@ if ($Action -cin @('status', 'verify', 'resume', 'bootstrap')) {
         Add-Member -InputObject $report -NotePropertyMembers @{
             Task = $checkpoint.Task
             Progress = $checkpoint.Progress
+            TaskKey = $checkpoint.State.taskKey
             ContextRecovered = $true
             RecoveredPrevious = $usingPrevious
             CanContinue = $canContinue
@@ -299,6 +301,7 @@ try {
     $git = Get-ContinuityGitSnapshot $checkout
 
     if ($Action -ceq 'save') {
+        $previousStateHash = if ($checkpoint) { Get-ContinuityValueHash $checkpoint.State }
         if ($initializeBinding -and $null -ne $checkpoint) {
             throw 'Use -SessionKey with save only at initialization. Use bind for an existing task.'
         }
@@ -360,6 +363,9 @@ try {
             $saved = Publish-ContinuityBinding $checkout ([IO.Path]::GetDirectoryName($store)) $SessionKey $state `
                 -InitialStore $store -Task $task -Progress $progress
             return Get-SavedResult $saved
+        }
+        if ($checkpoint -and $progress -ceq $checkpoint.Progress -and $previousStateHash -ceq (Get-ContinuityValueHash $state)) {
+            return Get-SavedResult $checkpoint
         }
         return Get-SavedResult (Save-ContinuityCheckpoint $store $state $task $progress)
     }

@@ -41,6 +41,10 @@ Dùng `CIRNET_LOCAL_STORAGE_ROOT` đã cấu hình hoặc đường dẫn checkp
    Phiên nhận xác minh gói và kiểm tra lại Git, tham chiếu, bằng chứng và quyền
    hiện hành trước khi thao tác.
 
+Phục hồi phiên artifact tương thích bằng `TaskKey` gốc và hash marker đã ghi.
+Kiểm tra đầu vào build trước khi dùng lại. Xem hướng dẫn phân phối Task
+Continuity để kiểm tra phiên và dọn dẹp khi được phép.
+
 Giữ các Plan và Spec trong repo sở hữu và tham chiếu bằng đường dẫn cùng
 revision hoặc hash. Đưa mọi đề xuất sửa tài liệu qua quy trình phê duyệt
 của chủ sở hữu. Dùng công cụ và mô hình lưu trữ hiện có.
@@ -50,4 +54,4 @@ Lệnh Task Continuity (`vi/docs/distribution.md#task-continuity`) ·
 Đặc tả Task Continuity (`vi/specs/cirnet-rules/task-continuity/spec.md`)
 
 <!-- source: en/skills/cirnet-task-continuity/SKILL.md -->
-<!-- source-sha256: 29928d50c008687f345e6d9ef97dfa00b0c6ee7ebea54ee80333a9474b9948cf -->
+<!-- source-sha256: beb2c59ebb5d6c8ef1b3aae510724a10b514f8f882ab4cd614c2587460917868 -->

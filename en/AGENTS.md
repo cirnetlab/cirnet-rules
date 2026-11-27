@@ -35,7 +35,8 @@ review or when requested.
 - For data export, establish the actor's authorization for the records and fields
   before editing affected code.
 - Check paths and ownership before deleting or moving files. Use local test
-  output allocation and protect prior evidence.
+  output allocation. Reuse compatible task sessions and build affected components.
+  Review references and obtain authorization before artifact cleanup.
 - Obtain authorization for commit, push, merge, publication, deployment, global
   settings or physical operation. Physical programming and power also require
   owner safety evidence. Software tests cover the exercised software behavior.

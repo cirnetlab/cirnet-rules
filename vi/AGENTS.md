@@ -37,7 +37,8 @@ bản dịch hoặc theo yêu cầu.
 - Với việc xuất dữ liệu, xác lập quyền của người thực hiện đối với các bản ghi
   và trường dữ liệu trước khi sửa mã bị ảnh hưởng.
 - Kiểm tra đường dẫn và ownership trước khi xóa hoặc di chuyển. Dùng cơ chế phân
-  bổ test output của repo và bảo toàn bằng chứng cũ.
+  bổ đầu ra kiểm thử của repo. Dùng lại phiên tương thích và build thành phần bị ảnh hưởng.
+  Kiểm tra tham chiếu và quyền trước khi dọn artifact, đồng thời giữ bằng chứng cũ.
 - Xin quyền trước khi commit, push, merge, publish, deploy, đổi cấu hình global
   hoặc vận hành thiết bị thật. Nạp chương trình và cấp điện còn cần bằng chứng
   an toàn của owner. Test phần mềm chỉ bao phủ hành vi đã được thực thi.
@@ -78,4 +79,4 @@ bản dịch hoặc theo yêu cầu.
   chi tiết local trong phạm vi đó. Báo mâu thuẫn và giữ các bảo vệ liên quan.
 
 <!-- source: en/AGENTS.md -->
-<!-- source-sha256: 6aea516169767b7958ee023956f116c78a73c2bdbd5e1387067496f4f1a3de26 -->
+<!-- source-sha256: 6453f457b0ea5affc819ff7f6493124f751acd05bc029287d6c1d92340d8b8d2 -->

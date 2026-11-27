@@ -191,6 +191,8 @@ function Assert-ClaimResult($Result, $Check, $Options) {
             $mode -cne 'strict' -or !$Options.ContainsKey('-TrustedReviewPath')) { throw 'Unexpected reviewed checkpoint seal.' }
         $budget = 8MB
         $review = Read-ReportRecord $Options['-TrustedReviewPath'] $Options['-TrustedReviewSha256'] ([ref]$budget)
+        # The claim subprocess has an isolated environment. Older recorded commands
+        # without -CheckpointRoot necessarily used its legacy worktree default.
         $sourceRoot = if ($Options.ContainsKey('-CheckpointRoot')) { $Options['-CheckpointRoot'] } else { '.cirnet/tasks' }
         $sourceStore = Get-ContinuityStore $checkout $sourceRoot $review.taskId
         $source = Read-ContinuityCheckpoint $sourceStore $review.taskId -RemainingBytes ([ref]$budget)

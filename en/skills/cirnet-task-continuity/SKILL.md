@@ -42,6 +42,10 @@ explicit checkpoint location.
    a trusted channel. The receiving session verifies the package and
    revalidates live Git, references, evidence and authority before acting.
 
+Recover compatible artifact sessions using the original `TaskKey` and the
+recorded marker digest. Check build inputs before reuse. See the Task
+Continuity distribution guide for session inspection and authorized cleanup.
+
 Keep Plans and Specs in their owning repositories and reference them by
 path and revision or hash. Route any proposed document change through its
 owner's approval process. Use the existing engine and storage model.

@@ -177,7 +177,9 @@ Review the process evidence after any change.
     $firstPointer = [IO.File]::ReadAllText($current)
     [void][IO.Directory]::CreateDirectory($previous)
     $publicationFailed = $false
-    try { $null = & $manager save @codex }
+    $publicationProgress = Join-Path $fixture 'publication-progress.md'
+    Write-Fixture 'publication-progress.md' ($resumed.Progress -replace '(?m)^## Next Action\r?$', "## Next Action`nReview the new fixture observation.")
+    try { $null = & $manager save @codex -ProgressFile $publicationProgress -ConfirmScope -ExpectedCheckpointId $firstId }
     catch [IO.IOException], [UnauthorizedAccessException] { $publicationFailed = $true }
     finally { [IO.Directory]::Delete($previous) }
     Assert-True ($publicationFailed -and (& $manager status @codex).CheckpointId -ceq $firstId) 'Failed pointer publication displaced the confirmed checkpoint.'
@@ -198,7 +200,8 @@ Review the process evidence after any change.
         $currentPointer = [IO.File]::ReadAllText($current)
         $reader = [IO.File]::Open($current, 'Open', 'Read', 'Read')
         $publicationFailed = $false
-        try { $null = & $manager save @codex }
+        Write-Fixture 'publication-progress.md' ($editedProgress -replace '(?m)^## Next Action\r?$', "## Next Action`nReview the failed replacement fixture.")
+        try { $null = & $manager save @codex -ProgressFile $publicationProgress -ConfirmScope -ExpectedCheckpointId $updated.CheckpointId }
         catch [IO.IOException], [UnauthorizedAccessException] { $publicationFailed = $true }
         finally { $reader.Dispose() }
         Assert-True ($publicationFailed -and [IO.File]::ReadAllText($current) -ceq $currentPointer -and

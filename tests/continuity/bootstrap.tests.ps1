@@ -93,6 +93,10 @@ Review the latest evidence.
     try {
         $env:CIRNET_LOCAL_STORAGE_ROOT = $configured
         $central = & $manager save @scope @seed -TaskId central
+        $repeat = & $manager save @scope -TaskId central -ExpectedCheckpointId $central.CheckpointId
+        Assert-True ($repeat.CheckpointId -ceq $central.CheckpointId -and $repeat.TaskKey -ceq $central.TaskKey) 'An unchanged save published a new checkpoint.'
+        $resume = & $manager resume @scope -TaskId central
+        Assert-True ($resume.TaskKey -ceq $central.TaskKey) 'Artifact owner key was not recovered from the original task.'
         $centralTask = Join-Path $configured '.cirnet/tasks/cirnet-rules/central'
         Assert-True ([IO.File]::Exists((Join-Path $centralTask 'current.json'))) 'Canonical Git origin did not select the namespaced checkpoint.'
         Assert-True ((& $manager bootstrap @scope -TaskId central).CheckpointId -ceq $central.CheckpointId) 'Central checkpoint recovery failed.'

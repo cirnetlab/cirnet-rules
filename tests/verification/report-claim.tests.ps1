@@ -277,7 +277,12 @@ if ((Get-Content -LiteralPath '.local/source.txt' -Raw) -cne 'fixture source' -o
     Write-Fixture $worktree '.local/owner-extra.txt' 'changed prerequisite'
     $null = Read-ClaimReport $id 3 BLOCKED
     Write-Fixture $worktree '.local/owner-extra.txt' 'owner prerequisite'
-    $null = & $manager save @owner
+    $unchanged = & $manager save @owner
+    if ($unchanged.CheckpointId -cne $observed.CheckpointId) { throw 'An unchanged source save should preserve the strict seal.' }
+    $null = Read-ClaimReport $id 0 VALIDATED
+    $reviewProgress = (Get-Content -LiteralPath (Join-Path $fixture 'progress.md') -Raw) -replace '(?m)^## Next Action\r?$', "## Next Action`nReview the updated source task."
+    Write-Fixture $fixture 'owner-progress.md' $reviewProgress
+    $null = & $manager save @owner -ConfirmScope -ExpectedCheckpointId $unchanged.CheckpointId -ProgressFile (Join-Path $fixture 'owner-progress.md')
     $null = Read-ClaimReport $id 3 BLOCKED
 
     $savedResult = $resultRelative
