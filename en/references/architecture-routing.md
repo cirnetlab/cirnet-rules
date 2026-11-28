@@ -3,7 +3,10 @@
 This index follows [Ecosystem Architecture §4](../../docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-en.md).
 Use it to find the relevant owner, then verify the live contract, selected
 artifacts and availability in that checkout. The table records target ownership
-and integration paths. Verify implementation in the
+and integration paths. The table keys follow the pinned Ecosystem snapshot. The
+historical `cirnet-project` key routes to the official
+[Project Manager repository](https://github.com/cirnetlab/cirnet-project-manager).
+Verify implementation in the
 [product evidence](../docs/toolkit-verification.md#lab-first-product-evidence).
 
 Every row uses `ecosystem`. The six core Lab-First repositories also use
@@ -32,8 +35,8 @@ the API call, data or artifact exchange between direct participants. See the
 | --- | --- | --- | --- | --- | --- |
 | `cirnet-platform` | `ecosystem` | Shared identity and tenant context | IAM and tenant APIs, OIDC sessions, scoped claims, audit context | Platform → Project, LMS, Remote and other domains after tested cutover | Domain owners authorize resources, leases, grades and physical actions. |
 | `cirnet-contracts` | `ecosystem`, `lab-first` | Canonical shared cross-repo contracts | Versioned schemas, DTOs, API/RPC/NCAP descriptors, Rust/TS SDKs, conformance fixtures | Domain owners → Contracts → Interface, Remote, Hardware and other pinned consumers | Domain owners retain business semantics. Generate SDKs from canonical schemas. |
-| `cirnet-project` | `ecosystem` | EngineeringProject lifecycle and collaboration | Project API, immutable revision IDs, ACLs, artifact references | Project → Studio, Lab, LMS and Format-Project | Project authorizes references. Producers own raw artifacts and their access. Format-Project owns the codec. |
-| `cirnet-format-project` | `ecosystem` | Portable project serialization | Package format, manifest, readers/writers, integrity and migration fixtures | Project and domain artifacts → Format-Project → Studio and CLI | Validate bounded paths, sizes and integrity. Resource owners authorize export and import effects. |
+| `cirnet-project` | `ecosystem` | `cirnet-project-manager` owns EngineeringProject and document lifecycle | Project commands, logical tree, lifecycle revision and artifact references | Applications → Project Manager → Format-Project | Producers own raw artifacts and their access. Server persistence and authorization remain with the current service owner. |
+| `cirnet-format-project` | `ecosystem` | Portable project serialization | Manifest, document codecs, resource graph, transactions, recovery, package integrity and migration | Project Manager and standalone format consumers → Format-Project | Validate bounded paths, sizes and integrity. Keep Format-Project independent of Project Manager and domain engines. |
 | `cirnet-database` | `ecosystem` | Data infrastructure operations | Provisioning, migration runner, retention, tested recovery procedures | Database → Remote, LMS, Project and other data owners | Domains retain business schemas and migrations. Secure backups and recovery. |
 | `cirnet-lms` | `ecosystem` | Authoritative academic lifecycle | Courses, enrollment, assignments, submissions, rubrics, gradebook APIs and events | Project and Remote supply references → LMS → Learn and instructors | Scope records and disclosure by class and tenant. Remote retains Lab controls and captures. |
 
@@ -72,6 +75,12 @@ guidance, distribution and canonical architecture, `about-cirnetlab` for indepen
 and `.github` for GitHub organization configuration and
 automation metadata. Product APIs and physical approvals remain with their
 product owners.
+
+The future `cirnet-cad` repository owns the parametric CAD model, editable
+geometry, CAD codec and the SolidCraft interoperability boundary. Project
+assembly references models for placement. Project Format 1.0 carries CAD
+as opaque native assets. CAD domain codecs are supplied by their owner
+through an adapter.
 
 For CAD model authoring and asset preflight, use the shared
 [CAD engineering rule](../rules/cad-engineering.md). Interface owns its

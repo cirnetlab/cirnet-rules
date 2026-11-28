@@ -3,7 +3,10 @@
 Bảng tra cứu dựa trên [Kiến trúc Ecosystem §4](../../docs/tai-lieu-kien-tuc-he-thong/cirnetlab-architecture-vi.md).
 Dùng bảng để tìm repo sở hữu, rồi xác minh hợp đồng đang dùng, artifact được
 chọn và khả năng sẵn có từ checkout đó. Bảng ghi quyền sở hữu và luồng tích hợp
-mục tiêu. Kiểm tra phần đã triển khai trong
+mục tiêu. Khóa trong bảng theo snapshot Ecosystem được ghim. Khóa lịch sử
+`cirnet-project` dẫn tới
+[repository Project Manager chính thức](https://github.com/cirnetlab/cirnet-project-manager).
+Kiểm tra phần đã triển khai trong
 [bằng chứng sản phẩm](../docs/toolkit-verification.md#tuân-thủ-kiến-trúc).
 
 Mọi dòng dùng `ecosystem`. Sáu repository cốt lõi của Lab-First dùng thêm
@@ -32,8 +35,8 @@ khi tác vụ vượt một trong các ranh giới đó. Mũi tên chỉ chiều
 | --- | --- | --- | --- | --- | --- |
 | `cirnet-platform` | `ecosystem` | Định danh dùng chung và tenant | API IAM và tenant, phiên OIDC, claim theo phạm vi, ngữ cảnh audit | Platform → Project, LMS, Remote và các miền khác sau chuyển giao đã kiểm thử | Miền sở hữu cấp quyền cho tài nguyên, lease, điểm và thao tác vật lý. |
 | `cirnet-contracts` | `ecosystem`, `lab-first` | Hợp đồng liên repo chuẩn | Schema có phiên bản, DTO, mô tả API/RPC/NCAP, SDK Rust/TS, fixture tuân thủ | Bên sở hữu miền → Contracts → Interface, Remote, Hardware và bên tiêu thụ đã ghim | Ngữ nghĩa nghiệp vụ thuộc chủ miền. Sinh SDK từ schema chuẩn. |
-| `cirnet-project` | `ecosystem` | Vòng đời EngineeringProject và cộng tác | API Project, ID revision bất biến, ACL, tham chiếu artifact | Project → Studio, Lab, LMS và Format-Project | Project cấp quyền cho tham chiếu. Bên tạo sở hữu artifact thô và quyền truy cập. Format-Project sở hữu codec. |
-| `cirnet-format-project` | `ecosystem` | Tuần tự hóa dự án để trao đổi | Định dạng gói, manifest, reader/writer, fixture toàn vẹn và di trú | Project và artifact miền → Format-Project → Studio và CLI | Kiểm tra giới hạn đường dẫn, kích thước và toàn vẹn. Bên sở hữu tài nguyên cấp quyền export và các hiệu lực import. |
+| `cirnet-project` | `ecosystem` | `cirnet-project-manager` sở hữu vòng đời EngineeringProject và tài liệu | Lệnh dự án, cây logic, tham chiếu revision vòng đời và artifact | Ứng dụng → Project Manager → Format-Project | Bên tạo sở hữu artifact thô và quyền truy cập. Lưu trữ và cấp quyền máy chủ vẫn thuộc bên sở hữu dịch vụ hiện hành. |
+| `cirnet-format-project` | `ecosystem` | Tuần tự hóa dự án để trao đổi | Manifest, codec tài liệu, đồ thị tài nguyên, giao dịch, phục hồi, toàn vẹn gói và chuyển đổi | Project Manager và các bên dùng định dạng độc lập → Format-Project | Kiểm tra giới hạn đường dẫn, kích thước và toàn vẹn. Giữ Format-Project độc lập với Project Manager và engine chuyên ngành. |
 | `cirnet-database` | `ecosystem` | Vận hành hạ tầng dữ liệu | Cấp phát, trình chạy di trú, lưu giữ, quy trình khôi phục đã kiểm thử | Database → Remote, LMS, Project và các miền dữ liệu khác | Miền giữ schema và migration nghiệp vụ. Bảo vệ bản sao lưu và khôi phục. |
 | `cirnet-lms` | `ecosystem` | Vòng đời học vụ có thẩm quyền | Khóa học, ghi danh, bài tập, bài nộp, rubric, API và sự kiện sổ điểm | Project và Remote cung cấp tham chiếu → LMS → Learn và giảng viên | Giới hạn bản ghi và tiết lộ theo lớp và tenant. Remote giữ điều khiển Lab và bản ghi đo. |
 
@@ -72,6 +75,11 @@ phối agent và kiến trúc chuẩn, `about-cirnetlab` về lưu trữ độc 
 `.github` về cấu hình tổ chức GitHub và metadata tự động hóa. Chủ sở
 hữu sản phẩm giữ API sản phẩm và quyền phê duyệt thao tác vật lý.
 
+Repository `cirnet-cad` tương lai sở hữu mô hình CAD tham số, hình học có
+thể chỉnh sửa, codec CAD và ranh giới tương tác SolidCraft. Bản lắp ráp dự
+án tham chiếu đến mô hình để bố trí. Project Format 1.0 mang CAD dưới dạng
+tài nguyên native opaque. Bên sở hữu cung cấp codec CAD qua adapter.
+
 Để dựng mô hình CAD và kiểm tra tài sản trước khi tích hợp, dùng
 [Rule kỹ thuật CAD dùng chung](../rules/cad-engineering.md). Interface sở hữu
 hợp đồng tài sản Three.js và quyết định nghiệm thu sản phẩm. Dùng
@@ -79,4 +87,4 @@ hợp đồng tài sản Three.js và quyết định nghiệm thu sản phẩm.
 cho việc chọn đối tượng, chỉnh sửa và lưu trạng thái trong workbench tương tác.
 
 <!-- source: en/references/architecture-routing.md -->
-<!-- source-sha256: f023c347dbc5337a0ae3909aa59e5c554f75d51fc43b3de366781201e1377e8e -->
+<!-- source-sha256: 97e48105438b0463d2114be551b08bebd3bf15f597e74d66bb54b7df039d9d3a -->
